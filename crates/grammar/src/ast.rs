@@ -205,15 +205,27 @@ impl Node {
         }
     }
 
-    /// Sequence of statements, rendered as nested Lets with a Nop tail. Convenience for
-    /// building the reference programs without inventing a Seq primitive.
+    /// Sequence of statements, rendered as nested Lets — there is no Seq primitive in the
+    /// grammar and inventing one would be adding a Given row.
+    ///
+    /// A `Let` written as a STATEMENT must scope over the REST of the sequence, not over its
+    /// own placeholder body. Getting this wrong made `best` in the alpha-beta seed invisible
+    /// to the loop that accumulates it, so the encoded program silently read 0; the benchmark's
+    /// eval-count equivalence check is what exposed it (1361 vs 825 leaves).
     pub fn seq(mut stmts: Vec<Node>) -> Node {
         match stmts.len() {
             0 => Node::Nop,
             1 => stmts.pop().unwrap(),
             _ => {
                 let first = stmts.remove(0);
-                Node::Let("_".into(), Box::new(first), Box::new(Node::seq(stmts)))
+                let rest = Node::seq(stmts);
+                match first {
+                    // re-scope a binding over everything that follows it
+                    Node::Let(name, init, body) if matches!(*body, Node::Nop) => {
+                        Node::Let(name, init, Box::new(rest))
+                    }
+                    other => Node::Let("_".into(), Box::new(other), Box::new(rest)),
+                }
             }
         }
     }

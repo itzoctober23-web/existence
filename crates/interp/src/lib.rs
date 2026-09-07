@@ -14,6 +14,7 @@
 //! paradigm-neutral and ungameable by a program that simply avoids calling `eval`.
 
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use board::types::{MOVE_NONE, Move, Outcome};
 use board::Position;
@@ -22,9 +23,11 @@ use nnue::Net;
 
 #[derive(Clone, Debug)]
 pub enum Value {
-    Pos(Position),
+    /// Rc, not a bare Position: a variable reference clones its Value, and the seed program
+    /// names `p` four times per node. A bare Position made every mention a deep copy.
+    Pos(Rc<Position>),
     Mv(Move),
-    List(Vec<Move>),
+    List(Rc<Vec<Move>>),
     Num(i64),
     Out(Outcome),
     Bool(bool),
@@ -42,7 +45,7 @@ impl Value {
     }
     fn pos(&self) -> &Position {
         match self {
-            Value::Pos(p) => p,
+            Value::Pos(p) => p.as_ref(),
             _ => panic!("type error: expected Pos"),
         }
     }
@@ -63,6 +66,9 @@ enum Flow {
 pub struct Interp<'a> {
     pub net: &'a Net,
     pub cost: u64,
+    /// Leaf evaluations. The benchmark compares this against the reference's count to prove
+    /// both arms searched the SAME tree before believing any speed ratio.
+    pub evals: u64,
     /// Learned integer tables. Index 0 = D (depth), 1 = INF, 2.. = whatever a program reads.
     pub tables: Vec<i64>,
     hash: HashMap<u64, i64>,
@@ -70,13 +76,14 @@ pub struct Interp<'a> {
     budget: i64,
 }
 
-type Env = Vec<(String, Value)>;
+type Env<'p> = Vec<(&'p str, Value)>;
 
 impl<'a> Interp<'a> {
     pub fn new(net: &'a Net, tables: Vec<i64>) -> Self {
         Interp {
             net,
             cost: 0,
+            evals: 0,
             tables,
             hash: HashMap::new(),
             scratch: Vec::new(),
@@ -84,37 +91,38 @@ impl<'a> Interp<'a> {
         }
     }
 
-    pub fn run(&mut self, prog: &Program, pos: &Position, budget: i64) -> Move {
+    pub fn run<'p>(&mut self, prog: &'p Program, pos: &Position, budget: i64) -> Move {
         self.cost = 0;
+        self.evals = 0;
         self.budget = budget;
         self.hash.clear();
         let f = prog.entry();
-        let mut env: Env = vec![
-            (f.params[0].0.clone(), Value::Pos(pos.clone())),
-            (f.params[1].0.clone(), Value::Num(budget)),
+        let mut env: Env<'p> = vec![
+            (f.params[0].0.as_str(), Value::Pos(Rc::new(pos.clone()))),
+            (f.params[1].0.as_str(), Value::Num(budget)),
         ];
         match self.exec(&f.body, prog, &mut env) {
             Flow::Ret(v) | Flow::Normal(v) => v.mv(),
         }
     }
 
-    fn lookup(env: &Env, name: &str) -> Value {
+    fn lookup(env: &Env<'_>, name: &str) -> Value {
         env.iter()
             .rev()
-            .find(|(n, _)| n == name)
+            .find(|(n, _)| *n == name)
             .map(|(_, v)| v.clone())
             .unwrap_or(Value::Unit)
     }
 
-    fn assign(env: &mut Env, name: &str, v: Value) {
-        if let Some(slot) = env.iter_mut().rev().find(|(n, _)| n == name) {
+    fn assign<'p>(env: &mut Env<'p>, name: &'p str, v: Value) {
+        if let Some(slot) = env.iter_mut().rev().find(|(n, _)| *n == name) {
             slot.1 = v;
         } else {
-            env.push((name.to_string(), v));
+            env.push((name, v));
         }
     }
 
-    fn exec(&mut self, n: &Node, prog: &Program, env: &mut Env) -> Flow {
+    fn exec<'p>(&mut self, n: &'p Node, prog: &'p Program, env: &mut Env<'p>) -> Flow {
         self.cost += 1;
         macro_rules! val {
             ($e:expr) => {
@@ -138,14 +146,14 @@ impl<'a> Interp<'a> {
             Node::Moves(p) => {
                 let p = val!(p);
                 let l = p.pos().legal_moves();
-                Value::List(l.as_slice().to_vec())
+                Value::List(Rc::new(l.as_slice().to_vec()))
             }
             Node::Apply(p, m) => {
                 let pv = val!(p);
                 let mv = val!(m).mv();
                 let mut np = pv.pos().clone();
                 np.make_move(mv);
-                Value::Pos(np)
+                Value::Pos(Rc::new(np))
             }
             Node::Terminal(p) => {
                 let p = val!(p);
@@ -163,6 +171,7 @@ impl<'a> Interp<'a> {
                 Value::Key(h)
             }
             Node::Eval(p) => {
+                self.evals += 1;
                 let p = val!(p);
                 Value::Num(self.net.eval(p.pos(), &mut self.scratch) as i64)
             }
@@ -254,7 +263,7 @@ impl<'a> Interp<'a> {
 
             Node::Let(name, init, body) => {
                 let v = val!(init);
-                env.push((name.clone(), v));
+                env.push((name.as_str(), v));
                 let r = self.exec(body, prog, env);
                 env.pop();
                 return r;
@@ -277,10 +286,10 @@ impl<'a> Interp<'a> {
             Node::Foreach(list, var, body) => {
                 let items = match val!(list) {
                     Value::List(l) => l,
-                    _ => vec![],
+                    _ => Rc::new(vec![]),
                 };
-                for m in items {
-                    env.push((var.clone(), Value::Mv(m)));
+                for &m in items.iter() {
+                    env.push((var.as_str(), Value::Mv(m)));
                     let r = self.exec(body, prog, env);
                     env.pop();
                     if let Flow::Ret(v) = r {
@@ -301,12 +310,12 @@ impl<'a> Interp<'a> {
             Node::Argmax(list, var, key) | Node::Sort(list, var, key) | Node::Sample(list, var, key) => {
                 let items = match val!(list) {
                     Value::List(l) => l,
-                    _ => vec![],
+                    _ => Rc::new(vec![]),
                 };
                 let mut best = MOVE_NONE;
                 let mut best_k = i64::MIN;
-                for m in items {
-                    env.push((var.clone(), Value::Mv(m)));
+                for &m in items.iter() {
+                    env.push((var.as_str(), Value::Mv(m)));
                     let r = self.exec(key, prog, env);
                     env.pop();
                     let k = match r {
@@ -326,11 +335,11 @@ impl<'a> Interp<'a> {
                 for a in args {
                     vals.push(val!(a));
                 }
-                let mut inner: Env = f
+                let mut inner: Env<'p> = f
                     .params
                     .iter()
                     .zip(vals)
-                    .map(|((n, _), v)| (n.clone(), v))
+                    .map(|((n, _), v)| (n.as_str(), v))
                     .collect();
                 match self.exec(&f.body, prog, &mut inner) {
                     Flow::Ret(v) | Flow::Normal(v) => v,

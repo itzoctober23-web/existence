@@ -201,16 +201,24 @@ move that is not in `moves(p)`). Mates-per-cost uses `terminal`-derived outcomes
   (catches runaway programs, not paradigms).
 - Hard runtime ceilings: recursion depth 128; total cost units per `choose` = budget; wall
   time enforced by the harness.
-- **STAGE-1 MEASUREMENT TAKEN (tree-walker): ratio 0.14-0.15x, acceptance is 0.50.** The
-  stage-1 interpreter walks the AST directly; it is strictly slower than bytecode, so this is
-  a LOWER BOUND, not a verdict. It was built first because it is small enough to be obviously
-  correct and it localises the cost cheaply. What it shows: the overhead is interpretation of
-  the non-eval work, because `Net::eval` (a full dense forward pass, no incremental
-  accumulator yet) is paid IDENTICALLY by both arms and therefore cancels in the ratio -- the
-  hand-written reference itself runs at only ~9.5k nps for the same reason. The tree-walker's
-  tax is string-keyed environment lookup, a push/pop per node, and a Position clone per
-  `apply`; a register bytecode removes all three. GATE STATUS: UNRESOLVED. It is decided by
-  the bytecode measurement, and only a bytecode result below 0.50 condemns the design.
+- **ACCEPTANCE MEASUREMENT: PASSED at 0.98-0.99x (line is 0.50), by the tree-walker alone.**
+  Measured by `crates/interp` (examples/bench_interp.rs) at depths 3 and 4, with an
+  EQUIVALENCE CHECK that both arms evaluated the same number of leaves (2099 vs 2099;
+  19675 vs 19675) before any ratio is believed.
+  Consequence: the register bytecode of CRATE 4 is NOT needed to clear this gate and can be
+  deferred. `Net::eval` dominates both arms identically (~10k nps either way, a dense forward
+  pass with no incremental accumulator), so interpretation overhead is near-free at the
+  current eval cost. Re-measure when the eval gets fast: the ratio only becomes informative
+  once eval stops dominating.
+  **An earlier reading of 0.14x was a HARNESS BUG, not a result** -- three stacked errors:
+  (1) the seed's `choose` expands the root itself, so passing D=depth searched one ply deeper
+  than the reference; (2) a `Let` written as a statement in the encoded seed scoped only over
+  its own placeholder, so the `best` accumulator was invisible to the loop and read 0;
+  (3) the reference narrowed alpha across root moves while the seed gives each a full window.
+  Two "fixes" aimed at the interpreter (removing string-keyed env lookup, making Position
+  refcounted) changed the number by nothing, which is what exposed the harness as the culprit.
+  The eval-count check is now permanent so a ratio can never again be printed for two
+  different trees.
 - Compilation target: a register-based bytecode with a Rust interpreter. Acceptance
   criterion for the interpreter design: the compiled main seed runs at >= 50% of the NPS
   of a hand-written Rust bare alpha-beta with the same net. If not met, the grammar
