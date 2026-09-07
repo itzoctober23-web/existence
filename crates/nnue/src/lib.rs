@@ -28,7 +28,11 @@ pub type Score = i32;
 #[derive(Clone)]
 pub struct Net {
     pub n_hidden: usize,
-    /// [n_hidden][N_INPUTS], row-major.
+    /// [N_INPUTS][n_hidden], INPUT-major. Stored this way on purpose: the feature vector is
+    /// one-hot-ish (about 38 of 782 inputs are ever non-zero -- 32 pieces at most, plus side to
+    /// move, castling and ep), so evaluation is a gather-add over the rows of the ACTIVE inputs
+    /// rather than a dense 256x782 sweep. Same arithmetic, ~20x fewer operations, and each row
+    /// is contiguous so it vectorises.
     pub w1: Vec<f32>,
     pub b1: Vec<f32>,
     pub w2: Vec<f32>,
@@ -48,7 +52,7 @@ impl Net {
         let s2 = (2.0f32 / n_hidden as f32).sqrt();
         Net {
             n_hidden,
-            w1: (0..n_hidden * N_INPUTS).map(|_| r.normal() * s1).collect(),
+            w1: (0..N_INPUTS * n_hidden).map(|_| r.normal() * s1).collect(),
             b1: vec![0.0; n_hidden],
             w2: (0..n_hidden).map(|_| r.normal() * s2).collect(),
             b2: 0.0,
@@ -56,44 +60,58 @@ impl Net {
         }
     }
 
-    /// Write the position's input vector. Absolute frame: no flipping, no mirroring, no
+    /// Indices of the ACTIVE inputs. Absolute frame: no flipping, no mirroring, no
     /// king-relativity (MASTER_PLAN Given). Whether a mover-relative view helps is something
     /// architecture search may DISCOVER; it is not given.
-    pub fn features(pos: &Position, out: &mut [f32]) {
-        out.fill(0.0);
+    pub fn active(pos: &Position, out: &mut Vec<u16>) {
+        out.clear();
         for c in [Color::White, Color::Black] {
             for k in PieceKind::ALL {
-                let base = (c.idx() * N_PIECE_KINDS + k.idx()) * 64;
+                let base = ((c.idx() * N_PIECE_KINDS + k.idx()) * 64) as u16;
                 for sq in bb::squares(pos.pieces[c.idx()][k.idx()]) {
-                    out[base + sq as usize] = 1.0;
+                    out.push(base + sq as u16);
                 }
             }
         }
-        out[IDX_STM] = if pos.stm == Color::White { 1.0 } else { 0.0 };
+        if pos.stm == Color::White {
+            out.push(IDX_STM as u16);
+        }
         for i in 0..4 {
             if pos.castling & (1 << i) != 0 {
-                out[IDX_CASTLE + i] = 1.0;
+                out.push((IDX_CASTLE + i) as u16);
             }
         }
         if let Some(ep) = pos.ep {
-            out[IDX_EP + ep.file() as usize] = 1.0;
+            out.push(IDX_EP as u16 + ep.file() as u16);
+        }
+    }
+
+    /// Dense reference version, kept ONLY so tests can prove the sparse path agrees with it.
+    pub fn features_dense(pos: &Position, out: &mut [f32]) {
+        out.fill(0.0);
+        let mut idx = Vec::new();
+        Self::active(pos, &mut idx);
+        for i in idx {
+            out[i as usize] = 1.0;
         }
     }
 
     /// Evaluate from WHITE's point of view, then flip for the mover. The flip is a convention
     /// of the search interface (negamax wants mover-relative), not a claim about the position.
     pub fn eval(&self, pos: &Position, scratch: &mut Vec<f32>) -> Score {
-        scratch.resize(N_INPUTS, 0.0);
-        Self::features(pos, scratch);
+        let mut idx: Vec<u16> = Vec::with_capacity(40);
+        Self::active(pos, &mut idx);
+        scratch.clear();
+        scratch.extend_from_slice(&self.b1);
+        for i in idx {
+            let row = &self.w1[i as usize * self.n_hidden..(i as usize + 1) * self.n_hidden];
+            for (a, w) in scratch.iter_mut().zip(row.iter()) {
+                *a += *w;
+            }
+        }
         let mut acc = 0.0f32;
         for h in 0..self.n_hidden {
-            let row = &self.w1[h * N_INPUTS..(h + 1) * N_INPUTS];
-            let mut s = self.b1[h];
-            for (w, x) in row.iter().zip(scratch.iter()) {
-                if *x != 0.0 {
-                    s += w * x;
-                }
-            }
+            let s = scratch[h];
             if s > 0.0 {
                 acc += s * self.w2[h]; // ReLU
             }
