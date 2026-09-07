@@ -71,7 +71,7 @@ validated by perft AND random games to terminal, the interpreter benchmark (the 
 measurement that can kill the plan), one gate end to end.
 
 ## License and release
-**GPLv3** (see [`LICENSE`](LICENSE)). Copyright (C) 2026 the Existence authors. Open source from the
+**GPLv3** (see [`LICENSE`](LICENSE)). Copyright (C) 2026 ExistenceIsPain. Open source from the
 first commit, because the claim requires it: "learned everything from the rules" is only
 checkable if the Given column can be read in the code, and the ledger is only a write-up
 if the code that produced it is inspectable. Open source is also what OpenBench requires
