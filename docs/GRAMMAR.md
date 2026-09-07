@@ -201,6 +201,16 @@ move that is not in `moves(p)`). Mates-per-cost uses `terminal`-derived outcomes
   (catches runaway programs, not paradigms).
 - Hard runtime ceilings: recursion depth 128; total cost units per `choose` = budget; wall
   time enforced by the harness.
+- **STAGE-1 MEASUREMENT TAKEN (tree-walker): ratio 0.14-0.15x, acceptance is 0.50.** The
+  stage-1 interpreter walks the AST directly; it is strictly slower than bytecode, so this is
+  a LOWER BOUND, not a verdict. It was built first because it is small enough to be obviously
+  correct and it localises the cost cheaply. What it shows: the overhead is interpretation of
+  the non-eval work, because `Net::eval` (a full dense forward pass, no incremental
+  accumulator yet) is paid IDENTICALLY by both arms and therefore cancels in the ratio -- the
+  hand-written reference itself runs at only ~9.5k nps for the same reason. The tree-walker's
+  tax is string-keyed environment lookup, a push/pop per node, and a Position clone per
+  `apply`; a register bytecode removes all three. GATE STATUS: UNRESOLVED. It is decided by
+  the bytecode measurement, and only a bytecode result below 0.50 condemns the design.
 - Compilation target: a register-based bytecode with a Rust interpreter. Acceptance
   criterion for the interpreter design: the compiled main seed runs at >= 50% of the NPS
   of a hand-written Rust bare alpha-beta with the same net. If not met, the grammar

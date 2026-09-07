@@ -1,0 +1,12 @@
+[package]
+name = "interp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Runs a search program. Cost accounting per primitive IS the budget."
+
+[dependencies]
+board = { path = "../board" }
+nnue = { path = "../nnue" }
+grammar = { path = "../grammar" }

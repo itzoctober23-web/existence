@@ -19,6 +19,15 @@ name = "grammar"
 version = "0.1.0"
 
 [[package]]
+name = "interp"
+version = "0.1.0"
+dependencies = [
+ "board",
+ "grammar",
+ "nnue",
+]
+
+[[package]]
 name = "nnue"
 version = "0.1.0"
 dependencies = [
