@@ -143,30 +143,29 @@ are replaced by the parser's exact counts the day the grammar is implemented, an
 prior statement below is re-derived from those. Relative ordering (AB < PN < MCTS,
 hybrids between) is robust to the estimate error; the absolute skew is not yet exact.
 
-| Program | Nodes | Distance from main seed (mutations) |
+| Program | Nodes (MEASURED) | Fidelity of the encoding |
 |---|---|---|
-| depth-one | 8 | — (purity seed) |
-| bare alpha-beta | 29 | 0 (main seed) |
-| alpha-beta + hash reuse (probe before search, store after) | 41 | ~4 |
-| alpha-beta + hash + iterative deepening | 52 | ~3 more |
-| alpha-beta + hash + ID + horizon capture extension (qsearch-like) | 61 | ~3 more |
-| alpha-beta + hash + ID + qs + table-driven reduction (LMR-like) | 72 | ~4 more |
-| UCT-style MCTS with net value (no policy head) | 44 | ~12 |
-| MCTS with policy-weighted selection (requires a policy output from architecture search) | 52 | ~14 |
-| Proof-number search (terminal-driven; useful for mate fitness) | 39 | ~10 |
-| Hybrid: alpha-beta with avg backup where |eval| below table threshold | 38 | ~5 |
-| Hybrid: visit-count-guided expansion with max backup | 47 | ~9 |
+| depth-one | 9 | faithful (purity seed) |
+| bare alpha-beta | 75 | faithful (main seed) |
+| alpha-beta + hash reuse | 93 | faithful |
+| UCT-style MCTS | 60 | SKETCH -- no true backprop/expansion; a LOWER BOUND |
+| proof-number search | 43 | SKETCH -- terminal-driven core only; a LOWER BOUND |
 
-**The prior, stated — lead with mutations, not nodes.** Alpha-beta is the main seed;
-MCTS is ~12 mutations away; PN is ~10 away; hybrids 5-9. Mutation distance is the robust
-statement of the prior. The node gap (29 vs 44 nominal) does NOT survive the +/-20%
-estimate error: 29 spans ~23-35 and 44 spans ~35-53, so the gap's interval is roughly
-0-30 nodes. It is reported as an interval until the parser gives exact counts. `sqrt`, `log`,
-`avg`, `sample`, and slot fields `count`/`sum` exist to keep MCTS reachable at all;
-without them it is not expressible and the "stayed in the alpha-beta basin" result would
-be vacuous. Hybrids are 5-9 mutations from the seed, i.e. CLOSER than pure MCTS — the
-grammar makes small departures from alpha-beta cheaper than paradigm shifts. That is a
-property of program-length priors in general and is declared here.
+**STATUS: measured by `crates/grammar` (examples/prior.rs), not estimated.** Run it to
+reproduce. The earlier hand estimates in this section were badly wrong -- bare alpha-beta was
+guessed at 29 and measures **75**, a 2.6x error, far outside the +/-20% they were flagged at.
+Nothing derived from the old numbers survives.
+
+**The prior, restated honestly.** The old text claimed the grammar was biased TOWARD
+alpha-beta by ~15-17 nodes. On measured counts the seed is the LONGEST faithful program in the
+table, so that claim is not supported and its sign may well be reversed. But the MCTS and PN
+rows are sketches and therefore lower bounds, so the comparison is not yet apples-to-apples
+and **the direction of the skew is currently UNRESOLVED**. Resolving it requires faithful
+encodings of MCTS and PN; until those exist, no claim about which paradigm the grammar favours
+should appear in a write-up.
+
+What IS established: the main seed is bare alpha-beta and costs 75 nodes; the purity lineage
+starts 66 nodes away from it; hash reuse is +18 from the seed.
 
 **Discount rule for the write-up:** the purity lineage rediscovering bounding is
 reported with the distance depth-one -> bare AB (~19 nodes, ~8 mutations) attached. Any
