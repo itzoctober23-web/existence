@@ -1,0 +1,402 @@
+# Existence — Master Plan
+
+Project title: **ExistenceIsPain**. Engine name on rating lists: **Existence** (short form EIP).
+The name is the thesis: the engine starts knowing nothing except that losing is bad —
+its only initial signal is the outcome. Everything it knows was learned from that.
+
+## Principle
+Given: the rules of chess, machinery that contains no chess opinion, and one editable
+seed — bare alpha-beta recursion, nothing on it. Learned: everything else — evaluation,
+every method layered on the search (and the search itself if a better one exists), the
+balance between them, and the concepts it uses. A parallel lineage starts from depth-one
+so the seed row can be retired from Given if it is rediscovered. Explained: from its own computation only, in a vocabulary drawn
+from the rules and from what it learned. No human chess knowledge enters at any
+point. Humans may annotate what it discovered, in a separate layer, after the fact.
+
+Test of the Given column: point the identical toolkit at Shogi with a Shogi movegen
+and nothing changes but the movegen and the rules-defined state it exposes (including
+pieces in hand). If any other row would have to change, that row contains a chess
+opinion. The search grammar passes this test only in the weak sense: it contains no
+chess, but it does carry a declared prior over which search algorithms are short.
+
+## Given (declared, defended line by line)
+Two kinds of rows, deliberately kept apart:
+- **Knowledge rows** — what the engine knows about the game. Only the rules. Every
+  other piece of chess knowledge is learned.
+- **Objective rows** — what success means and how it is checked: outcome as signal,
+  the STC->LTC gate, SPRT, the correctness oracle. Fixed by the experimenter and NOT
+  learnable by design. A learner that can choose its own objective chooses the one it
+  is already maximizing (Goodhart); the gate is the only thing keeping every other
+  learned component honest. Tabula rasa concerns knowledge, not who defines success —
+  AlphaZero did not get to decide that winning was good either. The STC/LTC choice is
+  a declared judgment about what to MEASURE, never about how to play.
+
+| Component | Why it is not a chess opinion |
+|---|---|
+| Rules: perft-verified bitboard movegen, terminal conditions, zero-sum outcome | It is the game |
+| Search primitive grammar: expand child, evaluate leaf, store/probe hash, max/min/average/mix, iterate to budget, compare to bound, select-by-quantity, read learned table | Generic building blocks. NOTE: this row is the real Given column. Expressiveness is not neutrality — program length is a prior, and a grammar in which alpha-beta is a short program is biased toward alpha-beta (`compare to bound` partly pre-loads "bounding"). GRAMMAR.md must state the primitive count and the program length of alpha-beta, MCTS, and PN-search in it; those numbers ARE the prior and are declared, not hidden. The purity lineage's "rediscovered bounding" is discounted accordingly |
+| Seed search program: BARE alpha-beta — recursion with a window, nothing else. No ordering, no hash reuse, no iterative deepening, no quiescence, no extensions, no reductions, no pruning | A 1958 idea, given as an EDITABLE, REPLACEABLE seed, not a fixed skeleton. Everything layered on it since (where nearly all its strength lives) must be discovered. A parallel purity lineage starts from depth-one instead; if it reaches alpha-beta on its own, this row moves to Learned |
+| Evolutionary search over programs in that grammar | Generic optimizer for discrete programs |
+| Input: the game state as the rules define it — one binary plane per piece type per side (derived from the movegen's piece set), side to move, and any non-board state the rules carry (castling rights, en passant square; pieces in hand for games that have them) | Is the position; nothing more. No flip, no mirror, no king-relativity, no derived features. Stated as a rule, not a count, so the Shogi test survives |
+| Gradient descent; SPSA (tables, continuous params); CMA-ES (small discrete structure choices only) | Generic optimizers. SPSA scales to thousands of parameters and matches the table shape; CMA-ES degrades past a few hundred |
+| Objectives: game outcome; agreement with own deeper search | Self-referential; no external judgment |
+| Gate: SPRT ladder at fixed TIME — STC filter, LTC confirmation | Three parts, three answers (FITNESS.md 7.2). FIXED: the acceptance semantics, alpha = beta = 0.05, and the TC within a phase — the first because an instrument calibrated by its subject measures nothing, the last for comparability (one Elo scale across the ledger). ENGINE-DECIDED: how much evidence to gather (SPRT stops on evidence; the bandit allocates). DATA-DERIVED: the bounds schedule, from the median of closed, unbiased post-acceptance gains, with a declared floor. The ladder itself prevents optimizing for one clock. Fixed-cost-budget SPRT as a cheap third check for eval-only changes |
+| Bandit allocating compute across learning tracks | Methodology |
+| Menus (activations, optimizers, net-size steps) the searches choose from | Declared option sets, not choices |
+| Template vocabulary of rules words (piece names, squares, captures, checks) | Rendering only; carries no judgment |
+| Test methodology, seeds, hardware | Declared |
+
+## Iteration zero
+- Random-init net. No piece values exist anywhere in the system.
+- Search program = bare alpha-beta: negamax recursion with an alpha-beta window to a
+  fixed depth, children in emission order (shuffled). No hash reuse, no iterative
+  deepening, no quiescence, no ordering, no extensions, no reductions, no pruning. All
+  of these must be DISCOVERED as program edits that beat the current program on the
+  clock. The bounding rule and backup rule are themselves mutable.
+- Parallel purity lineage: identical, but seeded with "evaluate each legal move's
+  resulting position; play the max" (depth one). Low bandit floor. Its ledger records
+  the timestamps at which lookahead, minimax, and bounding appear. If it reaches
+  alpha-beta, the seed row leaves the Given column.
+- No search tables exist yet; a table exists only once an evolved program reads one.
+- Move ordering is irrelevant at depth one; once ordering matters, it starts shuffled.
+- No online statistics exist.
+- Draw value, mate-distance penalty, eval->WDL scale: unset, to be fit.
+- Behavior: finds mates inside its horizon (terminal conditions are rules); wanders otherwise.
+- Known cost: bare alpha-beta with a random eval and shuffled ordering is bad chess
+  for a while, and every eval is measured mid-capture. Early iterations are noisy.
+  Expected and accepted. Expected discovery order for the search program: hash reuse
+  -> iterative deepening -> hash-move-first ordering -> capture extension at the
+  horizon (qsearch) -> table-driven ordering statistics -> reductions -> pruning.
+
+## Learned
+**Eval** — the net, from outcomes and its own search scores. Feature set grown from
+piece x square via a grammar of rules-derived predicates (attacked-by, defends,
+same-line-as, adjacent, ...). Width, depth, activation, output bucketing,
+king-relativity, symmetry: discovered or not.
+
+**Search program** — the search algorithm itself, as a program in the primitive
+grammar, evolved with fixed-time SPRT as fitness. Compiled, so no per-step cost
+beyond the eval and the primitives themselves. Within it, every decision that reads a table (reductions, pruning,
+extensions, null-move, static cutoffs, probcut, multicut, IIR, aspiration, hash
+replacement, depth step, time allocation) is an integer lookup whose contents SPSA
+tunes and whose index features are learned. Evolution shapes the program; SPSA fills
+its tables.
+
+**Online statistics** — none at start. A grammar (index keys x update events x decay)
+proposes counters. History, killers, countermove, continuation history are points in
+it; so are counters nobody has tried.
+
+**Constants** — draw score, mate-distance penalty, WDL scale, every datagen and
+training hyperparameter, resign/adjudication thresholds, SPSA step/perturbation schedule.
+
+**The dial** — how much to trust the eval vs. how deep to search. Never set. Found by
+the gate: net-growth candidates and search-less candidates compete on the clock, and
+the engine drifts to whichever is buying Elo. It moves along that curve as it strengthens.
+
+## Piece values and all other concepts: emergent, never stated
+The net never contains "queen = 9". It learns that positions with more of a piece
+shape end in wins. Effective values are READ OUT post hoc via ablation (mean eval delta
+from removing a piece type over many positions). Watching that number go from noise to
+~9 in the first iterations is the first concept-discovery result. Same for every
+concept after it.
+
+## The loop — one loop, no schedule
+```
+datagen (current net + tables)  -> outcomes + root search scores
+  -> train net                  -> candidate
+  -> evolve search programs     -> candidates
+  -> SPSA over tables inside the current program -> candidates
+  -> proposers: features, stats, architecture, hyperparams -> candidates
+  -> correctness oracle (search-program candidates only): reference-search agreement
+  -> bandit picks which surviving candidates get gate time
+  -> STC SPRT vs. champion (filter)
+  -> LTC SPRT vs. champion (confirm; non-regression is the bar)
+  -> accept -> new champion, ledger entry
+```
+Every track runs from iteration zero. Nothing has a human start date. A track
+contributes the moment its candidates start passing. While the eval is noise, only the
+eval passes — that is the system deciding the order. The gate decides; the surrogate
+only proposes (blocks "prune everything" degenerate solutions).
+
+## Making the search track robust (methodology, declared)
+0. **Correctness oracle before any candidate may gate.** Fitness alone (fixed-time SPRT
+   + mates-per-cost) rewards bugs that happen to win: a program that mishandles a hash
+   collision or a fail-soft bound can return wrong scores and still gain Elo, and
+   evolution WILL find and exploit such bugs because they are free Elo (AutoML-Zero hit
+   exactly this). Every candidate program must first agree with a reference full-width
+   search to fixed depth on a fixed position set — same best move and same score within
+   tolerance where the candidate claims exactness. Programs are allowed to search LESS
+   (pruning) but not to return scores inconsistent with what they claim to have searched.
+   Cheap; without it the search track's headline result is unfalsifiable.
+1. **Eval-independent fitness from day one — and the structural counterweight to
+   recklessness.** Checkmate is a rule. Mine own games (retrograde from game endings)
+   for mate-in-N positions; add "mates found per node" to search-program fitness
+   alongside fixed-time SPRT. Deeper/tighter programs pay off on mate-finding
+   immediately, before the eval knows anything. More importantly: the characteristic
+   failure of UNSOUND pruning is missing a forced mate, so this objective punishes the
+   "prune everything" degenerate solution directly. It is a rules-derived counterweight
+   to fixed-time fitness rewarding recklessness, not a hand-designed penalty. This is
+   the strongest answer to the objection that clock-based fitness selects for
+   reckless search.
+2. **Offline ladder check before compute is spent.** Verify alpha-beta, hash reuse, ID,
+   and qsearch are expressible in the grammar and that a path of single mutations from
+   the seed exists where every step is fitter. Use the author's existing net as the test
+   eval for this rig only (test methodology, never training input). Fix grammar/fitness
+   if a step is not a gain.
+3. **Population, not a single champion.** Several lineages, different mutation rates,
+   keep the best few alive. Prevents dead-basin lock-in.
+4. **Compute floor via the bandit** so evolution cannot be starved by the faster-looking
+   eval track.
+5. **Declared fallback.** If, after grammar/fitness fixes, no program improves on the seed
+   by eval ~1800, freeze the search at bare alpha-beta plus hand-tuned hash/ID and
+   record in the ledger that those rows moved to Given. The claim shrinks honestly.
+
+## Openings and draw death — engine-derived only
+Self-play from the start position drifts toward draws as strength rises (>70% around
+2800-3000 at slow TC; mostly draws by 3300+). Draws label every position ~0 and starve
+the SPRT gate of information. No human-curated book is allowed. Three legal sources:
+
+1. **Random opening plies** — count is a learned hyperparameter. Effective early;
+   weakens as the engine strengthens (random moves yield trivial positions).
+2. **Self-generated unbalanced book** — mine own games for positions where own search
+   eval sits in a band (e.g. +0.6 to +1.5); start games there, each played from both
+   sides. Band edges are learned hyperparameters. Becomes the main source as the measured
+   draw rate rises (the bandit allocates the mix; no rating threshold). This is
+   what TCEC's book does, with the judgment coming from the engine.
+3. **Chess960 start positions** — a rules-defined family; carries no opinion. Adds
+   diversity, prevents opening memorization, improves eval generalization, and yields
+   the net wanted for 960 prep.
+
+Gating in a draw-heavy regime uses pentanomial (game-pair) statistics on the
+unbalanced book: the question becomes "did you win more pairs", as on fishtest.
+The mix across the three sources is itself allocated by the bandit.
+
+4PC note: draws are rare — measured ~1 in 200 (0.34-0.79% across four gates) — so
+this section largely does not apply to the 14x14 target.
+
+## Explanation layer — engine-only evidence
+Emitted per move from the search and the net. No external input.
+1. **Plan** — PV rendered as piece trajectories; critical moments flagged where the
+   eval spread between candidates is largest.
+2. **Contrast** — for each top alternative: its refutation line and eval drop.
+3. **Attribution** — ablation deltas per piece/square; which learned features and
+   statistics fired and how much each contributed.
+4. **Mode** — decided by depth (tactic) or by eval (judgment), read off the search.
+5. **Confidence** — engine-derived, two signals: (a) PV stability across depths — a
+   plan that changes every ply is not a plan; (b) static-eval vs. deep-search residual
+   for this position class. Early in training both read "no idea" and the renderer
+   says so. Later they separate "sure judgment" / "calculated tactic" / "unclear".
+6. **Render** — deterministic template over the rules vocabulary plus learned-feature
+   identifiers (engine's own ids, e.g. F137). Every sentence maps to a number in 1-5.
+   An optional prose renderer may paraphrase ONLY this evidence and may not add claims.
+
+Explanations are honest at every stage: at iteration zero they faithfully report
+meaningless plans and random attributions, flagged low-confidence. They become
+trustworthy on exactly the schedule the play does, and say where they are on it.
+
+Never: a commentary head trained on human annotations. Fluent, disconnected, misleading.
+
+## Self-documentation — the ledger is written by the engine
+Every accepted change is entered in the ledger BY THE SYSTEM at acceptance time, from
+evidence it already holds. Humans annotate; they do not author.
+Each entry contains:
+1. **What changed** — program diff, new/changed table, added feature or statistic,
+   architecture step, hyperparameter change; in the engine's own identifiers.
+2. **What it earned** — e1 at acceptance (the bar it provably cleared; FITNESS.md 9),
+   with the gate EVIDENCE: SPRT LLR, pairs, mates-per-cost delta, adversary win rate
+   before/after. Not an SPRT point estimate (biased) and not a per-acceptance match
+   (unmeasurable at useful precision).
+3. **Where it mattered** — old and new champion run on a fixed position set; the
+   positions where they DISAGREE most, with both PVs and both evals. A contrast
+   explanation for a version, using the same machinery as the per-move contrast.
+4. **What it means, in its own terms** — for a feature/statistic: the predicates it is
+   built from and its top-firing exemplars; for a search edit: the mates it now finds,
+   the nodes it now skips, the positions where its move changed.
+5. **Confidence** — pairs, error bars, and the explanation-layer confidence signals on
+   the disagreement positions.
+Rendered through the same template as per-move explanations. Result: a development
+log from "iteration 0: random eval, bare alpha-beta" onward, with evidence at every
+step and no human narration.
+
+**Versioning — the engine names its own versions.** Every gate acceptance is a new
+champion; a "version" is an event, not a schedule (many per day early; roughly weekly by
+P4). The scheme is fixed here so that champion 1 is never named by hand:
+- `Existence <N>.<h>` — N is the champion counter (its age); h is a short hash of the full
+  ledger up to and including this acceptance (a fingerprint of everything it has learned).
+- A pronounceable name derived deterministically from h (proquint-style encoding of 32
+  bits into two syllable-words, e.g. `kidop-sinub`). No vocabulary, no human choice.
+- A subtitle that is the engine's own identifier for the accepted change and its gate
+  result, e.g. `program P0031 (cleared e1=2.0 at LTC)`, `feature F137 (cleared e1=1.4)`, `network 384->512 (cleared e1=2.0)`. Never a per-acceptance Elo: that quantity is unmeasurable at useful precision (FITNESS.md 7.2/9) and the identity string is the most public field in the system.
+Full form: `Existence 412 kidop-sinub — program P0031 (cleared e1=2.0 at LTC)`. Every part is
+derived from the ledger; none is chosen by a person. Human-meaningful names for
+discovered concepts belong to the annotation layer only.
+- **Releases** for external play are tagged milestone champions (first hash reuse,
+  first reduction, each +100 Elo, etc.), the way Stockfish tags a release while master
+  moves daily. A release carries its champion identity unchanged. The ledger IS the write-up; every claim in any paper
+points at an entry, every entry points at a gate result and a position set.
+
+## Concept layer — post hoc, never touches training
+1. **Ledger mining** — every accepted feature/statistic with its Elo and discovery
+   time. The record of what it learned, in order.
+2. **Probes** — linear probes on hidden activations for known concepts (material,
+   mobility, king safety, ...) to see what is in the net beyond the explicit features.
+3. **Excavation** — sparse dictionary / NMF on activations; keep directions predictive
+   of deep value that known probes do not explain.
+4. **Exemplars** — top-firing positions per candidate concept. Look at them.
+5. **Teachability** — show a strong human the exemplars and the engine's move; test on
+   held-out positions. If accuracy rises, the concept is real and transferable.
+Humans may NAME concepts here. Names are annotations on engine-discovered structure,
+marked as such, never inputs.
+
+## Adversarial robustness — standing track and honesty check
+KataGo was beaten by a far weaker adversary exploiting cyclic blind spots that
+self-play never visits. A system whose selling point is explaining itself is especially
+exposed: it will confidently explain a blind spot. Therefore:
+1. **Adversary track** — a cheap agent whose reward is finding positions where the
+   engine at a low cost budget disagrees with itself at a high one, or where a weaker opponent
+   scores against it. Its positions feed the replay buffer with extra weight.
+2. **Explanation honesty check** — every accepted net is evaluated on the adversary's
+   positions: explanation confidence (PV stability, residual) MUST be low where the
+   engine is wrong. A confident explanation on an adversarial position is a
+   regression and blocks acceptance.
+3. Ledger records adversary win rate per champion; it should fall over time.
+
+## Phases
+- **P0** (wk 1-2) Rust skeleton. Board parameterized by size and player count.
+  Movegen validated against the C++ movegens TWO ways: (a) perft on the standard
+  fixture suite, AND (b) random full games walked to terminal, comparing legal-move
+  sets ply by ply. Perft alone is insufficient — measured: 40/40 perft agreement while
+  94 genuine rules divergences existed, because fixture positions never reach those
+  states (repetition, 50-move, odd promotions, Teams-specific terminal cases). Both
+  checks run in CI. Identity engine plays. Gate harness runs.
+- **P1** (wk 2-8) Eval discovers chess. Milestone ~2000 vs. SF-limited.
+  Kill: no iteration-over-iteration gain across iterations 4-8 AND the static-vs-deep
+  residual is not shrinking -> pipeline bug; stop and find it. (Early iterations are
+  noisy by design; do not fire the kill on iterations 0-3.)
+- **P2** (open-ended, runs from day one) Search learning from the bare alpha-beta
+  seed. Milestones, each a timestamped ledger entry: hash reuse; iterative deepening;
+  hash-move-first ordering; capture extension (qsearch); first ordering statistic;
+  first reduction; first pruning rule; any edit to the bounding or backup rule that
+  wins on the clock. Purity lineage milestones recorded separately: lookahead,
+  minimax, bounding. Kill: no program improves on the seed by eval ~1800 -> grammar or
+  fitness is wrong; fix those; invoke the declared fallback only after that.
+- **P3** (mo 3-8) Structure learning: stat grammar, feature grammar, architecture,
+  index features. Milestone ~3000. Explanation layer live. Concept layer starts —
+  watch material and king safety appear. Kill: a track with no passing candidate in
+  4 weeks gets its bandit weight floored, not deleted.
+- **P4** (mo 6-18) Scale: bigger net, more data, OpenBench, longer LTC.
+  Milestone 3300+; prep-useful and differently-opinionated. Concept excavation in
+  earnest; teachability trials.
+- **P5** (later, GPU) Learned neural search controller (MCTSnets-style) as a candidate
+  program family, only if the evolved-program track shows the search space has
+  structure worth a per-step net call. Honest write-up either way.
+- **P6** 4PC target switched on once P2 is positive. C++ 4PC engine is the ruler; RASA
+  is the MCTS-paradigm sibling. Concept layer on 4PC = writing the theory of a game
+  that has none.
+
+## Specification documents
+All written and audited (see each file's self-audit and correction logs):
+1. **GRAMMAR.md** — the real Given column for search; primitives, seeds, declared prior,
+   mutation operators, cost model, ladder check.
+2. **FITNESS.md** — the acceptance pipeline: oracle, exactness taint, mates-per-cost,
+   surrogates, SPRT ladder with derived bounds, global anchor, bandit, degenerate-solution map.
+3. **CRATE.md** — workspace and crate layout; Given crates vs pipeline crates; where each
+   measurement (interpreter benchmark, preflight) lives.
+4. **SCHEMAS.md** — position, program, table, net, feature, statistic, champion bundle,
+   ledger entry, explanation record, activation dump.
+Open measurements (not decisions): parser node counts (GRAMMAR 6), interpreter NPS ratio
+(GRAMMAR 8 / CRATE 4), candle GPU throughput (CRATE 7). All are P0/P1 work with kill
+conditions written.
+
+## Architecture
+**Language: Rust, for the engine AND the pipeline.** Chosen for long-term stability:
+the datagen workers, evolution driver, SPSA driver, gate runner, and ledger writer run
+unattended for months, and memory-safety and data-race bugs are the class of failure
+that costs weeks silently. Rust removes most of that class. Performance parity with
+C++ is established (Reckless, Viridithas). SIMD for NNUE inference via std::arch.
+No C or C++ in the repo; the C++ movegens are external oracles used only for perft
+diffing.
+
+One crate, two board instantiations (8x8 two-player; 14x14 four-player Teams).
+Engine small and hot; pipeline large and boring. Ledger from day one. Concept and
+explanation ANALYSIS (probes, excavation, notebooks) may use Python against dumped
+activations and search traces — analysis only, nothing on the training or gating path.
+
+## Safeguards (methodology, declared)
+**Throughput invariant, asserted every run:** GPU actually in use (nvidia-smi
+utilization above a floor), positions/sec above a per-config floor, worker heartbeat,
+interpreter/dependency check (e.g. cffi, CUDA libs) before the first game. Any
+failure aborts the run loudly. Silent CPU fallback has already cost a 17x loss for 25
+minutes with zero errors in the log; a multi-month fixed-time-gated plan cannot assume
+the infrastructure — it must check it.
+
+**External games never enter training or acceptance.** Games against outside opponents
+(Lichess, rating lists, matches against other engines) are a PUBLIC READOUT only. The
+outcome label is rules-derived and would be clean, but the POSITIONS are shaped by the
+opponent's choices, so training on them imports human opening theory and strategy through
+the state distribution without a single human-labelled move — and "learned everything from
+the rules" stops being true. This is the contamination route that gets taken out of
+convenience later ("we already have these games"), not by decision, which is why it is
+declared now, before any such games exist. Note this is also what Leela Chess Zero does:
+it trains on distributed SELF-PLAY and does not train on its Lichess games.
+Exactly one use is permitted, and it is not a fitness signal: positions where a WEAKER
+opponent scored against the champion may feed the ADVERSARIAL set (FITNESS 8) for the
+explanation-honesty check. That set never influences acceptance — it tests whether the
+engine is CONFIDENTLY wrong where it is wrong, and it reaches blind spots self-play
+cannot, since self-play never plays the pathological lines a random outside bot will.
+
+Fixed-time gating as an STC->LTC ladder from iteration zero (scaled to hardware; the
+ratio matters more than the absolute values; grow both with compute). A candidate must
+pass STC and then not regress at LTC. Search-program candidates always run the full
+ladder. SPRT decides, surrogate proposes. One change per candidate; net
+frozen while tables test and vice versa. Bandit floors. Declared STC/LTC values and ratio. Every
+explanation sentence traceable to a number. Concept names marked as annotation.
+
+## Expected rediscovery order
+Search (main lineage, from bare alpha-beta): hash reuse -> iterative deepening ->
+hash-move-first -> capture extension (qsearch) -> history/killers -> LMR-shaped
+reductions -> null move -> futility-style margins.
+Search (purity lineage, from depth-one): lookahead -> minimax -> alpha-beta bounding
+-> then as above.
+Eval: material -> king safety -> mobility, structure -> king-relative / threat-like
+features. Then its own point on the eval/search dial. Anything outside this list is
+the headline.
+
+## What would be new
+Anything in the learned tables or grammars with no counterpart in Stockfish. Any
+statistic keyed on something humans did not try. A dial position that is not SF's.
+Concepts without names. And the method: a search learned jointly, which SF's
+development model structurally cannot do.
+
+## Honest odds
+- Eval half: near certain.
+- Search half, split three ways:
+  - beating the identity-table baseline: near certain;
+  - rediscovering SF-shaped tables from zero (the purity result): likely;
+  - BEATING mature hand-tuned tables: hard. Mature 2-player engines report
+    first-move-cutoff ~90%+ and low LMR re-search rates; the author's C++ 4PC engine
+    independently measures 89.5% / 2.3% in a different game. Hand-tuned tables sit
+    close to the ordering/pruning ceiling. "Rediscovered" and "beat" are different
+    claims; do not conflate them in the write-up. (The 4PC figure is corroboration,
+    not a 2-player measurement.)
+- Search program: discovering hash reuse, ID, qsearch, ordering, reductions, pruning
+  from the bare seed: likely (each is a short edit with a clear clock gain; mate-finding
+  gives a gradient from day one). Purity lineage reaching alpha-beta from depth-one:
+  likely, eventually. Escaping the alpha-beta basin to something better on the clock:
+  low — alpha-beta with a hash is close to optimal for minimax with a strong eval, which
+  is why every engine converged on it. A clean negative here is itself a result.
+  Precedents for the method: AutoML-Zero (evolved gradient descent from primitives),
+  AlphaDev (found faster sorting than libc). Neither is game search; no direct proof exists.
+- Novel structure (a program, table, statistic, or feature with no SF counterpart): possible.
+- Explanation layer: certain (engineering).
+- Concept discovery finding something unnamed: plausible (AlphaZero did).
+- Superhuman (~2800+): 6-12 months is the LEAST reliable estimate here. It is
+  defensible for a from-zero alpha-beta engine that starts with hand heuristics; with
+  none at iteration zero, on one consumer GPU, it is untested. Treat as conditional.
+- Stockfish-distance: multi-year tail.
+- Publishable regardless of strength.
+
+## For the author
+Prep: a strong engine that disagrees with SF for reasons it can show, validated
+against SF. FM: the teachability step with the author as subject. 4PC: the first
+written theory of the game, from the engine's activations, tested on the rank-1 human.
