@@ -1,0 +1,11 @@
+[package]
+name = "engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "The shipped binary: board + search + eval + UCI. No pipeline dependencies."
+
+[dependencies]
+board = { path = "../board" }
+nnue  = { path = "../nnue" }
