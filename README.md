@@ -70,19 +70,8 @@ engine is rewarded for), [`CRATE.md`](docs/CRATE.md) (layout), [`SCHEMAS.md`](do
 validated by perft AND random games to terminal, the interpreter benchmark (the first
 measurement that can kill the plan), one gate end to end.
 
-## Related
-- Maswabe (4PC) — the author's C++ 4-player Teams engine (private). Used here as the 4PC
-  ruler and as a perft/legal-move oracle, referenced by path in local config and never
-  vendored. Not tabula rasa; not modified by this project. No claim is made about its rank
-  until external matches are on record.
-- RASA — the author's MCTS-paradigm 4PC tabula rasa engine. A sibling, not a dependency.
-- Maswabe language — the author's chess-only programming language, its compiler (Rust,
-  lowering through its own IR to LLVM), and the 2-player engine written in it (private).
-  Separate project, and the engine Existence supersedes: Existence is the author's
-  2-player engine from here on. Shares a name with the 4PC engine; unrelated codebases.
-
 ## License and release
-**GPLv3** (see [`LICENSE`](LICENSE)). Copyright (C) 2026 Maswabe. Open source from the
+**GPLv3** (see [`LICENSE`](LICENSE)). Copyright (C) 2026 the Existence authors. Open source from the
 first commit, because the claim requires it: "learned everything from the rules" is only
 checkable if the Given column can be read in the code, and the ledger is only a write-up
 if the code that produced it is inspectable. Open source is also what OpenBench requires

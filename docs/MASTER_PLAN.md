@@ -290,8 +290,9 @@ exposed: it will confidently explain a blind spot. Therefore:
 - **P5** (later, GPU) Learned neural search controller (MCTSnets-style) as a candidate
   program family, only if the evolved-program track shows the search space has
   structure worth a per-step net call. Honest write-up either way.
-- **P6** 4PC target switched on once P2 is positive. C++ 4PC engine is the ruler; RASA
-  is the MCTS-paradigm sibling. Concept layer on 4PC = writing the theory of a game
+- **P6** 4PC target switched on once P2 is positive. An existing external C++ 4PC engine
+  serves as the strength ruler and as the perft/legal-move oracle (referenced by path,
+  never vendored; see CRATE.md). Concept layer on 4PC = writing the theory of a game
   that has none.
 
 ## Specification documents
