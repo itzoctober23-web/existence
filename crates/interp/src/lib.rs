@@ -161,14 +161,7 @@ impl<'a> Interp<'a> {
             }
             Node::Key(p) => {
                 let p = val!(p);
-                // Cheap positional key; the real Zobrist lands with the TT work.
-                let f = p.pos().to_fen();
-                let mut h = 1469598103934665603u64;
-                for b in f.bytes() {
-                    h ^= b as u64;
-                    h = h.wrapping_mul(1099511628211);
-                }
-                Value::Key(h)
+                Value::Key(p.pos().zobrist())
             }
             Node::Eval(p) => {
                 self.evals += 1;

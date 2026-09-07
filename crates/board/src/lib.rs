@@ -10,6 +10,7 @@ pub mod chess;
 pub mod movegen;
 pub mod perft;
 pub mod types;
+pub mod zobrist;
 
 pub use chess::Position;
 pub use movegen::{MAX_MOVES, MoveList};
