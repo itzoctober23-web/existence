@@ -33,6 +33,36 @@ the A/B to ask whether it works at all.
 
 ---
 
+## 2026-09-08 — the ARCH surrogate filter is a COIN FLIP against a moving baseline (n=3, observation)
+
+Every ARCH attempt is now in the ledger with a named reason. Three on record:
+
+| candidate loss | champion loss | outcome |
+|---|---|---|
+| 0.0746 | 0.0847 | reached the gate -> `lost_on_clock` |
+| 0.0762 | 0.0719 | `surrogate_filter` |
+| 0.0857 | 0.0706 | `surrogate_filter` |
+
+The champion's OWN held-out loss moves 0.0706 -> 0.0847 across generations, a ~20% spread,
+because the judge set is that generation's held-out slice and the champion changes underneath
+it. The candidate's post-training loss moves about as much. So `acand_loss > champ_loss * 1.005`
+is one noisy number against another noisy number, and 1 attempt in 3 reached a gate.
+
+**Function-preserving widening guarantees equality AT BIRTH, not after training.** The candidate
+starts as an exact copy of the champion's function and is then trained up to 30 epochs; that
+training is what moves it, and it moves either way. So the filter is not measuring "is width 32
+better" -- it is measuring "did this particular 30-epoch run land above or below a baseline that
+also wandered".
+
+NOT ACTED ON, deliberately. The 0.5% ratio test is FITNESS 5's declared rule, and `paired_loss_z`
+already exists in the same function (it read 4.21 on the attempt that passed) but is used only
+later, for `surrogate_ok`. Replacing an unpaired ratio with the paired statistic would very
+likely be more sensitive on identical data -- the pairing is free, both nets see the same judge
+positions -- but that is a change to a SPEC'D rule and n=3 is not evidence. Recorded so the
+next person sees the filter's noise floor before reading any single ARCH verdict as a fact.
+
+---
+
 ## 2026-09-08 — WIDTH 32 IS A COST CLIFF, and stride-1 stepping could never get past it
 
 First widening ever to reach a game gate (after function-preserving widening removed the

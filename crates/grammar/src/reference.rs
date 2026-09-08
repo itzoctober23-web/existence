@@ -40,7 +40,7 @@ pub fn depth_one() -> Program {
 
 /// Main-lineage seed: BARE alpha-beta. Depth and INF are TABLE READS, not constants, so even
 /// the seed's search depth is a tuned value rather than a given (GRAMMAR 5.2).
-pub fn bare_alpha_beta() -> Program { ab_program(false) }
+pub fn bare_alpha_beta() -> Program { ab_program(false, false) }
 
 /// RUNG 6 of the GRAMMAR 9 ladder: capture extension at the horizon (qsearch in embryo).
 ///
@@ -58,9 +58,24 @@ pub fn bare_alpha_beta() -> Program { ab_program(false) }
 /// every step is fitter", using the test eval "for this rig only". This function is that check
 /// and lives only in the reference set the ladder measures; nothing in the search or the
 /// evolution loop reads it.
-pub fn capture_extension() -> Program { ab_program(true) }
+pub fn capture_extension() -> Program { ab_program(true, false) }
 
-fn ab_program(cap_ext: bool) -> Program {
+/// RUNG 7 of the GRAMMAR 9 ladder: table-driven reduction (LMR in embryo).
+///
+/// GRAMMAR 9 writes it as "tread(reduction, depth, index) in the recursive depth". The child
+/// depth becomes `max(d - 1 - R[d, i], 0)` where `i` counts moves and R is a LEARNED table --
+/// table 3, alongside D, INF and MCTS's exploration weight. Nothing states what the reduction
+/// should BE: the table's contents are searched, so "reduce late moves more" stays something
+/// the loop can discover rather than a rule written in by hand.
+///
+/// Two details are load-bearing. The floor at 0: the horizon guard tests `d == 0` with Eq, so a
+/// negative depth would slip straight past it and recurse without bound. And the counter is
+/// declared ONLY for this variant -- declaring it unconditionally moved the seed from 71 to 73
+/// nodes, silently rewriting the declared prior that GRAMMAR 6 and every ladder distance are
+/// measured against. `examples/prior` caught that.
+pub fn table_reduction() -> Program { ab_program(false, true) }
+
+fn ab_program(cap_ext: bool, reduce: bool) -> Program {
     let d = Node::TRead(0, vec![]); // table "D"
     let inf = Node::TRead(1, vec![]); // table "INF"
 
@@ -111,6 +126,21 @@ fn ab_program(cap_ext: bool) -> Program {
     // `nd` = the depth handed to the child. Plain d-1 in the seed; in the capture-extension
     // rung a capture keeps the depth, so the tactical line is searched to its end. Written as
     // Let + conditional Set because the grammar's If is a STATEMENT, not a ternary expression.
+    // Move counter + reduced child depth, for the reduction rung only.
+    let reduce_setup: Vec<Node> = if reduce {
+        vec![
+            Node::Set("i".into(), b(Node::Arith(ArithOp::Add, vec![v("i"), Node::Const(1)]))),
+            Node::Let("nd".into(),
+                b(Node::Max(
+                    b(Node::Arith(ArithOp::Sub, vec![
+                        Node::Arith(ArithOp::Sub, vec![v("d"), Node::Const(1)]),
+                        Node::TRead(3, vec![v("d"), v("i")]),
+                    ])),
+                    b(Node::Const(0)),
+                )),
+                b(Node::Nop)),
+        ]
+    } else { vec![] };
     let nd_setup: Vec<Node> = if cap_ext {
         vec![
             Node::Let("nd".into(),
@@ -123,6 +153,7 @@ fn ab_program(cap_ext: bool) -> Program {
         ]
     } else { vec![] };
     let mut loop_stmts = nd_setup;
+    loop_stmts.extend(reduce_setup);
     loop_stmts.extend(vec![
         Node::Let(
             "vv".into(),
@@ -132,7 +163,7 @@ fn ab_program(cap_ext: bool) -> Program {
                     1,
                     vec![
                         Node::Apply(b(v("p")), b(v("m"))),
-                        if cap_ext { v("nd") } else {
+                        if cap_ext || reduce { v("nd") } else {
                             Node::Arith(ArithOp::Sub, vec![v("d"), Node::Const(1)])
                         },
                         Node::Arith(ArithOp::Neg, vec![v("b")]),
@@ -151,7 +182,7 @@ fn ab_program(cap_ext: bool) -> Program {
         ),
     ]);
     let loop_body = Node::seq(loop_stmts);
-    let ab_body = Node::seq(vec![
+    let mut body_stmts = vec![
         term_guard,
         depth_guard,
         Node::Let(
@@ -159,9 +190,13 @@ fn ab_program(cap_ext: bool) -> Program {
             b(Node::Arith(ArithOp::Neg, vec![inf])),
             b(Node::Nop),
         ),
-        Node::Foreach(b(Node::Moves(b(v("p")))), "m".into(), b(loop_body)),
-        Node::Ret(b(v("best"))),
-    ]);
+    ];
+    if reduce {
+        body_stmts.push(Node::Let("i".into(), b(Node::Const(0)), b(Node::Nop)));
+    }
+    body_stmts.push(Node::Foreach(b(Node::Moves(b(v("p")))), "m".into(), b(loop_body)));
+    body_stmts.push(Node::Ret(b(v("best"))));
+    let ab_body = Node::seq(body_stmts);
 
     Program {
         funcs: vec![
@@ -611,6 +646,7 @@ pub fn all() -> Vec<(&'static str, Program)> {
         ("alpha-beta + hash + ID", ab_hash_id()),
         ("UCT-style MCTS", uct_mcts()),
         ("capture extension (rung 6)", capture_extension()),
+        ("table reduction (rung 7)", table_reduction()),
         ("proof-number search", proof_number()),
     ]
 }
