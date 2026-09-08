@@ -87,3 +87,38 @@ much, in games, at three training budgets.
   mechanism I described does not apply to the main path.
 
 Both errors have the same shape: asserting which code path produced a value without following it.
+
+
+---
+
+## FULL SWEEP, five budgets, scored on GAMES (2026-09-08)
+
+| epochs | n | accepts | mean gate rate | 95% CI |
+|---|---|---|---|---|
+| 1 | 27 | 4 | 0.5036 | [0.4965, 0.5106] |
+| **2** | 28 | 3 | **0.5087** | **[0.5016, 0.5157]** |
+| 3 | 26 | 1 | 0.5011 | [0.4952, 0.5070] |
+| 10 | 27 | 0 | 0.4715 | [0.4651, 0.4780] |
+| 30 | 27 | 0 | 0.4537 | [0.4489, 0.4584] |
+
+`corr(epochs, mean gate rate) = -0.933`.
+
+**ESTABLISHED: more training is monotonically worse.** Epochs 10 and 30 are decisively below 0.5
+(both intervals clear of it by a wide margin), so a candidate trained harder on these labels is
+reliably WEAKER than the champion it started from. This is the game-based version of the
+pre-registered refutation of the under-fitting hypothesis, and it is not close.
+
+**SUGGESTIVE ONLY: epochs 2 at 0.5087, interval [0.5016, 0.5157], excluding 0.5.** That is the
+first configuration all day where candidates measurably beat their parent. It is NOT being called
+a result:
+
+* It is one of **five** budgets tested. At 95% intervals, roughly one in four such sweeps throws a
+  crossing by chance alone.
+* The margin is **0.0016** below the interval edge — as thin as it gets.
+* Generations within a run are not fully independent: the champion moves on each accept, so the
+  27-28 "samples" are a path, not a clean sample.
+* Epochs 1 (0.5036) and 3 (0.5011) both straddle 0.5, so the neighbours do not corroborate it.
+
+**What would settle it:** re-run epochs 2 at a different seed, and against epochs 3 as the control
+arm, pre-registering that the interval must again exclude 0.5. One replication turns a 1-in-4 fluke
+into something worth acting on; without it this is a number I would be embarrassed to have quoted.
