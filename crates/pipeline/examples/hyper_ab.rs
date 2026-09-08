@@ -43,8 +43,17 @@ fn main() {
     let h_a = get("--horizon-a", 40) as u32;
     let h_b = get("--horizon-b", 1000) as u32;
 
-    let champion = Net::random(width, seed);
-    println!("champion: random width {width}; one shared dataset from {games} games\n");
+    // A TRAINED champion changes the answer, not just the numbers: the horizon schedule widens
+    // with generation BECAUSE labels far from the terminal become informative as play improves.
+    // Measuring the optimum against a random net measures it at generation zero only.
+    let champion = match a.iter().position(|x| x == "--net").and_then(|i| a.get(i + 1)) {
+        Some(p) => match Net::load(p) {
+            Ok(n) => { println!("champion: {p} (trained, width {})", n.n_hidden); n }
+            Err(e) => { eprintln!("could not load {p}: {e}"); std::process::exit(2); }
+        },
+        None => { println!("champion: random width {width}"); Net::random(width, seed) }
+    };
+    println!("one shared dataset from {games} games\n");
 
     // ONE dataset, shared by every replicate of both arms. This is the variance the loop
     // could not control: same positions, same labels, same split.

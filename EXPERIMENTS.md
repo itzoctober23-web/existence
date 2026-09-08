@@ -38,6 +38,40 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — the horizon SCHEDULE is backwards, and the champion has converged
+
+Same sweep, but against a TRAINED champion (champion_ep3_s20260907, width 16) instead of a
+random one. 10 replicates per arm, one shared dataset, 1082/4000 decisive:
+
+| horizon | samples | mean | 95% CI |
+|---|---|---|---|
+| 10 | 8,854 | 0.4867 | [0.4688, 0.5047] |
+| 20 | 16,830 | 0.4648 | [0.4482, 0.4815] |
+| 40 | 32,229 | 0.4203 | [0.4052, 0.4355] |
+| 80 | 53,775 | 0.3977 | [0.3904, 0.4049] |
+
+**TWO findings, and both matter more than the horizon constant.**
+
+1. **EVERY arm is below 0.5.** Training the trained champion on fresh self-play data makes it
+   WORSE at every horizon tested. Only h10 has an interval touching 0.5; the rest are
+   significantly worse. This is the acceptance stall, quantified: the champion has converged
+   with respect to this data distribution, and more of the same data degrades it.
+
+2. **THE SCHEDULE IS BACKWARDS.** `horizon = 10 + 5*(g-1)` widens with generation, on the
+   stated theory that "the label becomes informative further back as play improves". Measured
+   against exactly the condition that theory describes — an improved player — wider is
+   MONOTONICALLY WORSE, and the gradient is steep (0.4867 -> 0.3977 from h10 to h80).
+
+   The random-champion sweep peaked at 20; the trained-champion sweep peaks at the narrowest
+   arm tested. The optimum moved the OPPOSITE direction from the one the schedule assumes.
+
+Consequence: the widening schedule is not a refinement, it is an active harm that grows with
+generation — consistent with the eight-generation collapse seen in the very first uncapped run,
+which I attributed to the cap being absent rather than to the schedule being wrong.
+
+Narrower arms (3, 5, 10, 15) are running to locate the optimum, and the schedule direction
+should be re-derived from that rather than patched.
+
 ## 2026-09-08 — horizon SWEPT: 20 is the optimum, and 40 (my pick) was measurably worse
 
 10 replicates per arm, one shared dataset, filter applied per arm:
