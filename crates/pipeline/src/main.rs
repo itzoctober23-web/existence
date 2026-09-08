@@ -61,6 +61,26 @@ fn train_from(
 
 /// Paired sign-agreement counts: positions the champion got right and the candidate got wrong,
 /// and vice versa. McNemar's statistic is built from exactly these two.
+///
+/// DRAWN POSITIONS ARE EXCLUDED, and leaving them in was the defect that made this surrogate
+/// worse than useless.
+///
+/// `z` is the game result from White's point of view: +1, -1, or **0 for a draw**. The test was
+/// `(white > 0.0) == (z > 0.0)`, and for a draw `z > 0.0` is false -- so every drawn position
+/// demanded an evaluation of <= 0, i.e. "Black is better". There is no draw class and the target
+/// sign on a draw is arbitrary.
+///
+/// MEASURED over 276,000 self-play games today: **50.3% are drawn.** So more than half of this
+/// metric was scoring a coin flip against a made-up answer, and it got WORSE as the net improved:
+/// a better net outputs values near zero on drawn positions, and the sign of a near-zero number is
+/// noise, so more training moved more positions into the noisy half. That is exactly what the
+/// epochs A/B measured -- held-out LOSS improving monotonically (0.0417 -> 0.0317 -> 0.0253) while
+/// this statistic degraded (+0.359 -> +0.141 -> -0.445) and its sign rate fell from 54% to 33%.
+/// Two metrics on the same held-out data moving in opposite directions is not overfitting; it is
+/// one of them being broken.
+///
+/// Excluding draws halves the usable sample, which is the honest cost: a smaller n on a metric
+/// that means something beats a larger n on one that does not.
 fn paired_sign(champ: &Net, cand: &Net, held: &[&Sample]) -> (u32, u32) {
     let mut s = Vec::new();
     let (mut b_only, mut a_only) = (0u32, 0u32);
@@ -70,6 +90,8 @@ fn paired_sign(champ: &Net, cand: &Net, held: &[&Sample]) -> (u32, u32) {
         (white > 0.0) == (z > 0.0)
     };
     for h in held {
+        // A drawn game gives no sign to agree with.
+        if h.z == 0.0 { continue; }
         let p = match Position::from_fen(&h.fen) { Ok(p) => p, Err(_) => continue };
         match (ok(champ, &p, h.z, &mut s), ok(cand, &p, h.z, &mut s)) {
             (true, false) => b_only += 1,
@@ -606,7 +628,11 @@ fn main() {
             // trainer saw with what the gate decided. It goes to the log line already, but the
             // log is not queryable -- every quantitative claim made about this loop today came
             // from the ledger, and the replay-window question could not be asked of it at all.
-            surrogate: vec![("mcnemar_z", mcnemar), ("train_loss", loss as f64), ("llr", llr),
+            surrogate: vec![("mcnemar_z", mcnemar), // NAME IT WHAT IT IS. `train_from` returns best_loss = tr.loss(&net, held) -- the HELD-OUT
+                // loss, not the training loss. Reading it as training loss makes "loss falls while the
+                // paired statistic degrades" look like ordinary overfitting, which is the wrong
+                // diagnosis: both are measured on held-out data, so they cannot both be right.
+                ("heldout_loss", loss as f64), ("llr", llr),
                             ("pool", replay.len() as f64), ("train_n", subset.len() as f64)],
         });
 
