@@ -227,6 +227,32 @@ move that is not in `moves(p)`). Mates-per-cost uses `terminal`-derived outcomes
   refcounted) changed the number by nothing, which is what exposed the harness as the culprit.
   The eval-count check is now permanent so a ratio can never again be printed for two
   different trees.
+**THE DEFERRAL NEEDS REVISITING, for a reason it did not consider (2026-09-08).** The bytecode
+was deferred because the RATIO is fine — the tree-walker runs at 0.98x of hand-written Rust, so
+interpretation overhead is nearly free. That is still true and it is the wrong question for the
+search track, which is gated by ABSOLUTE throughput.
+
+Measured cost of the seed's own full search, per position, under the per-primitive cost model:
+
+| depth | cost units | wall time at ~14M units/s |
+|---|---|---|
+| 1 | 3.15M | 0.22 s |
+| 2 | 37.3M | 2.7 s |
+| 3 | 411M | 29 s |
+
+A game-based PROGRAM gate needs both sides to complete their search at every move. At depth 2
+that is ~2.7s per move, so one 160-ply pair costs ~14 minutes and a single candidate screened
+over 4 pairs costs an hour. The search track is therefore affordable only at DEPTH 1 — and
+depth 1 is precisely where search technique does not matter, because alpha-beta's advantages
+(cutoffs, ordering, transpositions) all appear at depth >= 2.
+
+So the honest statement is: **the current interpreter cannot afford to gate search programs by
+games at a depth where the thing being searched for exists.** That is a throughput argument for
+CRATE 4, and it is independent of the 0.98x ratio that deferred it. The alternative is to lean
+on the mates-per-cost surrogate (FITNESS 3) as the primary PROGRAM signal, with games as a
+confirmation for the few candidates that clear it — which is what the track does today, and
+which should be recorded as a limitation rather than a design choice.
+
 - Compilation target: a register-based bytecode with a Rust interpreter. Acceptance
   criterion for the interpreter design: the compiled main seed runs at >= 50% of the NPS
   of a hand-written Rust bare alpha-beta with the same net. If not met, the grammar

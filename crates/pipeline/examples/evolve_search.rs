@@ -255,6 +255,32 @@ fn main() {
     }
 
     let mates = mate_set(40, &mut rnd);
+    // COVERAGE GUARD, the same one the net loop carries and for the same reason. A budget that
+    // cannot cover the seed's search at the play depth makes BOTH programs return whichever
+    // move they happened to reach, and a match between two arbitrary movers reports a tidy
+    // 0.500 that means nothing. MEASURED cost of the seed's FULL search, per position:
+    //     depth 1     3.15M cost units
+    //     depth 2    37.3M
+    //     depth 3    411M
+    // The original settings ran games at depth 3 on a 1.5M budget: 0.36% of the tree, not even
+    // two of ~30 root moves. That gate was blind and every "none beat the champion" it produced
+    // was uninformative rather than negative.
+    {
+        let probe = reference::bare_alpha_beta();
+        let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+        it.run(&probe, &oracle_set[0], i64::MAX / 4);
+        let full = it.cost.max(1);
+        let cover = budget as f64 / full as f64;
+        println!("gate coverage: {budget} cost units vs {full} for the seed's full depth-{depth} \
+                  search = {:.0}%", cover * 100.0);
+        if cover < 0.5 {
+            eprintln!("\nABORT: the move budget covers {:.1}% of the seed's own search at depth \
+                       {depth}.\nBoth programs would return arbitrary moves and every game would \
+                       be noise.\nLower --depth or raise --budget.", cover * 100.0);
+            std::process::exit(2);
+        }
+    }
+
     let mut champ = reference::bare_alpha_beta();
     let (ok, n) = passes_oracle(&champ, &oracle_set, oracle_depth, &net);
     // MEASURED, all finding 40/40 mates on the same set:
