@@ -22,6 +22,26 @@ not hold up — what was wrong with the EXPERIMENT rather than the idea.
 | `games` per generation | **2400** (of those tried) | Equal wall-clock, origin-scored: 150 -> 0.555, 600 -> 0.773, 2400 -> 0.828. Monotone, and the INVERSE of generation count (140 / 45 / 12 generations). |
 | acceptance | sign, then width, then surrogate | Gate resolves the SIGN -> it decides. Narrow interval straddling 0.5 -> reject (precisely measured null). Only a WIDE straddle reaches the surrogate. |
 
+**QUALIFICATION ON "THE PLATEAU" (2026-09-08, and it applies to everything below).** The origin
+control resolves a gap of ~0.054, which is about **70 Elo**. Seven readings across two runs:
+
+    gen  25  0.780 +/- 0.039      gen  30  0.838 +/- 0.037
+    gen  50  0.805 +/- 0.040      gen  60  0.853 +/- 0.037
+                                  gen  90  0.831 +/- 0.040
+                                  gen 120  0.823 +/- 0.035
+                                  gen 150  0.856 +/- 0.035
+
+EVERY gap between readings is below 0.054. So "flat" means **"no change larger than ~70 Elo was
+detected"**, NOT "no improvement occurred". The champion could have gained 50 Elo across those
+125 generations and this metric could not have shown it. There is even a hint of upward drift --
+0.780 -> 0.805 within run 3, 0.838 -> 0.856 within run 4 -- that was dismissed as noise; it is
+still not significant, but "flat" was the wrong word.
+
+This does NOT overturn the gate-resolution finding, which rests on separate and direct evidence:
+the acceptance rule's games-based branch fired 0 times in 57 generations, read from the ledger
+rather than inferred from control readings. But every "the plateau persists" statement below
+should be read as "not resolved at ~70 Elo".
+
 **WHAT IS CLOSED, as of 2026-09-08.** Two explanations for the plateau are now measured out:
 
 | explanation | status |
