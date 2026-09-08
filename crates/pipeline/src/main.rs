@@ -393,7 +393,21 @@ fn main() {
         // Resolution is a property of the INTERVAL, not the draw rate. Draw rate was a proxy
         // for width under the binomial; with pentanomial the same games give a ~5x tighter
         // interval, so a 90%-draw match can still decide. Test the thing directly.
-        let gate_can_resolve = sc.ci95() < 0.05;
+        // "Can the gate decide?" is a question about the SIGN, not about absolute width.
+        //
+        // This read `ci95() < 0.05` and therefore almost never fired: MEASURED over
+        // ledger_newdefaults.jsonl, actual ci95 at 24-64 pairs is 0.048-0.095, so it was true
+        // ONCE IN TEN GENERATIONS (generation 1, at 0.048). The comment below promised the gate
+        // "takes back over once play is decisive enough to resolve"; in practice the held-out
+        // surrogate decided permanently, and a proxy for strength was overwriting the champion
+        // on every generation where the games themselves had an opinion.
+        //
+        // 0.05 is an arbitrary width. What the loop actually needs to know is whether the
+        // interval lies clear of 0.5 -- that is exactly "the games decided", and it is
+        // reachable: a 0.573 +/- 0.069 gate resolves upward while failing ci95 < 0.05.
+        let resolved_up = sc.pent_rate() - sc.ci95() > 0.5;
+        let resolved_down = sc.pent_rate() + sc.ci95() < 0.5;
+        let gate_can_resolve = resolved_up || resolved_down;
         // NON-REGRESSION GUARD. This must be able to REFUSE, or it is decoration.
         //
         // It used to read `pent_rate() + ci95() > 0.5`, which passes anything above
@@ -414,10 +428,28 @@ fn main() {
         } else if verdict == gate::Sprt::Reject {
             false
         } else if gate_can_resolve {
-            // Cap reached without a verdict: fall back to the interval, which is the honest
-            // reading of "the evidence did not decide within the budget I allowed it".
-            sc.rate() - sc.ci95() > 0.5
+            // The games resolved the sign inside the budget. They outrank the surrogate, which
+            // is only a proxy for what this match measures directly. This also REJECTS on
+            // resolved_down rather than falling through, which is the half that was missing:
+            // a candidate the gate had resolved as WORSE could still be promoted by mcnemar.
+            resolved_up
+        } else if sc.ci95() < 0.05 {
+            // PRECISELY MEASURED, AND IT STRADDLES 0.5 -> not better. Reject.
+            //
+            // This branch is why the sign test alone is not enough, and leaving it out made the
+            // loop MORE permissive, not less. A narrow interval that contains 0.5 -- 0.510 +/-
+            // 0.020 -- is not ignorance, it is a precise measurement of "no meaningful
+            // difference". Treating it as "undecided" hands it to the surrogate, which can then
+            // promote on mcnemar alone.
+            //
+            // MEASURED over the three shape arms (197 generations of ledger): the sign test
+            // resolves 21 of 140 generations in the 150-games arm where `ci95 < 0.05` resolves
+            // 100, because near-all-draw matches give a tiny pentanomial interval. Dropping the
+            // width test would have sent 79 precisely-measured null results to the surrogate.
+            false
         } else {
+            // Genuinely undecided: the interval is BOTH wide and straddling. Only here may the
+            // surrogate speak, and only where the gate does not contradict it.
             mcnemar > 1.96 && no_regression
         };
         // LEDGER: record the decision, accepted or not, with a NAMED reason. A rejection is the

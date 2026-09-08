@@ -14,7 +14,9 @@ not hold up — what was wrong with the EXPERIMENT rather than the idea.
 | `steps-per-gen` | **0** (off) | Refuted on a controlled A/B: 0.5352 vs epochs' 0.5444, difference not significant and the sign REVERSED from the loop. |
 | `gate-depth-cap` | **4** | Full-tree cost from startpos: d3 1,921 / d4 3,145 / d5 140,009 / d6 328,495 nodes. At the old default of 6 a 4,000-node budget bought 1.29% of the tree and both sides played at random. |
 | `cost-nodes` | **derived** | Tree size is NET-DEPENDENT; a fixed 4,000 covered 57% of one seed's tree and 33% of another's, aborting 4 of 6 experiment arms. |
-| interpreter accumulator | **width >= 64** | eval+apply per node: 399->441ns at w16 (WORSE), 665->582 at w64, 2290->1456 at w256. |
+| interpreter accumulator | **width >= 64** | eval+apply per node: 399->441ns at w16 (WORSE), 665->582 at w64, 2290->1456 at w256. Note this is DORMANT in the loop, which starts at rung 0 = width 16. |
+| `games` per generation | **2400** (of those tried) | Equal wall-clock, origin-scored: 150 -> 0.555, 600 -> 0.773, 2400 -> 0.828. Monotone, and the INVERSE of generation count (140 / 45 / 12 generations). |
+| acceptance | sign, then width, then surrogate | Gate resolves the SIGN -> it decides. Narrow interval straddling 0.5 -> reject (precisely measured null). Only a WIDE straddle reaches the surrogate. |
 
 **The one methodological finding that produced most of the others:** these constants are
 COUPLED, and a one-dimensional sweep through a two-dimensional interaction returns a confident,
@@ -26,6 +28,40 @@ wrong. Nothing inside those measurements could have revealed it.
 metric — larger than most effects worth testing — because it is path-dependent. A fixed-dataset
 A/B has se ~0.005 on the same question. Use the loop to ask whether something COMPOUNDS; use
 the A/B to ask whether it works at all.
+
+---
+
+## 2026-09-08 — GAMES PER GENERATION: strength is MONOTONE in it, and generation count is an anti-metric
+
+Three arms, the SAME 300s of wall-clock each, single core, same seed, then every arm's champion
+scored against the SAME frozen origin (`Net::random(hidden, 20260907)`) with an identical match.
+Equal time is the whole design: equal generations would have compared different amounts of work.
+
+| games/gen | generations reached | decisive at the end | vs origin (64 pairs, depth 2) |
+|---|---|---|---|
+| 150 | **140** | 19/150 (13%) | 14W-114D-0L, **0.555 +/- 0.028** |
+| 600 | 45 | 170/600 (28%) | 71W-56D-1L, **0.773 +/- 0.045** |
+| 2400 | 12 | 814/2400 (34%) | 84W-44D-0L, **0.828 +/- 0.038** |
+
+**Monotone, and the ordering is the exact inverse of generation count.** The 150-games arm ran
+11.7x more generations than the 2400 arm and finished 0.27 weaker. It also ended on the decisive
+rate it STARTED with -- 19/150 at generation 1, 19/150 at generation 140 -- with 15 accepts in
+140 tries. It mostly draws (114 of 128 games); the 2400 arm wins outright (84 of 128).
+
+**Why this matters more than the constant it settles.** I had concluded the opposite one hour
+earlier, from a correct measurement: datagen is 3.3ms/game and therefore essentially the entire
+cost of a generation, so 150 games/gen makes generations 27x cheaper and "hundreds of thousands
+of generations" reachable. Every part of that is true and the conclusion was still wrong, because
+cheap generations are not the goal. A generation's VALUE is its training signal, which scales with
+the decisive games in it, and 150-game generations yield ~800 training samples against ~46,000.
+Twelve times more generations, fifty times less signal each.
+
+Generation count is not a neutral proxy here -- it is ANTI-correlated with strength across the
+whole range tested. Any future tuning that optimises generations, steps, or throughput without an
+origin-scored control is liable to select the arm that learned nothing, by a factor of twelve.
+
+NOT SHOWN: whether the trend continues past 2400, and whether it survives multi-hour runs where
+the replay buffer saturates. Both arms of that are open.
 
 ---
 
