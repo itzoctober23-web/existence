@@ -33,7 +33,19 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 SECS=${SECS:-1200}
-PAIRS_SCORE=${PAIRS_SCORE:-64}
+# SCORING POWER. 64 -> 600. At 64 pairs the measured ci95 is 0.038-0.060, so two arms differ
+# significantly only if the gap exceeds ~1.41 x ci95 = 0.054-0.085 -- about 107 Elo at the 0.83
+# level. This experiment predicts an effect FAR smaller than that, so at 64 pairs it could not
+# have detected its own hypothesis and would have returned a confident-looking null.
+#
+# That is precisely the defect this experiment exists to test for, built into the experiment:
+# an instrument whose detection floor sits above the effect being sought. Caught by computing the
+# power before the run rather than after.
+#
+# 600 pairs puts ci95 near 0.060/sqrt(600/64) = 0.020, resolving a gap of ~0.028 (~+20 Elo).
+# Scoring is a ONE-OFF match, not per-generation, so 9x the pairs costs minutes once -- the same
+# asymmetry that made gate-pairs 40 -> 224 nearly free.
+PAIRS_SCORE=${PAIRS_SCORE:-600}
 SEED=20260907
 INIT=${INIT:-champion_long.net}
 ARMS=${ARMS:-"40 224"}
