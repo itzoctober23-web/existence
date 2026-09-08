@@ -58,3 +58,36 @@ fn every_operator_applies_somewhere() {
         assert!(hit, "operator {op:?} never applied to the seed in 600 tries");
     }
 }
+
+/// Report, per operator, how its placements actually resolve on the seed.
+///
+/// GRAMMAR 4 declares the operator set as a Given-column entry, so the composition of that set
+/// is a number the project owes rather than assumes. `mutate_at` collapses "no node of the
+/// right shape here" and "applied but produced an ill-typed program" into the same None, and
+/// those mean different things: the first says nothing about the operator, the second says the
+/// operator is effectively absent from the set.
+#[test]
+fn every_operator_is_reported_by_how_it_fails() {
+    use grammar::mutate::{try_at, Placement};
+    let base = reference::bare_alpha_beta();
+    println!("{:<14} {:>9} {:>9} {:>9}", "operator", "applied", "nomatch", "illtyped");
+    for op in ALL_OPS {
+        let (mut ok, mut nomatch, mut ill) = (0, 0, 0);
+        let mut rng = Rng::new(0xA11 ^ format!("{op:?}").len() as u64);
+        for fi in 0..base.funcs.len() {
+            for k in 0..80 {
+                match try_at(&base, op, &mut rng, fi, k).1 {
+                    Placement::Applied => ok += 1,
+                    Placement::NoMatch => nomatch += 1,
+                    Placement::IllTyped => ill += 1,
+                }
+            }
+        }
+        println!("{:<14} {ok:>9} {nomatch:>9} {ill:>9}", format!("{op:?}"));
+        // An operator that can NEVER be applied anywhere on the seed is not in the effective
+        // set, whatever the document says. That is a finding, not a crash — but it must be
+        // visible, so assert it and let the failure carry the number.
+        assert!(ok > 0, "{op:?} never applied successfully anywhere on the seed \
+                         ({nomatch} no-match, {ill} ill-typed)");
+    }
+}

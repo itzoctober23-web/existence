@@ -98,26 +98,12 @@ fn map_nth(n: &Node, k: &mut usize, applied: &mut bool, f: &mut dyn FnMut(&Node)
 
 /// One mutation. Returns None if it produced nothing valid — the caller simply tries again,
 /// which is cheaper than making every operator universally applicable.
-/// Apply `op` at a RANDOM position. Kept for callers that want one shot.
-pub fn mutate(p: &Program, op: Op, rng: &mut Rng) -> Option<Program> {
-    let fi = rng.below(p.funcs.len());
-    let total = count_nodes(&p.funcs[fi].body);
-    let k = rng.below(total);
-    mutate_at(p, op, rng, fi, k)
-}
-
-/// Apply `op` at a SPECIFIC node index of a specific function.
-///
-/// Exposed so a caller can try an operator at every position before giving up on it. With a
-/// single random position, an operator that matches only a few node types abandons most of the
-/// time, and abandoning is what makes the effective operator set differ from the declared one.
-pub fn mutate_at(p: &Program, op: Op, rng: &mut Rng, fi: usize, k0: usize) -> Option<Program> {
-    let mut out = p.clone();
-    let mut k = k0;
-    let mut applied = false;
-    let r = rng.next();
-
-    let body = map_nth(&out.funcs[fi].body, &mut k, &mut applied, &mut |n| match op {
+/// The operator table itself, extracted so `mutate_at` and `try_at` cannot drift apart.
+/// `r` is a pre-drawn random word: the operators that need randomness (a constant delta,
+/// a relation, a field) consume it without needing the Rng, which keeps this a pure
+/// function of (node, op, r) and therefore reproducible from a seed.
+fn apply_op(n: &Node, op: Op, r: u64) -> Option<Node> {
+    match op {
         Op::Tweak => match n {
             Node::Const(c) => {
                 let d = (r % 7) as i8 - 3;
@@ -183,13 +169,62 @@ pub fn mutate_at(p: &Program, op: Op, rng: &mut Rng, fi: usize, k0: usize) -> Op
             }
             _ => None,
         },
-    });
+    }
+}
+
+/// Apply `op` at a RANDOM position. Kept for callers that want one shot.
+pub fn mutate(p: &Program, op: Op, rng: &mut Rng) -> Option<Program> {
+    let fi = rng.below(p.funcs.len());
+    let total = count_nodes(&p.funcs[fi].body);
+    let k = rng.below(total);
+    mutate_at(p, op, rng, fi, k)
+}
+
+/// Apply `op` at a SPECIFIC node index of a specific function.
+///
+/// Exposed so a caller can try an operator at every position before giving up on it. With a
+/// single random position, an operator that matches only a few node types abandons most of the
+/// time, and abandoning is what makes the effective operator set differ from the declared one.
+pub fn mutate_at(p: &Program, op: Op, rng: &mut Rng, fi: usize, k0: usize) -> Option<Program> {
+    let mut out = p.clone();
+    let mut k = k0;
+    let mut applied = false;
+    let r = rng.next();
+
+    let body = map_nth(&out.funcs[fi].body, &mut k, &mut applied, &mut |n| apply_op(n, op, r));
 
     if !applied { return None; }   // reached the site but the operator did not apply there
     out.funcs[fi].body = body;
     // GRAMMAR 3: reject ill-typed candidates HERE, not at the gate.
     typecheck::check_program(&out).ok()?;
     Some(out)
+}
+
+/// Why a placement failed. `mutate_at` collapses both into None, which conflates two facts that
+/// mean very different things about the operator SET:
+///   NoMatch  -- no node of the right shape at that position. Says nothing about the operator.
+///   IllTyped -- the operator applied and produced a program that does not type-check. An
+///               operator whose every placement is ill-typed is EFFECTIVELY ABSENT from the
+///               set GRAMMAR 4 declares, and that is worth reporting rather than silently
+///               counting as "did not apply".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Placement { Applied, NoMatch, IllTyped }
+
+/// Like `mutate_at`, but says WHY it failed.
+pub fn try_at(p: &Program, op: Op, rng: &mut Rng, fi: usize, k0: usize)
+    -> (Option<Program>, Placement)
+{
+    let mut out = p.clone();
+    let mut k = k0;
+    let mut applied = false;
+    let r = rng.next();
+    let body = map_nth(&out.funcs[fi].body, &mut k, &mut applied, &mut |n| apply_op(n, op, r));
+    if !applied { return (None, Placement::NoMatch); }
+    out.funcs[fi].body = body;
+    match typecheck::check_program(&out) {
+        Ok(()) => (Some(out), Placement::Applied),
+        Err(_) => (None, Placement::IllTyped),
+    }
 }
 
 /// 1..3 operators per candidate (GRAMMAR 4), retrying sites that do not apply.

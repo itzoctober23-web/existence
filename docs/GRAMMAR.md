@@ -114,6 +114,32 @@ Not present, deliberately: any notion of piece value, material, mobility, king s
 Mutation rate: 1-3 operators per candidate, chosen uniformly. A candidate identical to
 any ancestor in the ledger is discarded.
 
+**MEASURED on the bare alpha-beta seed, 2026-09-08** (`cargo test -p grammar --test mutate --
+--nocapture`), 160 placement attempts per operator:
+
+| operator | applied | no matching node | ILL-TYPED |
+|---|---|---|---|
+| Tweak | 5 | 155 | **0** |
+| WrapIf | 2 | 158 | **0** |
+| WrapLoop | 2 | 158 | **0** |
+| Delete | 9 | 151 | **0** |
+| Dup | 2 | 158 | **0** |
+| SwapSiblings | 3 | 157 | **0** |
+| InsertMax | 11 | 149 | **0** |
+| ReplaceConst | 2 | 158 | **0** |
+
+Two things this settles rather than assumes:
+
+1. **"All type-preserving" is verified.** Zero ill-typed programs across every operator and
+   every placement. The claim in the heading above was previously an intention.
+2. **Applicability varies 5.5x** (InsertMax 11 sites, four operators only 2). That asymmetry is
+   harmless now and was not before: operator selection used to be a RACE — a fresh random
+   operator was drawn on each retry and whichever applied first was kept — so an operator's
+   usage was proportional to its site count. Measured over 67 real proposals: InsertMax 32,
+   Tweak 0. The search was drawing from a subset of the declared set, weighted by how easy each
+   operator is to place. Selection now picks the operator FIRST and tries it at every position,
+   so each declared operator gets an equal draw regardless of how many sites it has.
+
 ## 5. Seeds
 ### 5.1 Purity lineage seed (depth-one), 8 nodes
 ```
