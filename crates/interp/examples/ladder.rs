@@ -45,8 +45,29 @@ fn main() {
     // says nothing about hash reuse -- it says the test was too shallow to contain the effect.
     // Two hypotheses died to learn that (TT alone should gain; ID should give the TT traffic),
     // which is the signal that the harness is the thing to doubt.
-    let depths: Vec<i64> = std::env::args().skip(1).filter_map(|a| a.parse().ok()).collect();
+    // BUDGET IS A PARAMETER NOW, and it has to be, because it does not mean the same thing to
+    // every program. Alpha-beta IGNORES it and searches to table D; MCTS reads it as a simulation
+    // count; proof-number search reads it as an iteration count. It was hardcoded at 16, which
+    // gives MCTS sixteen simulations over ~25 legal moves -- not enough to visit each child once.
+    // Measured in reference_audit.rs, both need ~256: MCTS scores 0/23 forced mates at 64 and
+    // 20/23 at 256; PN scores 21/23 at 64 and 23/23 at 256. At 16 this table reported MCTS
+    // finding ONE mate in 120 and called it a paradigm comparison.
+    //
+    // FITNESS 3's mates-per-COST is paradigm-neutral by construction, so the ratio stays fair --
+    // but only if each program is allowed to SPEND. A program capped at a sixteenth of the work
+    // is not being compared, it is being throttled.
+    //
+    // Usage: ladder [--budget N] [depths...]
+    let argv: Vec<String> = std::env::args().skip(1).collect();
+    let budget: i64 = argv.iter().position(|a| a == "--budget")
+        .and_then(|i| argv.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(16);
+    let depths: Vec<i64> = argv.iter()
+        .filter(|a| !a.starts_with("--"))
+        .filter_map(|a| a.parse().ok())
+        .filter(|d| *d != budget || argv.iter().position(|x| x == "--budget").is_none())
+        .collect();
     let depths = if depths.is_empty() { vec![2, 3, 4] } else { depths };
+    println!("  budget {budget} (alpha-beta ignores it; MCTS = simulations, PN = iterations)");
     for depth in depths {
     println!("\n  === D = {depth} ===");
     println!("  {:<32} {:>7} {:>14} {:>13} {:>10}",
@@ -58,7 +79,7 @@ fn main() {
         let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
         let (mut found, mut cost) = (0u32, 0u64);
         for p in &mates {
-            let mv = it.run(&prog, p, 16);
+            let mv = it.run(&prog, p, budget);
             cost += it.cost;
             if mv != board::types::MOVE_NONE {
                 let mut q = p.clone();
