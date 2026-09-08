@@ -109,6 +109,9 @@ fn main() {
     // Datagen worker threads. Defaults to 4 because background work on this box is pinned to
     // cores 12-15; taking more would take his.
     let threads = arg("--threads", 4);
+    // Fixed gradient-step budget per generation; 0 keeps the old epochs-over-the-slice
+    // behaviour so the two can be compared as a single variable.
+    let steps_per_gen = arg("--steps-per-gen", 0);
     let seed = arg("--seed", 20260907) as u64;
     let ctrl_every = arg("--control-every", 10);
     let out = a.iter().position(|x| x == "--out").and_then(|i| a.get(i + 1)).cloned()
@@ -251,8 +254,17 @@ fn main() {
         }
         let mut cand = champion.clone();
         let mut loss = 0.0;
-        for e in 0..epochs {
-            loss = tr.epoch(&mut cand, subset, seed ^ (g as u64) << 8 ^ e as u64);
+        if steps_per_gen > 0 {
+            // FIXED STEP BUDGET, drawn from the REPLAY BUFFER rather than this generation's
+            // slice: the number of gradient steps stops being a side effect of how many games
+            // datagen happened to play, and more data becomes a broader draw instead of a
+            // longer one. `replay` already excludes every held-out position.
+            let pool: &[Sample] = if replay.len() >= subset.len() { &replay } else { subset };
+            loss = tr.steps(&mut cand, pool, steps_per_gen, seed ^ (g as u64) << 8);
+        } else {
+            for e in 0..epochs {
+                loss = tr.epoch(&mut cand, subset, seed ^ (g as u64) << 8 ^ e as u64);
+            }
         }
 
         // ---- ACCEPTANCE.

@@ -88,6 +88,34 @@ impl Trainer {
         mean / (var / n as f64).sqrt()
     }
 
+    /// SGD over a FIXED NUMBER OF SAMPLES, drawn from `data` regardless of how large `data` is.
+    ///
+    /// WHY THIS EXISTS. `epoch` walks the whole dataset, so the number of gradient steps per
+    /// generation is whatever datagen happened to produce. That was harmless while a generation
+    /// yielded ~200 training positions. Raising self-play volume 125x took it to ~110,000, so
+    /// the step count per generation grew with it and the champion was being overwritten every
+    /// cycle: measured gate rate 0.469 -> 0.398 and held-out McNemar z down to -13.31 across
+    /// generations 13-18, i.e. the gate and the surrogate agreeing the candidate was worse,
+    /// while training loss kept falling.
+    ///
+    /// The volume increase was right -- it is what made the gate resolve at all. What was wrong
+    /// was leaving the trainer's step budget coupled to it. This decouples them: more data now
+    /// means a more DIVERSE draw, not a longer one.
+    ///
+    /// Sampling is with replacement from a seeded stream, so a large replay buffer contributes
+    /// broadly rather than the loop grinding the most recent generation.
+    pub fn steps(&self, net: &mut Net, data: &[Sample], n_steps: usize, rng_seed: u64) -> f32 {
+        if data.is_empty() || n_steps == 0 { return 0.0; }
+        let mut r = rng_seed | 1;
+        let mut idx: Vec<usize> = Vec::with_capacity(n_steps);
+        for _ in 0..n_steps {
+            r ^= r << 13; r ^= r >> 7; r ^= r << 17;
+            idx.push((r % data.len() as u64) as usize);
+        }
+        let picked: Vec<Sample> = idx.into_iter().map(|i| data[i].clone()).collect();
+        self.epoch(net, &picked, rng_seed ^ 0xA5A5)
+    }
+
     /// One epoch of SGD. Returns mean squared error before the update.
     pub fn epoch(&self, net: &mut Net, data: &[Sample], rng_seed: u64) -> f32 {
         let mut order: Vec<usize> = (0..data.len()).collect();
