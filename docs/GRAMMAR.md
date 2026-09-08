@@ -180,6 +180,145 @@ prior, labelled `faithful`, under a line reading "no sketches remain".
 After the repair: agrees 60/60 at every depth (a sound TT does not change alpha-beta's value),
 and it now earns its keep in evaluations — 59,347,691 vs 66,932,291 at depth 4, **-11.3%**.
 
+## 7. Fitness interface (details in FITNESS.md)
+A program exposes `choose`. Exactness is NOT program-settable. The compiler derives a
+static taint per returned Score: a score is **exact** iff it provably came through
+`max`/`min` over the FULL child list of `moves(p)` at every level of the returning path
+(no `ret` inside the `foreach` before the list is exhausted, no `avg`/`mix`/`sample`/
+`tread` on the path, no depth reduction relative to the declared depth argument).
+Anything else is **inexact**. The taint is computed once per program from the tree and
+cannot be influenced by runtime control flow. (If the flag were program-settable,
+evolution's optimal policy would be to never claim exactness, disabling the strong
+check — the same class of exploit the oracle exists to catch. Added to 10.5.)
+
+The correctness oracle (FITNESS.md) compares programs against a reference full-width
+search on a fixed position set: exact scores must match the reference exactly; inexact
+scores must not be provably impossible (e.g., a claimed forced win where the reference
+finds none within the searched depth; a score outside [LOSS, WIN] bounds; a returned
+move that is not in `moves(p)`). Mates-per-cost uses `terminal`-derived outcomes only.
+
+## 8. Cost model and compilation
+- Cost model: a declared per-primitive cost (cycles estimate) table. The interpreter
+  accumulates it at runtime; that running sum IS the budget unit (`budget`, #12).
+- The static per-node cost cap (3x the seed) that earlier drafts used is REMOVED. Under a
+  cost-unit budget an expensive-per-step program simply takes fewer steps in the same
+  budget, and the time-based gate charges for the rest — the cap was redundant, and it
+  was a declared bias against per-simulation paradigms (10.4). Removing it deletes a bias
+  rather than renaming a metric. What remains: a sanity ceiling — a candidate must
+  complete `choose` on a fixed smoke-test position within budget or it is rejected
+  (catches runaway programs, not paradigms).
+- Hard runtime ceilings: recursion depth 128; total cost units per `choose` = budget; wall
+  time enforced by the harness.
+- **ACCEPTANCE MEASUREMENT: PASSED at 0.98-0.99x (line is 0.50), by the tree-walker alone.**
+  Measured by `crates/interp` (examples/bench_interp.rs) at depths 3 and 4, with an
+  EQUIVALENCE CHECK that both arms evaluated the same number of leaves (2099 vs 2099;
+  19675 vs 19675) before any ratio is believed.
+  Consequence: the register bytecode of CRATE 4 is NOT needed to clear this gate and can be
+  deferred. `Net::eval` dominates both arms identically (~10k nps either way, a dense forward
+  pass with no incremental accumulator), so interpretation overhead is near-free at the
+  current eval cost. Re-measure when the eval gets fast: the ratio only becomes informative
+  once eval stops dominating.
+  **An earlier reading of 0.14x was a HARNESS BUG, not a result** -- three stacked errors:
+  (1) the seed's `choose` expands the root itself, so passing D=depth searched one ply deeper
+  than the reference; (2) a `Let` written as a statement in the encoded seed scoped only over
+  its own placeholder, so the `best` accumulator was invisible to the loop and read 0;
+  (3) the reference narrowed alpha across root moves while the seed gives each a full window.
+  Two "fixes" aimed at the interpreter (removing string-keyed env lookup, making Position
+  refcounted) changed the number by nothing, which is what exposed the harness as the culprit.
+  The eval-count check is now permanent so a ratio can never again be printed for two
+  different trees.
+- Compilation target: a register-based bytecode with a Rust interpreter. Acceptance
+  criterion for the interpreter design: the compiled main seed runs at >= 50% of the NPS
+  of a hand-written Rust bare alpha-beta with the same net. If not met, the grammar
+  design is revisited before P0 proceeds.
+
+  Elo per doubling of speed — the constant that prices interpreter overhead. Derivation
+  inlined so no private document is needed:
+  - 2-player literature at normal TC: ~50-90 Elo/doubling.
+  - Author's 4PC engine, threat-input builds gated at movetime 0.15s, back-solving
+    (Elo cost) / (log2 of speed ratio), holding the fixed-node quality delta constant:
+      old build: 0.329x speed = 1.60 doublings, cost 219 Elo -> 137 Elo/doubling (48 pairs)
+      new build: 0.647x speed = 0.63 doublings, cost 107 Elo -> 170 Elo/doubling (148 pairs)
+    The source (the 4PC engine's threat_v2/README.md) notes the combined ~176 "is high
+    enough that it is probably an artefact of the 48-pair sample". Later internal notes
+    cite 176 as measured without that caveat; the better-supported single measurement is
+    170 from 148 pairs, and the author's own flag applies to the whole cluster.
+  - Caveats carried from the source: one TC (0.15s), one engine, one variant, and the
+    assumption that the fixed-node eval delta transfers unchanged to the shallower depths
+    reachable in 0.15s. Decisive-heavy 4PC games also inflate Elo per game relative to
+    2-player chess.
+  - Honest bracket for Existence, which gates at fixed time: **50-170**. The interpreter
+    argument holds at every point in it (at 50 it is ~3.4x weaker than at 170). A dedicated
+    calibration — same engine, same net, halved movetime — is the first measurement to
+    take once the seed runs, and it replaces this bracket in the ledger.
+  Interpreter overhead is the cheapest way to lose the project.
+- Determinism: fixed RNG seeds per game for `sample` and for `moves` shuffling; all
+  candidates reproducible from (program, tables, net, seed).
+
+## 9. The ladder check (run offline before any compute is spent)
+Using the author's existing net as the test eval (methodology only), verify each step
+is expressible, is 1-3 mutations from the previous, and beats it on mates-per-cost
+and/or fixed-time games:
+1. depth-one (**9**, measured)
+2. depth-two: wrap-loop + add-arg + call -> minimax without bounds
+3. add window args + set accumulators + wrap-if(cmp(a,b,>=)) ret -> bare alpha-beta (**71**)
+4. probe before recursing, store after -> hash reuse (**89**)
+5. loop over depth in choose -> iterative deepening
+6. wrap-if(pred(m,p,is_capture)) around depth check -> capture extension at horizon
+7. tread(reduction, depth, index) in the recursive depth -> table-driven reduction
+
+Counts in bold are MEASURED by `crates/grammar`; the unbolded rungs are not yet written out.
+The original parenthetical estimates (8/18/29/41/52/61/72) were the same hand guesses that
+measured 2.4x wrong elsewhere in this document and have been removed rather than corrected.
+
+**FIRST RUNGS MEASURED (`crates/interp/examples/ladder.rs`), MATE-1 set of 120 positions:**
+
+| rung | mates found | cost | mates per Mcost |
+|---|---|---|---|
+| depth-one | 1/120 | 24k | 41.1 (cheap, but blind to mate) |
+| bare alpha-beta | **120/120** | 61.8M | **1.9** |
+| alpha-beta + hash reuse | **120/120** | 77.2M | **1.6** |
+
+**STEP 4 IS NOT A RUNG. Corrected 2026-09-07, and the correction reverses the conclusion.**
+
+This table previously read `19.2M cost, 6.3 mates/Mcost` and concluded "Step 4's predicted gain
+is confirmed on paper: hash reuse finds the SAME mates for 3.2x less cost." That was measured
+against the BROKEN `ab_hash` documented in section 6 — a program that never called `eval` and
+returned the constant 0 at every leaf. Mate-in-1 is found by the TERMINAL guard, not by the
+eval, so a program that had stopped searching still scored 120/120 while costing a third as
+much. The "confirmed gain" was the bug.
+
+Re-measured against the faithful transposition table: **77.2M cost, 1.6 mates/Mcost — a 25%
+LOSS against the seed**, not a 3.2x gain.
+
+**Three independent measurements now agree, and they contradict the plan's expected order:**
+
+| measurement | says |
+|---|---|
+| program length (§6) | hash reuse is **+104 nodes**, the FARTHEST reference program (UCT +33, PN +12) |
+| cost at fixed depth (`tt_pressure.rs`) | **1.12–1.27x more expensive** than bare alpha-beta at depths 2–4 |
+| mates-per-cost (this table) | **1.6 vs 1.9** — a loss |
+
+**Why, and what it implies for the ORDER.** A transposition table pays for itself when the same
+position is reached repeatedly. A single fixed-depth search offers almost no such traffic — a
+few transpositions by move-order permutation — so the probe/store machinery costs more than it
+saves. The thing that CREATES repeated searches of the same positions is ITERATIVE DEEPENING,
+which this ladder lists as step 5, AFTER hash reuse.
+
+So the ladder's order is wrong, and the plan's "Expected rediscovery order" (which opens with
+hash reuse) is wrong with it. **Iterative deepening has to come first, or the two have to
+arrive together**; a TT discovered before ID has nothing to hit and would be rejected by the
+very fitness function meant to reward it. Step 4 and step 5 are provisionally SWAPPED, pending
+a measurement of ID alone, which is the next thing this ladder should cost out.
+
+This is precisely what the offline ladder check is for: a predicted rung was measured, failed,
+and the sequence changed on paper — before any compute was spent chasing it.
+
+MCTS and PN score 0 on this set at a budget of 16 simulations; both need many simulations to
+prove anything and neither is a rung of this ladder.
+Each step's expected gain type is recorded (2-3: mates-per-cost; 4-7: fixed-time Elo).
+If any step fails to be a gain, the grammar or fitness is changed HERE, on paper.
+
 **CONSEQUENCE: hash reuse is not a rung AT THESE DEPTHS, and that is a statement about the
 regime rather than about the technique.** `examples/ladder.rs` now sweeps depth. Cost relative
 to the bare alpha-beta seed:
