@@ -1,0 +1,30 @@
+# configs/cost.toml — MEASURED per-primitive cost, GRAMMAR 8
+# Relative to one integer arithmetic op = 1. Net width 32.
+# Regenerate: cargo run --release --example cost_calibrate -p interp -- <width>
+
+arith        =       1    # 0.2 ns
+cmp          =       1    # 0.2 ns
+const        =       1    # 0.2 ns
+var          =       1    # 0.2 ns
+eval         =    1356    # 291.4 ns
+moves        =     708    # 152.3 ns
+apply        =     774    # 166.4 ns
+terminal     =     695    # 149.3 ns
+key          =      97    # 20.7 ns
+
+# The number that matters for the ladder: eval / (probe-ish cheap op) = 1356x.
+# Under the current FLAT model that ratio is 1, so a transposition table's whole
+# trade -- spend a cheap probe, skip an expensive eval -- is priced at zero gain.
+
+# Primitives not separately timed above are grouped by the operation they perform:
+#   probe/store/field  -> a hash index plus a small struct copy
+#   argmax/sort/sample -> per-item overhead only; the KEY they evaluate is charged separately
+#   call/ret/let/set/if/foreach/loop -> control flow, a few ops each
+probe        =      12
+store        =      12
+field        =       2
+select       =       4
+control      =       2
+score_of     =       2
+tread        =       2
+pred         =      40

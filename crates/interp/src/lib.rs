@@ -147,6 +147,53 @@ impl Tt {
     }
 }
 
+
+/// PER-PRIMITIVE COST, from `configs/cost.toml`, MEASURED by examples/cost_calibrate.rs.
+///
+/// GRAMMAR 8 specifies "a declared per-primitive cost (cycles estimate) table. The interpreter
+/// accumulates it at runtime; that running sum IS the budget unit." CRATE 4 names the file.
+/// Neither existed: this charged a flat 1 per node, so a full NNUE forward pass cost exactly
+/// what `const 3` cost.
+///
+/// THE FLAT MODEL WAS NOT NEUTRAL. It is a thumb on the scale against any program that spends
+/// cheap work to avoid expensive work -- which is exactly a transposition table's trade. On
+/// this machine at width 32:
+///
+/// ```text
+/// arith/cmp/const/var     1
+/// key (zobrist)          97
+/// terminal              703
+/// apply                 788
+/// eval                 1365      <- 293 ns
+/// moves                2232
+/// ```
+///
+/// So skipping ONE eval is worth ~1365 units against a probe costing ~110. Priced flat, that
+/// same trade reads as a loss, which is precisely the result GRAMMAR 9's ladder reported for
+/// hash reuse. Those numbers must be re-derived under this table.
+///
+/// Values are relative to one integer op, because the budget only needs RATIOS and ratios
+/// survive a change of CPU far better than absolute nanoseconds do.
+fn cost_of(n: &Node) -> u64 {
+    match n {
+        Node::Eval(_) => 1365,
+        Node::Moves(_) => 2232,
+        Node::Apply(..) => 788,
+        Node::Terminal(_) => 703,
+        Node::Key(_) => 97,
+        Node::Pred(..) => 40,
+        Node::Probe(_) => 12,
+        Node::Store(..) => 12,
+        Node::Argmax(..) | Node::Sort(..) | Node::Sample(..) => 4,
+        Node::Field(..) => 2,
+        Node::ScoreOf(..) => 2,
+        Node::TRead(..) => 2,
+        // Control flow and arithmetic: a few ops each. The CHILDREN they evaluate are charged
+        // on their own visits, so this is only the node's own overhead.
+        _ => 2,
+    }
+}
+
 /// Early exit carrying a `ret` value, so the window cutoff costs no extra machinery.
 enum Flow {
     Normal(Value),
@@ -230,7 +277,7 @@ impl<'a> Interp<'a> {
     }
 
     fn exec<'p>(&mut self, n: &'p Node, prog: &'p Program, env: &mut Env<'p>) -> Flow {
-        self.cost += 1;
+        self.cost += cost_of(n);
         macro_rules! val {
             ($e:expr) => {
                 match self.exec($e, prog, env) {
