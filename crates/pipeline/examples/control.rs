@@ -46,11 +46,27 @@ fn main() {
     let (origin, opp_desc) = match &opponent_path {
         Some(path) => match Net::load(path) {
             Ok(n) => {
+                // WIDTH MISMATCH IS ALLOWED, BUT ONLY THE EQUAL-TIME MEASUREMENT IS REPORTED.
+                //
+                // This used to exit(2). The reasoning was right and the remedy was too broad: a
+                // FIXED-DEPTH match across widths hands the wider net more computation per node
+                // and charges it nothing, so it flatters capacity by construction. But that is an
+                // argument against measurement 1, not against the comparison -- and measurement 2
+                // already exists precisely for this, budgeting both sides to EQUAL TIME via
+                // arch::equal_time_caps.
+                //
+                // Blocking it outright blocked the one question the ceiling analysis says matters:
+                // 44 readings show every run flat in a 0.79-0.86 band at ARCH rung 0 (width 16,
+                // 12,528 weights), and "does more capacity raise the ceiling" cannot be asked by
+                // scoring each width against its OWN random origin -- those are different
+                // opponents and the rates are not commensurable. It has to be head to head, at
+                // equal cost.
                 if n.n_hidden != champ.n_hidden {
-                    eprintln!("width mismatch: {champ_path} is {} and {path} is {} -- a match \
-                               between different widths is not the comparison you think it is",
+                    eprintln!("NOTE: width mismatch ({} vs {}). The fixed-depth measurement is \
+                               SKIPPED -- at equal depth the wider net gets more computation for \
+                               free, which flatters it by construction. Only the equal-TIME capped \
+                               result below is a fair comparison.",
                               champ.n_hidden, n.n_hidden);
-                    std::process::exit(2);
                 }
                 (n, path.clone())
             }
@@ -64,8 +80,12 @@ fn main() {
     println!("champion {champ_path} (hidden {})  vs  {opp_desc}", champ.n_hidden);
     println!("{pairs} pairs per gate, both sides of every opening\n");
 
-    // 1. The per-generation gate: fixed depth, uncapped.
+    // 1. The per-generation gate: fixed depth, uncapped. SKIPPED across widths -- see the note
+    //    where the opponent is loaded: equal depth is not equal cost, and reporting it anyway
+    //    would put an unfair number next to a fair one and invite the wrong one being quoted.
+    let same_width = champ.n_hidden == origin.n_hidden;
     for depth in [2u32, 3] {
+        if !same_width { break; }
         let sc = gate::match_nets(&champ, &origin, depth, pairs, seed);
         println!("fixed depth {depth}, uncapped   {}W-{}D-{}L   rate {:.3} +/- {:.3}   {}",
                  sc.wins, sc.draws, sc.losses, sc.pent_rate(), sc.ci95(),
