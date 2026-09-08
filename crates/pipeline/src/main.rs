@@ -134,6 +134,15 @@ fn main() {
     // plies -- eight straight generations of candidates WORSE than the champion, four of them
     // flagged `regression` in the ledger. Capped, it holds ~0.49 and the champion compounds.
     // 40 is not tuned; it is measured better than no cap. 20 and 60 are untested.
+    //
+    // CAVEAT ADDED 2026-09-08, and it applies to me as much as to the number: that comparison
+    // was n=1 PER ARM. The step-budget experiment has since measured run-to-run variance on
+    // this very control metric at 0.151 (epochs-3 scored 0.641 and 0.792 on two seeds at
+    // IDENTICAL settings) -- larger than most effects being tested here. The within-run
+    // evidence was stronger than a single endpoint (uncapped showed EIGHT consecutive
+    // generations below 0.5 with four flagged `regression` in the ledger, which is a pattern),
+    // but the cross-arm claim rests on one run each and I said so nowhere at the time.
+    // run_horizon_experiment.sh re-runs it across three seeds.
     let horizon_cap = arg("--horizon-cap", 40) as u32;
     // DEPTH SCHEDULE. Depth 1 gives ~47x the labels per second and bootstraps the net out of
     // randomness, but at depth 1 the search is barely stronger than the raw eval, so the data
