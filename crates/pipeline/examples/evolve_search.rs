@@ -333,8 +333,21 @@ fn main() {
             // 2. SURROGATE (FITNESS 3). Must not LOSE mates -- a program that finds fewer
             //    mates more cheaply is not better, and missing a forced mate is unsound
             //    pruning's characteristic failure. Cheap, so it runs before the games.
-            let (cm, _cr, _cf) = mates_per_cost(&cand, &mates, surrogate_depth, &net);
+            // FITNESS 3 has TWO jobs here and the filter was only doing one.
+            //
+            // COUNT catches unsound pruning: a program that finds fewer mates than the seed has
+            // pruned away a forced win, which is that failure's characteristic signature.
+            // At surrogate-depth 0 this can never fire, because mate-in-1 is found by the
+            // TERMINAL GUARD rather than by searching -- every program scores 40/40 and the
+            // stage rejects nothing. That is what "0 surrogate" meant in every generation.
+            //
+            // RATE catches waste, and it was computed and discarded. A candidate burning more
+            // than 2x the seed's cost per mate is doing something expensive for no return. The
+            // bound is deliberately loose: the GATE decides whether a cost is worth paying, and
+            // a surrogate that second-guesses it would reject slower-but-stronger programs.
+            let (cm, cr, _cf) = mates_per_cost(&cand, &mates, surrogate_depth, &net);
             if cm < seed_mates { surrogate_fail += 1; continue; }
+            if cr > 0.0 && seed_rate > 0.0 && cr < seed_rate / 2.0 { surrogate_fail += 1; continue; }
             tally.get_mut(&key).unwrap()[2] += 1;
             tally.get_mut(&key).unwrap()[3] += 1;
             // 3. GAMES. The only thing that decides.
