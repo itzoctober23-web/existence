@@ -139,6 +139,54 @@ fn disagreement_set(n: usize, depth: i64, net: &Net, cap: usize)
     out
 }
 
+/// Positions where the seed's answer CHANGES when the search window is narrowed.
+///
+/// THE SECOND EXPLOIT, and it appeared the moment the first was closed. With the disagreement set
+/// blocking the depth cheat, the search found this instead (evolved_gen12.prog, verified by diff
+/// against the seed): it replaced the root call's alpha argument, `neg(INF)`, with the constant 8.
+/// That raises the initial alpha from -32000 to +8, pruning every move worth under 8 centipawns.
+///
+/// It is a legitimate alpha-beta technique, not a defect -- and it is SAFE ONLY ON THIS SET,
+/// because every position here is decided by an evaluation worth about +/-30000, so the true best
+/// move is never below alpha. In ordinary play, where the best move is often worth -50, it fails
+/// low and returns whatever the move generator emitted first.
+///
+/// The disagreement set fixed the DEPTH axis. This fixes the SCORE-MAGNITUDE axis, by the same
+/// self-calibrating principle: alpha is `neg(INF)` and INF is table 1, so running the seed with a
+/// SMALL INF narrows the window, and a position whose answer changes under that narrowing is one
+/// where the window cannot be narrowed for free. A program that raises alpha scores zero on these,
+/// exactly as a shallower program scores zero on the disagreement positions.
+///
+/// (An earlier probe swept INF and measured only 13%, and I concluded the window was not
+/// exploitable. That swept the MAGNITUDE bound while this mutation moved the LOWER bound of the
+/// window. Same table, different question, and the conclusion did not transfer.)
+fn window_sensitive_set(n: usize, depth: i64, net: &Net, narrow: i64, cap: usize)
+    -> Vec<(Position, Option<board::Move>)> {
+    let ab = reference::bare_alpha_beta();
+    let mut rng: u64 = 0xA1FA_5EED;
+    let mut out = Vec::new();
+    let mut tries = 0;
+    while out.len() < n && tries < cap {
+        tries += 1;
+        let mut p = Position::startpos();
+        for _ in 0..(10 + rng % 34) {
+            let l = p.legal_moves();
+            if l.is_empty() { break; }
+            rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
+            p.make_move(l.as_slice()[(rng % l.len() as u64) as usize]);
+        }
+        if p.legal_moves().is_empty() { continue; }
+        let mut full = Interp::new(net, vec![depth, 32_000, 8]);
+        let a = full.run(&ab, &p, 16);
+        let mut tight = Interp::new(net, vec![depth, narrow, 8]);
+        let b = tight.run(&ab, &p, 16);
+        if a != board::types::MOVE_NONE && a != b {
+            out.push((p.clone(), Some(a)));   // the FULL-window answer is the correct one
+        }
+    }
+    out
+}
+
 /// mates per million cost units, and the mate count (a program that finds fewer mates more
 /// cheaply is NOT better -- unsound pruning's characteristic failure is a missed forced mate).
 /// FITNESS DEPTH IS A PARAMETER, and D=2 was the wrong value.
@@ -202,13 +250,24 @@ fn main() {
     let mut set = mate_set(n1);
     // Built by DISAGREEMENT at the fitness depth, not by mate distance. See disagreement_set.
     let deep = disagreement_set(n2, depth, &net, 4_000);
+    // Third component: window-sensitive positions, closing the raised-alpha exploit.
+    let n3: usize = std::env::args().nth(6).and_then(|s| s.parse().ok()).unwrap_or(5);
+    let win = window_sensitive_set(n3, depth, &net, 8, 4_000);
+    let n_win = win.len();
     let n_deep = deep.len();
     set.extend(deep);
+    set.extend(win);
 
     let mut champ = reference::bare_alpha_beta();
     let (f0, c0, r0) = fitness(&champ, &set, &net, depth);
-    println!("  surrogate set {} positions ({} mate-in-1, {} depth-{}-REQUIRING by disagreement), fitness depth {}",
-             set.len(), set.len() - n_deep, n_deep, depth, depth);
+    println!("  surrogate set {} positions ({} mate-in-1, {} depth-requiring, {} window-sensitive), fitness depth {}",
+             set.len(), set.len() - n_deep - n_win, n_deep, n_win, depth);
+    if n_win < n3 {
+        println!("  REFUSING TO RUN: found {n_win} window-sensitive positions, wanted {n3}.");
+        println!("  Without them a candidate can raise alpha and buy cost for free, which is");
+        println!("  exactly what happened once the depth exploit was closed.");
+        return;
+    }
     if n_deep < n2 {
         println!("  REFUSING TO RUN: found {n_deep} depth-requiring positions, wanted {n2}.");
         println!("  Without them the 'do not lose mates' guard cannot bite and this loop");

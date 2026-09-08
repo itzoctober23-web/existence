@@ -47,11 +47,13 @@ POP=${POP:-12}
 # is exact at any set size. A smaller set samples fewer positions; it does not add noise.
 N1=${N1:-15}
 N2=${N2:-5}
+# N3: window-sensitive positions, closing the raised-alpha exploit the depth guard exposed.
+N3=${N3:-5}
 DEPTH=${DEPTH:-3}
 LOG=${LOG:-search_track.log}
 
 [ -x ./target/release/examples/evolve ] || { echo "no evolve binary; build it when nothing is running"; exit 1; }
 
-echo "=== P2 search track: $GENS generations, pop $POP, set ${N1}+${N2} at depth ${DEPTH}, seeded from bare alpha-beta ===" >> "$LOG"
+echo "=== P2 search track: $GENS generations, pop $POP, set ${N1}+${N2}+${N3} at depth ${DEPTH}, seeded from bare alpha-beta ===" >> "$LOG"
 echo "=== started $(date +%F_%H:%M) — prior run reached gen 13 with 0 improvements ===" >> "$LOG"
-exec taskset -c 12-14 nice -n 19 ionice -c 3 ./target/release/examples/evolve "$GENS" "$POP" "$N1" "$N2" "$DEPTH" >> "$LOG" 2>&1
+exec taskset -c 12-14 nice -n 19 ionice -c 3 ./target/release/examples/evolve "$GENS" "$POP" "$N1" "$N2" "$DEPTH" "$N3" >> "$LOG" 2>&1
