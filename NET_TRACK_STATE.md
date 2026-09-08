@@ -105,3 +105,28 @@ Gate candidates against something that does not move: the frozen origin, or a po
 champions, or both alongside the champion match. The origin control already exists and is already
 used to score runs at the END -- the change is to consult it during the accept decision, where the
 whole day's evidence says the champion match alone is insufficient.
+
+
+## QUALIFICATION: the cycle is a DEPTH-2 phenomenon (same run, depth-3 line)
+
+The head-to-head was run at both depths. Completed output:
+
+    ep_1 vs champion_long   depth 2   326W-656D-218L   0.545 +/- 0.018   RESOLVED
+    ep_1 vs champion_long   depth 3   317W-598D-285L   0.513 +/- 0.020   no difference detected
+
+At depth 3 the interval includes 0.5, so ep_1 beating champion_long is **not** demonstrated there.
+The cycle is shown at DEPTH 2 only.
+
+That is still the operative depth and the claim stands where it matters: the loop's gate runs at
+depth 2 (`--depth 2` in every run today), and the origin scores 0.864 / 0.834 are the depth-2 lines
+of the same control. So the accept decision is made in exactly the regime where the cycle exists.
+
+But the honest statement is narrower than "an intransitive cycle exists between these nets". It is:
+**at the depth this loop gates at, beating the champion and beating a fixed opponent point in
+opposite directions.** At depth 3 the two nets are not distinguishable at 600 pairs, so nothing is
+demonstrated either way there, and a reader should not carry the depth-2 result across.
+
+It also raises a question worth measuring rather than assuming: whether the effect is about depth
+2 being SHALLOW (a 0.030 difference against the origin that a deeper search washes out) or about
+intransitivity genuinely weakening with depth. 600 pairs at depth 3 gives ci95 0.020, so a real
+0.013 edge would not resolve -- absence of detection here is not detection of absence.
