@@ -149,9 +149,14 @@ fn the_operators_cannot_introduce_a_primitive_the_seed_lacks() {
     assert!(
         names.contains(&"alpha-beta + hash reuse"),
         "hash reuse became reachable -- an operator can now build Probe/Key/Field/Store. That is \
-         the ONLY rung measured as FITTER than the seed (0.98x its cost at D=3), so this failing \
-         means the single known improvement is now inside the search space. Re-run the search \
-         track and update this assertion."
+         the ONLY rung measured as FITTER than the seed (0.98x its cost at D=3). NOTE, measured \
+         2026-09-08 (ladder_valley_RESULT.md): making it reachable is NOT sufficient and this \
+         assertion firing is NOT good news on its own. Each half of the rung is measured WORSE \
+         than the seed -- probe-only 0.991x, store-only 0.997x, both together 1.024x -- so a \
+         search accepting only `rate > best_rate` can never take either step and can never \
+         assemble the pair. Reachability is necessary, a monotone path is not implied, and here \
+         it provably does not exist. If an operator makes this constructible, the search ALSO \
+         needs to tolerate the valley before re-running the track."
     );
     assert_eq!(
         buildable,

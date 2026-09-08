@@ -232,7 +232,63 @@ fn fitness(prog: &Program, set: &[(Position, Option<board::Move>)], net: &Net, d
     (found, cost, found as f64 * 1e6 / cost.max(1) as f64)
 }
 
+/// IS THE ONE VERIFIED RUNG REACHABLE BY A HILL CLIMB AT ALL? `evolve valley [n1 n2 n3 depth]`
+///
+/// This lives in `evolve.rs` on purpose. The question is whether a path exists under THIS loop's
+/// fitness, so it reuses THIS loop's `fitness`, `mate_set`, `disagreement_set` and
+/// `window_sensitive_set` verbatim. A standalone probe would be a second harness free to drift
+/// from the first, and this project has already produced three different numbers for one quantity
+/// exactly that way.
+///
+/// PRE-REGISTERED READING, written before the numbers exist:
+///   * VALLEY CONFIRMED if BOTH halves score below the seed. Then the only rung ever measured as
+///     fitter is unreachable by strict hill climbing NO MATTER which operators exist, because
+///     acceptance requires `rate > best_rate` at every step. The bottleneck would be the SEARCH,
+///     not the grammar, and the operator work is then not the thing to do first.
+///   * REFUTED if either half is >= the seed. Then a monotone path may exist and the half that
+///     passes names the operator to add first. I expect a valley; being wrong here is cheap and
+///     immediately actionable, which is why it is worth measuring rather than reasoning about.
+///   * The FULL rung is measured too, as a CONTROL. If it does not reproduce its 0.98x on this
+///     set then nothing else in the table means anything and the 0.98x is what needs
+///     re-examining -- so it is re-measured here rather than carried in from a comment.
+fn valley() {
+    let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
+    let (n1, n2, n3, depth) = (a(2, 15) as usize, a(3, 5) as usize, a(4, 5) as usize, a(5, 3));
+    let net = Net::random(32, 20260907);
+    let mut set = mate_set(n1);
+    set.extend(disagreement_set(n2, depth, &net, 4_000));
+    set.extend(window_sensitive_set(n3, depth, &net, 8, 4_000));
+    println!("=== ladder valley probe: {} positions ({n1} mate-in-1, {n2} depth-requiring, \
+              {n3} window-sensitive) at depth {depth} ===", set.len());
+
+    let progs: Vec<(&str, Program)> = vec![
+        ("bare alpha-beta (seed)", reference::bare_alpha_beta()),
+        ("probe only (never stores)", reference::ab_probe_only()),
+        ("store only (never probes)", reference::ab_store_only()),
+        ("hash reuse (both halves)", reference::ab_hash()),
+    ];
+    let (_, _, base_rate) = fitness(&progs[0].1, &set, &net, depth);
+    let base_nodes = progs[0].1.size() as i64;
+
+    println!("\n  {:<28} {:>6} {:>7} {:>16} {:>14} {:>10}",
+             "program", "nodes", "mates", "cost", "mates/Mcost", "vs seed");
+    for (name, p) in &progs {
+        let (found, cost, rate) = fitness(p, &set, &net, depth);
+        let nodes = p.size() as i64;
+        println!("  {name:<28} {:>+6} {found:>7} {cost:>16} {rate:>14.6} {:>9.3}x",
+                 nodes - base_nodes, rate / base_rate.max(1e-12));
+    }
+    println!("\n  'vs seed' is mates-per-cost RELATIVE TO THE SEED: >1.000 is FITTER, and fitter is");
+    println!("  the only thing `evolve` accepts (it requires rate > best_rate, STRICTLY).");
+    println!("  Both halves below 1.000 => the rung sits at the bottom of a VALLEY, and no mutation");
+    println!("  operator can make it reachable by this search. Fitness is deterministic here, so");
+    println!("  these ratios are exact for this set rather than estimates with error bars.");
+}
+
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("valley") {
+        return valley();
+    }
     let gens: usize = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(30);
     let pop: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(24);
     // SET SIZES ARE ARGUMENTS, because they are the cost knob and hardcoding them meant a REBUILD

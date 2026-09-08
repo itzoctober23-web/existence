@@ -267,6 +267,36 @@ fn ab_program(cap_ext: bool, reduce: bool) -> Program {
 /// move loop and so does not store. That is sound (it stores strictly less), and it is what the
 /// seed's control flow allows without restructuring the loop.
 pub fn ab_hash() -> Program {
+    ab_hash_parts(true, true)
+}
+
+/// THE TWO HALVES OF THE HASH-REUSE RUNG, as MEASUREMENT INSTRUMENTS. Not search targets.
+///
+/// GRAMMAR 9 requires that "a path of single mutations from the seed exists where every step is
+/// fitter". Hash reuse is the ONLY rung ever measured as fitter than the seed (0.98x its cost at
+/// D=3, GRAMMAR.md:473), so it is the one place that premise can be TESTED rather than assumed --
+/// and `evolve` accepts on `rate > best_rate`, STRICTLY greater, so a merely-equal step cannot be
+/// taken and a worse one cannot be taken back.
+///
+/// A transposition table is two edits that only pay off TOGETHER: a store nothing reads is pure
+/// overhead, and a probe of a table nothing wrote can never hit. If both halves measure WORSE
+/// than the seed, the rung sits at the bottom of a VALLEY and no mutation operator makes it
+/// reachable by a strict hill climb -- which redirects the search track away from "add operators
+/// that can build Probe/Key/Field/Store" and toward the search itself.
+///
+/// Deliberately NOT added to `all()`. That function feeds the prior's node counts and the
+/// reachability test's constructible-kind set, and quietly widening either from a probe would
+/// corrupt two published numbers in order to answer a third question.
+pub fn ab_probe_only() -> Program {
+    ab_hash_parts(true, false)
+}
+
+/// See [`ab_probe_only`]. Stores every node's result; never reads one back.
+pub fn ab_store_only() -> Program {
+    ab_hash_parts(false, true)
+}
+
+fn ab_hash_parts(probe_on: bool, store_on: bool) -> Program {
     let mut p = bare_alpha_beta();
     let slot = || Node::Probe(b(Node::Key(b(v("p")))));
     let f = |id: FieldId| Node::Field(b(slot()), id);
@@ -343,14 +373,19 @@ pub fn ab_hash() -> Program {
             other => f(other),
         }
     }
-    let body = wrap_tail(p.funcs[1].body.clone(), &move |tail| match tail {
-        Node::Ret(e) => Node::Let(
-            "r".into(),
-            e,
-            b(Node::seq(vec![store.clone(), Node::Ret(b(v("r")))])),
-        ),
-        other => other,
-    });
+    let body = if store_on {
+        wrap_tail(p.funcs[1].body.clone(), &move |tail| match tail {
+            Node::Ret(e) => Node::Let(
+                "r".into(),
+                e,
+                b(Node::seq(vec![store.clone(), Node::Ret(b(v("r")))])),
+            ),
+            other => other,
+        })
+    } else {
+        p.funcs[1].body.clone()
+    };
+    let probe = if probe_on { probe } else { Node::Nop };
 
     p.funcs[1].body = Node::Let("a0".into(), b(v("a")), b(Node::seq(vec![probe, body])));
     p

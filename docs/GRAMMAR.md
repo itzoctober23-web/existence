@@ -422,6 +422,23 @@ the search nor the evolution loop imports it.
 The original parenthetical estimates (8/18/29/41/52/61/72) were the same hand guesses that
 measured 2.4x wrong elsewhere in this document and have been removed rather than corrected.
 
+> **SUPERSEDED 2026-09-08 — READ THE RESOLUTION AT THE END OF THIS SECTION BEFORE THIS TABLE.**
+> Everything from here to "CONSEQUENCE" is the FLAT-COST-MODEL era and its conclusion ("step 4 is
+> not a rung", "a 25% LOSS") no longer holds. Two instrument defects and one real engineering
+> change were found afterwards: the flat model charged a full NNUE forward pass the same as
+> `const 3`, and `key` cost 97 units because the Zobrist hash was rebuilt from scratch at every
+> probe. Under the measured per-primitive cost model with an incrementally-maintained key, hash
+> reuse is **0.98x the seed at D=3 — a GAIN**. The cost scales are not comparable either (61.8M
+> here vs 50.9 BILLION there), so the two tables cannot be read against each other.
+>
+> It is kept, not deleted, because it is the honest record of what the engine really cost at the
+> time, and because the reasoning below it — a TT needs repeated visits to pay for itself — is
+> what motivated the ID rungs and is still correct.
+>
+> COST OF LEAVING IT UNMARKED, on 2026-09-08: I read this table, read the corrected 0.98x
+> elsewhere in the same file, and spent a turn treating one document's two sections as three
+> contradictory measurements of one quantity before noticing the era difference.
+
 **FIRST RUNGS MEASURED (`crates/interp/examples/ladder.rs`), MATE-1 set of 120 positions:**
 
 | rung | mates found | cost | mates per Mcost |
@@ -496,6 +513,37 @@ measurement dominated by two fixable implementation costs.
 The prediction that survives is the DIRECTION: the overhead falls with depth, so the gain
 should widen deeper. The claim that does NOT survive is the earlier "break-even near depth
 5-6, so evolution at depth 2 can never discover it" — at depth 3 it is already ahead.
+
+**MEASURED 2026-09-08 — THE RUNG IS REAL AND STILL UNREACHABLE, FOR A DIFFERENT REASON.**
+
+`examples/evolve valley` scores the rung's two HALVES with the search track's own fitness
+(`ladder_valley_RESULT.md`), 25 positions at D=3, deterministic:
+
+| program | nodes | mates/Mcost | vs seed |
+|---|---|---|---|
+| bare alpha-beta (seed) | +0 | 0.002518 | 1.000x |
+| probe only (never stores) | +69 | 0.002494 | **0.991x** |
+| store only (never probes) | +39 | 0.002510 | **0.997x** |
+| hash reuse (both halves) | +104 | 0.002578 | **1.024x** |
+
+Both halves are WORSE than the seed; only the conjunction is fitter. `evolve` accepts on
+`rate > best_rate`, STRICTLY, so neither half can ever be taken and the pair can never be
+assembled one edit at a time.
+
+**So GRAMMAR 9's premise — "a path of single mutations from the seed exists where every step is
+fitter" — is measured FALSE for the only rung that is verifiably fitter.** The valley is
+structural, not a property of this position set: `Interp::run` clears the table per position, so
+probe-only searches a table nothing wrote (guaranteed misses) and store-only writes entries
+nothing reads. Neither half pays alone in ANY set, so a different set moves the magnitudes and
+cannot move the sign.
+
+This RETIRES the next task it looked like the plan implied. `tests/reachability.rs` proves the
+mutation operators cannot construct `Probe`/`Key`/`Field`/`Store`, and the obvious response was to
+add operators that can. That would not have helped: reachability is necessary, not sufficient, and
+no monotone path exists regardless. The bottleneck is the SEARCH — strict hill climbing over a
+0.3-0.9% valley — not the grammar. An operator that inserted probe+store as ONE edit would cross
+it, and is refused: MASTER_PLAN line 53 requires these to be DISCOVERED, so a gadget-inserting
+operator makes the discovery vacuous.
 
 **CONSEQUENCE: hash reuse is not a rung AT THESE DEPTHS, and that is a statement about the
 regime rather than about the technique.** `examples/ladder.rs` now sweeps depth. Cost relative
