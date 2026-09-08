@@ -210,3 +210,81 @@ fn play(a: &Net, b: &Net, a_is_white: bool, start: &Position, depth: u32, shuffl
     }
     None
 }
+
+/// SEQUENTIAL testing. FITNESS 7.2: "a candidate near a bound gets thousands of pairs, an
+/// obvious dud a few hundred; nobody picks the count, the evidence does."
+///
+/// Every gate here was FIXED-COUNT, which is wrong in both directions at once. At 12 pairs the
+/// pentanomial interval is about +/-0.14, so `rate - ci95 > 0.5` demands a ~64% score before it
+/// will accept anything — real but modest gains are invisible. Meanwhile an obviously broken
+/// candidate costs exactly as many games as a promising one. Sequential testing fixes both:
+/// it spends games only where the evidence is still ambiguous.
+///
+/// Bounds: alpha = beta = 0.05, so the log-likelihood-ratio thresholds are
+/// ln((1-beta)/alpha) = +2.944 to accept and ln(beta/(1-alpha)) = -2.944 to reject. Those error
+/// rates are FIXED and human-declared (FITNESS 7.2 part 1) — an instrument calibrated by its
+/// subject measures nothing.
+pub const LLR_BOUND: f64 = 2.944;
+
+/// Expected score for an Elo difference.
+pub fn elo_to_score(elo: f64) -> f64 {
+    1.0 / (1.0 + 10f64.powf(-elo / 400.0))
+}
+
+impl Score {
+    /// Generalised SPRT log-likelihood ratio on the PAIR distribution.
+    ///
+    /// Normal approximation on the pair-score mean, which is what fishtest's pentanomial GSPRT
+    /// uses: with the pair outcome as the observation, the mean and variance are estimated from
+    /// the five buckets directly, so the pairing that cancels opening bias is preserved in the
+    /// statistic rather than thrown away by re-scoring games independently.
+    pub fn llr(&self, elo0: f64, elo1: f64) -> f64 {
+        let n: u32 = self.pent.iter().sum();
+        if n < 2 { return 0.0; }
+        let n = n as f64;
+        // pair score on 0..1
+        let mean: f64 = self.pent.iter().enumerate()
+            .map(|(i, c)| (i as f64 / 4.0) * *c as f64).sum::<f64>() / n;
+        let var: f64 = self.pent.iter().enumerate()
+            .map(|(i, c)| { let d = i as f64 / 4.0 - mean; d * d * *c as f64 }).sum::<f64>()
+            / (n - 1.0);
+        if var <= 0.0 {
+            // Zero observed variance: every pair identical. Fall back to the rule-of-three
+            // logic used by ci95 rather than dividing by zero and reporting infinite evidence.
+            return 0.0;
+        }
+        let p0 = elo_to_score(elo0);
+        let p1 = elo_to_score(elo1);
+        (n / (2.0 * var)) * ((mean - p0).powi(2) - (mean - p1).powi(2))
+    }
+}
+
+/// Verdict of a sequential test.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Sprt { Accept, Reject, Inconclusive }
+
+/// Play pairs until the LLR crosses a bound or `max_pairs` is spent, checking every `chunk`
+/// pairs. Returns the verdict, the accumulated score, and the final LLR.
+///
+/// `max_pairs` is a CAP, not a target: a run that hits it is INCONCLUSIVE and must be recorded
+/// as such. An unrecorded tie is usually a capped run, and treating it as a rejection quietly
+/// discards candidates the evidence never actually ruled out.
+pub fn sprt_match_capped(
+    a: &Net, b: &Net, depth: u32, cap_a: u64, cap_b: u64, seed: u64, open_plies: usize,
+    elo0: f64, elo1: f64, chunk: usize, max_pairs: usize,
+) -> (Sprt, Score, f64) {
+    let mut total = Score::default();
+    let mut played = 0usize;
+    while played < max_pairs {
+        let n = chunk.min(max_pairs - played);
+        let s = match_nets_capped(a, b, depth, cap_a, cap_b, n, seed ^ (played as u64) << 8, open_plies);
+        total.wins += s.wins; total.draws += s.draws; total.losses += s.losses;
+        for i in 0..5 { total.pent[i] += s.pent[i]; }
+        played += n;
+        let llr = total.llr(elo0, elo1);
+        if llr >= LLR_BOUND { return (Sprt::Accept, total, llr); }
+        if llr <= -LLR_BOUND { return (Sprt::Reject, total, llr); }
+    }
+    let llr = total.llr(elo0, elo1);
+    (Sprt::Inconclusive, total, llr)
+}
