@@ -214,6 +214,16 @@ The 88% says conversion is broadly fine. The startpos line says there is at leas
 deterministic path the engine plays badly and that no gate in the project can ever observe,
 because every gate starts past it.
 
+**IT EXTENDS TO 4PC AND TO THE EXTERNAL ANCHOR TOO** (checked 2026-09-08). The 4pchess benchmark
+passes no `SPRT_OPENINGS`, so `tools/sprt.py:305` falls through to `gen_openings(..., plies=6)` --
+the same 6-ply randomisation. So the ONE number in either project that is not self-referential
+also never sees the real starting position. The blind spot is complete across both engines and
+every harness.
+
+One redeeming detail: `gen_openings` is EVAL-SCREENED (sprt.py:90-91, "reject positions already
+outside" a bound), so it discards openings where one side is already winning. The randomisation
+is not blind -- which is why those games are decided by play rather than by the opening.
+
 NOT ACTED ON. Removing the randomisation would collapse self-play diversity to a single game.
 The fix, if this matters, is to ADD startpos-rooted evaluation alongside the randomised gates --
 not to replace them. Recorded because it is the kind of gap that is invisible to every metric
