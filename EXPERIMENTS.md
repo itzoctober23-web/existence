@@ -31,6 +31,58 @@ the A/B to ask whether it works at all.
 
 ---
 
+## 2026-09-08 — CAPACITY COULD NEVER INCREASE: the ARCH arm judged a newborn against a veteran
+
+The origin control across one 2400-games run:
+
+| generation | control vs origin |
+|---|---|
+| 25 | 254W-24D-42L, 0.831 +/- 0.037 |
+| 50 | 243W-31D-46L, 0.808 +/- 0.039 |
+| 75 | 255W-18D-47L, 0.825 +/- 0.042 |
+
+**Flat.** Fifty generations of accepted candidates bought nothing measurable. In the same log:
+
+```
+ARCH w 16 -> w 32: held-out 0.0744 vs champ 0.0687 -- surrogate filter, no gate
+ARCH w 16 -> w 32: held-out 0.0728 vs champ 0.0649 -- surrogate filter, no gate
+ARCH w 16 -> w 32: held-out 0.0745 vs champ 0.0609 -- surrogate filter, no gate
+```
+
+Three widening proposals, three rejections, **none of which played a game**.
+
+**The mechanism.** `train_fresh(p.width(), ...)` built the candidate by RANDOM INITIALISATION at
+the new width, trained it for at most 30 epochs on the replay buffer, and then compared its
+held-out loss against a champion carrying 75 generations of accumulated training. That contest
+cannot be won at birth. The FITNESS 5 filter ("must not be worse than the champion by more than
+0.5%") then rejected it before it could reach the game gate, every time, by construction.
+
+So the champion was pinned at width 16 permanently, and two things followed that look unrelated
+until you see this:
+  - the origin control went flat, because the only axis left was weights at fixed capacity;
+  - `INCREMENTAL_MIN_WIDTH = 64` meant the incremental accumulator -- "the biggest single win" on
+    the task list -- stayed DORMANT forever, since the loop could never reach width 64.
+
+**The fix is function-preserving widening (Net2WiderNet, Chen et al. 2015), not a weaker filter.**
+Loosening the surrogate would have let genuinely worse candidates through; the problem was never
+the threshold, it was that the candidate was born crippled. Each new unit copies a source unit
+and every source unit's outgoing weight is divided by its replica count, so the wider net
+computes an IDENTICAL function at birth, starts at exactly the champion's loss, and is judged on
+what the extra capacity ADDS.
+
+Three tests, each catching a different way this goes silently wrong:
+  - widening to the SAME width reproduces the net exactly (asserted on every weight, no tolerance)
+  - 16 -> 64 changes the eval by <= 2cp across 40 walked positions
+  - no copied unit is bit-identical to its source -- exact duplicates get identical gradients
+    forever, so the wider net would have more parameters and no more capacity. That is the
+    failure mode the paper warns about, and it would have passed both other tests.
+
+NOT YET SHOWN: that widening now actually passes a game gate, or that width 32 beats width 16 on
+strength. This removes a structural impossibility; it does not prove capacity is the binding
+constraint. The next run's ARCH lines are the evidence, and they may still say 16 is right.
+
+---
+
 ## 2026-09-08 — GAMES PER GENERATION: strength is MONOTONE in it, and generation count is an anti-metric
 
 Three arms, the SAME 300s of wall-clock each, single core, same seed, then every arm's champion

@@ -42,6 +42,61 @@ pub struct Net {
 }
 
 impl Net {
+    /// FUNCTION-PRESERVING WIDENING (Net2WiderNet, Chen et al. 2015).
+    ///
+    /// WHY THIS EXISTS. The ARCH arm proposed width 16 -> 32 three times in one run and the
+    /// surrogate filter killed it every time, before any game was played:
+    ///     ARCH w 16 -> w 32: held-out 0.0744 vs champ 0.0687 -- surrogate filter, no gate
+    /// The candidate was built by `train_fresh` -- RANDOM init at the new width, 30 epochs --
+    /// and judged on held-out loss against a champion carrying 75 generations of training. A
+    /// randomly-initialised wider net cannot win that comparison AT BIRTH, so capacity could
+    /// never increase and the champion was pinned at width 16 permanently. The origin control
+    /// sat flat across exactly that span: 0.831 -> 0.808 -> 0.825 at generations 25/50/75.
+    ///
+    /// This makes the wider net compute EXACTLY the same function as the narrow one, so it
+    /// starts at the champion's loss instead of at random and is then judged on what training
+    /// ADDS rather than on the handicap it was born with.
+    ///
+    /// Each new unit k >= h copies a source unit m[k] < h: same incoming weights, same bias.
+    /// Copying alone would multiply that unit's contribution, so each source unit's OUTGOING
+    /// weight is divided by its replica count. Then for any input:
+    ///     sum_k relu(a[m[k]]) * w2[m[k]]/count[m[k]] == sum_j relu(a[j]) * w2[j]
+    /// which is the original output, exactly.
+    ///
+    /// The copies get a tiny asymmetry in w1. Exact duplicates receive identical gradients
+    /// forever and stay tied, giving the wider net more parameters and no more capacity -- the
+    /// failure mode the paper explicitly warns about. The noise is 1e-4 of the init scale:
+    /// far too small to move the eval, large enough to break the tie.
+    pub fn widen(&self, new_hidden: usize, seed: u64) -> Self {
+        assert!(new_hidden >= self.n_hidden, "widen() cannot narrow a net");
+        let h = self.n_hidden;
+        let mut r = Rng(seed | 1);
+        let map: Vec<usize> = (0..new_hidden)
+            .map(|k| if k < h { k } else { (r.next() % h as u64) as usize })
+            .collect();
+        let mut count = vec![0usize; h];
+        for &j in &map { count[j] += 1; }
+
+        let s1 = (2.0f32 / N_INPUTS as f32).sqrt() * 1e-4;
+        let mut w1 = vec![0.0f32; N_INPUTS * new_hidden];
+        for f in 0..N_INPUTS {
+            for k in 0..new_hidden {
+                let v = self.w1[f * h + map[k]];
+                // Only the COPIES are perturbed. Units k < h stay bit-exact, so widening a net
+                // to its own width reproduces it byte-for-byte.
+                w1[f * new_hidden + k] = if k < h { v } else { v + r.normal() * s1 };
+            }
+        }
+        Net {
+            n_hidden: new_hidden,
+            w1,
+            b1: (0..new_hidden).map(|k| self.b1[map[k]]).collect(),
+            w2: (0..new_hidden).map(|k| self.w2[map[k]] / count[map[k]] as f32).collect(),
+            b2: self.b2,
+            scale: self.scale,
+        }
+    }
+
     /// Deterministic pseudo-random init. Iteration zero has no knowledge in it; the seed only
     /// makes runs reproducible (MASTER_PLAN Safeguards: everything reproducible from a seed).
     pub fn random(n_hidden: usize, seed: u64) -> Self {
@@ -259,5 +314,87 @@ impl Rng {
             s += (self.next() >> 11) as f32 / (1u64 << 53) as f32;
         }
         (s - 3.0) * 0.7071
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use board::Position;
+
+    /// Positions from short random walks, not just startpos: the accumulator's behaviour
+    /// depends on WHICH features are active, and startpos exercises one arrangement.
+    fn walk(n: usize) -> Vec<Position> {
+        let mut rng: u64 = 0xC0FFEE;
+        let mut rnd = || { rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17; rng };
+        let mut out = Vec::new();
+        while out.len() < n {
+            let mut p = Position::startpos();
+            for _ in 0..(4 + rnd() % 20) {
+                let l = p.legal_moves();
+                if l.is_empty() { break; }
+                p.make_move(l.as_slice()[(rnd() % l.len() as u64) as usize]);
+            }
+            out.push(p);
+        }
+        out
+    }
+
+    /// Widening to the SAME width must reproduce the net exactly. Units k < h are copied
+    /// bit-for-bit and every replica count is 1, so this is the degenerate case that catches a
+    /// wrong index or a stray division without any tolerance to hide behind.
+    #[test]
+    fn widen_to_same_width_is_identical() {
+        let net = Net::random(32, 7);
+        let same = net.widen(32, 12345);
+        assert_eq!(same.n_hidden, net.n_hidden);
+        assert_eq!(same.w1, net.w1, "w1 changed when widening to the same width");
+        assert_eq!(same.b1, net.b1);
+        assert_eq!(same.w2, net.w2);
+        assert_eq!(same.b2, net.b2);
+    }
+
+    /// THE POINT OF THE WHOLE CONSTRUCTION: a widened net computes the SAME function.
+    ///
+    /// This is what makes the ARCH arm fair. The candidate used to be random-initialised at the
+    /// new width, so its held-out loss at birth was far worse than a champion with dozens of
+    /// generations behind it, and the surrogate filter rejected every widening before a single
+    /// game was played -- capacity could never increase. Starting from an identical function
+    /// means the wider net is judged on what training ADDS, not on a handicap it was born with.
+    ///
+    /// Tolerance exists only because the copies carry a deliberate 1e-4 asymmetry to break the
+    /// gradient tie; without it this would be exact. 2cp on a scale where evals run to hundreds.
+    #[test]
+    fn widen_preserves_the_function() {
+        let net = Net::random(16, 7);
+        let wide = net.widen(64, 999);
+        assert_eq!(wide.n_hidden, 64);
+        let (mut sa, mut sb) = (Vec::new(), Vec::new());
+        let mut worst = 0i32;
+        for p in walk(40) {
+            let a = net.eval(&p, &mut sa);
+            let b = wide.eval(&p, &mut sb);
+            worst = worst.max((a - b).abs());
+        }
+        assert!(worst <= 2, "widening changed the eval by {worst}cp; it must preserve the function");
+    }
+
+    /// The copies must NOT be exact duplicates. Identical units receive identical gradients
+    /// forever and stay tied, which is the failure mode Net2Net warns about: more parameters,
+    /// no more capacity. So the wider net would be judged fairly and then still learn nothing.
+    #[test]
+    fn widen_breaks_the_symmetry() {
+        let net = Net::random(8, 7);
+        let wide = net.widen(16, 4242);
+        let h = net.n_hidden;
+        let mut identical_rows = 0;
+        for k in h..wide.n_hidden {
+            let src: Vec<f32> = (0..N_INPUTS).map(|f| wide.w1[f * wide.n_hidden + k]).collect();
+            for j in 0..h {
+                let orig: Vec<f32> = (0..N_INPUTS).map(|f| wide.w1[f * wide.n_hidden + j]).collect();
+                if src == orig { identical_rows += 1; }
+            }
+        }
+        assert_eq!(identical_rows, 0, "copied units are bit-identical to their source: they will never diverge");
     }
 }

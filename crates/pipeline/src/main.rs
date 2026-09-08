@@ -15,16 +15,31 @@ use pipeline::ledger::{Entry, GateEvidence, Ledger, Reason};
 use pipeline::trainer::Trainer;
 use board::{Color, Position};
 
-/// Train a fresh net of `width` on `data`, stopping when held-out loss stops improving.
+/// Train a candidate at `width`, starting either from scratch or from `seed_net` widened.
 ///
-/// An ARCH candidate cannot inherit the champion's weights — it is a different shape — so it
-/// starts from random init and has to catch up on the replay buffer. How long that takes is a
-/// property of the width, so it is MEASURED (early stopping on the held-out split) rather than
-/// fixed at a number that would quietly advantage whichever width the constant happened to suit.
-fn train_fresh(
-    width: usize, data: &[Sample], held: &[&Sample], tr: &Trainer, seed: u64, max_epochs: usize,
+/// How long training takes is a property of the width, so it is MEASURED (early stopping on the
+/// held-out split) rather than fixed at a number that would quietly advantage whichever width
+/// the constant happened to suit.
+///
+/// The paragraph that used to stand here said "an ARCH candidate cannot inherit the champion's
+/// weights -- it is a different shape -- so it starts from random init". That premise is what
+/// this function now disproves: a wider net CAN inherit them, function-preservingly.
+///
+/// `seed_net` is what makes an ARCH proposal winnable. Starting from random, a wider net's
+/// held-out loss at birth is far worse than a champion with dozens of generations behind it,
+/// so the FITNESS 5 surrogate filter rejected every widening before a single game was played
+/// (three times in one run: "ARCH w 16 -> w 32 ... surrogate filter, no gate"). Capacity could
+/// never increase, and the origin control sat flat at 0.831/0.808/0.825 across generations
+/// 25/50/75 while that was true. Widened function-preservingly, the candidate starts at exactly
+/// the champion's loss and is judged on what the extra capacity ADDS.
+fn train_from(
+    width: usize, seed_net: Option<&Net>, data: &[Sample], held: &[&Sample], tr: &Trainer,
+    seed: u64, max_epochs: usize,
 ) -> (Net, f64, usize) {
-    let mut net = Net::random(width, seed);
+    let mut net = match seed_net {
+        Some(c) if width >= c.n_hidden => c.widen(width, seed),
+        _ => Net::random(width, seed),
+    };
     let (mut best_net, mut best_loss, mut best_ep) = (net.clone(), f64::INFINITY, 0usize);
     let mut stale = 0;
     for e in 0..max_epochs {
@@ -257,15 +272,31 @@ fn main() {
     // reshape: a mismatched resume is the kind of error that produces plausible numbers.
     let mut champion = match init_net {
         Some(ref path) => match Net::load(path) {
-            Ok(n) if n.n_hidden == WIDTH_MENU[rung] => {
-                println!("RESUMED champion from {path} (width {})", n.n_hidden);
-                n
-            }
-            Ok(n) => {
-                eprintln!("ABORT: {path} is width {} but rung {rung} is width {}",
-                          n.n_hidden, WIDTH_MENU[rung]);
-                std::process::exit(2);
-            }
+            // ADOPT the saved net's rung rather than demanding it match --rung.
+            //
+            // The first version aborted unless the width equalled WIDTH_MENU[--rung]. That was
+            // fine only while ARCH could never widen: the moment a widening step is accepted the
+            // champion is width 32, and every later resume of a rung-0 run would abort on its own
+            // successful progress. The saved net's width IS the current rung -- that is what
+            // "resume" means -- so infer it, and abort only if the width is not on the menu at
+            // all (a net this ARCH arm could not have produced).
+            Ok(n) => match arch::rung_of(n.n_hidden) {
+                Some(r) => {
+                    if r != rung {
+                        println!("RESUMED at rung {r} (width {}), overriding --rung {rung}",
+                                 n.n_hidden);
+                    } else {
+                        println!("RESUMED champion from {path} (width {})", n.n_hidden);
+                    }
+                    rung = r;
+                    n
+                }
+                None => {
+                    eprintln!("ABORT: {path} is width {}, which is not on the ARCH menu {WIDTH_MENU:?}",
+                              n.n_hidden);
+                    std::process::exit(2);
+                }
+            },
             Err(e) => { eprintln!("ABORT: could not load {path}: {e}"); std::process::exit(2); }
         },
         None => origin.clone(),
@@ -550,7 +581,8 @@ fn main() {
                 let astop: Vec<&Sample> = judge_pool.iter().step_by(2).collect();
                 let ajudge: Vec<&Sample> = judge_pool.iter().skip(1).step_by(2).collect();
                 let (acand, _stop_loss, aeps) =
-                    train_fresh(p.width(), &replay, &astop, &tr, seed ^ 0xA5 ^ g as u64, 30);
+                    train_from(p.width(), Some(&champion), &replay, &astop, &tr,
+                               seed ^ 0xA5 ^ g as u64, 30);
                 let acand_loss = tr.loss(&acand, &ajudge);
                 let champ_loss = tr.loss(&champion, &ajudge);
                 let rheld_ref = ajudge;
