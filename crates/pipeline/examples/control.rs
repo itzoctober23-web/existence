@@ -46,11 +46,32 @@ fn main() {
                  verdict(sc.pent_rate(), sc.ci95()));
     }
 
-    // 2. The control gate as the loop runs it.
-    let budget_ns = arch::ns_per_node(&origin, 3, 5) * 4000.0;
+    // 2. The control gate AS THE LOOP RUNS IT -- which means tracking the loop's defaults, not
+    //    the ones it was fixed away from.
+    //
+    //    This hardcoded `6` and a fixed 4000-node budget: exactly the pair main.rs measured as
+    //    broken and replaced. Measured here on the champion: the budget bought 4152 nodes
+    //    against the 992,296 a full depth-6 search costs from startpos -- 0.4% of the tree.
+    //    Neither side finishes its first root move, so both play near-randomly, 113 of 128 games
+    //    drew, and it reported 0.504 +/- 0.008: a TIGHT interval around no-difference, which
+    //    reads as a confident null and is no evidence at all. The diagnostic written to catch
+    //    that failure in the loop had the failure itself.
+    //
+    //    Depth cap and budget now follow main.rs: cap 4, and the budget DERIVED from the
+    //    measured full-tree size at that cap so it means the same thing for every net rather
+    //    than silently meaning something different for each.
+    let cap_depth: u32 = get("--gate-depth-cap").and_then(|v| v.parse().ok()).unwrap_or(4);
+    let derived_nodes = {
+        let mut probe = pipeline::search::Searcher::with_seed(1);
+        let mut p0 = board::Position::startpos();
+        probe.best_move_capped(&mut p0, cap_depth, &origin, u64::MAX, 1);
+        probe.nodes.max(1)
+    };
+    let budget_ns = arch::ns_per_node(&origin, 3, 5) * derived_nodes as f64;
     let (ca, cb) = arch::equal_time_caps(&champ, &origin, budget_ns, 3);
-    let sc = gate::match_nets_capped(&champ, &origin, 6, ca, cb, pairs, seed, 4);
-    println!("depth cap 6, {ca}/{cb} nodes   {}W-{}D-{}L   rate {:.3} +/- {:.3}   {}",
+    let sc = gate::match_nets_capped(&champ, &origin, cap_depth, ca, cb, pairs, seed, 4);
+    println!("depth cap {cap_depth}, {ca}/{cb} nodes (full tree at that cap = {derived_nodes})   \
+{}W-{}D-{}L   rate {:.3} +/- {:.3}   {}",
              sc.wins, sc.draws, sc.losses, sc.pent_rate(), sc.ci95(),
              verdict(sc.pent_rate(), sc.ci95()));
 

@@ -129,6 +129,38 @@ LATEST control makes this easy; it should show the series.
 
 ---
 
+## 2026-09-08 — RESOLVED: the "44 losses to a random net" was two different measurements
+
+Ran the control at both depths, which is the test I said would distinguish the two explanations:
+
+```
+fixed depth 2, uncapped    99W-28D-1L    0.883 +/- 0.038
+fixed depth 3, uncapped   110W-18D-0L    0.930 +/- 0.028
+depth cap 6, 4152 nodes     8W-113D-7L   0.504 +/- 0.008   no difference detected
+```
+
+**The benign explanation wins.** Losses fall 1 -> 0 and the rate climbs 0.883 -> 0.930 as depth
+rises, so the random-EVAL opponent was being carried by SEARCH: alpha-beta at depth 2 still sees
+captures two plies ahead even with a noise eval, and that is what stole games. Not a blind spot
+in the champion.
+
+And the premise was wrong anyway. `260W-16D-44L` came from the IN-LOOP control, which runs under
+`equal_time_caps`; this uncapped match loses ONE game in 128 at depth 2 and none at depth 3. I
+was treating two different regimes as one number.
+
+**The real finding is the third line.** The budgeted gate buys 4152 nodes against the 992,296 a
+full depth-6 search costs from startpos -- **0.4% of the tree**. Neither side finishes its first
+root move, so both play near-randomly, 113 of 128 games draw, and the gate returns 0.504 +/-
+0.008. A TIGHT interval around no-difference, which reads like a confident null and is no
+evidence whatsoever.
+
+This repo already documents exactly this failure ("at the old default of 6 a 4,000-node budget
+bought 1.29% of the tree and both sides played at random") and fixed it for the NET gate by
+capping depth at 4. `examples/control.rs` still hardcodes 6, so the diagnostic that exists to
+check the loop has the very defect the loop was fixed for.
+
+---
+
 ## 2026-09-08 — OPEN: the champion loses 44 of 320 games to a RANDOM net, and nothing explains it
 
 The origin control has been read all session as a success -- 0.838 +/- 0.037, "+258 Elo vs
