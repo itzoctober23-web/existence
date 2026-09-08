@@ -176,8 +176,47 @@ The grammar was implemented and the counts replaced; the status line was not upd
 | depth-one | 9 | faithful (purity seed) |
 | bare alpha-beta | 71 | faithful (main seed) |
 | alpha-beta + hash reuse | **175** | faithful (validity marker, depth, EXACT/LOWER/UPPER bounds) |
-| proof-number search | 83 | faithful (proof/disproof numbers, most-proving-node, back-up) |
-| UCT MCTS | 104 | faithful (select/expand/evaluate/backpropagate) |
+| proof-number search | **175** | faithful — VERIFIED BY EXECUTION, 23/23 forced mates |
+| UCT MCTS | 104 | faithful — VERIFIED BY EXECUTION (runs, evaluates, spends its budget) |
+
+**CORRECTION 2026-09-08 — "faithful" meant COUNTED AND READ, and for PN it was wrong.**
+
+`uct_mcts` and `proof_number` were referenced exactly once each in the whole tree, from
+`reference::all()`, which examples/prior.rs uses to COUNT NODES. Nothing had ever executed them.
+That is the same state `alpha-beta + hash reuse` was in when it was labelled faithful while
+returning the constant 0 — and it was caught the same way, by running it
+(`crates/interp/examples/reference_audit.rs`, judged against bare alpha-beta as a control on the
+same positions at the same depth).
+
+MCTS passed. **Proof-number search was degenerate:** it returned the FIRST legal move on 23/23
+mate-in-one positions, found 0/23, and agreed with alpha-beta 0/23, while the control found 23/23.
+Three separate defects, each measured:
+
+1. **Unvisited nodes read as PROVEN.** `proof(n)` was a bare `Probe(Key(n)).Score`; an unvisited
+   slot is `Slot::default()`, all zeros, and proof==0 means proven win. Every unexplored child
+   looked already proven. Fixed with the `Flag` validity marker: `effective = stored + (1 - flag)`.
+2. **No expansion step, so every iteration hit the recursion ceiling.** Real PN descends to the
+   most-proving LEAF and expands one ply; this recursed until terminal. Measured 3840 ceiling hits
+   over 60 positions at budget 64 — exactly 60 x 64, every iteration. At the ceiling `Call` returns
+   `Num(0)`, documented as "a neutral value", and for proof numbers 0 means PROVEN WIN, so each
+   iteration asserted the line was won and the back-up carried it to the root. (`Interp::ceiling_hits`
+   was added to make that visible; alpha-beta hits the ceiling too and survives, because for it 0 is
+   a score and not a claim.)
+3. **No AND/OR alternation, and a mate SCORE stored as a proof NUMBER.** The back-up took min/sum of
+   the child's PROOF for both quantities, treating every node as an OR node, so an expanded child's
+   proof stayed 1 forever and the descent never left child_0. And the terminal branch stored
+   `ScoreOf(Terminal(p), 0)` = **-29936**, a mate score where a proof count belongs — and a negative
+   proof number is always the minimum. Rewritten in negamax form, which needs no AND/OR flag:
+   `pn(n) = min over children of dn(child)`, `dn(n) = sum over children of pn(child)`, terminal =
+   (pn INF, dn 0), expansion sets dn to the CHILD COUNT so an expanded node stops being attractive.
+
+After the rewrite: **23/23 forced mates, 0/23 first-move, 23/23 agreement with alpha-beta, 0 evals**
+(zero is correct — PN is terminal-driven, which is exactly why FITNESS 3 denominates mates-per-COST
+rather than per-evaluation). At budget 64 it scores 21/23 and at 256 it scores 23/23, so the
+shortfall at 64 is RESOURCE, not a defect — checked by sweeping the budget rather than assuming.
+
+The count moved 83 -> 175 and the PN distance with it, +70 -> **+104**. The old number counted a
+program that could not prove a mate in one, so it was never a PN distance in the first place.
 
 **All entries measured by `crates/grammar` (examples/prior.rs) at EQUAL FIDELITY.** Run it to
 reproduce.

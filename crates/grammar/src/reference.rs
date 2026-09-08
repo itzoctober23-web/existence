@@ -554,29 +554,13 @@ pub fn proof_number() -> Program {
     let inf = Node::TRead(1, vec![]);
     let child = || Node::Apply(b(v("p")), b(v("m")));
 
-    // UNVISITED NODES MUST INITIALISE TO 1, NOT 0.
-    //
-    // These two readers used to be a bare `Probe(Key(n)).Score` / `.Count`. An unvisited slot is
-    // `Slot::default()`, all zeros, and by the definition above proof==0 means PROVEN WIN -- so
-    // every unexplored child read as already proven, the most-proving-node argmax found them all
-    // tied at 0, and it took element zero forever. MEASURED before the fix
-    // (crates/interp/examples/reference_audit.rs, depth 3, control clean at 23/23):
-    // returned the FIRST legal move 23/23, found 0/23 mate-in-ones, agreed with alpha-beta 0/23.
-    //
-    // That is the same root cause GRAMMAR 6 already records for `alpha-beta + hash reuse` -- "so
-    // does an EMPTY slot, since Slot::default() is all zeros" -- landing on a second entry of the
-    // same reference set and surviving the correction of the first.
-    //
-    // Real PN initialises an unexpanded node to proof = disproof = 1. `Flag` is the validity
-    // marker, the same field ab_hash uses, and is written 1 at every store. With flag in {0,1}:
-    //
-    //     effective = stored + (1 - flag)      unvisited -> 0 + 1 = 1 ;  visited -> s + 0 = s
-    //
-    // which needs no conditional and stays inside the arithmetic the grammar already has, so the
-    // encoding remains something the mutation operators can reach.
     fn slot(n: Node, f: FieldId) -> Node {
         Node::Field(b(Node::Probe(b(Node::Key(b(n))))), f)
     }
+    // An unvisited slot is Slot::default(), all zeros, and proof==0 means PROVEN WIN. So a bare
+    // read made every unexplored child look already proven. Flag is the validity marker: with
+    // flag in {0,1}, effective = stored + (1 - flag), so unvisited reads 1 and visited reads the
+    // stored value, with no conditional.
     fn with_init(n: Node, f: FieldId) -> Node {
         Node::Arith(
             ArithOp::Add,
@@ -588,13 +572,13 @@ pub fn proof_number() -> Program {
     }
     let proof = |n: Node| with_init(n, FieldId::Score);
     let disproof = |n: Node| with_init(n, FieldId::Count);
-    // Marks the slot visited. Must run AFTER the stores that read the old proof/disproof, or the
-    // (1 - flag) term would already be zero and the initialisation would be lost.
     let mark_seen = || Node::Store(b(Node::Key(b(v("p")))), FieldId::Flag, b(Node::Const(1)));
 
-    // prove(p): expand the most-proving child, then back up proof/disproof.
     let body = Node::seq(vec![
-        // terminal: proof 0 on a win for the mover, infinite otherwise
+        // TERMINAL. The mover is checkmated or the game is drawn, so the mover cannot WIN:
+        // pn = infinity, dn = 0. The previous encoding stored ScoreOf(Terminal(p), 0) here, which
+        // is -29936 -- a mate SCORE where a proof NUMBER belongs, and a negative proof number is
+        // always the minimum, so it also corrupted the selection.
         Node::If(
             b(Node::Cmp(
                 b(Node::Terminal(b(v("p")))),
@@ -602,88 +586,94 @@ pub fn proof_number() -> Program {
                 Rel::Ne,
             )),
             b(Node::seq(vec![
-                Node::Store(
-                    b(Node::Key(b(v("p")))),
-                    FieldId::Score,
-                    b(Node::ScoreOf(b(Node::Terminal(b(v("p")))), b(Node::Const(0)))),
-                ),
-                // Mark BEFORE the read below: a terminal's proof is the stored value exactly,
-                // and without the flag it would come back as stored+1 -- a proven win reading
-                // as 1 instead of 0, which is the very confusion this fix exists to remove.
+                Node::Store(b(Node::Key(b(v("p")))), FieldId::Score, b(inf.clone())),
+                Node::Store(b(Node::Key(b(v("p")))), FieldId::Count, b(Node::Const(0))),
                 mark_seen(),
-                Node::Ret(b(proof(v("p")))),
+                Node::Ret(b(inf.clone())),
             ])),
             None,
         ),
-        // EXPANSION, and the base case the encoding was missing. Real PN descends to the most-
-        // proving LEAF, expands it one ply, and backs up; it never recurses to a terminal. This
-        // version recursed until terminal, so every iteration ran to the recursion ceiling --
-        // MEASURED at 3840 hits over 60 positions at budget 64, i.e. 60 x 64, every single
-        // iteration. At the ceiling `Call` returns Num(0), documented as "a neutral value", and
-        // for proof numbers 0 is not neutral: it means PROVEN WIN. So each iteration asserted the
-        // line was won and the back-up carried that to the root, which is why the prover returned
-        // the first legal move 23/23 and found 0/23 mates.
+        // EXPANSION. Real PN descends to the most-proving LEAF, expands it one ply and backs up;
+        // it never recurses to a terminal. Without this the recursion ran to the ceiling on EVERY
+        // iteration (measured 3840 hits over 60 positions at budget 64 = 60 x 64), and at the
+        // ceiling `Call` returns 0 -- which for proof numbers means PROVEN WIN.
         //
-        // An unvisited node IS the leaf to expand: initialise proof = disproof = 1, mark it seen,
-        // and return. That bounds the recursion to the depth of the tree actually explored, which
-        // grows by one node per iteration -- PN's real shape.
+        // dn is set to the CHILD COUNT, not 1. An expanded node's dn = sum over children of pn,
+        // and every child is unvisited at pn=1, so dn = number of children. That is what makes an
+        // expanded node unattractive and forces the search to fan out sideways; setting it to 1
+        // leaves every sibling tied forever and the descent never leaves the first child.
         Node::If(
-            b(Node::Cmp(
-                b(slot(v("p"), FieldId::Flag)),
+            b(Node::Cmp(b(slot(v("p"), FieldId::Flag)), b(Node::Const(0)), Rel::Eq)),
+            b(Node::Let(
+                "n".into(),
                 b(Node::Const(0)),
-                Rel::Eq,
+                b(Node::seq(vec![
+                    Node::Foreach(
+                        b(Node::Moves(b(v("p")))),
+                        "m".into(),
+                        b(Node::Set("n".into(), b(Node::Arith(ArithOp::Add, vec![v("n"), Node::Const(1)])))),
+                    ),
+                    Node::Store(b(Node::Key(b(v("p")))), FieldId::Score, b(Node::Const(1))),
+                    Node::Store(b(Node::Key(b(v("p")))), FieldId::Count, b(v("n"))),
+                    mark_seen(),
+                    Node::Ret(b(Node::Const(1))),
+                ])),
             )),
-            b(Node::seq(vec![
-                Node::Store(b(Node::Key(b(v("p")))), FieldId::Score, b(Node::Const(1))),
-                Node::Store(b(Node::Key(b(v("p")))), FieldId::Count, b(Node::Const(1))),
-                mark_seen(),
-                Node::Ret(b(Node::Const(1))),
-            ])),
             None,
         ),
-        // select the MOST-PROVING child: the one with the smallest proof number
+        // SELECT the most-proving child. NEGAMAX form: numbers are from each node's own mover's
+        // perspective, so the child's DISPROOF is what this node's proof is built from.
+        //     pn(n) = min over children of dn(child)
+        //     dn(n) = sum over children of pn(child)
+        // The previous encoding took min/sum of the child's PROOF for both, i.e. it treated every
+        // node as an OR node with no AND/OR alternation. Without alternation an expanded child's
+        // proof stays 1 forever, the descent never moves off child_0, and the mating child is
+        // never visited -- exactly the "returns the first legal move 23/23" signature measured.
         Node::Let(
             "m".into(),
             b(Node::Argmax(
                 b(Node::Moves(b(v("p")))),
                 "m".into(),
-                b(Node::Arith(ArithOp::Neg, vec![proof(child())])),
+                b(Node::Arith(ArithOp::Neg, vec![disproof(child())])),
             )),
             b(Node::Nop),
         ),
-        // recurse into it
         Node::Let("sub".into(), b(Node::Call(1, vec![child()])), b(Node::Nop)),
-        // back up: proof = min over children, disproof = sum over children
+        // BACK UP over ALL children, not incrementally against this node's stale value. The
+        // previous version accumulated `disproof(p) + disproof(child)` on every visit, which
+        // double-counts a child each time it is revisited.
         Node::Let(
             "pmin".into(),
-            b(Node::Min(b(proof(v("p"))), b(v("sub")))),
-            b(Node::Nop),
-        ),
-        Node::Store(b(Node::Key(b(v("p")))), FieldId::Score, b(v("pmin"))),
-        Node::Store(
-            b(Node::Key(b(v("p")))),
-            FieldId::Count,
-            b(Node::Arith(
-                ArithOp::Add,
-                vec![disproof(v("p")), disproof(child())],
+            b(inf.clone()),
+            b(Node::Let(
+                "dsum".into(),
+                b(Node::Const(0)),
+                b(Node::seq(vec![
+                    Node::Foreach(
+                        b(Node::Moves(b(v("p")))),
+                        "m".into(),
+                        b(Node::seq(vec![
+                            Node::Set("pmin".into(), b(Node::Min(b(v("pmin")), b(disproof(child()))))),
+                            Node::Set("dsum".into(), b(Node::Arith(ArithOp::Add, vec![v("dsum"), proof(child())]))),
+                        ])),
+                    ),
+                    Node::Store(b(Node::Key(b(v("p")))), FieldId::Score, b(v("pmin"))),
+                    Node::Store(b(Node::Key(b(v("p")))), FieldId::Count, b(v("dsum"))),
+                    mark_seen(),
+                    Node::Ret(b(v("pmin"))),
+                ])),
             )),
         ),
-        // LAST, deliberately. Both stores above read this node's own proof/disproof, and those
-        // reads must still see the pre-visit initialisation of 1.
-        mark_seen(),
-        Node::Ret(b(v("pmin"))),
     ]);
 
-    // choose: run the prover to the budget, then play the child with the smallest proof number
+    // choose: run the prover to the budget, then play the child that is easiest to DISPROVE for
+    // the opponent -- smallest dn(child), the same quantity the descent selects on.
     let choose = Node::seq(vec![
         Node::Loop(b(Node::Budget), b(Node::Call(1, vec![v("p")]))),
         Node::Ret(b(Node::Argmax(
             b(Node::Moves(b(v("p")))),
             "m".into(),
-            b(Node::Arith(
-                ArithOp::Sub,
-                vec![inf.clone(), proof(child())],
-            )),
+            b(Node::Arith(ArithOp::Sub, vec![inf.clone(), disproof(child())])),
         ))),
     ]);
 
@@ -705,6 +695,7 @@ pub fn proof_number() -> Program {
         lineage: Lineage::Main,
     }
 }
+
 
 pub fn all() -> Vec<(&'static str, Program)> {
     vec![

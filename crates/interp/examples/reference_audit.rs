@@ -143,11 +143,24 @@ fn main() {
 
     // ---- PROOF-NUMBER SEARCH ---------------------------------------------------------------
     let pn = reference::proof_number();
-    let (p_legal, p_ev, _pc, p_over) = probe(&pn, &net, &ps, depth, 64);
+    // 256, not 64: the budget sweep below shows 64 is simply under-resourced (21/23 -> 23/23
+    // at 256), and judging a prover at a budget it cannot finish in measures the budget.
+    let (p_legal, p_ev, _pc, p_over) = probe(&pn, &net, &ps, depth, 256);
+    // BUDGET SWEEP. A prover that finds 21/23 is not degenerate, it is under-resourced or
+    // slightly wrong, and those are different diagnoses. If the count rises with budget it is
+    // resource; if it plateaus below 23 there is a residual defect.
+    for bgt in [64, 256, 1024] {
+        let mut soln = 0usize;
+        for (q, best) in &mates {
+            let mut i = Interp::new(&net, vec![depth, 32_000, 1]);
+            if i.run(&pn, q, bgt) == *best { soln += 1; }
+        }
+        println!("  budget {bgt:>5}: mate-in-one {soln}/{}", mates.len());
+    }
     let mut solved = 0usize;
     for (p, best) in &mates {
         let mut i = Interp::new(&net, vec![depth, 32_000, 1]);
-        if i.run(&pn, p, 64) == *best { solved += 1; }
+        if i.run(&pn, p, 256) == *best { solved += 1; }
     }
     println!("\nproof-number search");
     println!("  legal {p_legal}/{}  over_budget {p_over}  evals {p_ev} (0 is CORRECT, PN is terminal-driven)",
@@ -160,7 +173,7 @@ fn main() {
     let (mut first_move, mut same_as_ab) = (0usize, 0usize);
     for (p, _best) in &mates {
         let mut i = Interp::new(&net, vec![depth, 32_000, 1]);
-        let m = i.run(&pn, p, 64);
+        let m = i.run(&pn, p, 256);
         let l = p.legal_moves();
         if l.as_slice().first() == Some(&m) { first_move += 1; }
         let mut j = Interp::new(&net, vec![depth, 32_000, 1]);
