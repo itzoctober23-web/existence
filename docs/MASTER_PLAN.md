@@ -401,3 +401,41 @@ development model structurally cannot do.
 Prep: a strong engine that disagrees with SF for reasons it can show, validated
 against SF. FM: the teachability step with the author as subject. 4PC: the first
 written theory of the game, from the engine's activations, tested on the rank-1 human.
+
+## Experiment log — P1 bootstrap
+
+**2026-09-07, first learning loop. NEGATIVE. Training degrades generalisation.**
+
+Built: self-play datagen, hand-written backprop trainer, net-vs-net gate, and the loop.
+
+Three measurements, in order:
+
+1. *The game-gate has no resolution at iteration zero.* Two randomly-initialised nets draw
+   **86-100%** of their games at every random-opening depth tried (4/8/12/16/20 plies). A
+   60-game match therefore carries a +/-0.13 interval and cannot resolve any realistic
+   improvement. This is not a gate bug: MASTER_PLAN "Iteration zero" predicts wandering play,
+   and two wanderers draw. A game-based acceptance test only becomes usable once play is
+   decisive, so the bootstrap phase needs the held-out surrogate (FITNESS 5) instead.
+
+2. *Self-play labels are sparse.* Only **13-17%** of recorded positions come from a decided
+   game (30% of games decisive at depth 2, 37% at depth 4). The rest are labelled 0.
+
+3. *Training makes held-out correlation WORSE.* On 72,199 training positions (2,522 decided)
+   and 23,769 held-out (619 decided): correlation between eval and outcome went
+   **+0.354 -> +0.237**, delta-z **-0.128 +/- 0.112**. Train loss fell 0.035 -> 0.006
+   monotonically while held-out correlation collapsed and thrashed. That shape is
+   memorisation: 782x128 = ~100k parameters against ~2.5k informative labels is ~40
+   parameters per label.
+
+**Two traps recorded, both hit:**
+- `blend` mixing the net's own root score into its target is SELF-REFERENTIAL at iteration
+  zero: it trains the net toward what it already says. Default is now 0; the blend has to
+  earn its place with a measurement once the search score beats the raw outcome.
+- The first verdict compared correlation against an ABSOLUTE threshold (`> 0.15`) and printed
+  "LEARNING" on a null result. The random net's own baseline is **+0.354** -- a fixed function
+  correlates with outcomes because losing sides tend to have fewer pieces. Any claim must beat
+  the baseline, not zero, and carry an interval.
+
+**Next, in order:** (a) far more decided data per parameter, or fewer parameters -- the
+capacity/label ratio is the first suspect; (b) regularisation and early stopping against the
+held-out set; (c) revisit only after the held-out surrogate can show a positive delta.

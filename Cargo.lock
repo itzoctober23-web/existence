@@ -33,3 +33,11 @@ version = "0.1.0"
 dependencies = [
  "board",
 ]
+
+[[package]]
+name = "pipeline"
+version = "0.1.0"
+dependencies = [
+ "board",
+ "nnue",
+]

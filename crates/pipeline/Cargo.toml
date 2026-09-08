@@ -1,0 +1,15 @@
+[package]
+name = "pipeline"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "The learning loop: self-play datagen, trainer, gate."
+
+[dependencies]
+board = { path = "../board" }
+nnue = { path = "../nnue" }
+
+[[bin]]
+name = "learn"
+path = "src/main.rs"
