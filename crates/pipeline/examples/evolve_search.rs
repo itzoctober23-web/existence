@@ -163,6 +163,36 @@ fn play(a: &Program, b: &Program, a_white: bool, start: &Position, net: &Net,
     None
 }
 
+/// SEQUENTIAL program match. FITNESS 7.2: "a candidate near a bound gets thousands of pairs,
+/// an obvious dud a few hundred; nobody picks the count, the evidence does."
+///
+/// The fixed 12-pair version was wrong twice over. Its interval is about +/-0.14, so
+/// `rate - ci95 > 0.5` demanded a ~64% score and could not see a modest real gain at all; and
+/// a candidate losing every game cost the same 24 games as a serious contender. Playing in
+/// chunks and stopping on the LLR spends the games where the evidence is actually ambiguous.
+///
+/// Bounds [0, 5]: e1 = 5 is FITNESS 7.2's declared BOOTSTRAP value, used until 20 acceptances
+/// exist to derive one from closed history. Zero acceptances exist so far, so 5 it is.
+fn sprt_programs(a: &Program, b: &Program, net: &Net, depth: i64, budget: i64, seed: u64,
+                 chunk: usize, max_pairs: usize) -> (Pent, f64, bool) {
+    let mut total = Pent::default();
+    let mut played = 0usize;
+    while played < max_pairs {
+        let n = chunk.min(max_pairs - played);
+        let s = match_programs(a, b, net, n, depth, budget, seed ^ (played as u64) << 8);
+        total.wins += s.wins; total.draws += s.draws; total.losses += s.losses;
+        for i in 0..5 { total.pent[i] += s.pent[i]; }
+        played += n;
+        let llr = total.llr(0.0, 5.0);
+        if llr >= pipeline::gate::LLR_BOUND { return (total, llr, true); }
+        if llr <= -pipeline::gate::LLR_BOUND { return (total, llr, false); }
+    }
+    // Cap reached with no verdict: INCONCLUSIVE, reported as not-accepted but distinguished in
+    // the log, because an unrecorded tie is usually a capped run rather than a refutation.
+    let llr = total.llr(0.0, 5.0);
+    (total, llr, false)
+}
+
 fn match_programs(a: &Program, b: &Program, net: &Net, pairs: usize, depth: i64,
                   budget: i64, seed: u64) -> Pent {
     let mut sc = Pent::default();
@@ -258,7 +288,8 @@ fn main() {
     let mut accepted = 0;
     for g in 1..=gens {
         let (mut tried, mut ill, mut oracle_fail, mut surrogate_fail) = (0, 0, 0, 0);
-        let mut best: Option<(Program, Pent)> = None;
+        let mut best: Option<(Program, Pent, f64)> = None;
+        let mut gate_pairs_spent = 0usize;
         for i in 0..pop {
             let mut r = MRng::new((g as u64) << 24 ^ i as u64 ^ 0xBEEF);
             let (cand, ops) = match mutate::mutate_program_n(&champ, &mut r, edits) {
@@ -281,24 +312,26 @@ fn main() {
             tally.get_mut(&key).unwrap()[2] += 1;
             tally.get_mut(&key).unwrap()[3] += 1;
             // 3. GAMES. The only thing that decides.
-            let sc = match_programs(&cand, &champ, &net, pairs, depth, budget,
-                                    0xA11CE ^ (g as u64) << 8 ^ i as u64);
-            if sc.pent_rate() - sc.ci95() > 0.5 {
-                if best.as_ref().map_or(true, |(_, b)| sc.pent_rate() > b.pent_rate()) {
-                    best = Some((cand, sc));
+            let (sc, llr, passed) = sprt_programs(&cand, &champ, &net, depth, budget,
+                0xA11CE ^ (g as u64) << 8 ^ i as u64, 4, pairs);
+            gate_pairs_spent += sc.pent.iter().sum::<u32>() as usize;
+            if passed {
+                if best.as_ref().map_or(true, |(_, b, _)| sc.pent_rate() > b.pent_rate()) {
+                    best = Some((cand, sc, llr));
                 }
             }
         }
         match best {
-            Some((c, sc)) => {
-                println!("gen {g:>3}  ACCEPT  {} nodes  {}W-{}D-{}L  {:.3}+/-{:.3}  \
-                          ({tried} typed, {ill} ill-typed, {oracle_fail} oracle, {surrogate_fail} surrogate)",
-                         c.size(), sc.wins, sc.draws, sc.losses, sc.pent_rate(), sc.ci95());
+            Some((c, sc, llr)) => {
+                println!("gen {g:>3}  ACCEPT  {} nodes  {}W-{}D-{}L  {:.3}  LLR {llr:+.2}  \
+                          ({tried} typed, {ill} ill-typed, {oracle_fail} oracle, \
+                          {surrogate_fail} surrogate, {gate_pairs_spent} pairs spent)",
+                         c.size(), sc.wins, sc.draws, sc.losses, sc.pent_rate());
                 champ = c;
                 accepted += 1;
             }
             None => println!("gen {g:>3}  --      ({tried} typed, {ill} ill-typed, {oracle_fail} oracle, \
-                              {surrogate_fail} surrogate, none beat the champion)"),
+                              {surrogate_fail} surrogate, {gate_pairs_spent} pairs spent, none beat it)"),
         }
     }
 
