@@ -326,6 +326,88 @@ fn mcts_budget() {
     println!("  (f >= 1), which is the degenerate-optimiser regime the guards exist to prevent.");
 }
 
+
+/// A5 -- THE VALLEY PROBE AS A STANDING TEST. `evolve valleyall [n1 n2 n3 depth]`
+///
+/// The one-off `valley` mode answered the question for hash reuse only. This asks it of EVERY
+/// reference program in GRAMMAR 6: is this rung monotone-reachable from the seed, or does it sit
+/// behind a conjunctive valley that a strict hill climb cannot cross?
+///
+/// A rung is MONOTONE if it is fitter than the seed and can be approached by fitter steps; it is
+/// CONJUNCTIVE if the whole is fitter than the seed while its parts are not. Hash reuse is the
+/// worked example -- 1.024x whole, 0.991x and 0.997x in halves -- and the decomposition that
+/// exposed it (probe-only / store-only) is specific to a transposition table. There is no generic
+/// "single-primitive decomposition" of an arbitrary program, so this reports what CAN be measured
+/// for all of them (fitness vs the seed, and node distance) and the conjunctive test only where a
+/// decomposition exists. Claiming a general decomposition would be inventing an instrument.
+///
+/// Run this against the population loop after the lineage and crossover work: the success
+/// criterion is hash reuse ASSEMBLED by the population without a gadget operator. If it is not,
+/// that is a result about the prior, not a failure to fix -- and this is the measurement that
+/// says so with numbers rather than an impression from a log.
+fn valley_all() {
+    let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
+    let (n1, n2, n3, depth) = (a(2, 15) as usize, a(3, 5) as usize, a(4, 5) as usize, a(5, 3));
+    let net = Net::random(32, 20260907);
+    let mut set = mate_set(n1);
+    set.extend(disagreement_set(n2, depth, &net, 4_000));
+    set.extend(window_sensitive_set(n3, depth, &net, 8, 4_000));
+
+    let seed = reference::bare_alpha_beta();
+    let (sf, _sc, sr) = fitness(&seed, &set, &net, depth, 16);
+    let sn = seed.size() as i64;
+    println!("=== GRAMMAR 6 ladder: monotone or conjunctive? {} positions at depth {depth} ===",
+             set.len());
+    println!("  seed bare alpha-beta: {sf}/{} mates, {sr:.6} mates/Mcost, {sn} nodes\n",
+             set.len());
+    println!("  {:<34} {:>6} {:>7} {:>13} {:>9}  {}", "program", "nodes", "mates", "mates/Mcost",
+             "vs seed", "verdict");
+    for (name, prog) in reference::all() {
+        // UCT is scored at ITS declared budget, for the same reason the lineage is: it spends
+        // playouts against `budget` and alpha-beta ignores it. Scoring it at 16 would report the
+        // 1/25 artifact as though it were the program's strength.
+        let bud = if name.contains("MCTS") { 256 } else { 16 };
+        let (f, _c, r) = fitness(&prog, &set, &net, depth, bud);
+        let ratio = r / sr.max(1e-12);
+        let verdict = if f < sf {
+            "loses answers -- not a rung at this depth"
+        } else if ratio > 1.0 {
+            "FITTER than the seed"
+        } else {
+            "not fitter"
+        };
+        println!("  {name:<34} {:>+6} {f:>7} {r:>13.6} {ratio:>8.3}x  {verdict}",
+                 prog.size() as i64 - sn);
+    }
+
+    println!("\n  CONJUNCTIVE TEST -- only where a decomposition exists (hash reuse):");
+    let halves = [
+        ("probe only (never stores)", reference::ab_probe_only()),
+        ("store only (never probes)", reference::ab_store_only()),
+        ("hash reuse (both halves)", reference::ab_hash()),
+    ];
+    let mut whole = 0.0;
+    let mut parts_max: f64 = 0.0;
+    for (name, prog) in halves {
+        let (f, _c, r) = fitness(&prog, &set, &net, depth, 16);
+        let ratio = r / sr.max(1e-12);
+        println!("    {name:<30} {f:>3} mates  {ratio:.3}x");
+        if name.starts_with("hash") { whole = ratio; } else { parts_max = parts_max.max(ratio); }
+    }
+    if whole > 1.0 && parts_max < 1.0 {
+        println!("    => CONJUNCTIVE: whole {whole:.3}x fitter, best part {parts_max:.3}x is not.");
+        println!("       A strict `rate > best_rate` climb cannot take the first step. This is the");
+        println!("       measurement the plateau tolerance exists to answer.");
+    } else if whole > 1.0 {
+        println!("    => MONOTONE: a part is already fitter, so the rung is reachable by hill climbing.");
+    } else {
+        println!("    => NOT A RUNG at this depth: the whole is not fitter than the seed.");
+    }
+    println!("\n  No generic single-primitive decomposition is attempted for the other rungs.");
+    println!("  probe-only/store-only is specific to a transposition table; inventing an");
+    println!("  equivalent for ID or capture extension would be inventing an instrument.");
+}
+
 fn read_declared(path: &str) -> (usize, f64, i64, i64) {
     let txt = std::fs::read_to_string(path).unwrap_or_else(|e| {
         panic!("declared parameters missing at {path}: {e}. This file is part of the Given \
@@ -421,6 +503,9 @@ fn main() {
     }
     if std::env::args().nth(1).as_deref() == Some("mctsbudget") {
         return mcts_budget();
+    }
+    if std::env::args().nth(1).as_deref() == Some("valleyall") {
+        return valley_all();
     }
     let gens: usize = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(30);
     let pop: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(24);

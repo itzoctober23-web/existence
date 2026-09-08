@@ -570,6 +570,41 @@ no monotone path exists regardless. The bottleneck is the SEARCH — strict hill
 it, and is refused: MASTER_PLAN line 53 requires these to be DISCOVERED, so a gadget-inserting
 operator makes the discovery vacuous.
 
+### A5 — THE LADDER AS A STANDING TEST (`evolve valleyall`), MEASURED 2026-09-08
+
+Every reference program scored on the search track's OWN fitness set (25 positions: 15 mate-in-1,
+5 depth-requiring, 5 window-sensitive) at depth 3. UCT is scored at its declared budget of 256,
+not 16, for the reason given in `configs/search_track.conf`.
+
+| program | nodes | mates | mates/Mcost | vs seed | verdict |
+|---|---|---|---|---|---|
+| depth-one (purity seed) | −62 | 5/25 | 2.499200 | **992.711x** | loses answers |
+| bare alpha-beta (seed) | +0 | 25/25 | 0.002518 | 1.000x | — |
+| **alpha-beta + hash reuse** | +104 | 25/25 | 0.002578 | **1.024x** | **FITTER** |
+| alpha-beta + iterative deepening | +29 | 25/25 | 0.002300 | 0.914x | not fitter |
+| alpha-beta + hash + ID | +133 | 25/25 | 0.002348 | 0.933x | not fitter |
+| UCT-style MCTS | +59 | 12/25 | 0.001409 | 0.560x | loses answers |
+| capture extension (rung 6) | +9 | 25/25 | 0.002479 | 0.985x | not fitter |
+| table reduction (rung 7) | +15 | 25/25 | 0.002499 | 0.993x | not fitter |
+| proof-number search | +104 | 4/25 | 0.022854 | 9.078x | loses answers |
+
+**HASH REUSE IS THE ONLY FITTER RUNG ON THE WHOLE LADDER.** That was previously asserted from one
+measurement of one program; it is now measured across all nine, and every other rung the plan
+declares — ID, capture extension, table reduction — is a LOSS at this depth.
+
+**AND THE SURROGATE ALONE IS WORTHLESS, quantified.** depth-one scores **992x** the seed's
+mates-per-cost while answering 5 of 25; proof-number scores **9x** while answering 4. Both are
+"fitter" by the surrogate and both are useless. The only thing standing between this loop and a
+program that answers nothing instantly is the mate guard `f >= best_found`, which is why it is
+never relaxed and why plateau tolerance applies to COST ONLY.
+
+**CONJUNCTIVE, CONFIRMED:** whole 1.024x fitter, best half 0.997x not fitter (probe-only 0.991x,
+store-only 0.997x). A strict `rate > best_rate` climb cannot take the first step.
+
+No generic single-primitive decomposition is attempted for the other rungs. probe-only/store-only
+is specific to a transposition table, and inventing an equivalent for ID or capture extension would
+be inventing an instrument rather than using one.
+
 **CONSEQUENCE: hash reuse is not a rung AT THESE DEPTHS, and that is a statement about the
 regime rather than about the technique.** `examples/ladder.rs` now sweeps depth. Cost relative
 to the bare alpha-beta seed:
