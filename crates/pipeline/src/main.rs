@@ -129,7 +129,10 @@ fn main() {
         } else { 0.0 };
         let sc = gate::match_nets(&cand, &champion, depth, gate_pairs, seed ^ g as u64);
         let draw_rate = sc.draws as f64 / sc.games().max(1) as f64;
-        let gate_can_resolve = draw_rate < 0.60;
+        // Resolution is a property of the INTERVAL, not the draw rate. Draw rate was a proxy
+        // for width under the binomial; with pentanomial the same games give a ~5x tighter
+        // interval, so a 90%-draw match can still decide. Test the thing directly.
+        let gate_can_resolve = sc.ci95() < 0.05;
         let no_regression = sc.pent_rate() + sc.ci95() > 0.5;
         let better = if gate_can_resolve {
             sc.rate() - sc.ci95() > 0.5
