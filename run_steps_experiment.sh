@@ -8,6 +8,7 @@
 # keeps peak resident data near 90MB. Volume still 75x the pre-fix setting, which is what made
 # the gate resolve.
 set -u
+failed=0
 cd "$(dirname "$0")"
 for seed in 20260907 424242 987654; do
   for arm in ep3 steps; do
@@ -20,7 +21,20 @@ for seed in 20260907 424242 987654; do
       --cost-nodes 4000 --control-every 10 --horizon-cap 40 \
       --seed "$seed" --out "champion_${tag}.net" --ledger "ledger_${tag}.jsonl" \
       > "run_${tag}.log" 2>&1
-    echo "  done: $(grep -c '^gen ' "run_${tag}.log") gens"
+    rc=$?
+    g=$(grep -c '^gen ' "run_${tag}.log")
+    # A FAILED ARM IS NOT A COMPLETED ARM. The first version printed "ALL ARMS COMPLETE"
+    # while 4 of 6 arms had aborted at startup on the gate-coverage guard, because it never
+    # looked at the exit code -- the same failure the 4PC queue runner already records
+    # ("a failed EXPERIMENT is a result; a failed SCRIPT is a bug").
+    if [ "$rc" -ne 0 ] || [ "$g" -eq 0 ]; then
+      echo "  *** ARM FAILED: $tag (rc=$rc, $g gens) ***"
+      tail -4 "run_${tag}.log" | sed 's/^/      /'
+      failed=$((failed+1))
+    else
+      echo "  done: $g gens"
+    fi
   done
 done
+if [ "$failed" -gt 0 ]; then echo "INCOMPLETE: $failed arm(s) failed"; exit 1; fi
 echo "ALL ARMS COMPLETE"

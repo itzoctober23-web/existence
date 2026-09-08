@@ -91,7 +91,13 @@ fn main() {
     // the seed net". 20k at P1 scale makes a single gate take minutes, so the budget is smaller
     // here and RECORDED rather than silently different; the ratio, not the absolute, is what
     // makes the clock gate mean anything.
-    let cost_nodes = arg("--cost-nodes", 4000) as u64;
+    // 0 = DERIVE IT from the measured full-tree size at the cap depth (the default). A fixed
+    // constant is wrong here because tree size is NET-DEPENDENT: different seeds give different
+    // random nets, which give different alpha-beta cutoffs. Measured, a 4000-node budget covered
+    // 57% of one seed's depth-4 tree and 33% of another's, and the coverage guard correctly
+    // aborted 4 of 6 arms of a 3-seed experiment. Deriving it makes the budget mean the same
+    // thing for every net instead of silently meaning something different for each.
+    let cost_nodes_arg = arg("--cost-nodes", 0) as u64;
     // Depth for budgeted gates is a CEILING, not the thing that stops the search — the node
     // budget is. A depth-limited gate cannot charge a wide net for being slow, which is the
     // whole point of the ARCH clock gate (FITNESS 10: "bigger net that wins fixed-cost-budget,
@@ -147,10 +153,23 @@ fn main() {
     let tr = Trainer::new(0.01, blend);
     let mut rung = start_rung;
     println!("gens={gens} games/gen={games} depth={depth} epochs={epochs} gate-pairs={gate_pairs} blend={blend}");
-    println!("ARCH menu {WIDTH_MENU:?}  start rung {rung} (width {})  arch-every {arch_every}  cost-budget {cost_nodes} nodes",
+    println!("ARCH menu {WIDTH_MENU:?}  start rung {rung} (width {})  arch-every {arch_every}",
              WIDTH_MENU[rung]);
     let mut champion = Net::random(WIDTH_MENU[rung], seed);
     let origin = champion.clone();
+    let cost_nodes = {
+        let mut probe = pipeline::search::Searcher::with_seed(1);
+        let mut p0 = Position::startpos();
+        probe.best_move_capped(&mut p0, gate_depth_cap, &origin, u64::MAX, 1);
+        let full = probe.nodes.max(1);
+        // Cover the tree at startpos; midgame trees are larger, so the budget still binds
+        // there -- which is where a wide net should be charged for its cost per node.
+        let derived = if cost_nodes_arg > 0 { cost_nodes_arg } else { full };
+        let cover = derived as f64 / full as f64;
+        println!("gate budget: {derived} nodes ({} at depth {gate_depth_cap} from startpos = {:.0}% coverage){}",
+                 full, cover * 100.0, if cost_nodes_arg > 0 { " [--cost-nodes override]" } else { " [derived]" });
+        derived
+    };
     // The clock budget is fixed in TIME, measured once on the seed net, so that every later
     // width is charged its real cost against the same wall. Deriving it per-champion would let
     // a slow champion move the wall and hide its own cost.
