@@ -159,6 +159,24 @@ fn main() {
     let steps_per_gen = arg("--steps-per-gen", 0);
     let seed = arg("--seed", 20260907) as u64;
     let ctrl_every = arg("--control-every", 10);
+    // CONTROL PAIRS, separate from arch_pairs. The origin control is THE metric for whether the
+    // loop is working at all, and it was sharing the ARCH gate's pair count -- which gave it a
+    // detection floor of ~70 Elo between successive readings (ci95 0.038, so two readings differ
+    // only if the gap exceeds 1.41 x 0.038 = 0.054).
+    //
+    // That is why "the plateau" was overstated. Seven readings across two runs -- 0.780, 0.805,
+    // 0.838, 0.853, 0.831, 0.823, 0.856 -- have EVERY pairwise gap below 0.054, so they are
+    // consistent with no change AND with the champion gaining up to ~70 Elo unseen. "Flat" was
+    // the wrong word for a metric that cannot see anything smaller.
+    //
+    // The control is a ONE-OFF match every `ctrl_every` generations, not per-generation work, so
+    // resolution here is cheap:
+    //    224 pairs -> ~70 Elo floor, 0.7% overhead   (the old shared value)
+    //   1000 pairs -> ~33 Elo floor, 3.3% overhead   (this default)
+    //   2900 pairs -> ~19 Elo floor, 9.7% overhead
+    // 1000 is the point where the control can finally see an effect the size the loop plausibly
+    // produces per 25 generations, without the cost becoming a real tax on datagen.
+    let ctrl_pairs = arg("--control-pairs", 1000);
     let out = a.iter().position(|x| x == "--out").and_then(|i| a.get(i + 1)).cloned()
         .unwrap_or_else(|| "champion.net".to_string());
     // Resume from a saved champion instead of starting at iteration zero. See the use site.
@@ -584,7 +602,12 @@ fn main() {
                 ci95: sc.ci95(),
                 resolved: gate_can_resolve,
             }],
-            surrogate: vec![("mcnemar_z", mcnemar), ("train_loss", loss as f64), ("llr", llr)],
+            // `pool` is recorded so post-hoc analysis can correlate HOW MUCH HISTORY the
+            // trainer saw with what the gate decided. It goes to the log line already, but the
+            // log is not queryable -- every quantitative claim made about this loop today came
+            // from the ledger, and the replay-window question could not be asked of it at all.
+            surrogate: vec![("mcnemar_z", mcnemar), ("train_loss", loss as f64), ("llr", llr),
+                            ("pool", replay.len() as f64), ("train_n", subset.len() as f64)],
         });
 
         if better {
@@ -741,7 +764,7 @@ fn main() {
             // its extra cost as strength.
             let (ca, cb) = arch::equal_time_caps(&champion, &origin, budget_ns, depth.max(3));
             let c = gate::match_nets_capped(&champion, &origin, gate_depth_cap, ca, cb,
-                                            arch_pairs, seed ^ 0xC0 ^ g as u64, 4);
+                                            ctrl_pairs, seed ^ 0xC0 ^ g as u64, 4);
             println!("      control vs origin @gen {g}: {}W-{}D-{}L  rate {:.3} +/- {:.3}{}",
                 c.wins, c.draws, c.losses, c.pent_rate(), c.ci95(),
                 if c.rate() - c.ci95() > 0.5 { "  *" } else { "" });
