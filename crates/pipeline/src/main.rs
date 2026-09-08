@@ -147,6 +147,10 @@ fn main() {
     // fixed-cost-budget gate of FITNESS 6, which the loop has never actually used even though
     // match_nets_capped was implemented for it and ARCH already calls it.
     let gate_nodes = arg("--gate-nodes", 0) as u64;
+    // --rollback: revert the champion to the best control checkpoint when the periodic origin
+    // control resolves BELOW it. Off by default so it is A/B-able rather than silently changing
+    // what every prior run measured.
+    let rollback = std::env::args().any(|a| a == "--rollback");
     // The surrogate may override the games only if asked for explicitly. See the acceptance
     // chain: measured at corr -0.095 against 239 paired gate results, it is not a decision rule.
     let surrogate_fallback = std::env::args().any(|a| a == "--surrogate-fallback");
@@ -350,7 +354,7 @@ fn main() {
     // greps 1 only because it appears in THIS format string.) That false negative aborted the
     // anchor A/B. A setting that cannot be observed in the program's own output cannot be verified
     // by anything except reading the source.
-    println!("gens={gens} games/gen={games} depth={depth} epochs={epochs} gate-pairs={gate_pairs} gate-nodes={gate_nodes} anchor-pairs={anchor_pairs} blend={blend}");
+    println!("gens={gens} games/gen={games} depth={depth} epochs={epochs} gate-pairs={gate_pairs} gate-nodes={gate_nodes} anchor-pairs={anchor_pairs} rollback={rollback} blend={blend}");
     println!("ARCH menu {WIDTH_MENU:?}  start rung {rung} (width {})  arch-every {arch_every}",
              WIDTH_MENU[rung]);
     // ORIGIN is always the reproducible iteration-zero net, even when we resume. The control
@@ -402,6 +406,8 @@ fn main() {
     // decision and the final measurement disagree about what "the origin" is.
     let anchor = Net::random(champion.n_hidden, 20260907);
     let mut champ_anchor: Option<f64> = None;   // measured lazily, only if the anchor gate is on
+    // Best (origin-control rate, champion, generation) seen. The rollback target.
+    let mut best_ctrl: Option<(f64, Net, usize)> = None;
     let cost_nodes = {
         let mut probe = pipeline::search::Searcher::with_seed(1);
         let mut p0 = Position::startpos();
@@ -897,6 +903,38 @@ fn main() {
             println!("      control vs origin @gen {g}: {}W-{}D-{}L  rate {:.3} +/- {:.3}{}",
                 c.wins, c.draws, c.losses, c.pent_rate(), c.ci95(),
                 if c.rate() - c.ci95() > 0.5 { "  *" } else { "" });
+
+            // CHECKPOINT AND ROLLBACK. Until now this control measured the lineage and then
+            // ignored the answer -- it printed and did not even reach the ledger.
+            //
+            // WHY THIS IS THE RIGHT PLACE TO ACT, measured 2026-09-08 from 15,008 real gate
+            // pairs (pair-score sd 0.2362): the per-generation gate at 224 pairs resolves only
+            // ~21.5 Elo, and self-play steps are far smaller, so a 5-Elo improvement is invisible
+            // to it BY CONSTRUCTION. Detecting individual steps at this budget is not achievable
+            // -- 5 Elo needs ~29,400 pairs, about 22 hours per accept decision against a ~25s
+            // generation. But DRIFT ACCUMULATES: many small wrong accepts compound into a gap
+            // this control CAN see (1000 pairs resolves ~10 Elo), which is exactly what happened
+            // in three of eight runs today -- they finished resolved WORSE than they started
+            // (0.826, 0.834, 0.843 against 0.864) and nothing noticed.
+            //
+            // So: stop trying to catch each bad step, and catch the accumulated damage instead.
+            // Roll back only when the drop is RESOLVED (rate + ci95 below the best seen), never
+            // on a point estimate -- an unresolved dip is noise and reverting on it would throw
+            // away real progress the control cannot see.
+            let r = c.pent_rate();
+            match &best_ctrl {
+                Some((best_rate, best_net, best_gen)) if rollback && r + c.ci95() < *best_rate => {
+                    println!("      ROLLBACK: {r:.3} +/- {:.3} is resolved below the gen-{best_gen} \
+                              checkpoint {best_rate:.3}; restoring it", c.ci95());
+                    champion = best_net.clone();
+                    if anchor_pairs > 0 { champ_anchor = None; }
+                }
+                Some((best_rate, _, _)) if r <= *best_rate => {}
+                _ => {
+                    if best_ctrl.is_some() { println!("      checkpoint updated: {r:.3}"); }
+                    best_ctrl = Some((r, champion.clone(), g));
+                }
+            }
         }
         println!(
             // `pool` is the size of what the TRAINER actually saw. Without it the log shows
