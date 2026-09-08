@@ -38,6 +38,42 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — RETRACTION: the horizon schedule is NOT backwards. It was disabled by blend=0.
+
+The horizon optimum REVERSES with the blend. Same trained champion, same data, 10 replicates:
+
+| horizon | blend 0.00 | blend 0.75 |
+|---|---|---|
+| 10 | 0.4867 | 0.5352 |
+| 20 | 0.4648 | **0.5539** |
+| 40 | 0.4203 | **0.5988** |
+| 80 | 0.3977 | (pending) |
+
+At blend 0 every arm is below 0.5 and NARROWER is better. At blend 0.75 every arm is above 0.5
+and WIDER is better, monotonically, in the opposite direction.
+
+**This retracts "the horizon schedule is backwards", recorded a few hours ago.** That entry
+argued the schedule's widening was "an active harm that grows with generation" and that the cap
+was "treating a symptom". The measurement behind it was real; the conclusion drawn from it was
+scoped to blend = 0 and I did not say so, because I did not yet know the blend mattered.
+
+The mechanism is now clear and the loop's original design was right:
+- with an OUTCOME label, a position 40 plies from the end is labelled by a result that had
+  little to do with it. Noise grows with distance, so narrow wins.
+- with a SEARCH-SCORE label, distance from the terminal is nearly irrelevant — a depth-2 search
+  is about as informative at ply 40 as at ply 10. The extra positions are extra signal.
+
+So `horizon = 10 + 5*(g-1)` widening with generation is CORRECT, and the comment justifying it
+("the label becomes informative further back as play improves") was right for a reason it did
+not state: it becomes informative once the label is a search score.
+
+CONSEQUENCE: the shipped horizon default of 20 is measured WRONG under the shipped blend of
+0.75 — h40 beats it by 0.045, roughly 6 SE. Waiting on h80 before changing it, since the curve
+is still rising and I have already shipped two horizon defaults today on incomplete sweeps.
+
+Also invalidates today's datagen-depth runs: both were at horizon 10, now known to be well
+below the optimum, and at 1500 games where sample count is itself limiting.
+
 ## 2026-09-08 — operator fairness: CONFIRMED live, after three layers of the same bug
 
 The search track's operator draw is now uniform. 249 proposals on a freshly built binary:
