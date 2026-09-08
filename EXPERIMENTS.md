@@ -34,6 +34,79 @@ the A/B to ask whether it works at all.
 
 ---
 
+## 2026-09-08 — CAPACITY CLOSED AT EVERY RUNG, and two different failure modes
+
+The stride fix let the arm sweep the whole menu from width 16. It did. Every rung is rejected,
+and the reason CHANGES with width:
+
+| step | surrogate | fixed-cost | clock | outcome |
+|---|---|---|---|---|
+| 16 -> 32 | 0.0730 vs 0.0777 (z 2.43) PASS | 0.544 | **0.334** | reached gates, lost on clock |
+| 16 -> 64 | 0.0701 vs 0.0775 (z 4.12) PASS | **0.498** | **0.281** | reached gates, lost on BOTH |
+| 16 -> 128 | 0.0757 vs 0.0712 FAIL | — | — | never reached a gate |
+| 16 -> 128 | 0.0801 vs 0.0769 FAIL | — | — | never reached a gate |
+| 16 -> 256 | 0.0685 vs 0.0628 FAIL | — | — | never reached a gate |
+
+**Two distinct failures, not one.** At 32 and 64 the widened net trains fine and then loses the
+GAMES. At 128 and 256 it never even gets that far: 30 epochs on the replay buffer is not enough
+to train a net with 8-16x the parameters back to the champion's held-out loss, so the FITNESS 5
+filter stops it. Function-preserving widening guarantees parity at BIRTH; it guarantees nothing
+after training, and the bigger the net the more the training moves it.
+
+So "capacity is the plateau's cause" is now refuted across the entire declared menu, by two
+independent mechanisms. What is NOT shown: that a wider net trained PROPERLY (many more epochs,
+or its own datagen) would fail. The 30-epoch budget is a constant that was tuned for width 16
+and never re-derived, which makes the 128/256 rejections a statement about the training budget
+as much as about capacity.
+
+## 2026-09-08 — CORRECTION: the origin control did NOT break its plateau
+
+I reported "+306 Elo, the first movement above the flat band" from the dashboard. That was the
+GEN 60 reading. The full sequence:
+
+    gen 30: 260W-16D-44L  0.838 +/- 0.037   (~+277)
+    gen 60: 264W-18D-38L  0.853 +/- 0.037   (~+305)
+    gen 90: 257W-18D-45L  0.831 +/- 0.040   (~+276)
+
+Three overlapping intervals oscillating around ~0.84. I read the peak of the oscillation as a
+trend and said so out loud, including to him. The plateau has NOT broken; this is the same flat
+band as long_run3 (0.831 / 0.808 / 0.825 / 0.808), shifted by nothing.
+
+This is the third time today a RATE has been read as more than it was -- 0.838 hid 44 losses to
+a random net, "49% decisive" hid a game where the engine shuffled for thirteen moves on a won
+position, and now a three-point oscillation was read as movement. The dashboard showing only the
+LATEST control makes this easy; it should show the series.
+
+---
+
+## 2026-09-08 — OPEN: the champion loses 44 of 320 games to a RANDOM net, and nothing explains it
+
+The origin control has been read all session as a success -- 0.838 +/- 0.037, "+258 Elo vs
+iteration zero". Look at the raw line instead of the rate:
+
+    control vs origin @gen 30: 260W-16D-44L
+
+**44 losses to a randomly-initialised network**, after 150+ generations of training. A net whose
+eval is noise should be losing essentially every decisive game, not winning 44.
+
+Two things this could be, and they have different consequences:
+  - The opponent is not as weak as "random". The origin is a random EVAL, but it is searched with
+    the same alpha-beta at the same depth, so it still sees captures two plies ahead and avoids
+    immediate blunders. Then 0.838 is roughly the honest value of the learned eval over noise at
+    this depth, and the ceiling is a property of the search, not the net.
+  - Or the champion's eval is actively wrong in some class of positions, and those are the 44.
+
+These are distinguishable: play the same control at several depths. If the loss count falls as
+depth rises, the opponent was being carried by search; if it holds, the champion has a blind
+spot the aggregate hides. NOT YET RUN.
+
+Flagged because "0.838 vs origin" has been quoted repeatedly today, including to him, as
+evidence the loop learns. It IS evidence of that. It is also evidence of something unexplained,
+and the rate hides the 44 while the raw W-D-L does not -- the same way "49% decisive" hid a game
+where the engine won +18 material and then shuffled for thirteen moves.
+
+---
+
 ## 2026-09-08 — CAPACITY IS NOT THE CONSTRAINT: width 64 loses at EQUAL NODES, not just on the clock
 
 The stride fix let the arm reach an untried rung. It reached it, and the answer refutes my own
