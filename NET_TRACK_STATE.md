@@ -174,3 +174,69 @@ WHAT REMAINS is the one thing that is not a parameter: **non-transitivity, demon
 -- ep_1 beats champion_long 0.545 +/- 0.018 while scoring 0.834 against the origin where
 champion_long scores 0.864. The anchor gate written for exactly this is queued and untested. That
 is now the only open hypothesis with evidence behind it.
+
+
+---
+
+# THE MEASUREMENT FLOOR — quantified, and it reframes the whole day (2026-09-08)
+
+Raised by him: "differences between candidates at that depth are tiny and the 600-pair matches are
+near their resolution floor -- 'dead heat' may mostly mean 'unmeasurable here', not 'equal'."
+
+Measured from the pooled pentanomial of 15,008 REAL gate pairs (not an assumed distribution):
+pair-score sd = 0.2362.
+
+| pairs | ci95 on the rate | approx Elo |
+|---|---|---|
+| 224 — the in-loop gate | 0.0309 | **+/-21.5** |
+| 600 — origin scoring | 0.0189 | **+/-13.1** |
+| 2,000 | 0.0104 | +/-7.2 |
+| 10,000 | 0.0046 | +/-3.2 |
+| 50,000 | 0.0021 | +/-1.4 |
+
+**A 5-Elo true difference needs ~29,400 pairs.**
+
+## What this invalidates in my own reporting
+
+I have said repeatedly "eight runs, none above the 0.864 they started from". The honest split is
+**three resolved WORSE** (0.826, 0.834, 0.843 -- gaps of 0.021 to 0.038, above the 0.019 floor) and
+**five UNRESOLVED** (gaps of 0.001 to 0.005, i.e. 0.7 to 3.5 Elo, far below it). "Dead heat" was
+the wrong word for the second group; the right one is "unmeasurable at this budget".
+
+The same applies to the non-transitivity result. It is demonstrated at D2 (0.545 +/- 0.018) and
+NOT at D3 (0.513 +/- 0.020) -- and a 0.013 true edge would not resolve at that budget, so the D3
+line is an absence of detection, not a detection of absence. I said that at the time; it is the
+same floor.
+
+## The structural consequence, which is bigger than any single result
+
+**The per-generation gate at 224 pairs cannot see anything smaller than ~21 Elo.** Self-play
+improvements do not arrive in 21-Elo steps. So a training step that genuinely adds 5 Elo is
+invisible to the gate BY CONSTRUCTION -- it will read as a coin flip and be rejected.
+
+That explains, without any further hypothesis:
+* why the sharp gate accepts ~1 candidate in 35;
+* why nothing accumulates over 40+ generations;
+* why every configuration A/B -- replay window, epochs, blend -- came back "no difference".
+
+Raising 40 -> 224 pairs moved the floor from ~50 Elo to ~21. It was the right direction and it is
+still 4x to 20x too coarse for the effect size. I reported that change as "fixing the gate". It
+narrowed a hole it did not close.
+
+## What follows, and what does NOT
+
+NOT "run 29,000 pairs per generation" -- at ~2.7s per pair that is ~22 hours for ONE accept
+decision, against a generation that currently costs ~25s.
+
+The options that remain are about the SIGNAL, not the instrument:
+1. Accept on something cheap and validate the LINEAGE periodically at high N, rather than gating
+   every step. A wrong accept is then corrected within a few generations instead of never detected.
+2. Make the steps bigger. A 21-Elo floor is only fatal if the steps are 5 Elo; the epochs sweep
+   shows step size is a knob (more epochs made candidates measurably WORSE, so the knob works --
+   it is currently pointed the wrong way).
+3. Accumulate evidence across generations against a FIXED reference, which is what the anchor gate
+   does -- and its champion-anchor score is reused across generations rather than re-measured,
+   so the evidence compounds instead of resetting every step.
+
+Option 3 is already running. Options 1 and 2 are unexplored and are the first things worth trying
+that are not another parameter sweep on a gate that cannot see.
