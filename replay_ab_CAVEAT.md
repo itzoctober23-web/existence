@@ -138,3 +138,34 @@ negligible on this box.
 It also means the DEFAULT is the expensive choice in the way that matters. The loop currently
 generates ~250k positions per generation and trains on ~50k of them, discarding the rest -- and
 the measurement above shows retaining them would not have cost a single second.
+
+## POWER: what this sweep can and cannot detect (computed BEFORE the result, 2026-09-08)
+
+Final scoring is `control.rs --pairs 64`, whose measured ci95 runs 0.038-0.060. Two arms differ
+significantly only if their gap exceeds roughly `1.41 x ci95`:
+
+    ci95 0.038  ->  gap must exceed 0.054
+    ci95 0.060  ->  gap must exceed 0.085   (~107 Elo at the 0.83 level)
+
+**So this sweep can only detect an effect large enough to be obvious without measuring.** A real
++20 or +40 Elo benefit from keeping history will come back as "no difference", and reporting that
+as evidence against the idea would be wrong.
+
+I sized the arms by DURATION (1200s each) and never asked what the scoring step could resolve.
+That is the same error as the gate-pairs finding, made one level up: an instrument with a
+detection floor far above the effect being sought.
+
+Also, the accept-rate gap that currently looks striking is NOT significant:
+
+    window 1  6/42 = 0.143
+    window 8  8/28 = 0.286
+    difference +0.143 +/- 0.198, z = 1.41
+
+**HOW TO READ THE RESULT, fixed in advance:**
+  - gap > 0.085          -> real, report it
+  - gap 0.054 to 0.085   -> suggestive only if both intervals are at the tight end; say so
+  - gap < 0.054          -> NOT RESOLVED. Not "no effect". The instrument cannot see it.
+
+To actually resolve a ~+20 Elo difference the scoring step needs ~(0.06/0.015)^2 = 16x the pairs,
+i.e. ~1000 pairs per arm. That is a cheap fix -- scoring is a one-off match, not per-generation --
+and it is the obvious follow-up regardless of how this run reads.
