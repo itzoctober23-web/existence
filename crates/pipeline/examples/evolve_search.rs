@@ -116,6 +116,66 @@ fn mates_per_cost(prog: &Program, set: &[Position], depth: i64, net: &Net) -> (u
     (found, found as f64 * 1e6 / cost.max(1) as f64, forfeits)
 }
 
+/// Does the mover have a FORCED MATE IN TWO? Rules-derived throughout: a move such that for
+/// every reply, some follow-up ends the game as a win. No chess knowledge, no piece values.
+fn forced_mate_in_2(p: &mut Position) -> bool {
+    let firsts = p.legal_moves();
+    for &m1 in firsts.as_slice() {
+        let u1 = p.make_move(m1);
+        // the opponent must have no escape
+        let replies = p.legal_moves();
+        let mut all_lose = !replies.is_empty();
+        if replies.is_empty() { p.unmake_move(m1, u1); continue; }
+        for &m2 in replies.as_slice() {
+            let u2 = p.make_move(m2);
+            let mut mated = false;
+            for &m3 in p.legal_moves().as_slice() {
+                let u3 = p.make_move(m3);
+                if p.legal_moves().is_empty() && p.outcome() == Outcome::Loss { mated = true; }
+                p.unmake_move(m3, u3);
+                if mated { break; }
+            }
+            p.unmake_move(m2, u2);
+            if !mated { all_lose = false; break; }
+        }
+        p.unmake_move(m1, u1);
+        if all_lose { return true; }
+    }
+    false
+}
+
+/// MATE-IN-2 on SPARSE positions. This is the surrogate that can actually discriminate.
+///
+/// Mate-in-1 is saturated: the seed's terminal guard fires before its depth guard, so EVERY
+/// program finds all 40 without searching, and the filter compared 0 < 0 forever. Mate-in-2
+/// requires real lookahead — a program that prunes unsoundly will miss it, which is precisely
+/// the failure FITNESS 3 wants caught before games are spent.
+///
+/// SPARSE is what makes it affordable. A full search at depth 3 costs ~411M cost units on a
+/// midgame position; on a position with a handful of pieces the tree is orders of magnitude
+/// smaller, so the same depth is cheap. The filter for sparseness is a piece COUNT, which is
+/// rules-derived — it is not a judgement about which positions matter.
+fn mate_in_2_set(n: usize, max_pieces: u32, rnd: &mut impl FnMut() -> u64) -> Vec<Position> {
+    let mut out = Vec::new();
+    let mut tries = 0usize;
+    while out.len() < n && tries < 400_000 {
+        tries += 1;
+        let mut p = Position::startpos();
+        let plies = 20 + (rnd() % 90) as usize;
+        let mut ok = true;
+        for _ in 0..plies {
+            let l = p.legal_moves();
+            if l.is_empty() { ok = false; break; }
+            p.make_move(l.as_slice()[(rnd() % l.len() as u64) as usize]);
+        }
+        if !ok { continue; }
+        if p.all.count_ones() > max_pieces { continue; }
+        if p.legal_moves().is_empty() { continue; }
+        if forced_mate_in_2(&mut p) { out.push(p); }
+    }
+    out
+}
+
 /// Positions where the side to move has a mate in one. Rules-derived: a position is MATE-1 iff
 /// some legal move ends the game as a win. No chess knowledge enters.
 fn mate_set(n: usize, rnd: &mut impl FnMut() -> u64) -> Vec<Position> {
@@ -264,7 +324,22 @@ fn main() {
         if !p.legal_moves().is_empty() { oracle_set.push(p); }
     }
 
-    let mates = mate_set(40, &mut rnd);
+    // MATE-IN-2 by default. Mate-in-1 is saturated -- every program finds all of them via the
+    // terminal guard without searching, so the filter compared 0 < 0 and rejected nothing in
+    // every generation. Sparse positions keep the deeper set affordable.
+    // DEFAULT OFF: see EXPERIMENTS.md. Forced mate-in-2 is far rarer than mate-in-1 because
+    // EVERY reply must lose -- 400,000 random sparse walks yielded 2 positions, and a
+    // 2-position set carries no signal. The builder works and is kept behind the flag; what
+    // failed is finding enough instances cheaply, not the idea.
+    let mate2 = get("--mate2", 0) == 1;
+    let mate_n = get("--mate-set", 24);
+    let mates = if mate2 {
+        mate_in_2_set(mate_n, get("--mate-pieces", 10) as u32, &mut rnd)
+    } else {
+        mate_set(mate_n, &mut rnd)
+    };
+    println!("surrogate set: {} positions ({})", mates.len(),
+             if mate2 { "forced mate in 2, sparse" } else { "mate in 1" });
     // COVERAGE GUARD, the same one the net loop carries and for the same reason. A budget that
     // cannot cover the seed's search at the play depth makes BOTH programs return whichever
     // move they happened to reach, and a match between two arbitrary movers reports a tidy

@@ -38,6 +38,25 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — mate-in-2 surrogate: NULL, the set is too rare to build
+
+The mate-in-1 surrogate is saturated: the seed's terminal guard fires before its depth guard,
+so every program finds all of them without searching and the count filter compares 0 < 0
+forever. Mate-in-2 needs real lookahead, so it should discriminate — a program that prunes
+unsoundly misses it, which is the failure FITNESS 3 exists to catch before games are spent.
+
+Built it (forward search: a move such that for every reply, some follow-up mates; sparse
+positions so depth 3 stays cheap). MEASURED: **400,000 random walks produced 2 positions.**
+Mate-in-1 needs ONE winning move to exist; mate-in-2 needs EVERY reply to lose, which is orders
+of magnitude rarer on positions reached by random play.
+
+A 2-position surrogate carries no signal, so the default reverts to mate-in-1 plus the
+mates-per-COST rate check, which does discriminate — on waste rather than on correctness. The
+builder is kept behind `--mate2` because it works; what failed is finding enough instances
+cheaply, not the idea. A retrograde construction (start from a mated position, unwind three
+plies) would produce them by the thousand and is the obvious next attempt if this surrogate
+ever needs to bite.
+
 ## 2026-09-08 — step budget: INTERIM, seed 1 of 3
 
 First arms to complete with the derived per-net gate budget (the earlier attempts aborted on
