@@ -70,13 +70,16 @@ fn mate_in_one(p: &Position) -> Option<board::Move> {
 fn probe(prog: &grammar::Program, net: &Net, ps: &[Position], d: i64, b: i64)
     -> (usize, u64, u64, usize) {
     let (mut legal, mut evals, mut cost, mut over) = (0usize, 0u64, 0u64, 0usize);
+    let mut ceil = 0u64;
     for p in ps {
         let mut i = Interp::new(net, vec![d, 32_000, 1]);
         let m = i.run(prog, p, b);
         evals += i.evals; cost += i.cost;
         if i.over_budget { over += 1; }
+        ceil += i.ceiling_hits;
         if p.legal_moves().as_slice().contains(&m) { legal += 1; }
     }
+    if ceil > 0 { println!("      [recursion ceiling hit {ceil} times — a call unwound as 0]"); }
     (legal, evals, cost, over)
 }
 

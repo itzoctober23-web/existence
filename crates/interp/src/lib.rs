@@ -369,6 +369,15 @@ pub struct Interp<'a> {
     /// Leaf evaluations. The benchmark compares this against the reference's count to prove
     /// both arms searched the SAME tree before believing any speed ratio.
     pub evals: u64,
+    /// Times the recursion ceiling was hit and a call unwound with the substitute value 0.
+    ///
+    /// That substitute is documented as "a neutral value", and for most programs it is. For
+    /// proof-number search it is not neutral at all: 0 is the value meaning PROVEN WIN, so a
+    /// ceiling hit does not unwind quietly, it asserts that the line is won and the back-up
+    /// carries that all the way to the root. The reference PN program returned the first legal
+    /// move on 23/23 mate-in-one positions and this is why -- invisible, because a ceiling hit
+    /// looked exactly like a completed search. Counting it makes the failure observable.
+    pub ceiling_hits: u64,
     /// Learned integer tables. Index 0 = D (depth), 1 = INF, 2.. = whatever a program reads.
     pub tables: Vec<i64>,
     hash: Tt,
@@ -414,6 +423,7 @@ impl<'a> Interp<'a> {
             net,
             cost: 0,
             evals: 0,
+            ceiling_hits: 0,
             tables,
             hash: Tt::new(),
             scratch: Vec::new(),
@@ -437,6 +447,7 @@ impl<'a> Interp<'a> {
     pub fn run<'p>(&mut self, prog: &'p Program, pos: &Position, budget: i64) -> Move {
         self.cost = 0;
         self.evals = 0;
+        self.ceiling_hits = 0;
         self.budget = budget;
         self.over_budget = false;
         self.depth = 0;
@@ -697,7 +708,9 @@ impl<'a> Interp<'a> {
             }
             Node::Call(idx, args) => {
                 if self.depth >= MAX_CALL_DEPTH {
-                    // Ceiling reached: unwind with a neutral value rather than crashing.
+                    // Ceiling reached: unwind with a substitute value rather than crashing.
+                    // NOT neutral in every domain -- see `ceiling_hits`.
+                    self.ceiling_hits += 1;
                     return Flow::Ret(Value::Num(0));
                 }
                 let f = &prog.funcs[*idx];

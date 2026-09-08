@@ -552,9 +552,45 @@ pub fn uct_mcts() -> Program {
 /// divide by zero and dominate the metric.
 pub fn proof_number() -> Program {
     let inf = Node::TRead(1, vec![]);
-    let proof = |n: Node| Node::Field(b(Node::Probe(b(Node::Key(b(n))))), FieldId::Score);
-    let disproof = |n: Node| Node::Field(b(Node::Probe(b(Node::Key(b(n))))), FieldId::Count);
     let child = || Node::Apply(b(v("p")), b(v("m")));
+
+    // UNVISITED NODES MUST INITIALISE TO 1, NOT 0.
+    //
+    // These two readers used to be a bare `Probe(Key(n)).Score` / `.Count`. An unvisited slot is
+    // `Slot::default()`, all zeros, and by the definition above proof==0 means PROVEN WIN -- so
+    // every unexplored child read as already proven, the most-proving-node argmax found them all
+    // tied at 0, and it took element zero forever. MEASURED before the fix
+    // (crates/interp/examples/reference_audit.rs, depth 3, control clean at 23/23):
+    // returned the FIRST legal move 23/23, found 0/23 mate-in-ones, agreed with alpha-beta 0/23.
+    //
+    // That is the same root cause GRAMMAR 6 already records for `alpha-beta + hash reuse` -- "so
+    // does an EMPTY slot, since Slot::default() is all zeros" -- landing on a second entry of the
+    // same reference set and surviving the correction of the first.
+    //
+    // Real PN initialises an unexpanded node to proof = disproof = 1. `Flag` is the validity
+    // marker, the same field ab_hash uses, and is written 1 at every store. With flag in {0,1}:
+    //
+    //     effective = stored + (1 - flag)      unvisited -> 0 + 1 = 1 ;  visited -> s + 0 = s
+    //
+    // which needs no conditional and stays inside the arithmetic the grammar already has, so the
+    // encoding remains something the mutation operators can reach.
+    fn slot(n: Node, f: FieldId) -> Node {
+        Node::Field(b(Node::Probe(b(Node::Key(b(n))))), f)
+    }
+    fn with_init(n: Node, f: FieldId) -> Node {
+        Node::Arith(
+            ArithOp::Add,
+            vec![
+                slot(n.clone(), f),
+                Node::Arith(ArithOp::Sub, vec![Node::Const(1), slot(n, FieldId::Flag)]),
+            ],
+        )
+    }
+    let proof = |n: Node| with_init(n, FieldId::Score);
+    let disproof = |n: Node| with_init(n, FieldId::Count);
+    // Marks the slot visited. Must run AFTER the stores that read the old proof/disproof, or the
+    // (1 - flag) term would already be zero and the initialisation would be lost.
+    let mark_seen = || Node::Store(b(Node::Key(b(v("p")))), FieldId::Flag, b(Node::Const(1)));
 
     // prove(p): expand the most-proving child, then back up proof/disproof.
     let body = Node::seq(vec![
@@ -571,7 +607,37 @@ pub fn proof_number() -> Program {
                     FieldId::Score,
                     b(Node::ScoreOf(b(Node::Terminal(b(v("p")))), b(Node::Const(0)))),
                 ),
+                // Mark BEFORE the read below: a terminal's proof is the stored value exactly,
+                // and without the flag it would come back as stored+1 -- a proven win reading
+                // as 1 instead of 0, which is the very confusion this fix exists to remove.
+                mark_seen(),
                 Node::Ret(b(proof(v("p")))),
+            ])),
+            None,
+        ),
+        // EXPANSION, and the base case the encoding was missing. Real PN descends to the most-
+        // proving LEAF, expands it one ply, and backs up; it never recurses to a terminal. This
+        // version recursed until terminal, so every iteration ran to the recursion ceiling --
+        // MEASURED at 3840 hits over 60 positions at budget 64, i.e. 60 x 64, every single
+        // iteration. At the ceiling `Call` returns Num(0), documented as "a neutral value", and
+        // for proof numbers 0 is not neutral: it means PROVEN WIN. So each iteration asserted the
+        // line was won and the back-up carried that to the root, which is why the prover returned
+        // the first legal move 23/23 and found 0/23 mates.
+        //
+        // An unvisited node IS the leaf to expand: initialise proof = disproof = 1, mark it seen,
+        // and return. That bounds the recursion to the depth of the tree actually explored, which
+        // grows by one node per iteration -- PN's real shape.
+        Node::If(
+            b(Node::Cmp(
+                b(slot(v("p"), FieldId::Flag)),
+                b(Node::Const(0)),
+                Rel::Eq,
+            )),
+            b(Node::seq(vec![
+                Node::Store(b(Node::Key(b(v("p")))), FieldId::Score, b(Node::Const(1))),
+                Node::Store(b(Node::Key(b(v("p")))), FieldId::Count, b(Node::Const(1))),
+                mark_seen(),
+                Node::Ret(b(Node::Const(1))),
             ])),
             None,
         ),
@@ -602,6 +668,9 @@ pub fn proof_number() -> Program {
                 vec![disproof(v("p")), disproof(child())],
             )),
         ),
+        // LAST, deliberately. Both stores above read this node's own proof/disproof, and those
+        // reads must still see the pre-visit initialisation of 1.
+        mark_seen(),
         Node::Ret(b(v("pmin"))),
     ]);
 
