@@ -158,6 +158,8 @@ fn main() {
     // The surrogate may override the games only if asked for explicitly. See the acceptance
     // chain: measured at corr -0.095 against 239 paired gate results, it is not a decision rule.
     let surrogate_fallback = std::env::args().any(|a| a == "--surrogate-fallback");
+    // Keep drawn games in the training pool. See the filter for the measurement that motivates it.
+    let include_draws = std::env::args().any(|a| a == "--include-draws");
     // NET WIDTH IS NOT A FLAG ANY MORE. It is a position on a declared menu (arch::WIDTH_MENU)
     // and the ARCH arm moves it by measurement. `--rung` only says where to START; the loop is
     // free to walk away from it, and the run prints where it ended up.
@@ -358,7 +360,7 @@ fn main() {
     // greps 1 only because it appears in THIS format string.) That false negative aborted the
     // anchor A/B. A setting that cannot be observed in the program's own output cannot be verified
     // by anything except reading the source.
-    println!("gens={gens} games/gen={games} depth={depth} epochs={epochs} gate-pairs={gate_pairs} gate-nodes={gate_nodes} gate-every={gate_every} anchor-pairs={anchor_pairs} rollback={rollback} blend={blend}");
+    println!("gens={gens} games/gen={games} depth={depth} epochs={epochs} gate-pairs={gate_pairs} gate-nodes={gate_nodes} gate-every={gate_every} include-draws={include_draws} anchor-pairs={anchor_pairs} rollback={rollback} blend={blend}");
     println!("ARCH menu {WIDTH_MENU:?}  start rung {rung} (width {})  arch-every {arch_every}",
              WIDTH_MENU[rung]);
     // ORIGIN is always the reproducible iteration-zero net, even when we resume. The control
@@ -518,7 +520,28 @@ fn main() {
         // back as play improves.
         let horizon = (10 + (g as u32 - 1) * 5).min(horizon_cap);
         let pool: Vec<Sample> = data.iter()
-            .filter(|s| s.z != 0.0 && s.plies_to_end <= horizon)
+            // --include-draws KEEPS z == 0 samples. Default OFF, so every result measured so far
+            // stays comparable and this is A/B-able rather than silently swapped in.
+            //
+            // WHY IT IS WORTH ASKING. Measured over 750 generations from 49 runs on disk: the
+            // decisive-game rate averages 0.360, so roughly 64% of every self-play batch is drawn
+            // and discarded here. Volume is not the issue -- 35,754 training samples per
+            // generation against a 12,528-weight net is ample. The DISTRIBUTION might be: the
+            // value head only ever sees positions from games that ended decisively, so it is
+            // never taught what a drawn position looks like, while most positions are drawn.
+            // Excluding the majority class outright is unusual; AlphaZero-style loops train draws
+            // at target 0, which this target already supports since z = 0 is well defined.
+            //
+            // THE COUNTER-ARGUMENT, stated because it may well win: the eval feeds alpha-beta,
+            // which needs a RANKING, not calibrated draw probabilities. Separating win-ish from
+            // loss-ish may be all the search requires, and the draws may be exactly the
+            // uninformative middle the filter was put here to remove.
+            //
+            // NOT A CLAIM THAT THE FILTER IS WRONG. The horizon half of this same filter is
+            // backed by a real measurement (training on ALL decided positions moved sign accuracy
+            // 0.452 -> 0.441, while <=10 plies moved it to 0.543). The draw half has never been
+            // measured separately, and that is the whole gap this flag exists to close.
+            .filter(|s| (include_draws || s.z != 0.0) && s.plies_to_end <= horizon)
             .map(|s| Sample { fen: s.fen.clone(), z: s.z, root: s.root, plies_to_end: s.plies_to_end })
             .collect();
         // TRUE hold-out: split BEFORE training and never train on the held part. The first
