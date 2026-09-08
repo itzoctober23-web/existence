@@ -143,6 +143,10 @@ fn main() {
     //
     // 0 = off, preserving today's behaviour exactly so this can be A/B'd rather than assumed.
     let anchor_pairs = arg("--anchor-pairs", 0);
+    // K generations of unconditional training per gate. 1 = today's per-generation gate, exactly.
+    // See the long note at the gate call for why 1 cannot work: the gate's resolution floor is
+    // coarser than the per-generation signal by 2.7-6.4x, measured.
+    let gate_every = arg("--gate-every", 1);
     // Node budget per move for the NET gate. 0 = fixed depth (today's behaviour); >0 = the
     // fixed-cost-budget gate of FITNESS 6, which the loop has never actually used even though
     // match_nets_capped was implemented for it and ARCH already calls it.
@@ -354,7 +358,7 @@ fn main() {
     // greps 1 only because it appears in THIS format string.) That false negative aborted the
     // anchor A/B. A setting that cannot be observed in the program's own output cannot be verified
     // by anything except reading the source.
-    println!("gens={gens} games/gen={games} depth={depth} epochs={epochs} gate-pairs={gate_pairs} gate-nodes={gate_nodes} anchor-pairs={anchor_pairs} rollback={rollback} blend={blend}");
+    println!("gens={gens} games/gen={games} depth={depth} epochs={epochs} gate-pairs={gate_pairs} gate-nodes={gate_nodes} gate-every={gate_every} anchor-pairs={anchor_pairs} rollback={rollback} blend={blend}");
     println!("ARCH menu {WIDTH_MENU:?}  start rung {rung} (width {})  arch-every {arch_every}",
              WIDTH_MENU[rung]);
     // ORIGIN is always the reproducible iteration-zero net, even when we resume. The control
@@ -408,6 +412,8 @@ fn main() {
     let mut champ_anchor: Option<f64> = None;   // measured lazily, only if the anchor gate is on
     // Best (origin-control rate, champion, generation) seen. The rollback target.
     let mut best_ctrl: Option<(f64, Net, usize)> = None;
+    // The net a batch started from, and what --gate-every rolls back to when a batch fails.
+    let mut batch_base: Option<Net> = None;
     let cost_nodes = {
         let mut probe = pipeline::search::Searcher::with_seed(1);
         let mut p0 = Position::startpos();
@@ -580,7 +586,45 @@ fn main() {
         // that FITNESS 6 specifies. Default 0 keeps today's behaviour so the two are A/B-able
         // rather than silently swapped -- every result measured today used the depth gate, and
         // changing it by default would make them incomparable without saying so.
-        let (verdict, sc, llr) = if gate_nodes > 0 {
+        // ---- BATCH GATING (--gate-every K). THE PER-GENERATION GATE IS OFF WHEN K > 1.
+        //
+        // WHY, quantitatively. The pair standard deviation is 0.2362 (MEASURED, 15,008 real
+        // pentanomial pairs), so a K-pair gate resolves no better than 1.96*0.2362/sqrt(K). The
+        // model is validated against this harness's OWN logged bars: it predicts +/-0.0732 at 40
+        // pairs and an_0.log printed +/-0.073, 0.076, 0.069, 0.074.
+        //
+        // The signal it is being asked to filter is far smaller than that:
+        //     pooled over 239 generations, 7 runs   rate 0.5024  -> needs 37,209 pairs to resolve
+        //     epochs-2 arm, replicated on 2 seeds   rate 0.5114  -> needs  1,649 pairs to resolve
+        // A 40-pair gate is 6.4x too coarse to see the best per-generation edge ever measured
+        // here; a 224-pair gate is still 2.7x too coarse. So it rejects EVERYTHING -- 13
+        // generations, 0 accepts, every one "reject" -- and when it was made permissive instead
+        // (the surrogate fallback) it accepted noise and drove the champion 0.864 -> 0.826. Both
+        // failure modes are the same cause: a filter whose resolution is coarser than its signal.
+        //
+        // A gate cannot be made to work per-generation by tuning it. The fix is to stop asking it
+        // a question it cannot answer: train for K generations unconditionally, then gate the
+        // ACCUMULATED change against the net the batch started from, and roll back if it lost.
+        // If per-generation edges accumulate at all, K=10 needs ~16 pairs to resolve.
+        //
+        // PRE-REGISTERED, and this is a real experiment rather than a fix I am confident in:
+        //   * If the accumulated champion RESOLVES above its batch base, the per-generation gains
+        //     were real and merely unmeasurable one at a time. The plateau was a MEASUREMENT
+        //     failure and this is the repair.
+        //   * If it does NOT resolve after K generations of unconditional training, then the
+        //     gains are not real and not cumulative -- the pooled 0.5024 is the honest number and
+        //     the loop's problem is the TRAINING SIGNAL, not the gate. That would refute the
+        //     reasoning above, and it is the more likely outcome given 0.5024.
+        // Either answer is decisive, which is why it is worth the box time.
+        //
+        // Default K=1 preserves today's behaviour exactly, so every result measured so far stays
+        // comparable and this is A/B-able rather than silently swapped in.
+        let batch_mode = gate_every > 1;
+        let (verdict, sc, llr) = if batch_mode {
+            // No match is played. Score::default() is an HONEST empty record -- zero games -- and
+            // the Accept short-circuits `better` before any of its fields are read.
+            (gate::Sprt::Accept, gate::Score::default(), 0.0)
+        } else if gate_nodes > 0 {
             gate::sprt_match_nets_capped(&cand, &champion, depth, gate_nodes, gate_nodes,
                                          gate_pairs, seed ^ g as u64, 4, 0.0, 5.0)
         } else {
@@ -689,7 +733,7 @@ fn main() {
         // merely that the candidate is not MEASURABLY worse blocks the failure actually observed
         // -- ep_1 was 0.030 below its champion against the origin, which a 0.031 interval resolves
         // -- while staying silent where the anchor has no opinion.
-        let (better, anchor_veto) = if better && anchor_pairs > 0 {
+        let (better, anchor_veto) = if better && anchor_pairs > 0 && !batch_mode {
             let ca = *champ_anchor.get_or_insert_with(|| {
                 gate::match_nets(&champion, &anchor, depth as u32, anchor_pairs, seed ^ 0xA1C).pent_rate()
             });
@@ -752,6 +796,36 @@ fn main() {
             // discard everything it had learned.
             if let Err(e) = champion.save(&out) {
                 eprintln!("  WARN could not save champion to {out}: {e}");
+            }
+        }
+
+        // ---- THE BATCH GATE. Runs every K generations on the ACCUMULATED champion.
+        //
+        // This is the comparison the per-generation gate could not afford: `champion` has now
+        // absorbed K unconditional promotions, so the edge being measured is K generations of
+        // change rather than one, against the net the batch started from. Same gate, same pair
+        // count, a signal K times larger.
+        //
+        // ROLLBACK IS THE POINT, not a safety extra. Without the per-generation gate nothing
+        // stops a batch from wandering downhill, and 0.864 -> 0.826 is what that looks like when
+        // it happens. Requiring the batch to RESOLVE upward (interval clear of 0.5) rather than
+        // merely score above it keeps the same standard the per-generation gate used, so a batch
+        // that is indistinguishable from its base is discarded rather than kept on a coin flip.
+        if batch_mode && g % gate_every == 0 {
+            let base = batch_base.get_or_insert_with(|| champion.clone()).clone();
+            let (_v, bs, bllr) =
+                gate::sprt_match_nets(&champion, &base, depth, gate_pairs, seed ^ 0xBA7C ^ g as u64,
+                                      4, 0.0, 5.0);
+            let up = bs.pent_rate() - bs.ci95() > 0.5;
+            println!("      batch gate g{g} (last {gate_every} gens): {:.3}+/-{:.3} LLR {bllr:+.2} -> {}",
+                     bs.pent_rate(), bs.ci95(), if up { "KEEP" } else { "ROLL BACK" });
+            if up {
+                batch_base = Some(champion.clone());
+            } else {
+                champion = base;
+                if let Err(e) = champion.save(&out) {
+                    eprintln!("  WARN could not save champion to {out}: {e}");
+                }
             }
         }
 
