@@ -46,6 +46,20 @@ fn main() {
     let gate_pairs = arg("--gate-pairs", 40);
     let hidden = arg("--hidden", 128);
     let seed = arg("--seed", 20260907) as u64;
+    let ctrl_every = arg("--control-every", 10);
+    // Cap on the widening horizon. Measured 2026-09-07: labels far from the terminal are
+    // ANTI-signal while play is weak (sign acc 0.452 -> 0.441 when training on all decided
+    // positions). An unbounded schedule reaches 205 plies by gen 40, i.e. no filter at all,
+    // which would reintroduce exactly that. This tests whether the plateau is self-inflicted.
+    let horizon_cap = arg("--horizon-cap", 1000) as u32;
+    // DEPTH SCHEDULE. Depth 1 gives ~47x the labels per second and bootstraps the net out of
+    // randomness, but at depth 1 the search is barely stronger than the raw eval, so the data
+    // stops being better than the net that made it and acceptance stalls (measured: accepted
+    // at gens 2-6, then nothing for 24 generations). AlphaZero's engine of improvement is that
+    // SEARCH(net) > net; that only holds once the net is worth searching over. So: bootstrap
+    // shallow, then deepen.
+    let deepen_at = arg("--deepen-at", 1_000_000);
+    let deep = arg("--deep", 2) as u32;
 
     // blend = 0 at iteration zero. Mixing the net's OWN root score into its target is
     // self-referential when the net is random: it trains toward what it already says and
@@ -63,11 +77,12 @@ fn main() {
 
     for g in 1..=gens {
         // ---- self-play with the current champion
+        let dgen_depth = if g >= deepen_at { deep } else { depth };
         let mut data: Vec<Sample> = Vec::new();
         let (mut dec, mut drawn) = (0, 0);
         let t0 = std::time::Instant::now();
         for _ in 0..games {
-            let r = datagen::play_game(&champion, depth, &mut rng, 4, 160, &mut data);
+            let r = datagen::play_game(&champion, dgen_depth, &mut rng, 4, 160, &mut data);
             match r {
                 board::Outcome::Loss => dec += 1,
                 _ => drawn += 1,
@@ -82,7 +97,7 @@ fn main() {
         // data. Far-from-terminal labels are anti-signal while both players are near-random.
         // The horizon WIDENS with generation, because the label becomes informative further
         // back as play improves.
-        let horizon = 10 + (g as u32 - 1) * 5;
+        let horizon = (10 + (g as u32 - 1) * 5).min(horizon_cap);
         let pool: Vec<Sample> = data.iter()
             .filter(|s| s.z != 0.0 && s.plies_to_end <= horizon)
             .map(|s| Sample { fen: s.fen.clone(), z: s.z, root: s.root, plies_to_end: s.plies_to_end })
@@ -122,6 +137,15 @@ fn main() {
         if better {
             champion = cand;
             accepted += 1;
+        }
+        // Periodic control against the FROZEN origin. One step of learning is not a curve:
+        // the question P1 turns on is whether strength COMPOUNDS or stops after generation 1.
+        // Measured against the same fixed opponent every time, so the numbers are comparable.
+        if g % ctrl_every == 0 {
+            let c = gate::match_nets(&champion, &origin, depth, gate_pairs, seed ^ 0xC0 ^ g as u64);
+            println!("      control vs origin @gen {g}: {}W-{}D-{}L  rate {:.3} +/- {:.3}{}",
+                c.wins, c.draws, c.losses, c.rate(), c.ci95(),
+                if c.rate() - c.ci95() > 0.5 { "  *" } else { "" });
         }
         println!(
             "gen {g:>3}  pos {:>6}  train {:>5} (h{:>3})  dec {:>3}/{:<3}  loss {:.4}  gate {}W-{}D-{}L {:.3}+/-{:.3}  {}  [{:.0}s]",

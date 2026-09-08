@@ -548,3 +548,39 @@ from ~95% to 61-82%, so the game-gate is starting to resolve on its own and will
 from the surrogate as play sharpens.
 
 No Elo figure is quoted: this is a score rate against a fixed opponent, not a shipped gate.
+
+**2026-09-07, P1: the plateau is an ACCEPTANCE stall, and "search deeper" does not fix it.**
+
+Learning is fast then flat: control vs the frozen origin reads 0.635 / 0.630 / 0.600 / 0.605
+at generations 8/16/24/32. The acceptance trace explains it exactly:
+
+    . A A A A A . . . . . . . . . . . . . . . . . . . . . . . .
+
+Accepted at generations 2-6, then NOTHING for 24 generations. The champion freezes. (Found
+because two arms with different horizons produced BYTE-IDENTICAL gate results -- impossible
+unless the champion object was the same, i.e. nothing had been accepted in either.)
+
+*Rejected hypothesis:* the widening horizon reintroducing far-from-terminal anti-signal.
+Capping it at 30 changed nothing (0.680 +/- 0.065 vs 0.698 +/- 0.064).
+
+*Structural diagnosis:* AlphaZero's engine of improvement is that SEARCH(net) > net, so the
+data is always better than the thing that produced it. At datagen depth 1 the search is barely
+stronger than the raw eval, so once the net fits its own play the data stops being better and
+the ladder has no next rung.
+
+*But the obvious fix FAILS.* Deepening after bootstrap (depth 1 for 6 generations, then depth
+2) does produce more acceptances -- `.AA.AAAA....AAAA..A.A` vs `.AAAAAA.......A.A.AA.` -- yet
+at EQUAL WALL TIME it is weaker:
+
+| schedule | control vs origin |
+|---|---|
+| depth 1 throughout | **0.598 +/- 0.062** |
+| depth 1 then depth 2 | 0.527 +/- 0.063 (not significant) |
+
+The label-volume loss (~47x fewer usable labels/second at depth 2) outweighs the improvement
+operator at this speed. **Acceptance rate is not a proxy for strength** -- arm B accepted more
+often and was weaker. Any future schedule change must be judged on the control at equal wall
+time, never on how often it accepts.
+
+The real unlock is making deep search cheap enough that both hold at once: incremental
+accumulator, then the bytecode. Until then depth 1 is the correct datagen setting.
