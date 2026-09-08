@@ -644,6 +644,19 @@ fn main() {
                         sc.spawn(move || {
                             part.iter()
                                 .map(|c| {
+                                    // BELT AND BRACES, AND THE BRACES ARE INERT HERE.
+                                    //
+                                    // This catch_unwind CANNOT catch anything under the workspace's
+                                    // `panic = "abort"` release profile (Cargo.toml): the process
+                                    // aborts before unwinding. I added it believing it fixed the
+                                    // crashes and reported it as working; it never ran. The real
+                                    // fix is that the interpreter's Pos accessors are now TOTAL,
+                                    // so there is no panic to catch.
+                                    //
+                                    // Kept because it costs nothing, it is correct if the profile
+                                    // ever changes to unwind, and deleting it would remove the
+                                    // record of why it is not the fix.
+                                    //
                                     // A CANDIDATE THAT PANICS SCORES ZERO. It does not kill the run.
                                     //
                                     // Crossover produces programs that pass the TYPE CHECKER and

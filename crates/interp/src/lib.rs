@@ -193,16 +193,30 @@ impl Value {
             _ => 0,
         }
     }
-    fn pos(&self) -> &Position {
+    // TOTALITY. `num` returns 0 and `mv` returns MOVE_NONE for a value of the wrong shape; these
+    // two PANICKED, and that asymmetry killed the search track twice.
+    //
+    // WHY A PANIC IS THE WRONG ANSWER HERE. The type checker admits a program, so the interpreter
+    // must be able to RUN it. It cannot: an unbound variable types as Ty::Unit (typecheck.rs:59)
+    // and can reach a site expecting a Pos, which crossover found within one generation of going
+    // live. And the workspace builds with `panic = "abort"` (Cargo.toml), so catch_unwind CANNOT
+    // rescue it -- the process dies whatever the caller does. Any fix that lives outside the
+    // interpreter is therefore dead code, which is what my first two attempts at this were.
+    //
+    // Returning None makes the callers total, and every caller below degrades to the neutral
+    // answer for its primitive -- no legal moves, no outcome, zero score. A program that asks for
+    // a position where there is none computes nothing useful and SCORES badly, which is the
+    // correct outcome for it and the whole point of a surrogate.
+    fn pos(&self) -> Option<&Position> {
         match self {
-            Value::Pos(p) => &p.pos,
-            _ => panic!("type error: expected Pos"),
+            Value::Pos(p) => Some(&p.pos),
+            _ => None,
         }
     }
-    fn posacc(&self) -> &PosAcc {
+    fn posacc(&self) -> Option<&PosAcc> {
         match self {
-            Value::Pos(p) => p.as_ref(),
-            _ => panic!("type error: expected Pos"),
+            Value::Pos(p) => Some(p.as_ref()),
+            _ => None,
         }
     }
     fn mv(&self) -> Move {
@@ -511,7 +525,8 @@ impl<'a> Interp<'a> {
 
             Node::Moves(p) => {
                 let p = val!(p);
-                let l = p.pos().legal_moves();
+                // No position => no moves. Foreach over an empty list is a no-op.
+                let l = match p.pos() { Some(x) => x.legal_moves(), None => Default::default() };
                 Value::List(Rc::new(l.as_slice().to_vec()))
             }
             Node::Apply(p, m) => {
@@ -535,30 +550,37 @@ impl<'a> Interp<'a> {
                 // Returning the position unchanged makes it score badly by itself: a program that
                 // never advances the position finds no mates and burns cost.
                 if mv == board::types::MOVE_NONE
-                    || !pv.posacc().pos.legal_moves().as_slice().contains(&mv)
+                    || pv.posacc().is_none_or(|a| !a.pos.legal_moves().as_slice().contains(&mv))
                 {
                     self.illegal_applies += 1;
                     return Flow::Normal(pv);
                 }
                 let mut sc = std::mem::take(&mut self.featbuf);
-                let child = pv.posacc().child(self.net, mv, &mut sc);
+                let child = match pv.posacc() {
+                    Some(a) => a.child(self.net, mv, &mut sc),
+                    None => { self.featbuf = sc; return Flow::Normal(pv); }
+                };
                 self.featbuf = sc;
                 Value::Pos(Rc::new(child))
             }
             Node::Terminal(p) => {
                 let p = val!(p);
-                Value::Out(p.pos().outcome())
+                // No position => no terminal verdict. NONE is the grammar's 'not terminal'.
+                Value::Out(p.pos().map(|x| x.outcome()).unwrap_or(board::Outcome::Ongoing))
             }
             Node::Key(p) => {
                 let p = val!(p);
-                Value::Key(p.pos().key)
+                Value::Key(p.pos().map(|x| x.key).unwrap_or(0))
             }
             Node::Eval(p) => {
                 self.evals += 1;
                 let p = val!(p);
                 // Output layer only: the hidden sums were carried forward by `apply`.
                 let net = self.net;
-                Value::Num(p.posacc().score_with(net, &mut self.scratch) as i64)
+                Value::Num(match p.posacc() {
+                    Some(a) => a.score_with(net, &mut self.scratch) as i64,
+                    None => 0,
+                })
             }
 
             Node::Arith(op, args) => {
