@@ -38,6 +38,35 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — search track PAUSED: it cannot discriminate at the only depth it can afford
+
+294 candidates across ~12 generations, on a correct and fair mutation operator set:
+
+    failed_oracle  154    rejected for being WRONG (disagreed with full-width reference)
+    no_evidence    130    reached the games and the gate could not tell them apart
+    lost_on_games   10    genuinely refuted
+    accepted         0
+
+Of 140 candidates that reached the game gate, **121 drew every pair** — the gate produced no
+information on 86% of the candidates it was given.
+
+That is not a defect in the search; it is the depth-1 limit already recorded in GRAMMAR 8,
+observed directly. At depth 1 there is almost nothing for a search PROGRAM to do differently:
+cutoffs, ordering and transpositions all pay at depth >= 2. And depth 2 is unaffordable — the
+seed's own full search costs 37.3M cost units per position, about 2.7s per move, so one 160-ply
+pair is ~14 minutes.
+
+So the track is burning a core to confirm a limit it has already established. PAUSED rather
+than deleted; every piece of it is verified and will be needed:
+  - the oracle rejects 52% of well-typed candidates for being incorrect, which is the stage
+    that stops "cheaper because it searches less" from reading as an improvement;
+  - the operator draw is uniform across GRAMMAR 4's declared set;
+  - the sequential gate stops after 16 all-drawn pairs instead of spending the full cap.
+
+It resumes when a candidate can be judged at a depth where search technique exists. On today's
+measurements that needs a cheaper SEARCH, not a cheaper interpreter — the interpreter is
+already at 0.971x of hand-written Rust.
+
 ## 2026-09-08 — the horizon filter should be REMOVED, not tuned (at blend 0.75)
 
 Full sweep against the trained champion at blend 0.75, 10 replicates per arm:
