@@ -189,3 +189,28 @@ scoring step that is underpowered at 64 pairs:
   - a larger window costs NOTHING (definitive, equal generations in equal time)
   - it accepts more often (suggestive, z = 1.37, not significant)
   - whether that makes it STRONGER (pending, and the 64-pair scoring resolves only ~106 Elo)
+
+## VALIDATION: the arms share a deterministic stream, and which pair to read hardest
+
+Arms 8 and 999 are BYTE-IDENTICAL for their first 4 generations (checked by md5 of the gen
+lines):
+
+    gen  pos     train  pool        gen  pos     train  pool
+    1    252040   9747   9747       1    252040   9747   9747
+    2    253028  14066  23813       2    253028  14066  23813
+    3    255253  17549  41362       3    255253  17549  41362
+    4    256277  21761  63123       4    256277  21761  63123
+
+That is exactly right and confirms two things: the seed produces the same datagen stream in every
+arm, so the arms are properly controlled; and `--replay-gens` genuinely changes nothing until the
+window binds.
+
+It also determines which comparison carries the most information:
+
+    window 1   binds from generation 2  ->  differs from 999 for 41 of 42 generations
+    window 8   binds from generation 9  ->  differs from 999 for 33 of 42
+
+**So window 1 vs window 999 is the cleanest contrast, and window 8 vs 999 is the weakest** --
+those two are literally the same run for the first fifth of it. When the scores land, read 1 vs
+999 first; a small 8-vs-999 gap is expected from the shared prefix alone and should not be read
+as "8 and unlimited are equivalent".
