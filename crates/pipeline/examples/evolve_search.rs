@@ -24,7 +24,8 @@
 //!     the games discriminate between search programs instead of between two noise sources.
 
 use board::{Outcome, Position};
-use grammar::mutate::{self, Rng as MRng};
+use grammar::mutate::{self, Op, Rng as MRng};
+use std::collections::BTreeMap;
 use grammar::{reference, Program};
 use interp::Interp;
 use nnue::Net;
@@ -235,26 +236,37 @@ fn main() {
              mates.len());
     println!("gate: candidate vs champion PROGRAM, same net, {budget} cost units/move, {pairs} pairs\n");
 
+    let edits = get("--edits", 1);
+    println!("mutations per candidate: {edits}\n");
+    // Per-operator tally: (proposed, survived-oracle, survived-surrogate, reached-games).
+    // 128 rejected candidates teach nothing without this; with it the same run reports which
+    // operators produce viable programs at all.
+    let mut tally: BTreeMap<String, [u32; 4]> = BTreeMap::new();
     let mut accepted = 0;
     for g in 1..=gens {
         let (mut tried, mut ill, mut oracle_fail, mut surrogate_fail) = (0, 0, 0, 0);
         let mut best: Option<(Program, Pent)> = None;
         for i in 0..pop {
             let mut r = MRng::new((g as u64) << 24 ^ i as u64 ^ 0xBEEF);
-            let cand = match mutate::mutate_program(&champ, &mut r) {
+            let (cand, ops) = match mutate::mutate_program_n(&champ, &mut r, edits) {
                 Some(c) => c, None => { ill += 1; continue }
             };
+            let key = ops.iter().map(|o| format!("{o:?}")).collect::<Vec<_>>().join("+");
+            tally.entry(key.clone()).or_insert([0; 4])[0] += 1;
             tried += 1;
             if i % 4 == 0 { println!("  gen {g} cand {i}/{pop}..."); use std::io::Write; let _ = std::io::stdout().flush(); }
             // 1. ORACLE. A program that plays worse chess can always be cheaper; this is what
             //    stops "cheaper" from being confused with "better".
             let (co, cn) = passes_oracle(&cand, &oracle_set, oracle_depth, &net);
             if cn == 0 || co * 100 < cn * 95 { oracle_fail += 1; continue; }
+            tally.get_mut(&key).unwrap()[1] += 1;
             // 2. SURROGATE (FITNESS 3). Must not LOSE mates -- a program that finds fewer
             //    mates more cheaply is not better, and missing a forced mate is unsound
             //    pruning's characteristic failure. Cheap, so it runs before the games.
             let (cm, _cr, _cf) = mates_per_cost(&cand, &mates, surrogate_depth, &net);
             if cm < seed_mates { surrogate_fail += 1; continue; }
+            tally.get_mut(&key).unwrap()[2] += 1;
+            tally.get_mut(&key).unwrap()[3] += 1;
             // 3. GAMES. The only thing that decides.
             let sc = match_programs(&cand, &champ, &net, pairs, depth, budget,
                                     0xA11CE ^ (g as u64) << 8 ^ i as u64);
@@ -276,6 +288,17 @@ fn main() {
                               {surrogate_fail} surrogate, none beat the champion)"),
         }
     }
+
+    println!("\n--- operator survival (proposed -> oracle -> surrogate) ---");
+    let mut rows: Vec<_> = tally.iter().collect();
+    rows.sort_by_key(|(_, v)| std::cmp::Reverse(v[1]));
+    for (k, v) in rows.iter().take(14) {
+        println!("  {:<34} {:>4} -> {:>4} -> {:>4}", k, v[0], v[1], v[2]);
+    }
+    let tot: u32 = tally.values().map(|v| v[0]).sum();
+    let sur: u32 = tally.values().map(|v| v[1]).sum();
+    println!("  {:<34} {:>4} -> {:>4}  ({:.0}% survive the oracle)", "TOTAL", tot, sur,
+             100.0 * sur as f64 / tot.max(1) as f64);
 
     println!("\n{accepted} program(s) accepted over {gens} generations");
     println!("final: {} nodes (seed was {})", champ.size(), reference::bare_alpha_beta().size());

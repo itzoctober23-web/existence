@@ -183,15 +183,36 @@ pub fn mutate(p: &Program, op: Op, rng: &mut Rng) -> Option<Program> {
 
 /// 1..3 operators per candidate (GRAMMAR 4), retrying sites that do not apply.
 pub fn mutate_program(p: &Program, rng: &mut Rng) -> Option<Program> {
-    let n = 1 + rng.below(3);
+    let edits = 1 + rng.below(3);
+    mutate_program_n(p, rng, edits).map(|(prog, _)| prog)
+}
+
+/// As `mutate_program`, but with an explicit edit count and a record of WHICH operators were
+/// applied.
+///
+/// Both matter for the search track, and neither was observable before:
+///
+/// - EDIT COUNT. The original always applied 1-3 stacked edits. Three random edits to a program
+///   that already computes the exact minimax value will almost always break it, and the first
+///   real search-track run duly saw 90 of 106 well-typed candidates rejected by the correctness
+///   oracle. Whether a single edit survives more often is a measurable question, and it decides
+///   how much of the search budget is reachable at all.
+/// - WHICH OPERATOR. With no record, 128 rejected candidates teach nothing about the operator
+///   set. With one, the same run reports which operators produce viable programs and which only
+///   ever produce wreckage — and GRAMMAR 4's operator list is a Given column entry, so its
+///   composition is exactly the sort of thing that should be reported rather than assumed.
+pub fn mutate_program_n(p: &Program, rng: &mut Rng, edits: usize) -> Option<(Program, Vec<Op>)> {
     let mut cur = p.clone();
-    for _ in 0..n {
+    let mut applied = Vec::with_capacity(edits);
+    for _ in 0..edits.max(1) {
         let mut ok = None;
         for _ in 0..40 {
             let op = ALL_OPS[rng.below(ALL_OPS.len())];
-            if let Some(next) = mutate(&cur, op, rng) { ok = Some(next); break; }
+            if let Some(next) = mutate(&cur, op, rng) { ok = Some((next, op)); break; }
         }
-        cur = ok?;
+        let (next, op) = ok?;
+        cur = next;
+        applied.push(op);
     }
-    Some(cur)
+    Some((cur, applied))
 }
