@@ -61,13 +61,25 @@ fn main() {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     let budget: i64 = argv.iter().position(|a| a == "--budget")
         .and_then(|i| argv.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(16);
+    // --inf N: the INF table (table 1), which is the initial alpha-beta window.
+    //
+    // Exists to test a specific worry about the SEARCH TRACK. It accepted two candidates at D=3
+    // that kept 20/20 mates while costing ~12x less, and I judged them non-degenerate because the
+    // mate count held -- including the forced-mate-in-2 positions a shallow program loses first.
+    // But the mate-in-2 guard catches SHALLOWNESS, not WINDOW NARROWING. Mate scores are +/-30000,
+    // so a candidate that shrinks the window prunes enormously, still finds every mate, and would
+    // play terribly in normal positions where the differences are tens of centipawns.
+    // If narrowing INF on the UNMUTATED seed reproduces the ~12x, the surrogate cannot tell that
+    // failure from a real improvement and the search track's first success is in doubt.
+    let inf: i64 = argv.iter().position(|a| a == "--inf")
+        .and_then(|i| argv.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(32_000);
     let depths: Vec<i64> = argv.iter()
         .filter(|a| !a.starts_with("--"))
         .filter_map(|a| a.parse().ok())
         .filter(|d| *d != budget || argv.iter().position(|x| x == "--budget").is_none())
         .collect();
     let depths = if depths.is_empty() { vec![2, 3, 4] } else { depths };
-    println!("  budget {budget} (alpha-beta ignores it; MCTS = simulations, PN = iterations)");
+    println!("  budget {budget}, INF {inf} (alpha-beta ignores budget; MCTS = simulations, PN = iterations)");
     for depth in depths {
     println!("\n  === D = {depth} ===");
     println!("  {:<32} {:>7} {:>14} {:>13} {:>10}",
@@ -76,7 +88,7 @@ fn main() {
     // legible where "0.2 vs 0.1 mates/Mcost" rounds the whole effect away.
     let mut seed_cost = 0u64;
     for (name, prog) in reference::all() {
-        let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+        let mut it = Interp::new(&net, vec![depth, inf, 8]);
         let (mut found, mut cost) = (0u32, 0u64);
         for p in &mates {
             let mv = it.run(&prog, p, budget);
