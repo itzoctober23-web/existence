@@ -367,18 +367,72 @@ fn main() {
     let mut rng = Rng::new(0xE0FFEE);
     let mut accepted = 0;
     for g in 1..=gens {
-        let mut ill = 0;
-        let mut offspring: Vec<(Program, u32, f64)> = Vec::new();
-        for i in 0..pop {
-            // Parent chosen round-robin across the population, so every member breeds. Sampling
-            // uniformly at random would let a member die without ever being tried, which defeats
-            // the point of keeping a worse-but-different program alive.
-            let parent = &popn[i % popn.len()].0;
-            let mut r = Rng::new((g as u64) << 20 ^ i as u64 ^ 0xBEEF);
-            let cand = match mutate::mutate_program(parent, &mut r) { Some(c) => c, None => { ill += 1; continue } };
-            let (f, _c, rate) = fitness(&cand, &set, &net, depth);
-            if f >= best_found { offspring.push((cand, f, rate)); }
-        }
+        // MUTATE FIRST, EVALUATE IN PARALLEL. Mutation is microseconds; fitness is the whole
+        // generation.
+        //
+        // WHY THIS IS FREE AND NOT A TRADE. Fitness is DETERMINISTIC -- fixed position set, fixed
+        // net, no sampling -- so a candidate's score does not depend on which thread computes it
+        // or in what order. The results are bit-identical to the sequential loop; only the wall
+        // clock changes. Order is preserved by chunking rather than by a work queue, so even the
+        // tie-breaking in the sort below is unchanged.
+        //
+        // MEASURED WASTE: the process ran at 99.5% CPU -- ONE core -- while pinned by
+        // run_search_track.sh to cores 12-14. Two of three cores sat idle through a ~3 minute
+        // generation. A depth-3 fitness is a 4-PLY search (choose applies the root move, then
+        // recurses with the FULL D, so the tree is D+1 plies) at ~144k evals per position, which
+        // is genuinely expensive and cannot be cut without losing the one rung that only pays at
+        // 4 plies. This is the part that was pure waste.
+        let cands: Vec<(usize, Program)> = (0..pop)
+            .filter_map(|i| {
+                // Parent chosen round-robin across the population, so every member breeds.
+                // Sampling uniformly at random would let a member die without ever being tried,
+                // which defeats the point of keeping a worse-but-different program alive.
+                let parent = &popn[i % popn.len()].0;
+                let mut r = Rng::new((g as u64) << 20 ^ i as u64 ^ 0xBEEF);
+                mutate::mutate_program(parent, &mut r).map(|c| (i, c))
+            })
+            .collect();
+        let ill = pop - cands.len();
+        const THREADS: usize = 3;
+        let chunk = cands.len().div_ceil(THREADS).max(1);
+        let scored: Vec<(Program, u32, f64)> = std::thread::scope(|sc| {
+            let handles: Vec<_> = cands
+                .chunks(chunk)
+                .map(|part| {
+                    let (set, net) = (&set, &net);
+                    sc.spawn(move || {
+                        part.iter()
+                            .map(|(_, c)| {
+                                let (f, _cst, rate) = fitness(c, set, net, depth);
+                                (c.clone(), f, rate)
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                })
+                .collect();
+            handles.into_iter().flat_map(|h| h.join().unwrap()).collect()
+        });
+        // WHY THE POPULATION COLLAPSES, measured rather than guessed. First run of the plateau
+        // tolerance reported `pop 1`: everything died and the diagnostic could not say WHY,
+        // because the mate guard runs before any rate is looked at. Two very different causes
+        // produce the same collapse -- offspring losing mates, or offspring being far worse than
+        // EPS -- and they call for opposite fixes. So both are counted.
+        //
+        // If most candidates fail the MATE guard, single mutations of a search program are simply
+        // destructive and the population needs a gentler operator, not a wider window. If they
+        // pass the mate guard but sit far below EPS, then EPS is the binding constraint and the
+        // 0.9% valley figure -- taken from two hand-built reference programs -- is not
+        // representative of what mutation actually produces.
+        let n_scored = scored.len();
+        let mate_ok = scored.iter().filter(|(_, f, _)| *f >= best_found).count();
+        let rel: Vec<f64> = scored
+            .iter()
+            .filter(|(_, f, _)| *f >= best_found)
+            .map(|(_, _, r)| r / best_rate.max(1e-12))
+            .collect();
+        let (rlo, rhi) = rel.iter().fold((f64::MAX, 0.0f64), |(a, b), x| (a.min(*x), b.max(*x)));
+        let offspring: Vec<(Program, u32, f64)> =
+            scored.into_iter().filter(|(_, f, _)| *f >= best_found).collect();
 
         // (MU + LAMBDA): parents and offspring compete together, so the best-so-far can never be
         // lost -- elitist, which keeps the drift from becoming a random walk.
@@ -387,6 +441,21 @@ fn main() {
         pool.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
         let top = pool[0].2;
         pool.retain(|x| x.2 >= top * (1.0 - EPS));
+        // DEDUPE BY STRUCTURE, and this is load-bearing rather than tidy.
+        //
+        // The population starts as MU IDENTICAL copies of the seed. (MU+LAMBDA) is elitist and
+        // ties are kept in sort order, so those clones occupied all MU slots and every offspring
+        // was truncated away -- the population could never diversify and this silently degenerated
+        // into the exact hill climb it was written to replace. MEASURED on the first run: `pop 4
+        // spread 0.002518-0.002518`, four members at one rate, which is precisely what the spread
+        // diagnostic was added to expose. It reported the defect on generation 1.
+        //
+        // Comparing by rate alone would be wrong: two structurally different programs can cost the
+        // same, and collapsing them would throw away the diversity this exists to keep. The Debug
+        // string is a faithful rendering of the AST, and at MU+LAMBDA = 16 items per ~3-minute
+        // generation its cost is irrelevant.
+        let mut seen = std::collections::HashSet::new();
+        pool.retain(|x| seen.insert(format!("{:?}", x.0)));
         pool.truncate(MU);
         popn = pool;
 
@@ -439,8 +508,11 @@ gate {:.3}+/-{:.3}", c.size(), best_rate, gsc.pent_rate(), gsc.ci95());
             // identical rate means the plateau tolerance is admitting nothing and this has
             // silently degenerated back into the hill climb it replaced -- which would look
             // exactly like healthy "no improvement" output without this number.
-            println!("  gen {g:>3}  ..no improvement ({pop} cand, {ill} ill-typed) \
-pop {} spread {:.6}-{:.6}", popn.len(), spread_lo, spread_hi);
+            let span = if rel.is_empty() { "none".to_string() }
+                       else { format!("{rlo:.3}-{rhi:.3}x seed") };
+            println!("  gen {g:>3}  ..no improvement ({n_scored} cand, {ill} ill-typed, \
+mate-ok {mate_ok}, rates {span})  pop {} spread {:.6}-{:.6}",
+                     popn.len(), spread_lo, spread_hi);
         }
     }
     let _ = rng.next();
