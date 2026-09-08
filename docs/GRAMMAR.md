@@ -204,6 +204,47 @@ must cross ~59 nodes of neutral or worse territory to get there, which the valle
 (`ladder_valley_RESULT.md`) shows is exactly the kind of distance a strict hill climb cannot
 cross.
 
+**WHY MCTS IS PARTIAL, EXPLAINED 2026-09-08 — the exploration term saturates at 2.**
+
+The fidelity note above records UCT as PARTIAL (20/23 forced mates) without saying why, and the
+budget sweep produced an anomaly that demanded an answer: mates FALL as the budget rises.
+Measured (`evolve mctsbudget`, 25 positions, depth 3): 1 mate at budget 16, 6 at 64, **12 at 256**,
+then **10 at 1024 and 10 at 4096**. More playouts making UCT worse is not what UCT does.
+
+Read off the interpreter's arithmetic rather than guessed:
+
+* `Log` is `ln` TRUNCATED to an integer (`(a.max(1) as f64).ln() as i64`), so `Log(256) = 5`,
+  `Log(1024) = 6`, `Log(4096) = 8`.
+* `Div` is integer division. The exploration term is
+  `u = Sqrt(Div(Log(visits(parent)), visits(child) + 1))`, so once a child has more than `Log(N)`
+  visits the quotient is **0** and `u` is **0 — permanently, for that child**.
+* `Sqrt` is truncated too, and `Div <= 8` at these budgets, so **`u` can only ever be 0, 1 or 2.**
+
+Meanwhile `q` is a SCORE: mate is +/-29936, so `q` spans roughly +/-30000. Selection is
+`Mix(q, u, c) = (q*c + u*(16-c))/16` with the declared `c = 8`, i.e. `(q + u)/2`. **An exploration
+bonus of at most 2 against an exploitation term of +/-30000 is numerically inert** — it breaks ties
+near zero and nothing else. And `Mix` is a CONVEX BLEND, not a scaling, so `c` cannot amplify `u`:
+`c = 0` gives pure exploration over `u` in {0,1,2}, which is almost all ties, and `c = 16` gives
+pure greed. No setting makes the two commensurable.
+
+That is the mechanism behind the anomaly. At budget 256 some children still have fewer than
+`Log(N)` visits and exploration still operates; by 1024 and 4096 essentially every child is past
+the threshold, `u` is 0 everywhere, and the search is greedy over averages from a weak eval —
+which is worse than the partially-exploring version. The decline is the expected consequence, not
+noise.
+
+**THIS IS A DEFECT OF THE REFERENCE PROGRAM, NOT PROOF THAT THE GRAMMAR CANNOT EXPRESS UCT**, and
+the distinction matters because the second is a claim about the Given column. `arith` includes
+`mul` (Section 2.4), so a program CAN scale the bonus to the value range — `uct_mcts` as written
+simply does not, and no operator would ever discover that it should, because the reference is the
+declared seed rather than something the search produced. Rewriting it to scale `u` would change
+the declared prior's node count and is therefore a deliberate, recorded act, not a silent fix.
+
+**CONSEQUENCE FOR THE MCTS LINEAGE**, which is seeded with exactly this program: its mate guard is
+`f >= 12`, and 12/25 is the score of a near-greedy searcher, not of UCT. Any claim that the lineage
+"discovered" something must be read against that, and any hybrid built on it inherits an
+exploration term that cannot see past 2.
+
 **CORRECTION 2026-09-08 — "faithful" meant COUNTED AND READ, and for PN it was wrong.**
 
 `uct_mcts` and `proof_number` were referenced exactly once each in the whole tree, from
