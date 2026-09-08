@@ -21,6 +21,73 @@ impl Trainer {
         Trainer { lr, blend }
     }
 
+    /// White-POV forward pass and the blended target for one sample, shared by training and by
+    /// the held-out surrogate so the two cannot drift apart. FITNESS 5 compares a candidate to
+    /// the champion on "loss on the blended target"; if the surrogate computed a DIFFERENT loss
+    /// from the one being optimised, it would be measuring a quantity nothing is minimising.
+    fn forward_and_target(&self, net: &Net, s: &Sample, idx: &mut Vec<u16>, acc: &mut Vec<f32>)
+        -> Option<(f32, f32)>
+    {
+        let pos = Position::from_fen(&s.fen).ok()?;
+        let h = net.n_hidden;
+        acc.resize(h, 0.0);
+        Net::active(&pos, idx);
+        acc.copy_from_slice(&net.b1);
+        for &f in idx.iter() {
+            let row = &net.w1[f as usize * h..(f as usize + 1) * h];
+            for (a, w) in acc.iter_mut().zip(row) { *a += *w; }
+        }
+        let mut out = net.b2;
+        for k in 0..h {
+            if acc[k] > 0.0 { out += acc[k] * net.w2[k]; }
+        }
+        let pred = out.tanh();
+        let root_white = if pos.stm == Color::White { s.root } else { -s.root };
+        let root = (root_white as f32 / net.scale).tanh();
+        let target = (1.0 - self.blend) * s.z + self.blend * root;
+        Some((pred, target))
+    }
+
+    /// Mean squared error on a held-out set. No update. This is the FITNESS 5 surrogate.
+    pub fn loss(&self, net: &Net, data: &[&Sample]) -> f64 {
+        let (mut idx, mut acc) = (Vec::with_capacity(40), Vec::new());
+        let (mut total, mut n) = (0.0f64, 0usize);
+        for s in data {
+            if let Some((pred, target)) = self.forward_and_target(net, s, &mut idx, &mut acc) {
+                let e = (pred - target) as f64;
+                total += e * e;
+                n += 1;
+            }
+        }
+        if n == 0 { f64::INFINITY } else { total / n as f64 }
+    }
+
+    /// PAIRED significance on held-out squared error: positive z means `cand` beats `champ` by
+    /// more than the sample-to-sample noise, on the SAME positions.
+    ///
+    /// Comparing two mean losses by eye ("0.5579 vs 0.9376, clearly better") is the same mistake
+    /// as reading a gate's point estimate without its interval. The two nets are scored on
+    /// identical positions, so the per-position DIFFERENCE is the statistic with the variance
+    /// that matters; most of the spread is the position, and it cancels.
+    pub fn paired_loss_z(&self, champ: &Net, cand: &Net, data: &[&Sample]) -> f64 {
+        let (mut idx, mut acc) = (Vec::with_capacity(40), Vec::new());
+        let mut d: Vec<f64> = Vec::with_capacity(data.len());
+        for s in data {
+            let a = self.forward_and_target(champ, s, &mut idx, &mut acc);
+            let b = self.forward_and_target(cand, s, &mut idx, &mut acc);
+            if let (Some((pa, ta)), Some((pb, tb))) = (a, b) {
+                // champ error minus cand error: > 0 when the candidate is closer.
+                d.push(((pa - ta) as f64).powi(2) - ((pb - tb) as f64).powi(2));
+            }
+        }
+        let n = d.len();
+        if n < 30 { return 0.0; }
+        let mean = d.iter().sum::<f64>() / n as f64;
+        let var = d.iter().map(|x| (x - mean) * (x - mean)).sum::<f64>() / (n as f64 - 1.0);
+        if var <= 0.0 { return if mean > 0.0 { f64::INFINITY } else { 0.0 }; }
+        mean / (var / n as f64).sqrt()
+    }
+
     /// One epoch of SGD. Returns mean squared error before the update.
     pub fn epoch(&self, net: &mut Net, data: &[Sample], rng_seed: u64) -> f32 {
         let mut order: Vec<usize> = (0..data.len()).collect();

@@ -11,6 +11,7 @@ use nnue::Net;
 
 use crate::search::Searcher;
 
+#[derive(Clone)]
 pub struct Sample {
     pub fen: String,
     /// Plies from this position to the end of the game. Rules-derived. In self-play by a

@@ -5,11 +5,16 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 echo "== build (all targets) =="
-if ! cargo build --release --workspace --all-targets 2>&1 | grep -E "^error" ; then
-  echo "  ok"
-else
-  echo "  BUILD FAILED"; exit 1
+# Check CARGO's exit status, not a grep's. The previous form was
+#   if ! cargo build ... | grep -E "^error"; then echo ok
+# and under `set -o pipefail` the pipeline's status is cargo's (101 on failure), not grep's,
+# so a BROKEN BUILD took the `!`-true branch and printed "ok". It reported a green build stage
+# while the compiler was printing errors on the same screen.
+build_out=$(cargo build --release --workspace --all-targets 2>&1)
+if [ $? -ne 0 ]; then
+  echo "  BUILD FAILED"; grep -E "^error" <<<"$build_out" | head; exit 1
 fi
+echo "  ok"
 echo "== tests =="
 out=$(cargo test --release --workspace 2>&1)
 if grep -qE "FAILED|panicked|^error" <<<"$out"; then
@@ -17,5 +22,7 @@ if grep -qE "FAILED|panicked|^error" <<<"$out"; then
 fi
 n=$(grep -oE "test result: ok\. [0-9]+ passed" <<<"$out" | grep -oE "[0-9]+" | paste -sd+ | bc)
 echo "  $n tests passed"
-[ "${n:-0}" -ge 9 ] || { echo "  EXPECTED >=9 tests, got ${n:-0} — did they compile?"; exit 1; }
+# Ratchet: the floor is the count at the last commit, so a test that silently stops being
+# compiled (or gets deleted) fails the gate instead of passing a smaller suite quietly.
+[ "${n:-0}" -ge 27 ] || { echo "  EXPECTED >=27 tests, got ${n:-0} — did they compile?"; exit 1; }
 echo "ALL GREEN"

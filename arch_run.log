@@ -1,0 +1,14 @@
+gens=40 games/gen=80 depth=2 epochs=3 gate-pairs=24 blend=0
+ARCH menu [16, 32, 64, 128, 256, 512]  start rung 0 (width 16)  arch-every 4  cost-budget 4000 nodes
+clock budget: 4000 x 424ns = 1.70ms per move (measured on the seed net)
+gen   1  pos  11993  train    33 (h 10)  dec   4/80   loss 0.0499  gate 1W-46D-1L 0.500+/-0.029  reject  [1s]
+gen   2  pos  10742  train   155 (h 15)  dec  15/80   loss 0.0124  gate 2W-43D-3L 0.490+/-0.046  reject  [1s]
+gen   3  pos  11432  train   157 (h 20)  dec  10/80   loss 0.0125  gate 2W-43D-3L 0.490+/-0.046  reject  [1s]
+      ARCH w 16 -> w 32: held-out 1.2372 vs champ 0.5049 -- surrogate filter, no gate
+gen   4  pos  12118  train    58 (h 25)  dec   3/80   loss 0.0234  gate 3W-40D-5L 0.479+/-0.058  ACCEPT  [1s]
+gen   5  pos  10511  train   231 (h 30)  dec  15/80   loss 0.0079  gate 1W-42D-5L 0.458+/-0.048  reject  [1s]
+gen   6  pos  10989  train   198 (h 35)  dec  11/80   loss 0.0656  gate 1W-46D-1L 0.500+/-0.029  reject  [1s]
+gen   7  pos  10611  train   267 (h 40)  dec  14/80   loss 0.0128  gate 8W-39D-1L 0.573+/-0.055  reject  [1s]
+      ARCH w 16 -> w 32: held-out 1.0562 vs champ 0.8340 -- surrogate filter, no gate
+gen   8  pos  11361  train   150 (h 45)  dec   8/80   loss 0.0054  gate 5W-41D-2L 0.531+/-0.054  reject  [1s]
+gen   9  pos  11104  train   243 (h 50)  dec  10/80   loss 0.0071  gate 2W-46D-0L 0.521+/-0.028  reject  [1s]
