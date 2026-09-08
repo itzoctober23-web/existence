@@ -338,6 +338,19 @@ and/or fixed-time games:
 7. tread(reduction, depth, index) in the recursive depth -> table-driven reduction
 
 Counts in bold are MEASURED by `crates/grammar`; the unbolded rungs are not yet written out.
+
+**Rung 5 (iterative deepening) and rung 6 (capture extension) are now WRITTEN and MEASURED**
+(`examples/prior`): `alpha-beta + iterative deepening` = **100** nodes, `alpha-beta + hash + ID`
+= **204**, `capture extension` = **80** (+9 from the seed, inside GRAMMAR 4's 1-3 mutation
+budget). Rung 7 (table-driven reduction) is still unwritten.
+
+The capture-extension rung is the expressibility check MASTER_PLAN item 2 asks for -- "verify
+alpha-beta, hash reuse, ID, and qsearch are expressible in the grammar", using the test eval
+"for this rig only". It is NOT seeding qsearch: MASTER_PLAN line 53 requires the SEED to hold
+"no quiescence ... all of these must be DISCOVERED as program edits that beat the current
+program on the clock", and `bare_alpha_beta()` is untouched -- still exactly **71** nodes, which
+the same run re-measures every time. The reference set is read by the ladder rig alone; neither
+the search nor the evolution loop imports it.
 The original parenthetical estimates (8/18/29/41/52/61/72) were the same hand guesses that
 measured 2.4x wrong elsewhere in this document and have been removed rather than corrected.
 

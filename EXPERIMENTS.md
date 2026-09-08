@@ -14,7 +14,9 @@ not hold up — what was wrong with the EXPERIMENT rather than the idea.
 | `steps-per-gen` | **0** (off) | Refuted on a controlled A/B: 0.5352 vs epochs' 0.5444, difference not significant and the sign REVERSED from the loop. |
 | `gate-depth-cap` | **4** | Full-tree cost from startpos: d3 1,921 / d4 3,145 / d5 140,009 / d6 328,495 nodes. At the old default of 6 a 4,000-node budget bought 1.29% of the tree and both sides played at random. |
 | `cost-nodes` | **derived** | Tree size is NET-DEPENDENT; a fixed 4,000 covered 57% of one seed's tree and 33% of another's, aborting 4 of 6 experiment arms. |
-| interpreter accumulator | **width >= 64** | eval+apply per node: 399->441ns at w16 (WORSE), 665->582 at w64, 2290->1456 at w256. Note this is DORMANT in the loop, which starts at rung 0 = width 16. |
+| interpreter accumulator | **width >= 64** | eval+apply per node: 399->441ns at w16 (WORSE), 665->582 at w64, 2290->1456 at w256. DORMANT while the champion is width 16. |
+| search accumulator | **width >= 64** | Independent measurement, same crossover: 32 is 0.91x (LOSS), 128 is 1.14x, 512 is 1.51x. This is why width 32 loses the CLOCK gate — a wider net's cost with none of the saving. |
+| `arch` stride | **grows: +1,-1,+2,-2,...** | At stride 1 the only widening from rung 0 is width 32, a rung the clock gate must reject (measured 0.372 +/- 0.053), so the arm re-proposed a known cost cliff forever and width 128 was unreachable. Reach, not answer: the gates still decide. |
 | `games` per generation | **2400** (of those tried) | Equal wall-clock, origin-scored: 150 -> 0.555, 600 -> 0.773, 2400 -> 0.828. Monotone, and the INVERSE of generation count (140 / 45 / 12 generations). |
 | acceptance | sign, then width, then surrogate | Gate resolves the SIGN -> it decides. Narrow interval straddling 0.5 -> reject (precisely measured null). Only a WIDE straddle reaches the surrogate. |
 
@@ -28,6 +30,73 @@ wrong. Nothing inside those measurements could have revealed it.
 metric — larger than most effects worth testing — because it is path-dependent. A fixed-dataset
 A/B has se ~0.005 on the same question. Use the loop to ask whether something COMPOUNDS; use
 the A/B to ask whether it works at all.
+
+---
+
+## 2026-09-08 — WIDTH 32 IS A COST CLIFF, and stride-1 stepping could never get past it
+
+First widening ever to reach a game gate (after function-preserving widening removed the
+birth handicap):
+
+```
+ARCH w 16 -> w 32 (3 ep, loss 0.0746 vs 0.0847, paired z 4.21)
+  fixed-cost 0.525 +/- 0.051 ok
+  clock      0.372 +/- 0.053 [5962 vs 6985 nodes]   => hold
+```
+
+Read it in three parts.
+
+**The widening fix worked.** Held-out loss 0.0746 against the champion's 0.0847 at paired
+z 4.21. Every previous attempt was WORSE at birth (0.0744 vs 0.0687) and died at the surrogate
+filter without playing a game. This one passed the filter and reached the gates.
+
+**The gate rejected it, correctly.** 0.525 at equal NODES, 0.372 at equal TIME. Width 32 knows
+more per node and searches 5962 nodes where width 16 searches 6985. That is FITNESS 10's named
+degenerate case -- "bigger net that wins fixed-cost-budget, loses on clock" -- and the clock
+gate exists precisely to catch it. Verified against the code rather than inferred: `resolves`
+needs both ci95 < 0.05 (they were 0.051 and 0.053), so the non-regression branch applied and
+`clock_win = 0.372 + 0.053 > 0.5` is false. It fails the strict branch too.
+
+**My follow-up hypothesis was REFUTED BY DATA ALREADY IN THE TREE.** I proposed making the
+incremental accumulator pay at width 32 to close the node-rate gap. `search.rs:68-74` had
+already measured it -- same tree, identical node counts on both paths, so the ratios are real:
+
+| width | refresh | incremental | |
+|---|---|---|---|
+| 32 | 1718969 | 1560497 | **0.91x LOSS** |
+| 128 | 889406 | 1014240 | 1.14x win |
+| 512 | 240701 | 363458 | 1.51x win |
+
+Width 32 is the worst of both worlds: a wider net's cost with none of the accumulator's saving.
+Checking beat running the experiment.
+
+**THE STRUCTURAL FINDING.** The accumulator does not pay until ~128, and `arch::propose` only
+ever stepped +/-1 rung. So from rung 0 the ONLY widening available was width 32 -- a rung the
+clock gate must reject -- and the arm would re-propose that same cliff forever. Width 128, where
+the same measurements say the cost flips, was unreachable BY CONSTRUCTION. The capacity ladder
+had a hole at its first rung and no way over it.
+
+**CONFIRMED LIVE, not just argued from the code.** The very next ARCH attempt in the same run
+(generation 40, still on the stride-1 binary) proposed the IDENTICAL rung:
+
+```
+ARCH w 16 -> w 32 ... clock 0.372 +/- 0.053  => hold        (gen 20, reached the gate)
+ARCH w 16 -> w 32: held-out 0.0762 vs champ 0.0719 -- surrogate filter, no gate   (gen 40)
+```
+
+Same target, re-proposed, because `[1,-1]` and `[-1,1]` both collapse to `+1` at rung 0 where
+narrowing does not exist. Every future attempt would have done the same thing forever.
+
+Fix: strides grow with the attempt (+1, -1, +2, -2, +3, ...), so from width 16 the arm reaches
+128 by attempt 4. This deliberately does NOT hardcode "128 is good" -- that would hand the
+search its answer. It widens the arm's REACH; the fixed-cost and clock gates still decide every
+step on games. Tests assert the arm still tries the cheap adjacent rung FIRST, still reaches
+past the cliff, can still NARROW (a capacity search that only grows is not a search), and never
+steps off the menu.
+
+NOT SHOWN: that width 128 passes. It may lose on the clock too -- 8x the parameters against a
+1.14x accumulator saving is not obviously a win, and three capacity levers have already measured
+flat elsewhere in this file. What changed is that the question can now be ASKED.
 
 ---
 
@@ -173,8 +242,11 @@ The threshold is correct on its own evidence — the accumulator is a measured L
 that the headline optimisation buys the running loop nothing. This is not a code defect; it is a
 threshold interacting with a starting rung, which no measurement of either one alone would show.
 
-Open question, not yet measured: whether the loop should start at a wider rung at all. Do not
-assume wider is better — `capacity.rs` exists because that assumption failed before.
+ANSWERED 2026-09-08 for the adjacent rung: width 32 loses the CLOCK gate at 0.372 +/- 0.053
+while winning on equal nodes at 0.525, because the accumulator is a 0.91x LOSS at that width.
+So starting one rung wider would be strictly worse. Whether a rung where the accumulator PAYS
+(128 at 1.14x, 512 at 1.51x) is worth its parameters is now reachable and still unmeasured. Do
+not assume wider is better — `capacity.rs` exists because that assumption failed before.
 
 ---
 

@@ -104,15 +104,82 @@ impl ArchProposal {
     }
 }
 
-/// Alternate the direction proposed so the arm cannot only ever widen. `attempt` counts ARCH
-/// proposals made so far. Widening is tried first only because the champion starts at the
-/// bottom rung, where narrowing does not exist.
+/// Alternate the direction proposed so the arm cannot only ever widen, and GROW THE STRIDE with
+/// each attempt: +1, -1, +2, -2, +3, ... `attempt` counts ARCH proposals made so far. Widening is
+/// tried first only because the champion starts at the bottom rung, where narrowing does not exist.
+///
+/// WHY THE STRIDE GROWS. At a fixed stride of 1 the menu has a COST CLIFF at its first rung that
+/// the arm can never cross. Measured in search.rs:68-74 -- node counts are identical on both
+/// paths at every width, so the ratios are real:
+///
+/// | width | refresh | incremental | |
+/// |---|---|---|---|
+/// | 32 | 1718969 | 1560497 | 0.91x LOSS |
+/// | 128 | 889406 | 1014240 | 1.14x win |
+/// | 512 | 240701 | 363458 | 1.51x win |
+///
+/// The incremental accumulator does not pay until ~128, so width 32 carries a wider net's cost
+/// with none of its saving. That is precisely what the first widening ever to reach a game gate
+/// measured: `ARCH w 16 -> w 32 (loss 0.0746 vs 0.0847, paired z 4.21) fixed-cost 0.525 ok,
+/// clock 0.372 [5962 vs 6985 nodes] => hold` -- better per NODE, much worse per SECOND, rejected
+/// on the clock exactly as FITNESS 10 intends. That rejection is correct. The defect is that with
+/// stride 1 the ONLY widening reachable from rung 0 is that rung, so the arm re-proposes a known
+/// cost cliff forever and never sees 128, where the same measurements say the cost flips.
+///
+/// This does NOT hardcode "128 is good" -- that would hand the search its answer, which is the
+/// thing this project refuses to do. It widens the arm's REACH so the menu stays searchable past
+/// a locally-unprofitable rung; the fixed-cost and clock gates still decide every step, on games.
 pub fn propose(rung: usize, attempt: usize) -> Option<ArchProposal> {
-    let order = if attempt % 2 == 0 { [1, -1] } else { [-1, 1] };
+    let stride = (attempt / 2 + 1) as i32;
+    let order = if attempt % 2 == 0 { [stride, -stride] } else { [-stride, stride] };
     for dir in order {
         if let Some(to) = step(rung, dir) {
             return Some(ArchProposal { from_rung: rung, to_rung: to, dir });
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The arm must be able to REACH a rung past a locally-unprofitable one.
+    ///
+    /// With a fixed stride of 1 the only widening from rung 0 is width 32, where the
+    /// incremental accumulator is a measured 0.91x LOSS -- so the clock gate rejects it (it did:
+    /// 0.372 +/- 0.053), the arm re-proposes the same cliff forever, and width 128 (1.14x win)
+    /// is unreachable by construction. This asserts the menu stays searchable past it.
+    #[test]
+    fn proposals_reach_past_the_cost_cliff() {
+        let widths: Vec<usize> = (0..8)
+            .filter_map(|a| propose(0, a).map(|p| p.width()))
+            .collect();
+        assert!(widths.contains(&128),
+                "the arm never reaches width 128, where the accumulator starts paying: {widths:?}");
+        assert!(widths.contains(&32), "it must still try the adjacent rung first: {widths:?}");
+        assert_eq!(widths[0], 32, "the FIRST proposal must stay the cheap adjacent step");
+    }
+
+    /// It must still be able to NARROW. Capacity search that can only grow is not a search, and
+    /// EXPERIMENTS.md records that moving capacity DOWN was never even tried on this loop.
+    #[test]
+    fn proposals_go_both_ways_from_the_middle() {
+        let mid = rung_of(64).expect("64 is on the menu");
+        let dirs: Vec<i32> = (0..4).filter_map(|a| propose(mid, a).map(|p| p.dir)).collect();
+        assert!(dirs.iter().any(|&d| d > 0), "never widens from the middle: {dirs:?}");
+        assert!(dirs.iter().any(|&d| d < 0), "never narrows from the middle: {dirs:?}");
+    }
+
+    /// A proposal must never fall off the menu.
+    #[test]
+    fn proposals_stay_in_bounds() {
+        for rung in 0..WIDTH_MENU.len() {
+            for attempt in 0..12 {
+                if let Some(p) = propose(rung, attempt) {
+                    assert!(p.to_rung < WIDTH_MENU.len(), "rung {} off the menu", p.to_rung);
+                }
+            }
+        }
+    }
 }

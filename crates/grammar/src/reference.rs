@@ -40,7 +40,27 @@ pub fn depth_one() -> Program {
 
 /// Main-lineage seed: BARE alpha-beta. Depth and INF are TABLE READS, not constants, so even
 /// the seed's search depth is a tuned value rather than a given (GRAMMAR 5.2).
-pub fn bare_alpha_beta() -> Program {
+pub fn bare_alpha_beta() -> Program { ab_program(false) }
+
+/// RUNG 6 of the GRAMMAR 9 ladder: capture extension at the horizon (qsearch in embryo).
+///
+/// Single mutation of the seed: the recursive depth argument `d - 1` becomes "`d` when this
+/// move is a capture, `d - 1` otherwise", so a capture does not consume depth and tactical
+/// sequences are searched to their end. GRAMMAR 9 writes this as
+/// "wrap-if(pred(m,p,is_capture)) around depth check".
+///
+/// THIS IS NOT SEEDING QSEARCH INTO THE ENGINE, and the distinction is the whole point of the
+/// rig. MASTER_PLAN line 53 requires the SEED to contain "no quiescence ... all of these must be
+/// DISCOVERED as program edits that beat the current program on the clock", and
+/// `bare_alpha_beta()` is unchanged -- byte-identical, still 71 nodes. MASTER_PLAN line 141
+/// separately requires the offline ladder to "verify alpha-beta, hash reuse, ID, and qsearch are
+/// EXPRESSIBLE in the grammar and that a path of single mutations from the seed exists where
+/// every step is fitter", using the test eval "for this rig only". This function is that check
+/// and lives only in the reference set the ladder measures; nothing in the search or the
+/// evolution loop reads it.
+pub fn capture_extension() -> Program { ab_program(true) }
+
+fn ab_program(cap_ext: bool) -> Program {
     let d = Node::TRead(0, vec![]); // table "D"
     let inf = Node::TRead(1, vec![]); // table "INF"
 
@@ -88,7 +108,22 @@ pub fn bare_alpha_beta() -> Program {
         b(Node::Ret(b(Node::Eval(b(v("p")))))),
         None,
     );
-    let loop_body = Node::seq(vec![
+    // `nd` = the depth handed to the child. Plain d-1 in the seed; in the capture-extension
+    // rung a capture keeps the depth, so the tactical line is searched to its end. Written as
+    // Let + conditional Set because the grammar's If is a STATEMENT, not a ternary expression.
+    let nd_setup: Vec<Node> = if cap_ext {
+        vec![
+            Node::Let("nd".into(),
+                b(Node::Arith(ArithOp::Sub, vec![v("d"), Node::Const(1)])), b(Node::Nop)),
+            Node::If(
+                b(Node::Pred(b(v("m")), b(v("p")), PredId::IsCapture)),
+                b(Node::Set("nd".into(), b(v("d")))),
+                None,
+            ),
+        ]
+    } else { vec![] };
+    let mut loop_stmts = nd_setup;
+    loop_stmts.extend(vec![
         Node::Let(
             "vv".into(),
             b(Node::Arith(
@@ -97,7 +132,9 @@ pub fn bare_alpha_beta() -> Program {
                     1,
                     vec![
                         Node::Apply(b(v("p")), b(v("m"))),
-                        Node::Arith(ArithOp::Sub, vec![v("d"), Node::Const(1)]),
+                        if cap_ext { v("nd") } else {
+                            Node::Arith(ArithOp::Sub, vec![v("d"), Node::Const(1)])
+                        },
                         Node::Arith(ArithOp::Neg, vec![v("b")]),
                         Node::Arith(ArithOp::Neg, vec![v("a")]),
                     ],
@@ -113,6 +150,7 @@ pub fn bare_alpha_beta() -> Program {
             None,
         ),
     ]);
+    let loop_body = Node::seq(loop_stmts);
     let ab_body = Node::seq(vec![
         term_guard,
         depth_guard,
@@ -572,6 +610,7 @@ pub fn all() -> Vec<(&'static str, Program)> {
         ("alpha-beta + iterative deepening", ab_id()),
         ("alpha-beta + hash + ID", ab_hash_id()),
         ("UCT-style MCTS", uct_mcts()),
+        ("capture extension (rung 6)", capture_extension()),
         ("proof-number search", proof_number()),
     ]
 }
