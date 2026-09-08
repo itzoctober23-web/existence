@@ -187,6 +187,15 @@ fn sprt_programs(a: &Program, b: &Program, net: &Net, depth: i64, budget: i64, s
         let llr = total.llr(0.0, 5.0);
         if llr >= pipeline::gate::LLR_BOUND { return (total, llr, true); }
         if llr <= -pipeline::gate::LLR_BOUND { return (total, llr, false); }
+        // ALL-DRAWN EARLY EXIT. An SPRT cannot move when the variance is zero: every pair in
+        // one bucket gives LLR exactly 0 forever, so the loop would spend the whole cap
+        // learning nothing. MEASURED from the ledger: 7 of 9 candidates drew all 48 pairs.
+        // Sixteen identical pairs is enough to say these two programs play the same way at
+        // this depth; more of them cannot change that.
+        let n: u32 = total.pent.iter().sum();
+        if n >= 16 && total.pent.iter().filter(|&&c| c > 0).count() == 1 {
+            return (total, 0.0, false);
+        }
     }
     // Cap reached with no verdict: INCONCLUSIVE, reported as not-accepted but distinguished in
     // the log, because an unrecorded tie is usually a capped run rather than a refutation.
@@ -344,7 +353,7 @@ fn main() {
                 ledger.record(&Entry {
                     generation: g, class: "PROGRAM",
                     what: format!("{key} on {} nodes", champ.size()),
-                    reason: Reason::SurrogateFilter, // oracle is this track's pre-gate filter
+                    reason: Reason::FailedOracle,
                     gates: vec![],
                     surrogate: vec![("oracle_ok", co as f64), ("oracle_n", cn as f64)],
                 });
@@ -388,7 +397,12 @@ fn main() {
             ledger.record(&Entry {
                 generation: g, class: "PROGRAM",
                 what: format!("{key} on {} nodes", champ.size()),
-                reason: if passed { Reason::Accepted } else { Reason::LostOnGames },
+                // A gate that never resolved is NO EVIDENCE, not a loss. Calling 48 drawn
+                // pairs "lost on games" writes a false sentence into the evidence file --
+                // the candidate was not refuted, it was never distinguished.
+                reason: if passed { Reason::Accepted }
+                        else if llr <= -pipeline::gate::LLR_BOUND { Reason::LostOnGames }
+                        else { Reason::NoEvidence },
                 gates: vec![GateEvidence {
                     name: "program-vs-champion", pent: sc.pent, rate: sc.pent_rate(),
                     ci95: sc.ci95(), resolved: llr.abs() >= pipeline::gate::LLR_BOUND,

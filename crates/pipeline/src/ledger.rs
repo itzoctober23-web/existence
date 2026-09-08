@@ -49,6 +49,12 @@ pub enum Reason {
     LostOnCost,
     /// Regressed against the champion on a non-regression guard.
     Regression,
+    /// PROGRAM class only: the candidate disagreed with the full-width reference search, i.e.
+    /// it returned a move the reference says is not optimal. Distinct from SurrogateFilter,
+    /// which is about held-out LOSS -- a PROGRAM candidate has no held-out loss, and labelling
+    /// its correctness failure with the net arm's explanation puts a false sentence in an
+    /// evidence file.
+    FailedOracle,
 }
 
 impl Reason {
@@ -61,6 +67,7 @@ impl Reason {
             Reason::LostOnClock => "lost_on_clock",
             Reason::LostOnCost => "lost_on_cost",
             Reason::Regression => "regression",
+            Reason::FailedOracle => "failed_oracle",
         }
     }
     /// One sentence a human can read without the schema in front of them.
@@ -81,6 +88,9 @@ impl Reason {
                 "won on equal time but not equal nodes, so the win looks like speed rather \
                  than eval quality",
             Reason::Regression => "regressed against the champion on a non-regression guard",
+            Reason::FailedOracle =>
+                "disagreed with the full-width reference search, so it is not computing the \
+                 value it claims to -- 'cheaper' is trivial if you are allowed to be wrong",
         }
     }
 }
