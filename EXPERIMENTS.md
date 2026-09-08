@@ -129,6 +129,40 @@ LATEST control makes this easy; it should show the series.
 
 ---
 
+## 2026-09-08 — THE OPENING BLIND SPOT IS SYSTEMIC: nothing in this project ever sees the real start
+
+Audited every call path after `control.rs` turned out to have drifted. `open_plies = 6` is
+hardcoded in datagen, in both gate functions, and in every example that generates games:
+
+    datagen (the loop)        play_game(net, depth, rng, 6, 160, ...)
+    gate::match_nets          startpos + open_plies random moves
+    gate::match_nets_capped   same
+    capacity.rs, paired.rs, trainer_control.rs, datagen_cost.rs   all `6`
+
+So the true starting position and the first six plies are NEVER generated, never trained on, and
+never scored -- by any harness in the project. This is consistent by design rather than a bug:
+without opening randomisation every self-play game would be identical, which is exactly what
+`showgame.rs` demonstrated (60 "games" from startpos were byte-identical because the search takes
+a strict argmax, so a per-game seed only shuffles tie-breaks).
+
+But the consequence is real. An engine that will be played FROM the starting position is trained
+and evaluated exclusively on positions at least six random plies away from it. Measured:
+
+  - from startpos: wins +18 material (queen, both rooks) and then shuffles one piece between d8
+    and f6 for thirteen moves. Deterministic, so n=1 -- one line, not a rate.
+  - from randomised openings: converts 88% of won positions (147 of 168, n=200).
+
+The 88% says conversion is broadly fine. The startpos line says there is at least one
+deterministic path the engine plays badly and that no gate in the project can ever observe,
+because every gate starts past it.
+
+NOT ACTED ON. Removing the randomisation would collapse self-play diversity to a single game.
+The fix, if this matters, is to ADD startpos-rooted evaluation alongside the randomised gates --
+not to replace them. Recorded because it is the kind of gap that is invisible to every metric
+currently collected, which is precisely why it needs writing down rather than remembering.
+
+---
+
 ## 2026-09-08 — RESOLVED: the "44 losses to a random net" was two different measurements
 
 Ran the control at both depths, which is the test I said would distinguish the two explanations:
