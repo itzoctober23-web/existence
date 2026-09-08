@@ -38,6 +38,31 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — horizon SWEPT: 20 is the optimum, and 40 (my pick) was measurably worse
+
+10 replicates per arm, one shared dataset, filter applied per arm:
+
+| horizon | samples | mean | 95% CI |
+|---|---|---|---|
+| 10 | 5,052 | 0.5527 | [0.5470, 0.5585] |
+| **20** | **9,418** | **0.5660** | **[0.5599, 0.5721]** |
+| 40 | 17,266 | 0.5371 | [0.5289, 0.5454] |
+| 80 | 27,303 | 0.5320 | [0.5208, 0.5433] |
+| 1000 | 30,151 | 0.5188 | [0.5084, 0.5291] |
+
+Unimodal, peak at 20. **20 vs 40 = 0.0289 +/- 0.0102, excluding zero.** The default I shipped
+this morning was measurably worse than an untested neighbour I had named in the comment as
+untested and then not tested.
+
+h20 beats h40 on 45% FEWER samples, so again quality over quantity — the same shape as the
+capped-vs-uncapped result, now with the peak located rather than just bounded.
+
+DECLARED LIMIT: measured against a RANDOM champion, i.e. early in a run. The schedule widens
+the horizon with generation *because* the label becomes informative further back as play
+improves, so this optimum should MOVE. It sets the cap early generations run into; it is not a
+claim about a strong champion, and re-measuring against a trained champion is the obvious
+follow-up.
+
 ## 2026-09-08 — horizon cap 40: CONFIRMED on a controlled A/B (and it was shipped on n=1)
 
 Same champion, ONE raw generation (4000 games, 40,202 decided positions), the horizon filter
