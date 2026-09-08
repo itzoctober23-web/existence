@@ -148,28 +148,29 @@ hybrids between) is robust to the estimate error; the absolute skew is not yet e
 | depth-one | 9 | faithful (purity seed) |
 | bare alpha-beta | 71 | faithful (main seed) |
 | alpha-beta + hash reuse | 89 | faithful |
-| UCT MCTS (select/expand/evaluate/backpropagate) | 104 | faithful |
-| proof-number search | 43 | SKETCH -- terminal-driven core only; a LOWER BOUND |
+| proof-number search | 83 | faithful (proof/disproof numbers, most-proving-node, back-up) |
+| UCT MCTS | 104 | faithful (select/expand/evaluate/backpropagate) |
 
-**Measured by `crates/grammar` (examples/prior.rs), not estimated.** Run it to reproduce.
+**All entries measured by `crates/grammar` (examples/prior.rs) at EQUAL FIDELITY.** Run it to
+reproduce. No sketches remain.
 
-**The prior, stated.** Bare alpha-beta is 71 nodes and is the main seed; a FAITHFUL UCT is
-104, i.e. **+33 nodes**. The grammar is therefore biased toward alpha-beta, and by roughly
-twice what the original hand estimate said. `sqrt`, `log`, `avg`, `sample` and the
-`count`/`sum` slot fields exist so that MCTS is expressible at all -- without them the
-"stayed in the alpha-beta basin" result would be vacuous.
+**The prior, stated.** Bare alpha-beta is 71 nodes and is the main seed. A faithful
+proof-number search is **+12**; a faithful UCT is **+33**. Alpha-beta is the shortest of the
+three paradigms, so the grammar is biased toward it, and the bias is roughly three times
+larger against MCTS than against PN. `sqrt`, `log`, `avg`, `sample` and the `count`/`sum` slot
+fields exist so MCTS is expressible at all; without them "stayed in the alpha-beta basin"
+would be vacuous.
 
-**History, kept because both errors are instructive.** The first hand estimates were 29 for
-alpha-beta and 44 for MCTS, concluding a ~15-node bias toward alpha-beta. The parser measured
-alpha-beta at 71 -- 2.4x the guess -- and a SKETCH MCTS at 60, which briefly made the seed look
-like the longest program and put the skew direction in doubt. Writing MCTS faithfully (adding
-the descent and the backpropagation the sketch omitted) moved it to 104 and restored the
-original direction with a bigger magnitude. The lesson recorded for the write-up: an
-expressiveness comparison is only valid between encodings of EQUAL fidelity, and a sketch is a
-lower bound, never a datum.
+**History, kept because every error here was instructive.** The original hand estimates were
+29 (AB) and 44 (MCTS), concluding a ~15-node bias toward alpha-beta. Then: the parser measured
+AB at 71, 2.4x the guess. A SKETCH MCTS measured 60 and briefly made AB look like the LONGEST
+program, putting the skew direction in doubt. A faithful UCT moved it to 104, restoring the
+original direction at double the magnitude. A SKETCH PN measured 43 (-28 from the seed); the
+faithful version is 83 (+12), flipping that sign too.
 
-Proof-number search remains a sketch at 43 and is still a lower bound; no claim about PN's
-distance should be made until it is written faithfully.
+The rule that fell out, and it is the one to carry into the write-up: **an expressiveness
+comparison is only valid between encodings of equal fidelity. A sketch is a lower bound, never
+a datum, and a lower bound can invert the sign of the very claim being made.**
 
 **Discount rule for the write-up:** the purity lineage rediscovering bounding is
 reported with the distance depth-one -> bare AB (~19 nodes, ~8 mutations) attached. Any

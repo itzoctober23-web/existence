@@ -287,61 +287,102 @@ pub fn uct_mcts() -> Program {
     }
 }
 
-/// Proof-number-ish search: terminal-driven, no eval on the proving path. Included because
-/// GRAMMAR 6 lists it and because FITNESS 3 uses mates-per-COST partly to keep an eval-free
-/// prover from dominating a mates-per-eval metric.
+/// FAITHFUL PROOF-NUMBER SEARCH. The earlier version here was a sketch (a visit-count loop
+/// with no proof/disproof numbers and no back-up), so its node count was a LOWER BOUND and
+/// GRAMMAR 6 could not state a PN distance. This one has the actual algorithm:
+///
+///   proof(n)     = 0        if n is a proven WIN
+///                = infinity if n is a proven LOSS
+///                = min over children of proof   (OR node: one winning child suffices)
+///   disproof(n)  = sum over children of disproof (OR node: all must fail)
+///
+/// Slot fields carry them: `score` = proof number, `count` = disproof number. PN is
+/// terminal-driven and calls `eval` nowhere, which is exactly why FITNESS 3 denominates
+/// mates-per-COST rather than mates-per-evaluation -- an eval-free prover would otherwise
+/// divide by zero and dominate the metric.
 pub fn proof_number() -> Program {
+    let inf = Node::TRead(1, vec![]);
+    let proof = |n: Node| Node::Field(b(Node::Probe(b(Node::Key(b(n))))), FieldId::Score);
+    let disproof = |n: Node| Node::Field(b(Node::Probe(b(Node::Key(b(n))))), FieldId::Count);
+    let child = || Node::Apply(b(v("p")), b(v("m")));
+
+    // prove(p): expand the most-proving child, then back up proof/disproof.
     let body = Node::seq(vec![
+        // terminal: proof 0 on a win for the mover, infinite otherwise
         Node::If(
             b(Node::Cmp(
                 b(Node::Terminal(b(v("p")))),
                 b(Node::OutcomeLit(OutcomeLit::None)),
                 Rel::Ne,
             )),
-            b(Node::Ret(b(Node::ScoreOf(
-                b(Node::Terminal(b(v("p")))),
-                b(Node::Const(0)),
-            )))),
+            b(Node::seq(vec![
+                Node::Store(
+                    b(Node::Key(b(v("p")))),
+                    FieldId::Score,
+                    b(Node::ScoreOf(b(Node::Terminal(b(v("p")))), b(Node::Const(0)))),
+                ),
+                Node::Ret(b(proof(v("p")))),
+            ])),
             None,
         ),
-        Node::Loop(
-            b(Node::Budget),
-            b(Node::Let(
+        // select the MOST-PROVING child: the one with the smallest proof number
+        Node::Let(
+            "m".into(),
+            b(Node::Argmax(
+                b(Node::Moves(b(v("p")))),
                 "m".into(),
-                b(Node::Argmax(
-                    b(Node::Moves(b(v("p")))),
-                    "m".into(),
-                    b(Node::Arith(
-                        ArithOp::Neg,
-                        vec![Node::Field(
-                            b(Node::Probe(b(Node::Key(b(Node::Apply(b(v("p")), b(v("m")))))))),
-                            FieldId::Count,
-                        )],
-                    )),
-                )),
-                b(Node::Store(
-                    b(Node::Key(b(Node::Apply(b(v("p")), b(v("m")))))),
-                    FieldId::Count,
-                    b(Node::Const(1)),
-                )),
+                b(Node::Arith(ArithOp::Neg, vec![proof(child())])),
+            )),
+            b(Node::Nop),
+        ),
+        // recurse into it
+        Node::Let("sub".into(), b(Node::Call(1, vec![child()])), b(Node::Nop)),
+        // back up: proof = min over children, disproof = sum over children
+        Node::Let(
+            "pmin".into(),
+            b(Node::Min(b(proof(v("p"))), b(v("sub")))),
+            b(Node::Nop),
+        ),
+        Node::Store(b(Node::Key(b(v("p")))), FieldId::Score, b(v("pmin"))),
+        Node::Store(
+            b(Node::Key(b(v("p")))),
+            FieldId::Count,
+            b(Node::Arith(
+                ArithOp::Add,
+                vec![disproof(v("p")), disproof(child())],
             )),
         ),
+        Node::Ret(b(v("pmin"))),
+    ]);
+
+    // choose: run the prover to the budget, then play the child with the smallest proof number
+    let choose = Node::seq(vec![
+        Node::Loop(b(Node::Budget), b(Node::Call(1, vec![v("p")]))),
         Node::Ret(b(Node::Argmax(
             b(Node::Moves(b(v("p")))),
             "m".into(),
-            b(Node::Field(
-                b(Node::Probe(b(Node::Key(b(Node::Apply(b(v("p")), b(v("m")))))))),
-                FieldId::Count,
+            b(Node::Arith(
+                ArithOp::Sub,
+                vec![inf.clone(), proof(child())],
             )),
         ))),
     ]);
+
     Program {
-        funcs: vec![Func {
-            name: "choose".into(),
-            params: vec![("p".into(), Ty::Pos), ("B".into(), Ty::Int)],
-            ret: Ty::Move,
-            body,
-        }],
+        funcs: vec![
+            Func {
+                name: "choose".into(),
+                params: vec![("p".into(), Ty::Pos), ("B".into(), Ty::Int)],
+                ret: Ty::Move,
+                body: choose,
+            },
+            Func {
+                name: "prove".into(),
+                params: vec![("p".into(), Ty::Pos)],
+                ret: Ty::Score,
+                body,
+            },
+        ],
         lineage: Lineage::Main,
     }
 }
