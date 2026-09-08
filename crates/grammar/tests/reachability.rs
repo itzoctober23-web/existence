@@ -67,8 +67,11 @@ fn prog_kinds(p: &Program) -> BTreeSet<&'static str> {
 
 /// Every node kind any operator INTRODUCES, found by applying all of them everywhere.
 fn constructible() -> BTreeSet<&'static str> {
-    let ops = [Op::Tweak, Op::WrapIf, Op::WrapLoop, Op::Delete,
-               Op::Dup, Op::SwapSiblings, Op::InsertMax, Op::ReplaceConst];
+    // ALL_OPS, not a copy of it. The first version listed the eight operators by hand, so when
+    // WrapIfPred was added the test kept measuring the OLD set and reported "still unreachable"
+    // for a rung that had just become reachable -- a check that silently stops checking the thing
+    // it exists for. Same hardcoded-list trap found three times elsewhere today.
+    let ops = mutate::ALL_OPS;
     let mut new_kinds = BTreeSet::new();
     for (_, prog) in reference::all() {
         let before = prog_kinds(&prog);
@@ -131,22 +134,30 @@ fn the_operators_cannot_introduce_a_primitive_the_seed_lacks() {
     //
     // Assert only the two that are proven. A shape-level reachability check is the follow-up.
     let names: Vec<&str> = unreachable.iter().map(|(n, _)| *n).collect();
+
+    // STATE AS OF 2026-09-08, after Op::WrapIfPred landed. This test previously asserted that
+    // capture extension was UNREACHABLE and failed the moment that stopped being true, which is
+    // exactly what it was written to do -- the failure message said "GOOD NEWS: record which
+    // operator did it". WrapIfPred did it, and the assertions are updated to the new state rather
+    // than deleted, so the next change is caught the same way.
     assert!(
-        names.contains(&"capture extension (rung 6)"),
-        "capture extension became reachable -- an operator can now build a Pred. GOOD NEWS: \
-         record which operator did it and re-run the search track, which had ~690 candidates \
-         and zero accepts while this rung was impossible."
+        !names.contains(&"capture extension (rung 6)"),
+        "capture extension became UNREACHABLE again -- an operator that could build a Pred was \
+         removed or narrowed. That is a regression: rung 6 is the smallest step from the seed \
+         (+9 nodes) and the only one the search track can currently attempt."
     );
     assert!(
         names.contains(&"alpha-beta + hash reuse"),
         "hash reuse became reachable -- an operator can now build Probe/Key/Field/Store. That is \
          the ONLY rung measured as FITTER than the seed (0.98x its cost at D=3), so this failing \
-         means the single known improvement is now inside the search space."
+         means the single known improvement is now inside the search space. Re-run the search \
+         track and update this assertion."
     );
     assert_eq!(
         buildable,
-        ["Budget", "Const", "Loop", "Max"].into_iter().collect::<BTreeSet<_>>(),
-        "The set of node kinds the operators can introduce has CHANGED. That is the whole \
-         constraint on the search track, so it should change deliberately and be recorded here."
+        ["Budget", "Const", "Loop", "Max", "Pred"].into_iter().collect::<BTreeSet<_>>(),
+        "The set of node kinds the operators can introduce has CHANGED. That set is the entire \
+         limit on what the search track can discover, so it should change deliberately and be \
+         recorded here. It was {{Budget, Const, Loop, Max}} until WrapIfPred added Pred."
     );
 }

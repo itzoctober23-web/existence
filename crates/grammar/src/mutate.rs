@@ -36,11 +36,34 @@ impl Rng {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Op { Tweak, WrapIf, WrapLoop, Delete, Dup, SwapSiblings, InsertMax, ReplaceConst }
+pub enum Op {
+    Tweak, WrapIf, WrapLoop, Delete, Dup, SwapSiblings, InsertMax, ReplaceConst,
+    /// Wrap a statement in `if pred(m, p, <predicate>)`.
+    ///
+    /// THE ONLY OPERATOR THAT INTRODUCES A PRIMITIVE, and it exists because nothing else could.
+    /// MEASURED 2026-09-08: the operator set could construct exactly {Budget, Const, Loop, Max} --
+    /// it could tune constants and rearrange existing structure, but could not add a node kind the
+    /// program did not already contain. Every declared ladder rung needs one: capture extension
+    /// needs `Pred`, hash reuse needs `Probe`/`Key`/`Field`/`Store`. So no rung was reachable at
+    /// any edit count, depth or budget, and `evolve` ran ~690 candidates and accepted zero.
+    ///
+    /// GRAMMAR 9 writes rung 6 as "wrap-if(pred(m,p,is_capture)) around depth check", which is
+    /// this operator applied at one position. It is the smallest change that makes any rung
+    /// reachable.
+    ///
+    /// SCOPE IS HANDLED BY THE TYPE CHECKER, not by tracking it here. Emitting `Var("m")` where no
+    /// `m` is bound types as `Ty::Unit` (typecheck.rs:59), and `Pred` requires `Ty::Move` for its
+    /// first argument (:71), so the candidate fails `want(Unit, Move)` and is discarded. Inside a
+    /// `Foreach` over moves, where m and p are bound, it type-checks. Wasted candidates rather
+    /// than silently wrong ones -- checked before adding this, because an unbound variable that
+    /// merely evaluates to Unit at runtime would have been a silent corruption.
+    WrapIfPred,
+}
 
-pub const ALL_OPS: [Op; 8] = [
+pub const ALL_OPS: [Op; 9] = [
     Op::Tweak, Op::WrapIf, Op::WrapLoop, Op::Delete,
     Op::Dup, Op::SwapSiblings, Op::InsertMax, Op::ReplaceConst,
+    Op::WrapIfPred,
 ];
 
 /// Collect mutable positions as a flat index, so an operator can address "the k-th node".
@@ -156,6 +179,27 @@ fn apply_op(n: &Node, op: Op, r: u64) -> Option<Node> {
                 Box::new(n.clone()),
                 None,
             )),
+            _ => None,
+        },
+        Op::WrapIfPred => match n {
+            // Same shape as WrapIf, but the condition is a PREDICATE on the move rather than a
+            // budget comparison. Predicate choice is part of the search: all seven are reachable,
+            // so the loop discovers WHICH property matters rather than being told it is captures.
+            Node::Store(..) | Node::Set(..) | Node::Nop => {
+                const PREDS: [PredId; 7] = [
+                    PredId::IsCapture, PredId::GivesCheck, PredId::IsPromotion,
+                    PredId::CapturedType, PredId::MovingType, PredId::FromSquare, PredId::ToSquare,
+                ];
+                Some(Node::If(
+                    Box::new(Node::Pred(
+                        Box::new(Node::Var("m".into())),
+                        Box::new(Node::Var("p".into())),
+                        PREDS[(r % 7) as usize],
+                    )),
+                    Box::new(n.clone()),
+                    None,
+                ))
+            }
             _ => None,
         },
         Op::WrapLoop => match n {
