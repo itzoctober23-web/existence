@@ -176,6 +176,27 @@ fn main() {
     // self-referential when the net is random: it trains toward what it already says and
     // teaches nothing. The blend only earns its place once the search score is better than
     // the raw outcome, which is a later measurement, not an assumption.
+    //
+    // THAT MEASUREMENT HAS NOW BEEN MADE, and the premise had expired (2026-09-08). Against a
+    // TRAINED champion, same data, horizon 10, 10 replicates per arm
+    // (examples/hyper_ab.rs --blends):
+    //     blend 0.00   0.4805 [0.4722, 0.4887]   significantly WORSE than the champion
+    //     blend 0.25   0.4898 [0.4799, 0.4997]   worse
+    //     blend 0.50   0.5188 [0.5114, 0.5261]   BETTER, excludes 0.5
+    //     blend 0.75   0.5258 [0.5123, 0.5393]   BETTER, excludes 0.5
+    // +0.0453 +/- 0.0158 from 0 to 0.75, monotone. Training on the outcome ALONE makes the
+    // trained champion worse; adding its own search score makes it better.
+    //
+    // This is the acceptance stall, and it was never the horizon. Every horizon from 3 to 1000
+    // measured below 0.5 because the LABEL was wrong, not because the wrong positions were
+    // selected. MASTER_PLAN's Given column reads "Objectives: game outcome; agreement with own
+    // deeper search" -- half the declared objective was switched off by a comment that was
+    // correct at iteration zero and never revisited.
+    //
+    // DEFAULT NOT CHANGED YET, on purpose: 0.75 is the highest arm tested and the curve is
+    // still rising, while blend = 1.0 is pure self-reference and must be degenerate, so the
+    // peak is bracketed but not located. Two horizon defaults were shipped today on incomplete
+    // sweeps; this one waits for the peak.
     let blend: f32 = a.iter().position(|x| x == "--blend")
         .and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(0.0);
     let tr = Trainer::new(0.01, blend);
