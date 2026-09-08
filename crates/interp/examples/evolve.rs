@@ -129,10 +129,19 @@ fn fitness(prog: &Program, set: &[(Position, Option<board::Move>)], net: &Net) -
 fn main() {
     let gens: usize = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(30);
     let pop: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(24);
+    // SET SIZES ARE ARGUMENTS, because they are the cost knob and hardcoding them meant a REBUILD
+    // to resize -- which is impossible while another job holds ./target/release.
+    //
+    // MEASURED 2026-09-08: at 80 mate-in-1 + 40 mate-in-2 and pop 24, ONE generation takes 330
+    // seconds, so the 400-generation run I launched would have taken 37 HOURS. Not broken, just
+    // sized wrong, and invisible because the loop only printed every 10th barren generation.
+    // Cost is per candidate-evaluation: pop x (n1 + n2) positions, ~37M cost units each.
+    let n1: usize = std::env::args().nth(3).and_then(|s| s.parse().ok()).unwrap_or(40);
+    let n2: usize = std::env::args().nth(4).and_then(|s| s.parse().ok()).unwrap_or(20);
     let net = Net::random(32, 20260907);
     // MIXED on purpose: mate-in-1 alone made the surrogate maximisable by searching less.
-    let mut set = mate_set(80);
-    let deep = forced_mate_set(40, 400_000);
+    let mut set = mate_set(n1);
+    let deep = forced_mate_set(n2, 400_000);
     let n_deep = deep.len();
     set.extend(deep);
 
@@ -168,9 +177,10 @@ fn main() {
                     c.size(), best_rate);
                 champ = c; best_found = f; best_rate = rate; accepted += 1;
             }
-            None => if g % 10 == 0 {
-                println!("  gen {g:>3}  ..no improvement ({pop} candidates, {ill} ill-typed/inapplicable)");
-            },
+            // EVERY generation, not every 10th. At 5.5 min/generation a 10-generation gap is
+            // 55 minutes of silence, which is indistinguishable from a hang -- I could not tell
+            // whether the track was progressing without timing a generation by hand.
+            None => println!("  gen {g:>3}  ..no improvement ({pop} candidates, {ill} ill-typed/inapplicable)"),
         }
     }
     let _ = rng.next();

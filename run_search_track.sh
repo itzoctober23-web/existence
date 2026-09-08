@@ -22,12 +22,27 @@
 # rebuild under a running job has already cost this project a gate at 323 pairs.
 set -uo pipefail
 cd "$(dirname "$0")"
-GENS=${GENS:-400}
-POP=${POP:-24}
+# SIZED FROM A MEASUREMENT, not a guess. At the previous settings (80 mate-in-1 + 40 mate-in-2,
+# pop 24) ONE generation took 330 SECONDS -- timed directly rather than inferred -- so the
+# 400-generation run would have taken 37 hours, and the loop printed only every 10th barren
+# generation so 55 minutes of silence looked identical to a hang.
+#
+# Cost is per candidate-evaluation: pop x (N1 + N2) positions at ~0.115 s each. pop 12 over 60
+# positions is ~83 s per generation, a ~4x speedup, and it also updates the champion 2x more often
+# -- for a (1+lambda) hill climb, more frequent steps beat a wider sample per step once lambda is
+# already comfortably above 1.
+#
+# N2 (the depth-requiring half) is NOT cut proportionally. It is the guard that makes "must not
+# lose mates" bite at all; without it the surrogate is maximised by searching less, which is
+# exactly the degenerate 333x accept this loop produced before the mixed set was added.
+GENS=${GENS:-2000}
+POP=${POP:-12}
+N1=${N1:-40}
+N2=${N2:-20}
 LOG=${LOG:-search_track.log}
 
 [ -x ./target/release/examples/evolve ] || { echo "no evolve binary; build it when nothing is running"; exit 1; }
 
-echo "=== P2 search track: $GENS generations, population $POP, seeded from bare alpha-beta ===" >> "$LOG"
+echo "=== P2 search track: $GENS generations, pop $POP, set ${N1}+${N2}, seeded from bare alpha-beta ===" >> "$LOG"
 echo "=== started $(date +%F_%H:%M) — prior run reached gen 13 with 0 improvements ===" >> "$LOG"
-exec taskset -c 12-14 nice -n 19 ionice -c 3 ./target/release/examples/evolve "$GENS" "$POP" >> "$LOG" 2>&1
+exec taskset -c 12-14 nice -n 19 ionice -c 3 ./target/release/examples/evolve "$GENS" "$POP" "$N1" "$N2" >> "$LOG" 2>&1
