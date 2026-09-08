@@ -279,6 +279,24 @@ on the mates-per-cost surrogate (FITNESS 3) as the primary PROGRAM signal, with 
 confirmation for the few candidates that clear it — which is what the track does today, and
 which should be recorded as a limitation rather than a design choice.
 
+**RE-MEASURED 2026-09-08, after the eval got fast — and it ANSWERS the question against my own
+argument above.** That note said the deferral needed revisiting because the search track is
+gated by absolute throughput rather than by the ratio. It does not, and the reason is that the
+ratio did not move:
+
+    hand-written        3740 nodes    0.029s
+    interpreted     11731918 cost     0.030s
+    EQUIVALENCE     evals 3320 vs 3320 -- same tree
+    ratio           0.971x   (was 0.98-0.99x when eval dominated)
+
+The interpreter is still at parity with hand-written Rust AFTER the incremental accumulator
+made eval ~8x cheaper at width >= 64. So interpretation overhead was never the thing hiding
+behind eval cost: a register bytecode would buy at most ~3%, and the search track's expense is
+the SEARCH ITSELF — evals, movegen, make/unmake — which a compiled program pays identically.
+
+CRATE 4 therefore stays deferred, now for a measured reason rather than an untested one. The
+route to affordable depth-2 game gating is a cheaper search, not a cheaper interpreter.
+
 - Compilation target: a register-based bytecode with a Rust interpreter. Acceptance
   criterion for the interpreter design: the compiled main seed runs at >= 50% of the NPS
   of a hand-written Rust bare alpha-beta with the same net. If not met, the grammar

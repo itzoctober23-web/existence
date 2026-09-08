@@ -350,6 +350,8 @@ pub struct Interp<'a> {
     /// Learned integer tables. Index 0 = D (depth), 1 = INF, 2.. = whatever a program reads.
     pub tables: Vec<i64>,
     hash: Tt,
+    // Retained for the narrow-width fallback path in PosAcc::score.
+    #[allow(dead_code)]
     scratch: Vec<f32>,
     /// Reused active-feature buffers for the incremental accumulator, so `apply` allocates
     /// nothing per node.
