@@ -262,6 +262,30 @@ fn fitness(prog: &Program, set: &[(Position, Option<board::Move>)], net: &Net, d
 /// happens to cost about what a store costs" is a completely different claim from "a store".
 /// Counting the primitives answers it directly instead of inferring it from a number that merely
 /// looks right.
+
+/// Read the DECLARED search-track parameters. Panics rather than defaulting: see the config file.
+fn read_declared(path: &str) -> (usize, f64) {
+    let txt = std::fs::read_to_string(path).unwrap_or_else(|e| {
+        panic!("declared parameters missing at {path}: {e}. This file is part of the Given \
+                column; running without it would silently substitute a default for a choice that \
+                is supposed to be visible.")
+    });
+    let mut mu = None;
+    let mut eps = None;
+    for line in txt.lines() {
+        let line = line.split('#').next().unwrap_or("").trim();
+        if line.is_empty() { continue; }
+        let (k, v) = match line.split_once('=') { Some(kv) => kv, None => continue };
+        match k.trim() {
+            "mu" => mu = Some(v.trim().parse().unwrap_or_else(|e| panic!("mu does not parse: {e}"))),
+            "eps" => eps = Some(v.trim().parse().unwrap_or_else(|e| panic!("eps does not parse: {e}"))),
+            _ => {}
+        }
+    }
+    (mu.expect("configs/search_track.conf declares no `mu`"),
+     eps.expect("configs/search_track.conf declares no `eps`"))
+}
+
 fn tt_prims(p: &Program) -> usize {
     fn walk(n: &Node) -> usize {
         use Node::*;
@@ -297,6 +321,13 @@ fn valley() {
         ("probe only (never stores)", reference::ab_probe_only()),
         ("store only (never probes)", reference::ab_store_only()),
         ("hash reuse (both halves)", reference::ab_hash()),
+        // THE SECOND LINEAGE'S SEED, measured before any machinery is built around it. GRAMMAR 6
+        // records UCT as PARTIAL -- 20/23 forced mates, not 23/23 -- and this set demands the
+        // exact answer on all 25. If MCTS scores far below the seed's 25 here, a lineage seeded
+        // with it starts with its own best_found and can still climb, but it cannot be compared
+        // to MAIN on mates and that has to be known in advance rather than discovered as a
+        // confusing log line.
+        ("UCT MCTS (2nd lineage seed)", reference::uct_mcts()),
     ];
     let (_, _, base_rate) = fitness(&progs[0].1, &set, &net, depth);
     let base_nodes = progs[0].1.size() as i64;
@@ -388,8 +419,13 @@ fn main() {
     // found (searching one ply shallower, raising the initial alpha) both work by giving up
     // correctness for cost, and both are caught by the mate/disagreement/window guards scoring
     // ZERO rather than "fewer". Relaxing the cost bar does not weaken any of them.
-    const MU: usize = 4;
-    const EPS: f64 = 0.03;
+    // DECLARED, NOT HARDCODED. configs/search_track.conf carries mu and eps with their
+    // justification; this REFUSES TO RUN if the file is missing or a key does not parse, because a
+    // declared parameter that silently falls back to a default is not declared. The escalation
+    // rule for eps (once to 0.05, then stop) is written in that file, not in code, so raising it
+    // is a visible edit rather than a constant nudged mid-run.
+    let (mu, eps) = read_declared("configs/search_track.conf");
+    let (MU, EPS) = (mu, eps);
     let mut popn: Vec<(Program, u32, f64)> = vec![(champ.clone(), f0, r0); MU];
     println!("  population MU={MU}, lambda={pop}, plateau tolerance EPS={EPS:.3} \
 (deepest measured valley half is 0.009)");
