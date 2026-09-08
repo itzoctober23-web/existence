@@ -64,13 +64,48 @@ fn main() {
     let raw: Vec<Sample> = data.into_iter().filter(|s| s.z != 0.0).collect();
     println!("{dec}/{games} decisive, {} decided positions before any horizon filter\n", raw.len());
 
-    let tr = Trainer::new(0.01, 0.0);
 
 
+
+    // BLEND sweep. The loop hardcodes blend = 0 with the stated reason that mixing the net's
+    // own root score into its target is self-referential WHEN THE NET IS RANDOM. That premise
+    // expires the moment the net is trained, and MASTER_PLAN lists "agreement with own deeper
+    // search" as a Given objective — so whether it helps now is a measurement, not a doctrine.
+    let blends: Vec<f32> = a.iter().position(|x| x == "--blends")
+        .and_then(|i| a.get(i + 1))
+        .map(|v| v.split(',').filter_map(|t| t.trim().parse().ok()).collect())
+        .unwrap_or_default();
     let sweep: Vec<u32> = a.iter().position(|x| x == "--horizons")
         .and_then(|i| a.get(i + 1))
         .map(|v| v.split(',').filter_map(|t| t.trim().parse().ok()).collect())
         .unwrap_or_default();
+    if !blends.is_empty() {
+        let horizon = get("--horizon", 10) as u32;
+        let owned: Vec<Sample> = raw.iter().filter(|s| s.plies_to_end <= horizon).cloned().collect();
+        let cut = owned.len() * 3 / 4;
+        let (train, _) = owned.split_at(cut);
+        println!("blend sweep at horizon {horizon}, {} samples\n", train.len());
+        for b in &blends {
+            let tr = Trainer::new(0.01, *b);
+            let mut rates = Vec::new();
+            for r in 0..reps {
+                let tseed = seed ^ ((r as u64 + 1) << 32) ^ (*b * 1000.0) as u64;
+                let mut cand = champion.clone();
+                for e in 0..epochs { tr.epoch(&mut cand, train, tseed ^ e as u64); }
+                let sc = gate::match_nets(&cand, &champion, depth, pairs, tseed ^ 0xA17E);
+                rates.push(sc.pent_rate());
+            }
+            let n = rates.len() as f64;
+            let mean = rates.iter().sum::<f64>() / n;
+            let var = rates.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1.0).max(1.0);
+            let se = (var / n).sqrt();
+            println!("blend {b:<5}  MEAN {mean:.4}  sd {:.4}  se {se:.4}  95% [{:.4}, {:.4}]",
+                     var.sqrt(), mean - 1.96 * se, mean + 1.96 * se);
+        }
+        return;
+    }
+
+    let tr = Trainer::new(0.01, 0.0);
     let arms: Vec<(String, u32, bool)> = if !sweep.is_empty() {
         sweep.iter().map(|h| (format!("horizon {h}"), *h, true)).collect()
     } else if compare == "horizon" {

@@ -38,6 +38,39 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — horizon tuning is EXHAUSTED: the best case is neutral, never a gain
+
+Completing the sweep against the trained champion with narrower arms:
+
+| horizon | samples | mean | 95% CI |
+|---|---|---|---|
+| 3 | 3,235 | 0.4977 | [0.4851, 0.5102] |
+| 5 | 4,845 | 0.4797 | [0.4648, 0.4946] |
+| 10 | 8,854 | 0.4867 | [0.4688, 0.5047] |
+| 15 | 12,849 | 0.4664 | [0.4531, 0.4797] |
+| 20 | 16,830 | 0.4648 | [0.4482, 0.4815] |
+| 40 | 32,229 | 0.4203 | [0.4052, 0.4355] |
+| 80 | 53,775 | 0.3977 | [0.3904, 0.4049] |
+
+**Across the entire swept range, 3 to 1000, no setting produces a gain.** The best arms (h3,
+h10) have intervals touching 0.5 — indistinguishable from not training at all. Everything wider
+is significantly worse.
+
+So the horizon is a DAMAGE knob, not a strength knob: it controls how much training on this
+data hurts, and its optimum is "hurt least". That closes it as a lever and moves the question
+somewhere else entirely — the champion has extracted what this data distribution contains, and
+no filter over the same positions recovers more.
+
+The remaining candidates are the ones that change WHAT THE LABEL IS or WHAT THE DATA IS, not
+which subset of it is used:
+  - the label. blend = 0 hardcodes "train on the game outcome only". The stated reason is that
+    mixing the net's own root score is self-referential WHEN THE NET IS RANDOM — a premise that
+    expired the moment the net was trained. MASTER_PLAN lists "agreement with own deeper
+    search" as a Given objective. Testing now.
+  - the data. Self-play by a converged champion revisits what it already knows; the openings
+    are 4 random plies.
+  - capacity. Width 16, and the ARCH arm walked DOWN to it under a clock gate.
+
 ## 2026-09-08 — the horizon SCHEDULE is backwards, and the champion has converged
 
 Same sweep, but against a TRAINED champion (champion_ep3_s20260907, width 16) instead of a
