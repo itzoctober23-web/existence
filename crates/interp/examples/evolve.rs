@@ -191,9 +191,24 @@ fn main() {
         }
         match best {
             Some((c, f, rate)) => {
-                println!("  gen {g:>3}  ACCEPT  {f} mates  {rate:.2} mates/Mcost  ({} nodes, was {:.2})",
+                // SIX decimals, not two. The seed scores 0.0024 mates/Mcost and an accepted
+                // candidate scored 0.03 -- at {:.2} both the before and after of the SECOND accept
+                // printed as "0.03", so a real improvement was indistinguishable from none. The
+                // whole output of this loop is these lines; rounding them away hides the result.
+                println!("  gen {g:>3}  ACCEPT  {f} mates  {rate:.6} mates/Mcost  ({} nodes, was {:.6})",
                     c.size(), best_rate);
                 champ = c; best_found = f; best_rate = rate; accepted += 1;
+                // PERSIST IT. Until now the evolved program existed only in memory: the run that
+                // found two improvements at D=3 left nothing to inspect, reproduce or gate, so a
+                // discovery was unfalsifiable and unusable in the same breath. Debug is a lossless
+                // round-trip of the AST for these purposes -- the point is to be able to READ what
+                // the search found and diff it against the seed.
+                if let Err(e) = std::fs::write(
+                    format!("evolved_gen{g}.prog"),
+                    format!("// {f} mates, {rate:.6} mates/Mcost, {} nodes, generation {g}\n{:#?}\n",
+                            champ.size(), champ)) {
+                    eprintln!("  WARNING: could not save the evolved program: {e}");
+                }
             }
             // EVERY generation, not every 10th. At 5.5 min/generation a 10-generation gap is
             // 55 minutes of silence, which is indistinguishable from a hang -- I could not tell
@@ -203,6 +218,10 @@ fn main() {
     }
     let _ = rng.next();
     println!("\n  {accepted} accepted over {gens} generations");
-    println!("  final: {best_found} mates  {best_rate:.2} mates/Mcost  ({} nodes)", champ.size());
-    println!("  seed was: {f0} mates  {r0:.2} mates/Mcost  ({} nodes)", reference::bare_alpha_beta().size());
+    println!("  final: {best_found} mates  {best_rate:.6} mates/Mcost  ({} nodes)", champ.size());
+    println!("  seed was: {f0} mates  {r0:.6} mates/Mcost  ({} nodes)", reference::bare_alpha_beta().size());
+    if accepted > 0 {
+        println!("  improvement over the seed: {:.2}x on mates-per-cost", best_rate / r0.max(1e-12));
+        println!("  saved: evolved_gen*.prog  (read them; a rate this loop cannot explain is a bug, not a discovery)");
+    }
 }
