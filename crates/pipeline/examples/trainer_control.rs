@@ -53,7 +53,7 @@ fn main() {
     // relabel every position with the material target (white POV, as datagen's z is)
     let data: Vec<Sample> = raw.iter().filter_map(|s| {
         let p = Position::from_fen(&s.fen).ok()?;
-        Some(Sample { fen: s.fen.clone(), z: material(&p), root: 0 })
+        Some(Sample { fen: s.fen.clone(), z: material(&p), root: 0, plies_to_end: s.plies_to_end })
     }).collect();
     let split = data.len() * 3 / 4;
     let (train, held) = data.split_at(split);

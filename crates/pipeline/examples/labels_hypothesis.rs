@@ -41,7 +41,7 @@ fn main() {
 
     let decided: Vec<Sample> = all.iter()
         .filter(|s| s.z != 0.0)
-        .map(|s| Sample { fen: s.fen.clone(), z: s.z, root: s.root })
+        .map(|s| Sample { fen: s.fen.clone(), z: s.z, root: s.root, plies_to_end: s.plies_to_end })
         .collect();
     println!("  all {} pos, decided-only {} pos, held-out decided {}",
         all.len(), decided.len(), held.iter().filter(|s| s.z != 0.0).count());
