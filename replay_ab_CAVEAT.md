@@ -49,3 +49,40 @@ FOLLOW-UP OWED either way: rerun with `--init champion_long.net` so every arm st
 plateaued champion. That is the regime the argument is actually about. Not done in this run
 because the script was already executing and editing a running bash script is how 2811 gate
 pairs were destroyed -- bash reads it by byte offset.
+
+## CONFOUND found mid-run (2026-09-08): the surrogate systematically penalises the larger windows
+
+Observed at generation 12:
+
+    arm 1 (window 1)  train 9747-49151   loss ~0.04
+    arm 8 (window 8)  train 44697        loss 0.0718   pool 296393
+
+The larger-window arm trains on 6.6x more data and reaches HIGHER held-out loss. That is not a
+failure -- a net fitted to eight generations of varied positions will fit THIS generation's
+held-out slice worse than one fitted to that slice alone. It is the ordinary bias/variance
+trade, showing up exactly where you would expect.
+
+The problem is what judges it. The sweep runs `--gate-pairs 32`, so ci95 ~0.079 and the
+`resolves` test (ci95 < 0.05) is almost never true -- which means the FITNESS 5 surrogate, whose
+statistic is held-out loss on this generation's slice, decides most accepts. So the larger-window
+arms are penalised by the very quantity that a larger window is expected to raise.
+
+Accept counts so far are consistent with that: arm 1 took 6 in 42 generations, arm 8 has 1 in 12.
+
+WHAT THIS DOES AND DOES NOT INVALIDATE
+  - The FINAL verdict is sound. Each arm's champion is scored against the same frozen origin by
+    GAMES (examples/control.rs, uncapped depth 2), which the surrogate cannot touch.
+  - The PATH to that champion is biased. If arm 8's genuinely stronger candidates were rejected
+    on loss, arm 8 ends with a weaker champion, and the sweep would attribute that to the WINDOW
+    when the cause is the surrogate.
+
+So a win for the small window must NOT be read as "history hurts". It could equally be "history
+raises single-generation held-out loss, and the current acceptance rule punishes that". A win for
+the LARGE window is the cleaner result: it would have happened despite this bias, not because of
+it.
+
+THE FIX is already identified and committed for other reasons: gate-pairs 40 -> 224 puts the
+expected interval at 0.030, under the 0.05 `resolves` threshold, so the GAMES decide and the
+surrogate returns to proposing. Re-running this sweep at 224 pairs would remove the confound
+entirely. Not done here because changing the binary mid-sweep gives the arms different code,
+which is the confound that already invalidated one experiment today.
