@@ -127,6 +127,9 @@ fn main() {
     // and the per-generation gate was simply never revisited. SPRT stops early when the evidence
     // is clear, so this is a CAP: a decisive candidate still costs far fewer than 224 pairs.
     let gate_pairs = arg("--gate-pairs", 224);
+    // The surrogate may override the games only if asked for explicitly. See the acceptance
+    // chain: measured at corr -0.095 against 239 paired gate results, it is not a decision rule.
+    let surrogate_fallback = std::env::args().any(|a| a == "--surrogate-fallback");
     // NET WIDTH IS NOT A FLAG ANY MORE. It is a position on a declared menu (arch::WIDTH_MENU)
     // and the ARCH arm moves it by measurement. `--rung` only says where to START; the loop is
     // free to walk away from it, and the run prints where it ended up.
@@ -596,10 +599,37 @@ fn main() {
             // 100, because near-all-draw matches give a tiny pentanomial interval. Dropping the
             // width test would have sent 79 precisely-measured null results to the surrogate.
             false
-        } else {
+        } else if surrogate_fallback {
             // Genuinely undecided: the interval is BOTH wide and straddling. Only here may the
             // surrogate speak, and only where the gate does not contradict it.
+            //
+            // OFF BY DEFAULT NOW, because the surrogate has been MEASURED against the games and
+            // carries no usable information about strength. Every generation records both a
+            // mcnemar_z and a 224-pair gate result on the SAME candidate; over 239 such pairs
+            // from seven runs the correlation is -0.095, 95% CI [-0.220, +0.032], six of seven
+            // runs negative. A decision rule needs a strong POSITIVE correlation with strength;
+            // this one cannot be distinguished from zero and leans the wrong way.
+            //
+            // This branch is where the damage happened, and the numbers line up exactly. Accepts
+            // cluster in the runs where this branch is REACHABLE:
+            //     gate 40  (median ci95 0.072)  7 accepts     scored 0.826 vs the frozen origin
+            //     gate 32  (median ci95 0.081) 11 accepts
+            //     gate 32  (median ci95 0.083)  8 accepts
+            //     gate 224 (median ci95 0.031)  1 accept      scored 0.859
+            //     gate 224 (median ci95 0.031)  1 accept
+            //     gate 224 (median ci95 0.030)  0 accepts
+            // 26 of 28 accepts across every run today came from gates coarse enough to reach
+            // here. At 224 pairs `ci95 < 0.05` fires first and rejects, which is why the sharper
+            // gate scored higher: it did not just measure better, it took the decision AWAY from
+            // this branch. The gate A/B was really a test of this line.
+            //
+            // NOT DELETED, because the bootstrap argument above is real: from random nets the
+            // match is near-all-draws and the gate genuinely cannot resolve, so something has to
+            // decide or the loop never starts. --surrogate-fallback restores it for that case.
+            // What is no longer allowed is reaching it by accident with a coarse gate.
             mcnemar > 1.96 && no_regression
+        } else {
+            false
         };
         // LEDGER: record the decision, accepted or not, with a NAMED reason. A rejection is the
         // more reusable fact — it says do not spend this compute again — and "reject" alone is
