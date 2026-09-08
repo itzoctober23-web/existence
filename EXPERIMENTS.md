@@ -38,6 +38,38 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — horizon at blend 0.75: monotone up, plateau from ~40
+
+Completed sweep against the trained champion, blend 0.75, 10 replicates per arm:
+
+| horizon | samples | mean | 95% CI |
+|---|---|---|---|
+| 10 | 8,854 | 0.5352 | [0.5265, 0.5438] |
+| 20 | 16,830 | 0.5539 | [0.5445, 0.5633] |
+| 40 | 32,229 | 0.5988 | [0.5846, 0.6130] |
+| 80 | 53,775 | 0.6074 | [0.5930, 0.6219] |
+
+h80 - h40 is 0.0086 +/- 0.0204: not significant. The curve rises steeply to 40 and then flattens.
+
+Put beside the blend-0 sweep, the full picture is that these two constants define a plane and
+the loop was sitting in its worst corner:
+
+| | blend 0 | blend 0.75 |
+|---|---|---|
+| narrow (h10) | 0.4867 | 0.5352 |
+| wide (h80) | 0.3977 | **0.6074** |
+
+The shipped configuration was blend 0, horizon 20 -> 0.4648. The measured best corner is
+blend 0.75, horizon 40-80 -> ~0.60. Every arm at blend 0 is below 0.5 (training makes the
+champion worse); every arm at blend 0.75 is above it.
+
+That also explains why tuning the horizon alone looked hopeless this morning: at blend 0 the
+whole axis tops out at "no change", so the knob genuinely had no good setting. It had no good
+setting because the OTHER knob was wrong.
+
+h160 and h1000 running to decide whether a cap should exist at all -- if the plateau holds,
+the schedule needs no cap and `--horizon-cap` becomes a safety rail rather than a tuning knob.
+
 ## 2026-09-08 — RETRACTION: the horizon schedule is NOT backwards. It was disabled by blend=0.
 
 The horizon optimum REVERSES with the blend. Same trained champion, same data, 10 replicates:
