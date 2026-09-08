@@ -52,6 +52,38 @@ should be read as "not resolved at ~70 Elo".
 | CONVERSION blind spot | OPEN. Every gate and control starts from a RANDOMISED opening, so the true starting position is never scored or trained on. 88% of won positions convert from random openings (n=200). |
 | the champion loses 44/320 to a RANDOM net | OPEN and unexplained. Distinguishable by running the control at several depths; not yet run. |
 
+## DETECTION FLOORS — what each instrument in this project can actually see
+
+Added 2026-09-08 after four separate instruments turned out unable to detect what they were built
+for. Every gate here now has a stated floor; a result below its floor is NOT RESOLVED, which is
+not the same as no effect.
+
+| instrument | pairs | ci95 | resolves | ~Elo | note |
+|---|---|---|---|---|---|
+| NET gate (was) | 40 | 0.071 | 0.071 | **49** | resolved 0 of 57 generations — measured |
+| NET gate (now) | 224 | 0.030 | 0.030 | 21 | also returns the decision to the games |
+| ARCH gate (was) | 160 | 0.051 | 0.051 | 36 | derived to hit 0.05 exactly, missed by 0.001-0.003 |
+| ARCH gate (now) | 224 | 0.044 | 0.044 | 30 | |
+| origin control (was) | 224 | 0.038 | 0.054 | **70** | why "the plateau" was overstated |
+| origin control (now) | 1000 | 0.018 | 0.025 | 33 | one-off per reading: 3.3% overhead |
+| replay sweep scoring | 64 | 0.060 | 0.085 | **106** | running; result must be read against this |
+| gate A/B scoring | 600 | 0.020 | 0.028 | 34 | raised from 64 before launch |
+
+**The pattern: the CHEAP components were the broken ones.** The gate is 2.7% of a generation, the
+control a one-off match, the scoring step a single match at the end. Nobody examines a 3% cost
+while hunting a plateau, so the constants that decided everything went unquestioned while
+capacity, data volume and horizon — all expensive, all visible — were investigated exhaustively
+and cleared.
+
+**Second pattern: every fix was nearly free.** Raising resolution costs 3-17% because these are
+one-off or small-fraction costs, not per-node work. There was never a trade-off to weigh; the
+under-powered settings bought nothing.
+
+**Third, and the one to carry forward: I built the same defect into my own experiments twice** —
+the replay sweep varies a flag on a path that never reads it, and `gate_ab.sh` was going to test
+a ~20 Elo hypothesis with a ~106 Elo instrument. Before running anything, ask what it can detect,
+not just how long it takes.
+
 **The one methodological finding that produced most of the others:** these constants are
 COUPLED, and a one-dimensional sweep through a two-dimensional interaction returns a confident,
 reproducible, wrong answer. The horizon was swept four times and shipped three times before the
