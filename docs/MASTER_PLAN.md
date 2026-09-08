@@ -514,3 +514,37 @@ Ranked next steps: (a) orders of magnitude more self-play, which needs the searc
 that datagen is not the bottleneck; (b) raise the decisive fraction -- adjudication by a
 rules-derived terminal condition, not by a material heuristic, which would be a Given row;
 (c) only then revisit acceptance thresholds.
+
+**2026-09-07, P1 MILESTONE: the engine learns from its own self-play. Replicated.**
+
+Control = final champion vs the ORIGINAL random net it started from, 160 games per seed,
+colours alternating, openings played from both sides.
+
+| seed | result | rate |
+|---|---|---|
+| 20260907 | 46W-96D-18L | 0.588 +/- 0.076 |
+| 11111 | 45W-104D-11L | 0.606 +/- 0.076 |
+| 22222 | 55W-100D-5L | 0.656 +/- 0.074 |
+| 33333 | 29W-126D-5L | 0.575 +/- 0.077 (lower bound 0.498) |
+| **POOLED** | **175W-426D-39L / 640** | **0.6062 +/- 0.0379 -> [0.568, 0.644]** |
+
+All four seeds positive; three individually significant; pooled clearly above 0.5. Draw rate
+66.6%, so the effect is real but modest in game terms -- as expected when both sides still
+wander.
+
+**What unlocked it was data volume, and the lever was counter-intuitive: SEARCH SHALLOWER.**
+Measured usable labels per second (decided AND within 30 plies of the terminal):
+
+| datagen depth | games/s | decisive | usable labels/s |
+|---|---|---|---|
+| 1 | 702 | 25% | **4623** |
+| 2 | 92 | 7% | 98 |
+| 3 | 8.5 | 40% | 92 |
+
+Depth 1 is 8x faster per game AND more decisive than depth 2, because at iteration zero a
+deeper search is only maximising a random eval -- the extra plies buy nothing and cost
+everything. Labels per generation went 13-295 -> 7,364-48,678, and the gate's draw rate fell
+from ~95% to 61-82%, so the game-gate is starting to resolve on its own and will take over
+from the surrogate as play sharpens.
+
+No Elo figure is quoted: this is a score rate against a fixed opponent, not a shipped gate.
