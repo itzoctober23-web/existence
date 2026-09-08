@@ -62,7 +62,20 @@ fn main() {
     std::hint::black_box(acc);
 
     let mut scratch = Vec::new();
-    let t_eval = bench(2_000, || { std::hint::black_box(net.eval(&ps[next()], &mut scratch)); });
+    let t_eval_scratch = bench(2_000, || { std::hint::black_box(net.eval(&ps[next()], &mut scratch)); });
+
+    // The INTERPRETER no longer evaluates from scratch: `apply` carries the accumulator forward
+    // and `eval` is the output layer alone. Those are the costs the model must charge, because
+    // they are what evolved programs actually pay.
+    let nodes: Vec<interp::PosAcc> =
+        ps.iter().map(|p| interp::PosAcc::fresh(&net, p.clone())).collect();
+    let t_eval = bench(20_000, || { std::hint::black_box(nodes[next()].score(&net)); });
+    let mut fb = interp::Delta::new();
+    let t_apply_inc = bench(20_000, || {
+        let n = &nodes[next()];
+        let l = n.pos.legal_moves();
+        if !l.is_empty() { std::hint::black_box(n.child(&net, l.as_slice()[0], &mut fb)); }
+    });
     let t_moves = bench(20_000, || { std::hint::black_box(ps[next()].legal_moves().len()); });
     let t_key = bench(50_000, || { std::hint::black_box(ps[next()].zobrist()); });
 
@@ -89,8 +102,11 @@ fn main() {
     row("const", t_arith);
     row("var", t_arith);
     row("eval", t_eval);
+    println!("# eval from-scratch was {:.1} ns; incremental output layer is {:.1} ns ({:.0}x)",
+             t_eval_scratch, t_eval, t_eval_scratch / t_eval.max(1e-9));
     row("moves", t_moves);
-    row("apply", t_apply);
+    row("apply", t_apply_inc);
+    println!("#   (bare make/unmake was {:.1} ns; apply now also carries the accumulator)", t_apply);
     row("terminal", t_terminal);
     row("key", t_key);
     println!();

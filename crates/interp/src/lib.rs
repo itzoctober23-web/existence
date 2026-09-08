@@ -20,11 +20,139 @@ use board::Position;
 use grammar::ast::*;
 use nnue::Net;
 
+/// A position together with its NNUE accumulator (the hidden-layer sums).
+///
+/// `eval` was a from-scratch gather at every leaf: ~38 active feature rows summed into the
+/// hidden layer, every time, even when the caller had just made a single move. The hand-written
+/// searcher has used an incremental accumulator for a while; the INTERPRETER, where every
+/// evolved program actually runs, did not — so the search track paid full price per eval and
+/// that is what makes depth-2 game gating unaffordable (GRAMMAR 8).
+///
+/// A move changes at most a handful of features, so `apply` updates the parent's accumulator by
+/// the feature DELTA and `eval` becomes just the output layer.
+/// Reusable scratch for the feature diff: the two active sets plus a membership bitset.
+#[derive(Default)]
+pub struct Delta {
+    pub before: Vec<u16>,
+    pub after: Vec<u16>,
+    pub mark: Vec<u64>,
+}
+
+impl Delta {
+    pub fn new() -> Self {
+        Delta { before: Vec::new(), after: Vec::new(), mark: vec![0u64; (nnue::N_INPUTS + 63) / 64] }
+    }
+}
+
+#[derive(Debug)]
+pub struct PosAcc {
+    pub pos: Position,
+    pub acc: Vec<f32>,
+}
+
+impl PosAcc {
+    /// Below this width the accumulator COSTS more than it saves, measured on this machine:
+    ///
+    /// | width | eval+apply from-scratch | incremental | |
+    /// |---|---|---|---|
+    /// | 16 | 399 ns | 441 ns | WORSE |
+    /// | 64 | 665 ns | 582 ns | 12% better |
+    /// | 256 | 2290 ns | 1456 ns | 36% better |
+    ///
+    /// The interpreter's values are immutable, so `apply` CLONES a position and an accumulator
+    /// rather than mutating in place the way make/unmake does. That fixed clone cost is paid
+    /// per node regardless of width, while the eval saving scales with width — so there is a
+    /// crossover, and below it the carry is pure overhead.
+    ///
+    /// `pipeline::search::Searcher` had already found the same crossover for the hand-written
+    /// search ("Crossover is near 64") and switches on it. Two independent measurements, same
+    /// answer. The champion in play is width 16, so enabling this unconditionally would have
+    /// made the net actually being used SLOWER.
+    pub const INCREMENTAL_MIN_WIDTH: usize = 64;
+
+    /// Full rebuild. Used once at the root; everything below it is incremental.
+    pub fn fresh(net: &Net, pos: Position) -> Self {
+        if net.n_hidden < Self::INCREMENTAL_MIN_WIDTH {
+            return PosAcc { pos, acc: Vec::new() };
+        }
+        let mut acc = net.b1.clone();
+        let mut idx = Vec::with_capacity(40);
+        Net::active(&pos, &mut idx);
+        let h = net.n_hidden;
+        for f in idx {
+            let row = &net.w1[f as usize * h..(f as usize + 1) * h];
+            for (a, w) in acc.iter_mut().zip(row) { *a += *w; }
+        }
+        PosAcc { pos, acc }
+    }
+
+    /// Child after `mv`, with the accumulator carried forward by the feature delta.
+    ///
+    /// The set difference uses a BITSET, not `Vec::contains`. The first version used contains()
+    /// and measured a NET LOSS: eval fell 311.6ns -> 34.3ns but apply rose 199ns -> 751ns, and
+    /// alpha-beta does roughly one apply per eval, so the node got more expensive overall. The
+    /// active sets are ~38 entries, so contains() inside a loop over the other set is 38x38
+    /// comparisons per move. `pipeline::search::Searcher` had already hit this and its comment
+    /// says so outright -- "O(n) diff via a bitset instead of the O(n^2) Vec::contains the first
+    /// version used". Two implementations of the same idea, and the second repeated the mistake
+    /// the first had written down.
+    pub fn child(&self, net: &Net, mv: Move, scratch: &mut Delta) -> Self {
+        if self.acc.is_empty() {
+            let mut pos = self.pos.clone();
+            pos.make_move(mv);
+            return PosAcc { pos, acc: Vec::new() };
+        }
+        let Delta { before, after, mark } = scratch;
+        Net::active(&self.pos, before);
+        let mut pos = self.pos.clone();
+        pos.make_move(mv);
+        Net::active(&pos, after);
+
+        let h = net.n_hidden;
+        let mut acc = self.acc.clone();
+
+        for w in mark.iter_mut() { *w = 0; }
+        for &f in before.iter() { mark[f as usize >> 6] |= 1u64 << (f & 63); }
+        for &f in after.iter() {
+            if mark[f as usize >> 6] & (1u64 << (f & 63)) == 0 {
+                let row = &net.w1[f as usize * h..(f as usize + 1) * h];
+                for (a, w) in acc.iter_mut().zip(row) { *a += *w; }
+            }
+        }
+        for w in mark.iter_mut() { *w = 0; }
+        for &f in after.iter() { mark[f as usize >> 6] |= 1u64 << (f & 63); }
+        for &f in before.iter() {
+            if mark[f as usize >> 6] & (1u64 << (f & 63)) == 0 {
+                let row = &net.w1[f as usize * h..(f as usize + 1) * h];
+                for (a, w) in acc.iter_mut().zip(row) { *a -= *w; }
+            }
+        }
+        PosAcc { pos, acc }
+    }
+
+    /// Mover-relative score from the accumulator. Must equal `Net::eval` exactly.
+    pub fn score(&self, net: &Net) -> i32 {
+        if self.acc.is_empty() {
+            // Narrow net: from-scratch is cheaper. `scratch` is allocated per call here, which
+            // is fine because this path is only taken below width 64 where the gather is small.
+            return net.eval(&self.pos, &mut Vec::new());
+        }
+        let mut out = 0.0f32;
+        for h in 0..net.n_hidden {
+            let a = self.acc[h];
+            if a > 0.0 { out += a * net.w2[h]; }
+        }
+        let white = (out + net.b2) * net.scale;
+        let v = if self.pos.stm == board::types::Color::White { white } else { -white };
+        v.clamp(-30_000.0, 30_000.0) as i32
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Value {
     /// Rc, not a bare Position: a variable reference clones its Value, and the seed program
     /// names `p` four times per node. A bare Position made every mention a deep copy.
-    Pos(Rc<Position>),
+    Pos(Rc<PosAcc>),
     Mv(Move),
     List(Rc<Vec<Move>>),
     Num(i64),
@@ -44,6 +172,12 @@ impl Value {
         }
     }
     fn pos(&self) -> &Position {
+        match self {
+            Value::Pos(p) => &p.pos,
+            _ => panic!("type error: expected Pos"),
+        }
+    }
+    fn posacc(&self) -> &PosAcc {
         match self {
             Value::Pos(p) => p.as_ref(),
             _ => panic!("type error: expected Pos"),
@@ -176,9 +310,13 @@ impl Tt {
 /// survive a change of CPU far better than absolute nanoseconds do.
 fn cost_of(n: &Node) -> u64 {
     match n {
-        Node::Eval(_) => 1365,
+        // Incremental output layer at width >= 64 (from-scratch below it -- measured
+        // crossover). Was 1365 when every eval was a from-scratch gather.
+        Node::Eval(_) => 165,
         Node::Moves(_) => 2232,
-        Node::Apply(..) => 788,
+        // Now also carries the NNUE accumulator forward, so it costs more than a bare
+        // make_move and eval costs far less. The pair is what matters, not either alone.
+        Node::Apply(..) => 1959,
         Node::Terminal(_) => 703,
         // Was 97 (a from-scratch zobrist: ~32 XORs plus bitboard iteration). Position now
         // maintains the key incrementally through make/unmake, verified equal to the
@@ -213,6 +351,9 @@ pub struct Interp<'a> {
     pub tables: Vec<i64>,
     hash: Tt,
     scratch: Vec<f32>,
+    /// Reused active-feature buffers for the incremental accumulator, so `apply` allocates
+    /// nothing per node.
+    featbuf: Delta,
     budget: i64,
     /// Set when a program exceeded its cost budget. GRAMMAR 8 requires "total cost units per
     /// `choose` = budget" as a HARD ceiling, alongside the recursion ceiling. Only the
@@ -251,6 +392,7 @@ impl<'a> Interp<'a> {
             tables,
             hash: Tt::new(),
             scratch: Vec::new(),
+            featbuf: Delta::new(),
             budget: i64::MAX,
             over_budget: false,
             // Generous but FINITE. Large enough that no honest program notices, small enough
@@ -276,7 +418,7 @@ impl<'a> Interp<'a> {
         self.hash.clear();
         let f = prog.entry();
         let mut env: Env<'p> = vec![
-            (f.params[0].0.as_str(), Value::Pos(Rc::new(pos.clone()))),
+            (f.params[0].0.as_str(), Value::Pos(Rc::new(PosAcc::fresh(self.net, pos.clone())))),
             (f.params[1].0.as_str(), Value::Num(budget)),
         ];
         match self.exec(&f.body, prog, &mut env) {
@@ -335,9 +477,10 @@ impl<'a> Interp<'a> {
             Node::Apply(p, m) => {
                 let pv = val!(p);
                 let mv = val!(m).mv();
-                let mut np = pv.pos().clone();
-                np.make_move(mv);
-                Value::Pos(Rc::new(np))
+                let mut sc = std::mem::take(&mut self.featbuf);
+                let child = pv.posacc().child(self.net, mv, &mut sc);
+                self.featbuf = sc;
+                Value::Pos(Rc::new(child))
             }
             Node::Terminal(p) => {
                 let p = val!(p);
@@ -350,7 +493,8 @@ impl<'a> Interp<'a> {
             Node::Eval(p) => {
                 self.evals += 1;
                 let p = val!(p);
-                Value::Num(self.net.eval(p.pos(), &mut self.scratch) as i64)
+                // Output layer only: the hidden sums were carried forward by `apply`.
+                Value::Num(p.posacc().score(self.net) as i64)
             }
 
             Node::Arith(op, args) => {
