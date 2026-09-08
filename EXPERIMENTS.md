@@ -34,6 +34,46 @@ the A/B to ask whether it works at all.
 
 ---
 
+## 2026-09-08 — THE TRAINER NEVER SEES HISTORY, and no experiment has ever tested whether it should
+
+He asked whether throwing positions away is worth it, arguing that a champion which is not
+improving cannot be generating "stale" data. Chasing that turned up something I had wrong.
+
+**The replay buffer is written every generation and, in the default configuration, never read.**
+It is used in exactly two places: `main.rs:460`, gated behind `steps_per_gen > 0` (defaulted OFF,
+and off for a measured reason), and `main.rs:619`, the ARCH arm. With `--steps-per-gen 0` and
+ARCH idle, training runs `tr.epoch(&mut cand, subset, ...)` where `subset` is THIS GENERATION's
+slice. So per generation:
+
+    ~250,000 positions generated
+    ~50,000 trained on (this generation's decisive slice)
+    everything from every previous generation discarded, permanently
+
+Not "a rolling 250k window", which is what I told him and what the dashboard implied. The
+trainer sees ONE generation. 22.6M positions generated across the run; ~50k in front of the
+trainer at any moment.
+
+**I nearly measured this with an instrument that could not detect it.** `replay_ab.sh` swept
+`--replay-gens` 2/8/32 with `--arch-every 0 --steps-per-gen 0` -- so all three arms were
+byte-identical, and would have produced three scores within noise that I would have written up
+as "not resolved at this budget". A null that reads like a measurement. Killed mid-run after
+reading the two call sites.
+
+**And the prior result does not close the question.** EXPERIMENTS records `steps-per-gen` as
+REFUTED, and I repeated that to him. Reading it properly: that A/B used "ONE shared dataset
+(4000 games, 17,266 training samples)" for BOTH arms. It compared HOW MANY GRADIENT STEPS to
+take over one generation's data -- epochs 3 (~51,798 updates) against a fixed 20,000 -- and
+found no significant difference. Both arms saw identical positions. It never tested accumulated
+history, and its own closing line says so: "WHAT THIS DOES NOT SHOW: whether a step budget
+matters over MANY generations."
+
+So: training on history is UNTESTED, not refuted. The correct experiment turns `--steps-per-gen`
+on so line 460's `pool` is the replay buffer, and varies `--replay-gens` so the pool spans
+different amounts of history. Both flags are needed -- varying the window alone does nothing,
+which is the trap that killed the first attempt.
+
+---
+
 ## 2026-09-08 — CAPACITY CLOSED AT EVERY RUNG, and two different failure modes
 
 The stride fix let the arm sweep the whole menu from width 16. It did. Every rung is rejected,
