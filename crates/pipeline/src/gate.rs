@@ -15,6 +15,14 @@ pub struct Score {
     pub wins: u32,
     pub draws: u32,
     pub losses: u32,
+    /// Pentanomial pair counts, indexed by the PAIR's total score in half-points:
+    /// 0 = LL, 1 = LD/DL, 2 = LW/DD/WL, 3 = DW/WD, 4 = WW.
+    ///
+    /// FITNESS 7.3 requires pentanomial UNCONDITIONALLY from the first gate. The gate already
+    /// PLAYED pairs (each opening from both sides) but SCORED them as independent games, so
+    /// the pairing -- the entire point -- was discarded and every interval was computed from a
+    /// binomial that assumes independence the design deliberately removed.
+    pub pent: [u32; 5],
 }
 
 impl Score {
@@ -27,11 +35,34 @@ impl Score {
     pub fn rate(&self) -> f64 {
         self.points() / self.games().max(1) as f64
     }
-    /// 95% CI half-width on the score rate (normal approximation).
+    /// 95% CI half-width on the score rate, from the PAIR distribution. Pairing cancels
+    /// opening bias, so the variance is the spread of pair outcomes rather than a binomial on
+    /// individual games.
     pub fn ci95(&self) -> f64 {
-        let n = self.games().max(1) as f64;
-        let p = self.rate();
-        1.96 * (p * (1.0 - p) / n).sqrt()
+        let n: u32 = self.pent.iter().sum();
+        if n < 2 {
+            // no pairs recorded: fall back to the binomial rather than report a fake interval
+            let g = self.games().max(1) as f64;
+            let p = self.rate();
+            return 1.96 * (p * (1.0 - p) / g).sqrt();
+        }
+        let n = n as f64;
+        let mean: f64 = self.pent.iter().enumerate()
+            .map(|(i, c)| i as f64 * 0.5 * *c as f64).sum::<f64>() / n;
+        let var: f64 = self.pent.iter().enumerate()
+            .map(|(i, c)| { let d = i as f64 * 0.5 - mean; d * d * *c as f64 }).sum::<f64>()
+            / (n - 1.0);
+        // pair score is out of 2; halve to put the interval on the per-game rate scale
+        1.96 * (var / n).sqrt() / 2.0
+    }
+
+    /// Score rate from the pair distribution when available.
+    pub fn pent_rate(&self) -> f64 {
+        let n: u32 = self.pent.iter().sum();
+        if n == 0 { return self.rate(); }
+        let mean: f64 = self.pent.iter().enumerate()
+            .map(|(i, c)| i as f64 * 0.5 * *c as f64).sum::<f64>() / n as f64;
+        mean / 2.0
     }
 }
 
@@ -54,14 +85,17 @@ pub fn match_nets_open(a: &Net, b: &Net, depth: u32, pairs: usize, seed: u64, op
             if l.is_empty() { break; }
             opening.make_move(l.as_slice()[rng.below(l.len())]);
         }
+        // Play the SAME opening from both sides and score the PAIR, not the two games.
+        let mut pair_half = 0usize;
         for a_is_white in [true, false] {
             let r = play(a, b, a_is_white, &opening, depth);
             match r {
-                Some(true) => sc.wins += 1,
-                Some(false) => sc.losses += 1,
-                None => sc.draws += 1,
+                Some(true) => { sc.wins += 1; pair_half += 2; }
+                Some(false) => { sc.losses += 1; }
+                None => { sc.draws += 1; pair_half += 1; }
             }
         }
+        sc.pent[pair_half.min(4)] += 1;
     }
     sc
 }

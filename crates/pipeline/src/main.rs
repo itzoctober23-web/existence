@@ -130,7 +130,7 @@ fn main() {
         let sc = gate::match_nets(&cand, &champion, depth, gate_pairs, seed ^ g as u64);
         let draw_rate = sc.draws as f64 / sc.games().max(1) as f64;
         let gate_can_resolve = draw_rate < 0.60;
-        let no_regression = sc.rate() + sc.ci95() > 0.5;
+        let no_regression = sc.pent_rate() + sc.ci95() > 0.5;
         let better = if gate_can_resolve {
             sc.rate() - sc.ci95() > 0.5
         } else {
@@ -151,12 +151,12 @@ fn main() {
         if g % ctrl_every == 0 {
             let c = gate::match_nets(&champion, &origin, depth, gate_pairs, seed ^ 0xC0 ^ g as u64);
             println!("      control vs origin @gen {g}: {}W-{}D-{}L  rate {:.3} +/- {:.3}{}",
-                c.wins, c.draws, c.losses, c.rate(), c.ci95(),
+                c.wins, c.draws, c.losses, c.pent_rate(), c.ci95(),
                 if c.rate() - c.ci95() > 0.5 { "  *" } else { "" });
         }
         println!(
             "gen {g:>3}  pos {:>6}  train {:>5} (h{:>3})  dec {:>3}/{:<3}  loss {:.4}  gate {}W-{}D-{}L {:.3}+/-{:.3}  {}  [{:.0}s]",
-            data.len(), subset.len(), horizon, dec, dec + drawn, loss, sc.wins, sc.draws, sc.losses, sc.rate(), sc.ci95(),
+            data.len(), subset.len(), horizon, dec, dec + drawn, loss, sc.wins, sc.draws, sc.losses, sc.pent_rate(), sc.ci95(),
             if better { "ACCEPT" } else { "reject" }, t_gen
         );
     }
@@ -166,11 +166,11 @@ fn main() {
         let sc = gate::match_nets(&champion, &origin, depth, gate_pairs * 2, seed ^ 0xFFFF);
         println!(
             "\nCONTROL  final champion vs the ORIGINAL random net: {}W-{}D-{}L  rate {:.3} +/- {:.3}",
-            sc.wins, sc.draws, sc.losses, sc.rate(), sc.ci95()
+            sc.wins, sc.draws, sc.losses, sc.pent_rate(), sc.ci95()
         );
         println!(
             "  => {}",
-            if sc.rate() - sc.ci95() > 0.5 {
+            if sc.pent_rate() - sc.ci95() > 0.5 {
                 "LEARNED: beats its own random initialisation with the interval clear of 0.5"
             } else {
                 "NOT PROVEN: interval includes 0.5, so no learning is demonstrated"
