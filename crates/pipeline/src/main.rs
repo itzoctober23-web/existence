@@ -89,7 +89,20 @@ fn main() {
     let games = arg("--games", 60);
     let depth = arg("--depth", 2) as u32;
     let epochs = arg("--epochs", 3);
-    let gate_pairs = arg("--gate-pairs", 40);
+    // GATE RESOLUTION. 40 -> 224, because the gate could not see the improvements it exists to
+    // detect. MEASURED over 230 generations of ledger: median ci95 0.079, so it only resolves a
+    // candidate better than 0.579 -- **+56 Elo**. Self-play gains do not arrive in +56 Elo steps,
+    // so the loop was rejecting real small improvements as noise and accepting noise that
+    // happened to look large (every accept observed sits at 0.52-0.66, exactly a random
+    // fluctuation at that interval).
+    //
+    // The cost is trivial and that is why it went unnoticed: the gate is 2.7% of a generation
+    // (64 games against 2400 for datagen). 224 pairs resolves ~+21 Elo for 17% overhead.
+    //
+    // The ARCH arm already learned this in miniature -- 32 -> 160 -> 224 for the same reason --
+    // and the per-generation gate was simply never revisited. SPRT stops early when the evidence
+    // is clear, so this is a CAP: a decisive candidate still costs far fewer than 224 pairs.
+    let gate_pairs = arg("--gate-pairs", 224);
     // NET WIDTH IS NOT A FLAG ANY MORE. It is a position on a declared menu (arch::WIDTH_MENU)
     // and the ARCH arm moves it by measurement. `--rung` only says where to START; the loop is
     // free to walk away from it, and the run prints where it ended up.

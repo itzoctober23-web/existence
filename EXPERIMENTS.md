@@ -129,6 +129,63 @@ LATEST control makes this easy; it should show the series.
 
 ---
 
+## 2026-09-08 — THE GATE CANNOT SEE IMPROVEMENT: median ci95 0.079 = a +56 Elo detection floor
+
+Measured over 230 generations of ledger (long_run3 + long_run4), the per-generation NET gate at
+32 pairs has a **median ci95 of 0.079**. So it can only resolve a candidate better than 0.579:
+
+    0.579 -> +56 Elo. Anything smaller is invisible to it.
+
+Self-play improvement does not arrive in +56 Elo steps. So the loop has been REJECTING genuine
+small gains as noise while ACCEPTING noise that happened to look large -- every accept observed
+today sits at 0.52-0.66, which is precisely the size of a random fluctuation at ci95 0.079.
+
+**This is a better candidate for the plateau than anything else on the list.** Capacity is closed
+by measurement (32/64 lost the game gates, 128/256 never cleared the surrogate). Data volume is
+under test. But neither matters if the acceptance test cannot tell a better net from a lucky one:
+strength cannot accumulate through a filter that discards every increment below +56 Elo.
+
+**And it is cheap, which is why it went unnoticed.** The gate is 2.7% of a generation's cost --
+64 games against 2400 spent on datagen. Buying resolution is nearly free:
+
+| pairs | resolves | gate games | overhead vs datagen |
+|---|---|---|---|
+| 32 (current) | +56 Elo | 64 | 2.7% |
+| 81 | +35 Elo | 162 | 7% |
+| 224 | +21 Elo | 410 | 17% |
+
+The ARCH arm already learned this lesson in miniature -- its pair count went 32 -> 160 -> 224 for
+exactly this reason -- and the per-generation gate was never revisited.
+
+**IT ALSO REPAIRS THE SURROGATE OVERRIDE, which I had been treating as a separate defect.**
+The acceptance rule hands the decision to the GAMES when `ci95 < 0.05` and falls through to the
+held-out-loss surrogate when it does not. Expected interval by pair count:
+
+    32 pairs -> 0.079   surrogate decides
+    40 pairs -> 0.071   surrogate decides      <- the old default
+    81 pairs -> 0.050   gate decides
+   224 pairs -> 0.030   gate decides           <- the new default
+
+So `resolves` was structurally almost never true, which is exactly what was measured this
+morning: it fired ONCE in ten generations. The surrogate was the de-facto decider.
+
+That matters because the surrogate demonstrably disagrees with the games. The width-64 ARCH
+candidate produced the strongest surrogate reading of any candidate all day -- held-out loss
+0.0701 vs 0.0775, paired z 4.12 -- and then failed to beat width 16 AT EQUAL NODES. Lower loss,
+no more games won. A loop where that surrogate decides is a loop optimising held-out loss rather
+than strength.
+
+One under-powered constant therefore produced three symptoms I had been chasing separately:
+real gains below +56 Elo rejected as noise; noise above it accepted as improvement; and the
+surrogate permanently overriding the games.
+
+**PRE-REGISTERED PREDICTION, so this can be wrong.** Raising the pair count should produce BOTH
+more accepts AND a rising origin control. If accepts rise and the origin control stays flat at
+~0.84, the diagnosis is refuted: the candidates were never better and the gate was right to
+reject them. That outcome is just as informative and must be reported as a refutation.
+
+---
+
 ## 2026-09-08 — THE OPENING BLIND SPOT IS SYSTEMIC: nothing in this project ever sees the real start
 
 Audited every call path after `control.rs` turned out to have drifted. `open_plies = 6` is
