@@ -91,3 +91,32 @@ fn every_operator_is_reported_by_how_it_fails() {
                          ({nomatch} no-match, {ill} ill-typed)");
     }
 }
+
+/// The operator draw must be UNIFORM across sequentially-seeded generators.
+///
+/// Callers seed a fresh Rng per candidate from small structured values like
+/// `(gen << 24) ^ candidate`. A bare xorshift64's first output is correlated with its seed, so
+/// `first_next() % 8` was not a uniform choice — 119 real proposals came out Delete 40,
+/// InsertMax 39, SwapSiblings 2 against an expected ~15 each. That is a 20x skew in WHICH
+/// PART OF THE DECLARED OPERATOR SET the search actually explores, and nothing else in the
+/// system would have reported it.
+#[test]
+fn operator_choice_is_uniform_across_fresh_seeds() {
+    let mut counts = [0usize; ALL_OPS.len()];
+    let n = 8000;
+    for g in 0..20u64 {
+        for i in 0..(n / 20) as u64 {
+            // exactly the shape the search uses
+            let mut rng = Rng::new((g << 24) ^ i ^ 0xBEEF);
+            counts[rng.below(ALL_OPS.len())] += 1;
+        }
+    }
+    let expect = n as f64 / ALL_OPS.len() as f64;
+    for (i, &c) in counts.iter().enumerate() {
+        let dev = (c as f64 - expect).abs() / expect;
+        assert!(dev < 0.15,
+            "{:?} drawn {c} times against {expect:.0} expected ({:.0}% off) — the operator \
+             choice is not uniform, so the search explores a skewed subset of the declared set",
+            ALL_OPS[i], dev * 100.0);
+    }
+}

@@ -11,7 +11,22 @@ use crate::typecheck;
 
 pub struct Rng(pub u64);
 impl Rng {
-    pub fn new(seed: u64) -> Self { Rng(seed | 1) }
+    /// SCRAMBLE THE SEED. A bare xorshift64's first output is strongly correlated with its
+    /// state, and callers seed this from small structured values -- the search uses
+    /// `(gen << 24) ^ candidate ^ 0xBEEF`. Taking `first_next() % 8` off such a seed is not a
+    /// uniform draw, and it showed: with the operator chosen uniformly BEFORE placement, 119
+    /// real proposals came out Delete 40, InsertMax 39, SwapSiblings 2, where ~15 each is
+    /// expected. The operator set was still being drawn from unevenly, one layer below the
+    /// selection bias already fixed.
+    ///
+    /// splitmix64's finalizer decorrelates the seed before the stream starts. It is the
+    /// standard remedy and `board::zobrist` already uses the same constants for the same reason.
+    pub fn new(seed: u64) -> Self {
+        let mut z = seed.wrapping_add(0x9E3779B97F4A7C15);
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
+        Rng((z ^ (z >> 31)) | 1)
+    }
     pub fn next(&mut self) -> u64 {
         self.0 ^= self.0 << 13; self.0 ^= self.0 >> 7; self.0 ^= self.0 << 17; self.0
     }
