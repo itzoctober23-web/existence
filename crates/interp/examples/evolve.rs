@@ -98,6 +98,47 @@ fn forced_mate_set(n: usize, cap: usize) -> Vec<(Position, Option<board::Move>)>
     out
 }
 
+/// Positions where the SEED answers differently at depth D-1 and depth D.
+///
+/// THE GUARD THAT MATE-DISTANCE COULD NOT PROVIDE. The forced-mate-in-2 set was added to stop a
+/// candidate from simply searching less, and it worked at fitness depth 2. At fitness depth 3 it
+/// has no teeth: that set is solved 40/40 AT DEPTH 2 (measured -- the forcing move is also the
+/// eval-best move), so cutting 3 -> 2 costs nothing on it. The search track promptly found exactly
+/// that: `Const(0)` -> `Const(1)` in the horizon guard `if d == 0: ret eval(p)`, one ply shallower,
+/// 11x cheaper, all 20 mates intact.
+///
+/// A depth guard must require the FULL fitness depth, and a mate-in-N does not imply N plies of
+/// search. Disagreement does, by construction: if the seed returns a different move at D-1 than at
+/// D, then D-1 is provably insufficient FOR THIS POSITION, whatever D happens to be. Self-
+/// calibrating -- change the fitness depth and the guard follows.
+fn disagreement_set(n: usize, depth: i64, net: &Net, cap: usize)
+    -> Vec<(Position, Option<board::Move>)> {
+    let ab = reference::bare_alpha_beta();
+    let mut rng: u64 = 0xD15A_6EED;
+    let mut out = Vec::new();
+    let mut tries = 0;
+    while out.len() < n && tries < cap {
+        tries += 1;
+        let mut p = Position::startpos();
+        for _ in 0..(10 + rng % 34) {
+            let l = p.legal_moves();
+            if l.is_empty() { break; }
+            rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
+            p.make_move(l.as_slice()[(rng % l.len() as u64) as usize]);
+        }
+        if p.legal_moves().is_empty() { continue; }
+        let mut shallow = Interp::new(net, vec![depth - 1, 32_000, 8]);
+        let a = shallow.run(&ab, &p, 16);
+        let mut deep = Interp::new(net, vec![depth, 32_000, 8]);
+        let b = deep.run(&ab, &p, 16);
+        // Both must be real answers, and they must differ: that is the whole criterion.
+        if a != board::types::MOVE_NONE && b != board::types::MOVE_NONE && a != b {
+            out.push((p.clone(), Some(b)));
+        }
+    }
+    out
+}
+
 /// mates per million cost units, and the mate count (a program that finds fewer mates more
 /// cheaply is NOT better -- unsound pruning's characteristic failure is a missed forced mate).
 /// FITNESS DEPTH IS A PARAMETER, and D=2 was the wrong value.
@@ -159,17 +200,20 @@ fn main() {
     let net = Net::random(32, 20260907);
     // MIXED on purpose: mate-in-1 alone made the surrogate maximisable by searching less.
     let mut set = mate_set(n1);
-    let deep = forced_mate_set(n2, 400_000);
+    // Built by DISAGREEMENT at the fitness depth, not by mate distance. See disagreement_set.
+    let deep = disagreement_set(n2, depth, &net, 4_000);
     let n_deep = deep.len();
     set.extend(deep);
 
     let mut champ = reference::bare_alpha_beta();
     let (f0, c0, r0) = fitness(&champ, &set, &net, depth);
-    println!("  surrogate set {} positions ({} mate-in-1, {} forced-mate-in-2), fitness depth {}",
-             set.len(), set.len() - n_deep, n_deep, depth);
-    if n_deep == 0 {
-        println!("  REFUSING TO RUN: no depth-requiring positions, so the 'do not lose mates'");
-        println!("  guard cannot bite and this loop optimises toward a depth-1 mate detector.");
+    println!("  surrogate set {} positions ({} mate-in-1, {} depth-{}-REQUIRING by disagreement), fitness depth {}",
+             set.len(), set.len() - n_deep, n_deep, depth, depth);
+    if n_deep < n2 {
+        println!("  REFUSING TO RUN: found {n_deep} depth-requiring positions, wanted {n2}.");
+        println!("  Without them the 'do not lose mates' guard cannot bite and this loop");
+        println!("  optimises toward searching one ply less -- which is exactly what it did");
+        println!("  when the guard was built from mate distance instead of disagreement.");
         return;
     }
     println!("  seed: bare alpha-beta  {f0} mates  {c0} cost  {r0:.2} mates/Mcost  ({} nodes)", champ.size());
