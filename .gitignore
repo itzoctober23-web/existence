@@ -1,18 +1,17 @@
-# Learned artifacts and the content-addressed store (CRATE.md 0.1, 1): data is not code
-/data/
-*.nnue
-*.net
-*.qnn
-*.pt
+
 *.bin
-
-# Rust
-/target/
-**/*.rs.bk
-
-# Generated at release time by `cargo about`
-/THIRD_PARTY_LICENSES
-
-# Local
+/data/
 .DS_Store
+# Generated at release time by `cargo about`
+# Learned artifacts and the content-addressed store (CRATE.md 0.1, 1): data is not code
+ledger.jsonl
+# Local
+*.net
+*.nnue
+*.pt
+*.qnn
+**/*.rs.bk
+# Rust
 *.swp
+/target/
+/THIRD_PARTY_LICENSES

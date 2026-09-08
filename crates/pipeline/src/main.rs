@@ -11,6 +11,7 @@ use nnue::Net;
 use pipeline::arch::{self, WIDTH_MENU};
 use pipeline::datagen::{self, Rng, Sample};
 use pipeline::gate;
+use pipeline::ledger::{Entry, GateEvidence, Ledger, Reason};
 use pipeline::trainer::Trainer;
 use board::{Color, Position};
 
@@ -128,6 +129,14 @@ fn main() {
     println!("clock budget: {cost_nodes} x {seed_ns:.0}ns = {:.2}ms per move (measured on the seed net)",
              budget_ns / 1e6);
 
+    // Append-only, and NOT derived from `--out`: a ledger that a new run silently truncates is
+    // not a record. The previous ARCH run's 6 rejections were lost exactly that way, to an
+    // overwritten stdout log.
+    let ledger = Ledger::new(
+        &a.iter().position(|x| x == "--ledger").and_then(|i| a.get(i + 1)).cloned()
+            .unwrap_or_else(|| "ledger.jsonl".to_string()),
+    );
+
     let mut rng = Rng(seed);
     let mut accepted = 0;
     let mut arch_attempts = 0usize;
@@ -226,6 +235,34 @@ fn main() {
         } else {
             mcnemar > 1.96 && no_regression
         };
+        // LEDGER: record the decision, accepted or not, with a NAMED reason. A rejection is the
+        // more reusable fact — it says do not spend this compute again — and "reject" alone is
+        // not a finding.
+        let net_reason = if better {
+            Reason::Accepted
+        } else if gate_can_resolve {
+            Reason::LostOnGames
+        } else if !no_regression {
+            Reason::Regression
+        } else {
+            Reason::NoEvidence
+        };
+        ledger.record(&Entry {
+            generation: g,
+            class: "NET",
+            what: format!("train {} epochs on {} samples, horizon {}, width {}",
+                          epochs, subset.len(), horizon, champion.n_hidden),
+            reason: net_reason,
+            gates: vec![GateEvidence {
+                name: "fixed-depth",
+                pent: sc.pent,
+                rate: sc.pent_rate(),
+                ci95: sc.ci95(),
+                resolved: gate_can_resolve,
+            }],
+            surrogate: vec![("mcnemar_z", mcnemar), ("train_loss", loss as f64)],
+        });
+
         if better {
             champion = cand;
             accepted += 1;
@@ -277,6 +314,17 @@ fn main() {
                 if acand_loss > champ_loss * 1.005 {
                     println!("      ARCH w{:>3} -> w{:>3}: held-out {:.4} vs champ {:.4} -- surrogate filter, no gate",
                              WIDTH_MENU[p.from_rung], p.width(), acand_loss, champ_loss);
+                    ledger.record(&Entry {
+                        generation: g,
+                        class: "ARCH",
+                        what: format!("width {} -> {} (rung {} -> {})",
+                                      WIDTH_MENU[p.from_rung], p.width(), p.from_rung, p.to_rung),
+                        reason: Reason::SurrogateFilter,
+                        gates: vec![], // never reached one
+                        surrogate: vec![("heldout_loss", acand_loss),
+                                        ("champion_loss", champ_loss),
+                                        ("epochs", aeps as f64)],
+                    });
                 } else {
                     let fixed = gate::match_nets_capped(
                         &acand, &champion, gate_depth_cap, cost_nodes, cost_nodes,
@@ -302,6 +350,40 @@ fn main() {
                     };
                     let surrogate_ok = resolves || z > 1.96;
                     let stepped = fixed_win && clock_win && surrogate_ok;
+                    // The reason has to distinguish the two asymmetric failures. Winning on
+                    // equal nodes and losing on the clock is FITNESS 10's named degenerate case
+                    // -- an eval too expensive for what it knows -- and is a completely
+                    // different fact from the reverse, which says the win was speed rather than
+                    // eval quality. Collapsing both to "reject" throws away the diagnosis.
+                    let arch_reason = if stepped {
+                        Reason::Accepted
+                    } else if fixed_win && !clock_win {
+                        Reason::LostOnClock
+                    } else if !fixed_win && clock_win {
+                        Reason::LostOnCost
+                    } else if !surrogate_ok {
+                        Reason::NoEvidence
+                    } else {
+                        Reason::LostOnGames
+                    };
+                    ledger.record(&Entry {
+                        generation: g,
+                        class: "ARCH",
+                        what: format!("width {} -> {} (rung {} -> {})",
+                                      WIDTH_MENU[p.from_rung], p.width(), p.from_rung, p.to_rung),
+                        reason: arch_reason,
+                        gates: vec![
+                            GateEvidence { name: "fixed-cost", pent: fixed.pent,
+                                           rate: fixed.pent_rate(), ci95: fixed.ci95(),
+                                           resolved: fixed.ci95() < 0.05 },
+                            GateEvidence { name: "clock", pent: clock.pent,
+                                           rate: clock.pent_rate(), ci95: clock.ci95(),
+                                           resolved: clock.ci95() < 0.05 },
+                        ],
+                        surrogate: vec![("paired_z", z), ("heldout_loss", acand_loss),
+                                        ("champion_loss", champ_loss), ("epochs", aeps as f64),
+                                        ("cand_nodes", ca as f64), ("champ_nodes", cb as f64)],
+                    });
                     println!("      ARCH w{:>3} -> w{:>3} ({} ep, loss {:.4} vs {:.4}, paired z {:.2})  fixed-cost {:.3}+/-{:.3}{}  clock {:.3}+/-{:.3} [{ca} vs {cb} nodes]{}  {}=> {}",
                              WIDTH_MENU[p.from_rung], p.width(), aeps, acand_loss, champ_loss, z,
                              fixed.pent_rate(), fixed.ci95(), if fixed_win { " ok" } else { "" },
