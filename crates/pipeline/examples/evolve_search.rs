@@ -227,7 +227,20 @@ fn main() {
     let mates = mate_set(40, &mut rnd);
     let mut champ = reference::bare_alpha_beta();
     let (ok, n) = passes_oracle(&champ, &oracle_set, oracle_depth, &net);
-    let surrogate_depth = get("--surrogate-depth", 2) as i64;
+    // MEASURED, all finding 40/40 mates on the same set:
+    //     depth 0 -> 8.641 mates per Mcost
+    //     depth 1 -> 0.310
+    //     depth 2 -> 0.020
+    // 432x between 0 and 2 for identical detection. A mate-in-1 needs NO lookahead past the
+    // root move: the seed's terminal guard fires before its depth guard, so the child of the
+    // mating move is scored by score_of, not by eval. At depth 2 this "cheap filter" cost ~1.7B
+    // cost units per candidate -- about two minutes, more than the game gate it exists to
+    // protect, which defeats the entire point of having a surrogate stage.
+    //
+    // Declared weakness: a depth-0 surrogate catches less than a deep one. That is the correct
+    // trade for FITNESS 3's role ("cheap filter, proposes"); the oracle and the games are what
+    // decide, and a filter that costs more than the decision is not a filter.
+    let surrogate_depth = get("--surrogate-depth", 0) as i64;
     let (seed_mates, seed_rate, seed_ff) = mates_per_cost(&champ, &mates, surrogate_depth, &net);
     println!("seed: bare alpha-beta, {} nodes; oracle {ok}/{n}; surrogate {seed_mates}/{} mates at {seed_rate:.3} per Mcost ({seed_ff} forfeits)",
              champ.size(), mates.len());
