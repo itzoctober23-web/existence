@@ -55,3 +55,59 @@ alpha-beta variants do not read the budget at all.
 * Which points at the real suspect: a MATE-IN-1 set may be the wrong instrument for ranking search
   refinements. Hash reuse has nothing to reuse at depth 1, and LMR has nothing to reduce. The
   ladder may need positions where the rungs can pay for themselves before it can show an ascent.
+
+
+---
+
+# CORRECTION (2026-09-08, same day): an ascent step DOES exist, at D=3
+
+**The headline above is wrong.** I wrote "no rung beats the seed" and "every declared rung is a
+regression". That was the D=2 table generalised across depths, and this file's own comment explains
+why D=2 cannot show the effect: *"iteration 1 of iterative deepening stores entries at depth 1,
+iteration 2 probes needing depth >= 2 and rejects every one, so a transposition table has literally
+no reuse to find ... Measuring hash reuse there and calling it a LOSS says nothing about hash reuse
+-- it says the test was too shallow to contain the effect."*
+
+I ran the depth sweep, had D=3 in front of me, and read the conclusion off the wrong table.
+
+## What D=3 actually says (deterministic; re-run reproduces to the digit)
+
+| program | mates | cost | vs seed |
+|---|---|---|---|
+| bare alpha-beta (seed) | 120 | 50,859,895,712 | 1.00x |
+| **alpha-beta + hash reuse** | **120** | **49,815,960,763** | **0.98x** |
+| capture extension (rung 6) | 120 | 51,645,048,800 | 1.02x |
+| table reduction (rung 7) | 120 | 51,226,197,996 | 1.01x |
+| alpha-beta + hash + ID | 120 | 54,850,556,083 | 1.08x |
+| alpha-beta + iterative deepening | 120 | 55,846,044,574 | 1.10x |
+
+**Hash reuse is 2.05% cheaper for the identical 120 mates.** That is a single mutation from the
+seed that is strictly fitter on FITNESS 3 — exactly the step GRAMMAR 9 requires to exist. It is not
+noise: the ladder is deterministic (fixed positions, fixed net, no sampling) and a re-run returned
+the same integers.
+
+## The precise state of the GRAMMAR 9 claim
+
+GRAMMAR 9 needs a PATH where EVERY step is fitter. Measured at D=3:
+
+* seed -> hash reuse: 1.00 -> 0.98 — **FITTER. The path starts.**
+* hash reuse -> hash + ID: 0.98 -> 1.08 — worse. The path STOPS after one rung.
+* seed -> capture extension (1.02), table reduction (1.01), ID (1.10) — none fitter.
+
+So: **one verified ascent step, and the ladder cannot currently continue past it.** That is a far
+more useful statement than "no step exists", and it is the opposite conclusion on the first rung.
+
+## D=4 is cost-cap limited and should not be quoted
+
+The seed spends 233,392,934,154 over 120 positions = 1.94e9 each, against `cost_cap` 2e9. Most runs
+hit the ceiling and return a default move, which is why the seed finds only 17/120 there. Direction
+agrees (hash reuse 23 mates for 230B vs the seed's 17 for 233B — better on both axes) but the
+numbers are a ceiling reading, not a search reading.
+
+## Standing implication for the search track
+
+`evolve` has run ~690 candidates with zero accepts, and it evaluates fitness at **D=2**
+(`Interp::new(net, vec![2, 32_000, 8])`). At D=2 the one known ascent step is invisible. So the
+search track is climbing at the one depth where the rung that WOULD pay is measured as a loss.
+That is now the leading explanation for its zero accepts, and it is testable by moving its fitness
+depth to 3.
