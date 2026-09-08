@@ -142,7 +142,12 @@ fn main() {
     // evidence was stronger than a single endpoint (uncapped showed EIGHT consecutive
     // generations below 0.5 with four flagged `regression` in the ledger, which is a pattern),
     // but the cross-arm claim rests on one run each and I said so nowhere at the time.
-    // run_horizon_experiment.sh re-runs it across three seeds.
+    // SUPERSEDED 2026-09-08: re-tested on a controlled fixed-data A/B (examples/hyper_ab.rs
+    // --compare horizon, 10 replicates per arm). horizon 40 scored 0.5371 +/- 0.0042 against
+    // uncapped 0.5188 +/- 0.0053; difference 0.0183 +/- 0.0133 at 95%, excluding zero. The
+    // capped arm wins on 43% FEWER samples, so it is data QUALITY and not quantity. The
+    // default now rests on evidence that survives the n>=3 standard, and the loop-based
+    // re-run is unnecessary -- the loop has 25x worse resolution for this question.
     let horizon_cap = arg("--horizon-cap", 40) as u32;
     // DEPTH SCHEDULE. Depth 1 gives ~47x the labels per second and bootstraps the net out of
     // randomness, but at depth 1 the search is barely stronger than the raw eval, so the data

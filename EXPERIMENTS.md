@@ -38,6 +38,31 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — horizon cap 40: CONFIRMED on a controlled A/B (and it was shipped on n=1)
+
+Same champion, ONE raw generation (4000 games, 40,202 decided positions), the horizon filter
+applied per arm so both see the same games, 10 replicates each:
+
+| arm | samples | mean | sd | 95% CI |
+|---|---|---|---|---|
+| horizon 40 | 17,266 | **0.5371** | 0.0133 | [0.5289, 0.5454] |
+| horizon 1000 (uncapped) | 30,151 | 0.5188 | 0.0167 | [0.5084, 0.5291] |
+
+Difference **0.0183 +/- 0.0133** at 95% -> [0.0050, 0.0316], excludes zero. Significant.
+
+**The capped arm wins on 43% FEWER samples.** So this is not data quantity, it is data QUALITY:
+labels far from the terminal are anti-signal while play is weak. The code comment beside the
+constant asserted exactly that and had never demonstrated it.
+
+This was shipped as a default this morning on n=1 per arm, before the run-to-run variance
+(0.151) was known -- i.e. on evidence I spent the afternoon refusing from --steps-per-gen. It
+now has evidence that survives the standard. The n=1 caveat in main.rs is superseded and
+`run_horizon_experiment.sh` (3 loop seeds) is no longer needed: the loop is the wrong instrument
+for this question, at 25x worse resolution than the A/B.
+
+Worth noting against the entry above: the SAME harness refuted the step budget and confirmed
+the horizon. It is discriminating, not merely returning nulls.
+
 ## 2026-09-08 — mate-in-2 surrogate: NULL, the set is too rare to build
 
 The mate-in-1 surrogate is saturated: the seed's terminal guard fires before its depth guard,
