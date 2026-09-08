@@ -30,6 +30,7 @@ use grammar::{reference, Program};
 use interp::Interp;
 use nnue::Net;
 use pipeline::gate::Score as Pent;
+use pipeline::ledger::{Entry, GateEvidence, Ledger, Reason};
 
 /// Full-width negamax, no pruning, no hash — FITNESS 2.1's reference. Deterministic, and
 /// deliberately dumb: it is the test rig, not the engine.
@@ -311,6 +312,16 @@ fn main() {
     // 128 rejected candidates teach nothing without this; with it the same run reports which
     // operators produce viable programs at all.
     let mut tally: BTreeMap<String, [u32; 4]> = BTreeMap::new();
+    // Append-only, like the learning loop's. The search track's results were going to a log
+    // that five relaunches today have overwritten -- which is the exact failure the ledger was
+    // built for, left unfixed in the half of the project whose whole output is WHICH MUTATIONS
+    // FAILED AND WHY. A rejected candidate is the reusable fact here: it says this edit to this
+    // program does not work, and without a record the search re-proposes it every run.
+    let ledger = Ledger::new(
+        &args.iter().position(|a| a == "--ledger").and_then(|i| args.get(i + 1)).cloned()
+            .unwrap_or_else(|| "ledger_search.jsonl".to_string()),
+    );
+
     let mut accepted = 0;
     for g in 1..=gens {
         let (mut tried, mut ill, mut oracle_fail, mut surrogate_fail) = (0, 0, 0, 0);
@@ -328,7 +339,17 @@ fn main() {
             // 1. ORACLE. A program that plays worse chess can always be cheaper; this is what
             //    stops "cheaper" from being confused with "better".
             let (co, cn) = passes_oracle(&cand, &oracle_set, oracle_depth, &net);
-            if cn == 0 || co * 100 < cn * 95 { oracle_fail += 1; continue; }
+            if cn == 0 || co * 100 < cn * 95 {
+                oracle_fail += 1;
+                ledger.record(&Entry {
+                    generation: g, class: "PROGRAM",
+                    what: format!("{key} on {} nodes", champ.size()),
+                    reason: Reason::SurrogateFilter, // oracle is this track's pre-gate filter
+                    gates: vec![],
+                    surrogate: vec![("oracle_ok", co as f64), ("oracle_n", cn as f64)],
+                });
+                continue;
+            }
             tally.get_mut(&key).unwrap()[1] += 1;
             // 2. SURROGATE (FITNESS 3). Must not LOSE mates -- a program that finds fewer
             //    mates more cheaply is not better, and missing a forced mate is unsound
@@ -346,7 +367,17 @@ fn main() {
             // bound is deliberately loose: the GATE decides whether a cost is worth paying, and
             // a surrogate that second-guesses it would reject slower-but-stronger programs.
             let (cm, cr, _cf) = mates_per_cost(&cand, &mates, surrogate_depth, &net);
-            if cm < seed_mates { surrogate_fail += 1; continue; }
+            if cm < seed_mates {
+                surrogate_fail += 1;
+                ledger.record(&Entry {
+                    generation: g, class: "PROGRAM",
+                    what: format!("{key} on {} nodes", champ.size()),
+                    reason: Reason::Regression,
+                    gates: vec![],
+                    surrogate: vec![("mates", cm as f64), ("seed_mates", seed_mates as f64)],
+                });
+                continue;
+            }
             if cr > 0.0 && seed_rate > 0.0 && cr < seed_rate / 2.0 { surrogate_fail += 1; continue; }
             tally.get_mut(&key).unwrap()[2] += 1;
             tally.get_mut(&key).unwrap()[3] += 1;
@@ -354,6 +385,16 @@ fn main() {
             let (sc, llr, passed) = sprt_programs(&cand, &champ, &net, depth, budget,
                 0xA11CE ^ (g as u64) << 8 ^ i as u64, 4, pairs);
             gate_pairs_spent += sc.pent.iter().sum::<u32>() as usize;
+            ledger.record(&Entry {
+                generation: g, class: "PROGRAM",
+                what: format!("{key} on {} nodes", champ.size()),
+                reason: if passed { Reason::Accepted } else { Reason::LostOnGames },
+                gates: vec![GateEvidence {
+                    name: "program-vs-champion", pent: sc.pent, rate: sc.pent_rate(),
+                    ci95: sc.ci95(), resolved: llr.abs() >= pipeline::gate::LLR_BOUND,
+                }],
+                surrogate: vec![("llr", llr), ("mates", cm as f64), ("mates_per_mcost", cr)],
+            });
             if passed {
                 if best.as_ref().map_or(true, |(_, b, _)| sc.pent_rate() > b.pent_rate()) {
                     best = Some((cand, sc, llr));
