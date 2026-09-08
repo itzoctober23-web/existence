@@ -354,9 +354,19 @@ frozen while tables test and vice versa. Bandit floors. Declared STC/LTC values 
 explanation sentence traceable to a number. Concept names marked as annotation.
 
 ## Expected rediscovery order
-Search (main lineage, from bare alpha-beta): hash reuse -> iterative deepening ->
+Search (main lineage, from bare alpha-beta): iterative deepening -> hash reuse ->
 hash-move-first -> capture extension (qsearch) -> history/killers -> LMR-shaped
 reductions -> null move -> futility-style margins.
+
+CORRECTED 2026-09-07: this list opened with HASH REUSE and the first two entries are now
+swapped, on measurement. A transposition table only pays when the same position is reached
+repeatedly, and a single fixed-depth search generates almost none of that traffic — iterative
+deepening is what creates it. Measured three ways in GRAMMAR 6 and 9: faithful hash reuse is
++104 nodes from the seed (the FARTHEST reference program, vs +33 for UCT and +12 for PN), costs
+1.12–1.27x more than bare alpha-beta at depths 2–4, and scores 1.6 vs 1.9 mates-per-cost — a
+LOSS. Discovered before iterative deepening it would have nothing to hit, and the fitness
+function meant to reward it would reject it. The earlier ordering rested on a ladder measurement
+taken against a broken encoding that never called `eval`.
 Search (purity lineage, from depth-one): lookahead -> minimax -> alpha-beta bounding
 -> then as above.
 Eval: material -> king safety -> mobility, structure -> king-relative / threat-like

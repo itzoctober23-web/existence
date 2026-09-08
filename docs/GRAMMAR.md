@@ -312,12 +312,43 @@ measured 2.4x wrong elsewhere in this document and have been removed rather than
 | rung | mates found | cost | mates per Mcost |
 |---|---|---|---|
 | depth-one | 1/120 | 24k | 41.1 (cheap, but blind to mate) |
-| bare alpha-beta | **120/120** | 61.8M | 1.9 |
-| alpha-beta + hash reuse | **120/120** | 19.2M | **6.3** |
+| bare alpha-beta | **120/120** | 61.8M | **1.9** |
+| alpha-beta + hash reuse | **120/120** | 77.2M | **1.6** |
 
-Step 4's predicted gain is confirmed on paper: hash reuse finds the SAME mates for **3.2x less
-cost**. This is what the ladder check is for -- if a step is not a gain, the grammar or the
-fitness is changed here, before any compute is spent.
+**STEP 4 IS NOT A RUNG. Corrected 2026-09-07, and the correction reverses the conclusion.**
+
+This table previously read `19.2M cost, 6.3 mates/Mcost` and concluded "Step 4's predicted gain
+is confirmed on paper: hash reuse finds the SAME mates for 3.2x less cost." That was measured
+against the BROKEN `ab_hash` documented in section 6 — a program that never called `eval` and
+returned the constant 0 at every leaf. Mate-in-1 is found by the TERMINAL guard, not by the
+eval, so a program that had stopped searching still scored 120/120 while costing a third as
+much. The "confirmed gain" was the bug.
+
+Re-measured against the faithful transposition table: **77.2M cost, 1.6 mates/Mcost — a 25%
+LOSS against the seed**, not a 3.2x gain.
+
+**Three independent measurements now agree, and they contradict the plan's expected order:**
+
+| measurement | says |
+|---|---|
+| program length (§6) | hash reuse is **+104 nodes**, the FARTHEST reference program (UCT +33, PN +12) |
+| cost at fixed depth (`tt_pressure.rs`) | **1.12–1.27x more expensive** than bare alpha-beta at depths 2–4 |
+| mates-per-cost (this table) | **1.6 vs 1.9** — a loss |
+
+**Why, and what it implies for the ORDER.** A transposition table pays for itself when the same
+position is reached repeatedly. A single fixed-depth search offers almost no such traffic — a
+few transpositions by move-order permutation — so the probe/store machinery costs more than it
+saves. The thing that CREATES repeated searches of the same positions is ITERATIVE DEEPENING,
+which this ladder lists as step 5, AFTER hash reuse.
+
+So the ladder's order is wrong, and the plan's "Expected rediscovery order" (which opens with
+hash reuse) is wrong with it. **Iterative deepening has to come first, or the two have to
+arrive together**; a TT discovered before ID has nothing to hit and would be rejected by the
+very fitness function meant to reward it. Step 4 and step 5 are provisionally SWAPPED, pending
+a measurement of ID alone, which is the next thing this ladder should cost out.
+
+This is precisely what the offline ladder check is for: a predicted rung was measured, failed,
+and the sequence changed on paper — before any compute was spent chasing it.
 
 MCTS and PN score 0 on this set at a budget of 16 simulations; both need many simulations to
 prove anything and neither is a rung of this ladder.
