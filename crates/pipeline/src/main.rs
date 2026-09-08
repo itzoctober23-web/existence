@@ -193,12 +193,32 @@ fn main() {
     // deeper search" -- half the declared objective was switched off by a comment that was
     // correct at iteration zero and never revisited.
     //
-    // DEFAULT NOT CHANGED YET, on purpose: 0.75 is the highest arm tested and the curve is
-    // still rising, while blend = 1.0 is pure self-reference and must be degenerate, so the
-    // peak is bracketed but not located. Two horizon defaults were shipped today on incomplete
-    // sweeps; this one waits for the peak.
+    // REFINED, and it refuted my own prediction. I expected blend = 1.0 to be degenerate
+    // ("pure self-reference"). It is not:
+    //     blend 0.75   0.5258 [0.5123, 0.5393]
+    //     blend 0.85   0.5234 [0.5071, 0.5398]
+    //     blend 0.95   0.5293 [0.5137, 0.5449]
+    //     blend 1.00   0.5281 [0.5112, 0.5450]
+    // A flat plateau from 0.5 to 1.0, all statistically indistinguishable. The prediction was
+    // wrong because `s.root` is the SEARCH's output, not the net's: training toward it is
+    // DISTILLATION of the search into the net, which is AlphaZero's actual mechanism, not a
+    // fixed point of the net's own opinion.
+    //
+    // Consequence worth stating plainly: once the search score is in the target, the game
+    // outcome contributes nothing measurable. blend = 1.0 (no outcome at all) matches the best
+    // mix.
+    //
+    // DEFAULT 0.75 rather than 1.0, and the reason is a risk the experiment cannot see. The
+    // outcome is ground truth; the search score is a bootstrap off the current net. A pure
+    // bootstrap has no anchor to reality and can drift across many generations, which a
+    // single-step A/B is blind to by construction. 0.75 is measured-equal to 1.0 and keeps a
+    // quarter of the target anchored. That is a judgement about a failure mode this
+    // measurement cannot rule out, not a claim the measurement supports.
+    //
+    // LIMIT: one champion, one dataset, 10 replicates (se ~0.007). The effect is ~6.6 SE, but
+    // it is a single champion -- re-measure when a stronger one exists.
     let blend: f32 = a.iter().position(|x| x == "--blend")
-        .and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(0.0);
+        .and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(0.75);
     let tr = Trainer::new(0.01, blend);
     let mut rung = start_rung;
     println!("gens={gens} games/gen={games} depth={depth} epochs={epochs} gate-pairs={gate_pairs} blend={blend}");
