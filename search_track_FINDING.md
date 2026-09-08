@@ -50,3 +50,70 @@ up as a property of the search.
 evolve.rs now runs on 80 mate-in-1 + 40 forced-mate-in-2 (positions with no mate-in-1 available),
 and REFUSES TO RUN if the depth-requiring half is empty -- otherwise the loop optimises toward a
 depth-1 mate detector while printing ACCEPT. Seed on the mixed set: 120/120 mates, 0.03 mates/Mcost.
+
+
+---
+
+# THE ANSWER (2026-09-08): no ladder rung is REACHABLE, because mutations cannot introduce a primitive
+
+~690 candidates across two runs, zero accepts. Earlier today I blamed, in order: the surrogate
+(fixed, real), the fitness depth (moved to D=3, defensible but not the cause), and the DISTANCE to
+the fitter rung (+104 nodes, true but not the whole story). The actual constraint is harder than
+any of those.
+
+## What the operator set can construct
+
+Every `Node::` variant any operator in `crates/grammar/src/mutate.rs` ever builds:
+
+    Const, Max, Min, Arith, Cmp, Store, Set, Field, Nop, Loop, If, Budget, Avg
+
+And what it can NEVER build — verified by grep, with the pattern proven against reference.rs so
+this is an absence and not a broken predicate:
+
+    Pred, Probe, Key, TRead, Eval, Moves, Apply, Terminal, ScoreOf, Argmax, Foreach, Call, ...
+
+`Pred` occurs in mutate.rs exactly twice: line 57 inside `children()` (traversal) and line 97
+inside the rebuild. Neither constructs one. `Store` and `Field` appear only as match PATTERNS —
+`Op::WrapIf` wraps an existing `Store`/`Set`/`Nop`, and the `Field` case swaps which FieldId an
+already-present `Field` reads. `Probe`, `Key` and `TRead` are constructed zero times.
+
+`Op::WrapIf` is worth stating outright because GRAMMAR 9 names it as the operator for rung 6. It
+always emits the SAME condition — `Cmp(Budget, Const(r % 5), Gt)` — a budget comparison. There is
+no path by which it produces a capture predicate.
+
+## Therefore every declared rung is unreachable, not merely distant
+
+| rung | needs | constructible? |
+|---|---|---|
+| capture extension (rung 6, +9 nodes) | `Pred(m, p, IsCapture)` | **NO** |
+| table reduction (rung 7, +15 nodes) | `TRead(3, [d, i])` | **NO** |
+| alpha-beta + hash reuse (+104, the only FITTER rung) | `Probe(Key(p))` | **NO** |
+
+Not "a hundred edits away". **Impossible at any edit count, at any depth, with any budget.** The
+mutation operators can tune constants, rearrange existing structure, and wrap existing statements
+in an If or a Loop. They cannot add a primitive the program does not already contain.
+
+That is a complete explanation for zero accepts in ~690 candidates, and it supersedes my three
+earlier explanations. It also means the search track cannot be fixed by any parameter: not depth,
+not edit count, not population, not the fitness set.
+
+## What this says about GRAMMAR 4 and GRAMMAR 9 together
+
+GRAMMAR 9 asserts a path of single mutations from the seed where every step is fitter. GRAMMAR 4
+supplies the operators that would have to walk it. Measured, the operators cannot reach a single
+declared rung — so the ladder and the operator set have never been checked AGAINST EACH OTHER.
+Each is individually reasonable; jointly they do not compose.
+
+The honest framing: the ladder is a statement about the GRAMMAR (these programs are expressible),
+and the operator set is a statement about the SEARCH (these edits are available). Expressible is
+not reachable, and nothing in the repo connected the two until now.
+
+## What would fix it — not doing any of this on a hunch
+
+1. An INSERT-PRIMITIVE operator that can introduce a well-typed `Pred`, `Probe`/`Key`, or `TRead`
+   at a type-correct position. This is the smallest change that makes any rung reachable at all.
+2. Or seed the search from a program that ALREADY contains the primitives, so the remaining edits
+   are constant tweaks and rearrangement — which is what the current operators are good at.
+3. Either way, add a REACHABILITY TEST to the ladder: for each rung, assert that some finite
+   sequence of operators can produce it from the seed. That test would have failed on day one and
+   is the check whose absence let ~690 candidates run against an impossible target.
