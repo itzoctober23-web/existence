@@ -122,6 +122,64 @@ impl Net {
     }
 }
 
+/// Incremental accumulator. `eval` rebuilds the hidden sums from ~38 active feature rows at
+/// every node; a move changes at most 4 features (from, to, a capture, a castled rook), so the
+/// same value is reachable with 2-4 row updates instead of ~38. That is the difference between
+/// search depth and datagen volume being a trade-off and not being one.
+///
+/// Correctness is not assumed: `tests/incremental.rs` asserts refresh() == update() over every
+/// legal move of thousands of positions from random games.
+#[derive(Clone)]
+pub struct Acc {
+    pub vals: Vec<f32>,
+}
+
+impl Acc {
+    pub fn new(net: &Net) -> Self {
+        Acc { vals: net.b1.clone() }
+    }
+    /// Full rebuild from a position.
+    pub fn refresh(&mut self, net: &Net, pos: &Position) {
+        self.vals.clear();
+        self.vals.extend_from_slice(&net.b1);
+        let mut idx = Vec::with_capacity(40);
+        Net::active(pos, &mut idx);
+        for i in idx {
+            self.add(net, i, 1.0);
+        }
+    }
+    #[inline]
+    fn add(&mut self, net: &Net, feature: u16, sign: f32) {
+        let h = net.n_hidden;
+        let row = &net.w1[feature as usize * h..(feature as usize + 1) * h];
+        if sign > 0.0 {
+            for (a, w) in self.vals.iter_mut().zip(row) { *a += *w; }
+        } else {
+            for (a, w) in self.vals.iter_mut().zip(row) { *a -= *w; }
+        }
+    }
+    /// Apply a feature-set delta: features that turned on and off.
+    pub fn update(&mut self, net: &Net, on: &[u16], off: &[u16]) {
+        for &f in off { self.add(net, f, -1.0); }
+        for &f in on { self.add(net, f, 1.0); }
+    }
+    /// Output head, given the accumulated hidden sums. White-POV, like Net::eval's internals.
+    pub fn output(&self, net: &Net) -> f32 {
+        let mut acc = 0.0f32;
+        for h in 0..net.n_hidden {
+            let s = self.vals[h];
+            if s > 0.0 { acc += s * net.w2[h]; }
+        }
+        acc + net.b2
+    }
+    /// Mover-relative Score, matching Net::eval exactly.
+    pub fn score(&self, net: &Net, pos: &Position) -> Score {
+        let white = self.output(net) * net.scale;
+        let v = if pos.stm == Color::White { white } else { -white };
+        v.clamp(-30_000.0, 30_000.0) as Score
+    }
+}
+
 struct Rng(u64);
 impl Rng {
     fn next(&mut self) -> u64 {
