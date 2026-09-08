@@ -12,6 +12,7 @@ use board::{Outcome, Position};
 use grammar::mutate::{self, Rng};
 use grammar::{reference, Program};
 use interp::Interp;
+use pipeline::gate;
 use nnue::Net;
 
 fn mate_set(n: usize) -> Vec<(Position, Option<board::Move>)> {
@@ -308,6 +309,11 @@ fn main() {
     let deep = disagreement_set(n2, depth, &net, 4_000);
     // Third component: window-sensitive positions, closing the raised-alpha exploit.
     let n3: usize = std::env::args().nth(6).and_then(|s| s.parse().ok()).unwrap_or(5);
+    // GAME-GATE PAIRS. Small on purpose: a game at fitness depth is ~200x a single fitness
+    // evaluation, so this is the expensive half and it only runs on a surrogate improvement.
+    // 6 pairs = 12 games resolves a large effect, which is the only kind worth promoting here;
+    // it CANNOT resolve a 2% edge and is not asked to. It is a veto on unplayable programs.
+    let gate_pairs: usize = std::env::args().nth(7).and_then(|s| s.parse().ok()).unwrap_or(6);
     let win = window_sensitive_set(n3, depth, &net, 8, 4_000);
     let n_win = win.len();
     let n_deep = deep.len();
@@ -387,8 +393,40 @@ fn main() {
         let (spread_lo, spread_hi) = (popn.last().unwrap().2, popn[0].2);
         if popn[0].2 > best_rate {
             let (c, f, rate) = popn[0].clone();
-            println!("  gen {g:>3}  ACCEPT  {f} mates  {rate:.6} mates/Mcost  ({} nodes, was {:.6})",
-                c.size(), best_rate);
+            // ---- THE GAME GATE. The surrogate proposes; games decide.
+            //
+            // MASTER_PLAN:276 makes the gate the arbiter and the search track never had one. It
+            // promoted on mates-per-cost alone, and that surrogate has been exploited TWICE by
+            // programs strictly worse at chess -- one searched a ply shallower, one raised the
+            // initial alpha to +8 -- each keeping every mate while being unplayable. Each was
+            // caught by a guard written AFTER the fact, and the next exploit will be found the
+            // same way. Games close the whole class: a program that prunes real moves loses, and
+            // no property of the position set can hide it.
+            //
+            // Only reached when the surrogate says the candidate is better, so games are spent on
+            // candidates that earned them -- "a candidate that cannot even improve mates-per-cost
+            // has no business consuming gate time".
+            let gsc = gate::match_progs(&c, &champ, &net, vec![depth, 32_000, 8], 16,
+                                        gate_pairs, 0xC0FFEE ^ g as u64, 4);
+            let resolved_up = gsc.pent_rate() - gsc.ci95() > 0.5;
+            if !resolved_up {
+                // NOT promoted, but NOT discarded either: it stays in the population, so the
+                // search can keep building on it. A candidate that is cheaper on the surrogate
+                // and merely UNPROVEN on the board is exactly what the plateau tolerance exists
+                // to carry -- half a transposition table looks like this.
+                println!("  gen {g:>3}  gate REJECT  {:.3}+/-{:.3} ({} games)  surrogate said {rate:.6}",
+                         gsc.pent_rate(), gsc.ci95(), gsc.games());
+                // RAISE THE SURROGATE BAR ANYWAY, without promoting the champion. Otherwise
+                // `popn[0].2 > best_rate` stays true forever and this candidate is re-gated every
+                // generation for the rest of the run -- 12 games each time, on a question already
+                // answered. best_rate now tracks the SURROGATE frontier and champ tracks the last
+                // program that actually won on the board; they are different questions and this
+                // makes that explicit rather than conflating them.
+                best_rate = rate;
+                continue;
+            }
+            println!("  gen {g:>3}  ACCEPT  {f} mates  {rate:.6} mates/Mcost  ({} nodes, was {:.6})  \
+gate {:.3}+/-{:.3}", c.size(), best_rate, gsc.pent_rate(), gsc.ci95());
             champ = c; best_found = f; best_rate = rate; accepted += 1;
             if let Err(e) = std::fs::write(
                 format!("evolved_gen{g}.prog"),

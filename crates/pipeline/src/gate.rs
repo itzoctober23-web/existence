@@ -5,6 +5,8 @@
 //! a lucky opening cannot show up as strength.
 
 use board::{Outcome, Position};
+use grammar::Program;
+use interp::Interp;
 use nnue::Net;
 
 use crate::datagen::Rng;
@@ -116,6 +118,94 @@ pub fn match_nets_open(a: &Net, b: &Net, depth: u32, pairs: usize, seed: u64, op
         sc.pent[pair_half.min(4)] += 1;
     }
     sc
+}
+
+/// PROGRAM vs PROGRAM on the board, same net, same budget. THE SEARCH TRACK'S GAME GATE.
+///
+/// MASTER_PLAN:276 makes the gate the arbiter for evolved programs -- "the gate is what would
+/// confirm a winner on the clock" -- and until now the search track had none. It promoted on
+/// mates-per-cost alone, and that surrogate has been exploited TWICE by programs that were
+/// strictly worse at chess: one searched a ply shallower, one raised the initial alpha to +8 and
+/// pruned every move worth under 8 centipawns. Both kept every mate on the set while being
+/// unplayable, because the set contains no position where the answer is worth tens of
+/// centipawns. Guards were added for both, and a guard only ever blocks the exploit it was
+/// written for -- the third one will be found the same way, after the fact.
+///
+/// Games cannot be gamed in that way. A program that prunes real moves loses to one that does
+/// not, and no property of the position set can hide it.
+///
+/// Both sides get the SAME net and the SAME budget, so this measures the PROGRAM and nothing
+/// else -- the search-track analogue of the equal-cost gate the net track uses.
+pub fn match_progs(
+    a: &Program, b: &Program, net: &Net, tables: Vec<i64>, budget: i64, pairs: usize, seed: u64,
+    open_plies: usize,
+) -> Score {
+    let mut sc = Score::default();
+    let mut rng = Rng(seed | 1);
+    for p in 0..pairs {
+        // Same opening played from both sides, scored as a PAIR -- identical protocol to the net
+        // gate, so the two tracks' numbers mean the same thing and pentanomial pairing cancels
+        // opening luck rather than being discarded.
+        let mut opening = Position::startpos();
+        for _ in 0..open_plies {
+            let l = opening.legal_moves();
+            if l.is_empty() { break; }
+            opening.make_move(l.as_slice()[rng.below(l.len())]);
+        }
+        let mut pair_half = 0usize;
+        for a_is_white in [true, false] {
+            let r = play_progs(a, b, net, &tables, budget, a_is_white, &opening,
+                               seed ^ (p as u64) << 16);
+            match r {
+                Some(true) => { sc.wins += 1; pair_half += 2; }
+                Some(false) => { sc.losses += 1; }
+                None => { sc.draws += 1; pair_half += 1; }
+            }
+        }
+        sc.pent[pair_half.min(4)] += 1;
+    }
+    sc
+}
+
+fn play_progs(
+    a: &Program, b: &Program, net: &Net, tables: &[i64], budget: i64, a_is_white: bool,
+    start: &Position, _seed: u64,
+) -> Option<bool> {
+    let mut pos = start.clone();
+    // One interpreter per side, reused across the game. `run` clears the hash table itself, so
+    // reuse carries no state between moves and costs one allocation instead of 200.
+    let mut ia = Interp::new(net, tables.to_vec());
+    let mut ib = Interp::new(net, tables.to_vec());
+    for _ in 0..200 {
+        let l = pos.legal_moves();
+        if l.is_empty() {
+            return match pos.outcome() {
+                Outcome::Loss => {
+                    let white_won = pos.stm == board::Color::Black;
+                    Some(white_won == a_is_white)
+                }
+                _ => None,
+            };
+        }
+        if pos.halfmove >= 100 { return None; }
+        let is_a = (pos.stm == board::Color::White) == a_is_white;
+        let prog = if is_a { a } else { b };
+        let it = if is_a { &mut ia } else { &mut ib };
+        let m = it.run(prog, &pos, budget);
+        // A program that returns no move FORFEITS rather than drawing. An evolved program can
+        // legitimately fail to answer -- that is a defect in the program, and scoring it as a
+        // draw would let a candidate that stops choosing moves gate as "equal".
+        if m == board::types::MOVE_NONE {
+            return Some(!is_a);
+        }
+        // And it must return a LEGAL move. Trusting the interpreter here would let a malformed
+        // candidate corrupt the position rather than lose the game.
+        match l.as_slice().iter().copied().find(|x| *x == m) {
+            Some(mv) => { pos.make_move(mv); }
+            None => return Some(!is_a),
+        }
+    }
+    None
 }
 
 /// Equal-COST match: each side gets its own node budget per move. Pass equal budgets for the
