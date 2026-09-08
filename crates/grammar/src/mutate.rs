@@ -38,6 +38,12 @@ impl Rng {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Op {
     Tweak, WrapIf, WrapLoop, Delete, Dup, SwapSiblings, InsertMax, ReplaceConst,
+    /// Replace an Int leaf with a hash-slot READ: `field(probe(key(p)), <f>)`.
+    /// Introduces Probe, Key and Field, none of which any other operator can build.
+    ProbeRead,
+    /// Replace a statement with a hash-slot WRITE: `store(key(p), <f>, <int>)`.
+    /// Introduces Store. Paired with ProbeRead this makes hash reuse REACHABLE -- not assembled.
+    StoreHere,
     /// Wrap a statement in `if pred(m, p, <predicate>)`.
     ///
     /// THE ONLY OPERATOR THAT INTRODUCES A PRIMITIVE, and it exists because nothing else could.
@@ -60,10 +66,10 @@ pub enum Op {
     WrapIfPred,
 }
 
-pub const ALL_OPS: [Op; 9] = [
+pub const ALL_OPS: [Op; 11] = [
     Op::Tweak, Op::WrapIf, Op::WrapLoop, Op::Delete,
     Op::Dup, Op::SwapSiblings, Op::InsertMax, Op::ReplaceConst,
-    Op::WrapIfPred,
+    Op::WrapIfPred, Op::ProbeRead, Op::StoreHere,
 ];
 
 /// Collect mutable positions as a flat index, so an operator can address "the k-th node".
@@ -179,6 +185,64 @@ fn apply_op(n: &Node, op: Op, r: u64) -> Option<Node> {
                 Box::new(n.clone()),
                 None,
             )),
+            _ => None,
+        },
+        // ---- THE TWO MEMORY OPERATORS. Added 2026-09-08.
+        //
+        // WHY THEY EXIST. `tests/reachability.rs` proves the other nine operators cannot introduce
+        // Probe, Key, Field or Store at any edit count, so hash reuse -- the ONLY rung ever
+        // measured as fitter than the seed -- was outside the search space entirely. Plateau
+        // tolerance alone would not have changed that: it fixes the VALLEY
+        // (ladder_valley_RESULT.md), and reachability is a separate, prior blocker. Both had to be
+        // lifted or a negative result would have been unattributable.
+        //
+        // WHAT THEY DELIBERATELY DO NOT DO. Neither inserts a transposition table. `ab_hash` is
+        // +104 nodes of validity marker, depth comparison and three bound-type branches; these add
+        // ONE read and ONE write. That is the same standard WrapIfPred was held to -- it
+        // introduced `Pred` without introducing move ordering -- and it is what MASTER_PLAN line
+        // 53 requires: the technique must be DISCOVERED, so the grammar may supply the primitive
+        // and must not supply the algorithm. An operator that emitted probe-and-store together
+        // would make the discovery vacuous, and is refused.
+        //
+        // `p` is the position parameter in every reference program's recursive function and in
+        // `choose`. Where it is not in scope the type checker discards the candidate, which is the
+        // cheap path (generation time, not gate time).
+        Op::ProbeRead => match n {
+            // An Int-typed LEAF becomes a slot read. Leaves only: replacing an interior expression
+            // would delete a subtree, which is `Delete`'s job, not this one.
+            Node::Const(_) | Node::Budget => {
+                const FS: [FieldId; 5] =
+                    [FieldId::Score, FieldId::Depth, FieldId::Flag, FieldId::Count, FieldId::Sum];
+                Some(Node::Field(
+                    Box::new(Node::Probe(Box::new(Node::Key(Box::new(Node::Var("p".into())))))),
+                    FS[(r % 5) as usize],
+                ))
+            }
+            _ => None,
+        },
+        Op::StoreHere => match n {
+            // A statement-position node becomes a slot write. Same positions WrapIfPred accepts,
+            // so the two compose: a store can later be made conditional on a predicate.
+            //
+            // The stored VALUE is Budget or a small Const, never a named local. mutate_at has no
+            // scope information, so emitting `Var("r")` would be guessing at a binding that
+            // usually does not exist and would be discarded as ill-typed. Budget is Unit -> Int
+            // and always well-typed. Storing a not-yet-useful value is the point: the search has
+            // to find the useful one, and Tweak/Replace can reach it from here.
+            Node::Store(..) | Node::Set(..) | Node::Nop => {
+                const FS: [FieldId; 5] =
+                    [FieldId::Score, FieldId::Depth, FieldId::Flag, FieldId::Count, FieldId::Sum];
+                let val = if r % 2 == 0 {
+                    Node::Budget
+                } else {
+                    Node::Const((r % 9) as i8 - 4)
+                };
+                Some(Node::Store(
+                    Box::new(Node::Key(Box::new(Node::Var("p".into())))),
+                    FS[(r % 5) as usize],
+                    Box::new(val),
+                ))
+            }
             _ => None,
         },
         Op::WrapIfPred => match n {

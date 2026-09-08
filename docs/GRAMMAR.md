@@ -171,13 +171,38 @@ one row below was already labelled MEASURED and the text below it said "no sketc
 the document contradicted itself inside the paragraph that states the project's central claim.
 The grammar was implemented and the counts replaced; the status line was not updated with it.)
 
-| Program | Nodes (MEASURED) | Fidelity |
-|---|---|---|
-| depth-one | 9 | faithful (purity seed) |
-| bare alpha-beta | 71 | faithful (main seed) |
-| alpha-beta + hash reuse | **175** | faithful (validity marker, depth, EXACT/LOWER/UPPER bounds) |
-| proof-number search | **175** | faithful — VERIFIED BY EXECUTION, 23/23 forced mates |
-| UCT MCTS | **130** | PARTIAL — solves 20/23 forced mates, not 23/23. See the correction below |
+RE-DERIVED FROM THE PARSER 2026-09-08 (`cargo run --release --example prior -p grammar`). The
+table previously listed FIVE of the nine programs the parser measures; the other four were quoted
+only as prose in section 9, where they could drift from the counter without anything failing.
+Every row below is printed by that command.
+
+| Program | Nodes (MEASURED) | vs seed | Fidelity |
+|---|---|---|---|
+| depth-one | 9 | −62 | faithful (purity seed) |
+| bare alpha-beta | **71** | +0 | faithful (main seed) |
+| capture extension (rung 6) | 80 | +9 | faithful |
+| table reduction (rung 7) | 86 | +15 | faithful |
+| alpha-beta + iterative deepening | 100 | +29 | faithful |
+| UCT MCTS | **130** | +59 | PARTIAL — solves 20/23 forced mates, not 23/23. See the correction below |
+| alpha-beta + hash reuse | **175** | +104 | faithful (validity marker, depth, EXACT/LOWER/UPPER bounds) |
+| proof-number search | **175** | +104 | faithful — VERIFIED BY EXECUTION, 23/23 forced mates |
+| alpha-beta + hash + ID | 204 | +133 | faithful |
+
+**THE SKEW IS NOW RESOLVED, AND IT IS TOWARD ALPHA-BETA.** This section recorded the direction as
+UNRESOLVED for a specific and correct reason: MCTS and PN were SKETCHES, so their counts were
+lower bounds and a lower bound cannot establish which paradigm the grammar favours. Both are now
+written out in full and executed — PN solves 23/23 forced mates, MCTS 20/23 — so the counts are
+real lengths rather than floors, and the comparison is meaningful for the first time:
+
+* the seed alpha-beta is **71** nodes; MCTS is **+59** and PN is **+104** from it.
+* every alpha-beta VARIANT is nearer the seed (+9, +15, +29) than either rival paradigm is.
+
+So the grammar is biased toward alpha-beta-shaped programs, by roughly a factor of two in edit
+distance. That is a real cost of this Given column and it is now a measured number rather than an
+open question. It does NOT say MCTS is unreachable — it says a search starting from this seed
+must cross ~59 nodes of neutral or worse territory to get there, which the valley result below
+(`ladder_valley_RESULT.md`) shows is exactly the kind of distance a strict hill climb cannot
+cross.
 
 **CORRECTION 2026-09-08 — "faithful" meant COUNTED AND READ, and for PN it was wrong.**
 

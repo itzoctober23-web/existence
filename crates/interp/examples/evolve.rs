@@ -334,45 +334,75 @@ fn main() {
     println!("  seed: bare alpha-beta  {f0} mates  {c0} cost  {r0:.2} mates/Mcost  ({} nodes)", champ.size());
     let (mut best_found, mut best_rate) = (f0, r0);
 
+    // ---- (MU + LAMBDA) WITH PLATEAU TOLERANCE, replacing the strict (1+lambda) hill climb.
+    //
+    // THE HILL CLIMB WAS PROVABLY UNABLE TO REACH THE ONE RUNG WE KNOW IS FITTER. Measured in
+    // ladder_valley_RESULT.md, with this same fitness on this same set: hash reuse is 1.024x the
+    // seed, but its halves are 0.991x (probe with nothing stored -- every probe a guaranteed miss)
+    // and 0.997x (store nothing reads). The payoff is CONJUNCTIVE, so acceptance on
+    // `rate > best_rate` can never take the first step, and the rung sits at the bottom of a
+    // ~0.9% valley. That is not a tuning problem; no pair count or depth fixes it.
+    //
+    // EPS = 0.03 is chosen against that measurement, not by taste: the deepest half is 0.9% down,
+    // so the window has to exceed 0.009 to admit it, and 0.03 clears it with margin while still
+    // discarding anything meaningfully worse. Stated as a number so it can be argued with.
+    //
+    // THE MATE GUARD STAYS STRICT -- `f >= best_found`, never relaxed. Plateau tolerance applies
+    // to COST ONLY. This matters more than it sounds: the two exploits this track has already
+    // found (searching one ply shallower, raising the initial alpha) both work by giving up
+    // correctness for cost, and both are caught by the mate/disagreement/window guards scoring
+    // ZERO rather than "fewer". Relaxing the cost bar does not weaken any of them.
+    const MU: usize = 4;
+    const EPS: f64 = 0.03;
+    let mut popn: Vec<(Program, u32, f64)> = vec![(champ.clone(), f0, r0); MU];
+    println!("  population MU={MU}, lambda={pop}, plateau tolerance EPS={EPS:.3} \
+(deepest measured valley half is 0.009)");
+
     let mut rng = Rng::new(0xE0FFEE);
     let mut accepted = 0;
     for g in 1..=gens {
         let mut ill = 0;
-        let mut best: Option<(Program, u32, f64)> = None;
+        let mut offspring: Vec<(Program, u32, f64)> = Vec::new();
         for i in 0..pop {
+            // Parent chosen round-robin across the population, so every member breeds. Sampling
+            // uniformly at random would let a member die without ever being tried, which defeats
+            // the point of keeping a worse-but-different program alive.
+            let parent = &popn[i % popn.len()].0;
             let mut r = Rng::new((g as u64) << 20 ^ i as u64 ^ 0xBEEF);
-            let cand = match mutate::mutate_program(&champ, &mut r) { Some(c) => c, None => { ill += 1; continue } };
+            let cand = match mutate::mutate_program(parent, &mut r) { Some(c) => c, None => { ill += 1; continue } };
             let (f, _c, rate) = fitness(&cand, &set, &net, depth);
-            // must not LOSE mates, and must improve cost-efficiency
-            if f >= best_found && rate > best_rate {
-                if best.as_ref().map_or(true, |(_, _, br)| rate > *br) { best = Some((cand, f, rate)); }
-            }
+            if f >= best_found { offspring.push((cand, f, rate)); }
         }
-        match best {
-            Some((c, f, rate)) => {
-                // SIX decimals, not two. The seed scores 0.0024 mates/Mcost and an accepted
-                // candidate scored 0.03 -- at {:.2} both the before and after of the SECOND accept
-                // printed as "0.03", so a real improvement was indistinguishable from none. The
-                // whole output of this loop is these lines; rounding them away hides the result.
-                println!("  gen {g:>3}  ACCEPT  {f} mates  {rate:.6} mates/Mcost  ({} nodes, was {:.6})",
-                    c.size(), best_rate);
-                champ = c; best_found = f; best_rate = rate; accepted += 1;
-                // PERSIST IT. Until now the evolved program existed only in memory: the run that
-                // found two improvements at D=3 left nothing to inspect, reproduce or gate, so a
-                // discovery was unfalsifiable and unusable in the same breath. Debug is a lossless
-                // round-trip of the AST for these purposes -- the point is to be able to READ what
-                // the search found and diff it against the seed.
-                if let Err(e) = std::fs::write(
-                    format!("evolved_gen{g}.prog"),
-                    format!("// {f} mates, {rate:.6} mates/Mcost, {} nodes, generation {g}\n{:#?}\n",
-                            champ.size(), champ)) {
-                    eprintln!("  WARNING: could not save the evolved program: {e}");
-                }
+
+        // (MU + LAMBDA): parents and offspring compete together, so the best-so-far can never be
+        // lost -- elitist, which keeps the drift from becoming a random walk.
+        let mut pool = popn.clone();
+        pool.extend(offspring);
+        pool.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+        let top = pool[0].2;
+        pool.retain(|x| x.2 >= top * (1.0 - EPS));
+        pool.truncate(MU);
+        popn = pool;
+
+        let (spread_lo, spread_hi) = (popn.last().unwrap().2, popn[0].2);
+        if popn[0].2 > best_rate {
+            let (c, f, rate) = popn[0].clone();
+            println!("  gen {g:>3}  ACCEPT  {f} mates  {rate:.6} mates/Mcost  ({} nodes, was {:.6})",
+                c.size(), best_rate);
+            champ = c; best_found = f; best_rate = rate; accepted += 1;
+            if let Err(e) = std::fs::write(
+                format!("evolved_gen{g}.prog"),
+                format!("// {f} mates, {rate:.6} mates/Mcost, {} nodes, generation {g}\n{:#?}\n",
+                        champ.size(), champ)) {
+                eprintln!("  WARNING: could not save the evolved program: {e}");
             }
-            // EVERY generation, not every 10th. At 5.5 min/generation a 10-generation gap is
-            // 55 minutes of silence, which is indistinguishable from a hang -- I could not tell
-            // whether the track was progressing without timing a generation by hand.
-            None => println!("  gen {g:>3}  ..no improvement ({pop} candidates, {ill} ill-typed/inapplicable)"),
+        } else {
+            // The population SPREAD is the diagnostic that matters now. All members at an
+            // identical rate means the plateau tolerance is admitting nothing and this has
+            // silently degenerated back into the hill climb it replaced -- which would look
+            // exactly like healthy "no improvement" output without this number.
+            println!("  gen {g:>3}  ..no improvement ({pop} cand, {ill} ill-typed) \
+pop {} spread {:.6}-{:.6}", popn.len(), spread_lo, spread_hi);
         }
     }
     let _ = rng.next();

@@ -135,34 +135,35 @@ fn the_operators_cannot_introduce_a_primitive_the_seed_lacks() {
     // Assert only the two that are proven. A shape-level reachability check is the follow-up.
     let names: Vec<&str> = unreachable.iter().map(|(n, _)| *n).collect();
 
-    // STATE AS OF 2026-09-08, after Op::WrapIfPred landed. This test previously asserted that
-    // capture extension was UNREACHABLE and failed the moment that stopped being true, which is
-    // exactly what it was written to do -- the failure message said "GOOD NEWS: record which
-    // operator did it". WrapIfPred did it, and the assertions are updated to the new state rather
-    // than deleted, so the next change is caught the same way.
+    // STATE AS OF 2026-09-08, after Op::ProbeRead and Op::StoreHere landed. Every declared rung is
+    // now CONSTRUCTIBLE: the operators can introduce Pred (capture extension) and
+    // Probe/Key/Field/Store (hash reuse). This test has now fired twice as designed -- once for
+    // WrapIfPred, once for the memory operators -- and each time the failure WAS the signal.
+    //
+    // READ THIS BEFORE CONCLUDING THE LADDER IS CLIMBABLE. Reachability is NECESSARY and NOT
+    // SUFFICIENT, and the difference is measured, not hypothetical. ladder_valley_RESULT.md scores
+    // the two halves of hash reuse with the search track's own fitness: probe-only 0.991x,
+    // store-only 0.997x, both together 1.024x. Each half alone is WORSE than the seed, so the
+    // payoff is conjunctive and a search accepting only `rate > best_rate` can never take the
+    // first step. Constructible does not imply a monotone path exists.
+    //
+    // Both blockers had to be lifted together, which is why the operators and the population /
+    // plateau-tolerant acceptance landed in the same change. Lifting either alone would have
+    // produced a negative result that could not be attributed to a cause.
     assert!(
-        !names.contains(&"capture extension (rung 6)"),
-        "capture extension became UNREACHABLE again -- an operator that could build a Pred was \
-         removed or narrowed. That is a regression: rung 6 is the smallest step from the seed \
-         (+9 nodes) and the only one the search track can currently attempt."
-    );
-    assert!(
-        names.contains(&"alpha-beta + hash reuse"),
-        "hash reuse became reachable -- an operator can now build Probe/Key/Field/Store. That is \
-         the ONLY rung measured as FITTER than the seed (0.98x its cost at D=3). NOTE, measured \
-         2026-09-08 (ladder_valley_RESULT.md): making it reachable is NOT sufficient and this \
-         assertion firing is NOT good news on its own. Each half of the rung is measured WORSE \
-         than the seed -- probe-only 0.991x, store-only 0.997x, both together 1.024x -- so a \
-         search accepting only `rate > best_rate` can never take either step and can never \
-         assemble the pair. Reachability is necessary, a monotone path is not implied, and here \
-         it provably does not exist. If an operator makes this constructible, the search ALSO \
-         needs to tolerate the valley before re-running the track."
+        unreachable.is_empty(),
+        "a rung became UNREACHABLE again -- an operator that could build one of its primitives was \
+         removed or narrowed. Every declared rung has been constructible since the memory \
+         operators landed, so this is a regression in the search space itself: {unreachable:?}"
     );
     assert_eq!(
         buildable,
-        ["Budget", "Const", "Loop", "Max", "Pred"].into_iter().collect::<BTreeSet<_>>(),
+        ["Budget", "Const", "Field", "Key", "Loop", "Max", "Pred", "Probe", "Store"]
+            .into_iter()
+            .collect::<BTreeSet<_>>(),
         "The set of node kinds the operators can introduce has CHANGED. That set is the entire \
          limit on what the search track can discover, so it should change deliberately and be \
-         recorded here. It was {{Budget, Const, Loop, Max}} until WrapIfPred added Pred."
+         recorded here. It was {{Budget, Const, Loop, Max}} originally, {{.., Pred}} after \
+         WrapIfPred, and gained {{Probe, Key, Field, Store}} with ProbeRead and StoreHere."
     );
 }
