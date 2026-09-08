@@ -169,3 +169,23 @@ Also, the accept-rate gap that currently looks striking is NOT significant:
 To actually resolve a ~+20 Elo difference the scoring step needs ~(0.06/0.015)^2 = 16x the pairs,
 i.e. ~1000 pairs per arm. That is a cheap fix -- scoring is a one-off match, not per-generation --
 and it is the obvious follow-up regardless of how this run reads.
+
+## ARMS 1 AND 8 COMPLETE — equal generations, so the larger pool is provably free
+
+    window 1   42 generations,  6 accepted (14.3%)   final pool ~55,000
+    window 8   42 generations, 11 accepted (26.2%)   final pool ~370,000
+
+**Both arms reached EXACTLY 42 generations in the same wall-clock.** That is stronger than the
+earlier median-time measurement: 6.8x the training data cost zero extra seconds, end to end, not
+merely a similar per-generation median. `--steps-per-gen 50000` fixes the gradient-step count, so
+the pool decides what those steps sample FROM, never how many there are.
+
+The accept-rate gap is NOT significant: +0.119 +/- 0.170, z = 1.37, p ~ 0.17. Suggestive only.
+With 42 generations per arm this design cannot resolve an accept-rate difference smaller than
+about 17 percentage points, which is a large effect.
+
+So two of the three things this sweep can say are already settled, and neither depends on the
+scoring step that is underpowered at 64 pairs:
+  - a larger window costs NOTHING (definitive, equal generations in equal time)
+  - it accepts more often (suggestive, z = 1.37, not significant)
+  - whether that makes it STRONGER (pending, and the 64-pair scoring resolves only ~106 Elo)
