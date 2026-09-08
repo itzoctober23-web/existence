@@ -436,6 +436,29 @@ Three measurements, in order:
   correlates with outcomes because losing sides tend to have fewer pieces. Any claim must beat
   the baseline, not zero, and carry an interval.
 
-**Next, in order:** (a) far more decided data per parameter, or fewer parameters -- the
-capacity/label ratio is the first suspect; (b) regularisation and early stopping against the
-held-out set; (c) revisit only after the held-out surrogate can show a positive delta.
+**THE TRAINER WAS BROKEN, and the three nulls above were measuring a broken optimiser.**
+Found by the control that should have been run first: can it fit a target that is LINEAR IN
+ITS OWN INPUTS (material, computed from the same planes the net sees)? It could not --
+train loss fell 30x while held-out correlation went 0.118 -> 0.065.
+
+Cause: a POV frame mismatch. `Net::eval` computes a WHITE-POV value and applies the mover
+flip only at the very end, so the network's raw output is white-POV. The trainer was training
+that raw output toward a MOVER-relative target, i.e. demanding the same output be +m and -m
+for the same material. Contradictory, and the cheapest solution is to predict the mean --
+which is exactly the collapse that was measured and misread three times as "capacity",
+"label sparsity" and "self-referential blend".
+
+After the fix the control passes: correlation **0.118 -> 0.905** on material.
+
+*Retracted:* the capacity sweep, the decided-only comparison and the first blend result. All
+three were run against the broken optimiser and carry no information.
+
+*Still not demonstrated:* learning from self-play OUTCOMES. With the fixed trainer,
++0.282 -> +0.322, delta-z +0.044 +/- 0.118 on 552 decided held-out positions -- inside the
+noise. The optimiser is no longer a suspect; the remaining candidates are the size of the
+held-out set and the ~85% zero labels.
+
+**Method note, the expensive lesson:** run the trivially-learnable-target control BEFORE
+attributing a null to the data or the architecture. Three hypotheses and roughly an hour were
+spent explaining a result produced by a sign error. The same control settled the equivalent
+question on the sibling 4PC project in one run.

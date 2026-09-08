@@ -55,10 +55,17 @@ impl Trainer {
             }
             let pred = out.tanh();
 
-            // target: outcome from the MOVER's point of view, blended with own search score
-            let z_mover = if pos.stm == Color::White { s.z } else { -s.z };
-            let root = (s.root as f32 / net.scale).tanh();
-            let target = (1.0 - self.blend) * z_mover + self.blend * root;
+            // FRAME: the network's raw output is WHITE-POV -- Net::eval computes a white-POV
+            // value and applies the mover flip only at the very end. So the target here must be
+            // white-POV too. Training this output toward a MOVER-relative target asks the same
+            // output to be +m and -m for the same material, which is contradictory, and the
+            // cheapest solution is to predict the mean. That bug made the trainer unable to fit
+            // even material -- a target linear in its own inputs (examples/trainer_control.rs).
+            let z_white = s.z;
+            // s.root is mover-relative (it comes from the search), so bring it to white-POV.
+            let root_white = if pos.stm == Color::White { s.root } else { -s.root };
+            let root = (root_white as f32 / net.scale).tanh();
+            let target = (1.0 - self.blend) * z_white + self.blend * root;
 
             let err = pred - target;
             total += err * err;
