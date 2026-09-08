@@ -89,7 +89,19 @@ fn main() {
     // budget is. A depth-limited gate cannot charge a wide net for being slow, which is the
     // whole point of the ARCH clock gate (FITNESS 10: "bigger net that wins fixed-cost-budget,
     // loses on clock").
-    let gate_depth_cap = arg("--gate-depth-cap", 6) as u32;
+    // MEASURED, not guessed. Full-tree cost from startpos: depth 3 = 1,921 nodes, depth 4 =
+    // 3,145, depth 5 = 140,009, depth 6 = 328,495. This defaulted to 6, so a 4,000-node budget
+    // bought 1.29% of the tree -- the search never finished its FIRST root move and simply
+    // returned whichever shuffled move it had reached. Both sides did that, so every budgeted
+    // gate was two random movers drawing 120 of 128 games, and its 0.500 was NO EVIDENCE rather
+    // than a negative result. It made the origin control read "no learning" while the same nets
+    // scored 0.816 +/- 0.038 at plain depth 3, and it made every ARCH decision surrogate-driven.
+    // At depth 4 the budget covers the tree at startpos and binds in the midgame, which is where
+    // a wide net SHOULD be charged for its cost per node.
+    let gate_depth_cap = arg("--gate-depth-cap", 4) as u32;
+    // Datagen worker threads. Defaults to 4 because background work on this box is pinned to
+    // cores 12-15; taking more would take his.
+    let threads = arg("--threads", 4);
     let seed = arg("--seed", 20260907) as u64;
     let ctrl_every = arg("--control-every", 10);
     let out = a.iter().position(|x| x == "--out").and_then(|i| a.get(i + 1)).cloned()
@@ -129,6 +141,28 @@ fn main() {
     println!("clock budget: {cost_nodes} x {seed_ns:.0}ns = {:.2}ms per move (measured on the seed net)",
              budget_ns / 1e6);
 
+    // GUARD: a budget that cannot cover the tree at the cap depth turns every budgeted gate
+    // into two random movers, and a random-vs-random gate reports 0.500 with a TIGHT interval
+    // -- it looks like a confident dead heat and is actually no measurement at all. That is
+    // strictly worse than not running, because it produces verdicts. Refuse to start.
+    {
+        let mut probe = pipeline::search::Searcher::with_seed(1);
+        let mut p0 = Position::startpos();
+        probe.best_move_capped(&mut p0, gate_depth_cap, &origin, u64::MAX, 1);
+        let full = probe.nodes.max(1);
+        let cover = cost_nodes as f64 / full as f64;
+        println!("gate coverage: {cost_nodes} nodes vs {full} for a full depth-{gate_depth_cap} \
+                  search from startpos = {:.0}%", cover * 100.0);
+        if cover < 0.5 {
+            eprintln!("\nABORT: the node budget covers only {:.1}% of a full depth-{gate_depth_cap} \
+                       search.\nThe capped search would not finish its first root move, both sides \
+                       would play near-randomly,\nand every gate would return a confident-looking \
+                       0.500 that means nothing.\nLower --gate-depth-cap or raise --cost-nodes.",
+                      cover * 100.0);
+            std::process::exit(2);
+        }
+    }
+
     // Append-only, and NOT derived from `--out`: a ledger that a new run silently truncates is
     // not a record. The previous ARCH run's 6 rejections were lost exactly that way, to an
     // overwritten stdout log.
@@ -151,16 +185,10 @@ fn main() {
     for g in 1..=gens {
         // ---- self-play with the current champion
         let dgen_depth = if g >= deepen_at { deep } else { depth };
-        let mut data: Vec<Sample> = Vec::new();
-        let (mut dec, mut drawn) = (0, 0);
         let t0 = std::time::Instant::now();
-        for _ in 0..games {
-            let r = datagen::play_game(&champion, dgen_depth, &mut rng, 4, 160, &mut data);
-            match r {
-                board::Outcome::Loss => dec += 1,
-                _ => drawn += 1,
-            }
-        }
+        let (data, dec) = datagen::play_games(
+            &champion, dgen_depth, rng.next(), games, 4, 160, threads);
+        let drawn = games - dec;
         let t_gen = t0.elapsed().as_secs_f64();
 
         // ---- train a candidate from the champion.

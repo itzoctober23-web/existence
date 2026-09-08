@@ -38,6 +38,70 @@ impl Rng {
     }
 }
 
+/// Play many games across threads.
+///
+/// WHY THIS EXISTS: the loop was running 80 games per generation and then agonising over the
+/// 1.1% of positions that survive the decided-game and horizon filters — 449,380 positions
+/// generated across a 40-generation run, 4,942 actually trained on, and one generation that
+/// trained on THREE samples. That is not a filter problem, it is a sample-size problem. At
+/// iteration zero the mover is close to random and a game is nearly free, so the answer is
+/// more games by two orders of magnitude, not a looser filter whose tightness was justified by
+/// an actual measurement.
+///
+/// DETERMINISM SURVIVES THE THREADING, which is the only hard part. Each worker draws from its
+/// own stream seeded from (seed, worker index), and the per-worker results are concatenated in
+/// WORKER ORDER, never in completion order. So the output is byte-identical regardless of how
+/// the OS scheduled the threads, and a run still replays exactly from its seed — which FITNESS
+/// 10's determinism check requires and which a `Mutex<Vec<Sample>>` collecting in completion
+/// order would have quietly destroyed.
+pub fn play_games(
+    net: &Net,
+    depth: u32,
+    seed: u64,
+    games: usize,
+    open_plies: usize,
+    max_plies: usize,
+    threads: usize,
+) -> (Vec<Sample>, usize) {
+    let threads = threads.max(1).min(games.max(1));
+    let per = games / threads;
+    let extra = games % threads;
+
+    let chunks: Vec<(usize, u64)> = (0..threads)
+        .map(|t| (per + if t < extra { 1 } else { 0 }, seed ^ ((t as u64 + 1).wrapping_mul(0x9E3779B97F4A7C15))))
+        .collect();
+
+    let results: Vec<(Vec<Sample>, usize)> = std::thread::scope(|s| {
+        let handles: Vec<_> = chunks
+            .iter()
+            .map(|&(n, sd)| {
+                s.spawn(move || {
+                    let mut rng = Rng(sd | 1);
+                    let mut out = Vec::new();
+                    let mut decisive = 0usize;
+                    for _ in 0..n {
+                        if play_game(net, depth, &mut rng, open_plies, max_plies, &mut out)
+                            == Outcome::Loss
+                        {
+                            decisive += 1;
+                        }
+                    }
+                    (out, decisive)
+                })
+            })
+            .collect();
+        handles.into_iter().map(|h| h.join().expect("datagen worker panicked")).collect()
+    });
+
+    let mut all = Vec::new();
+    let mut decisive = 0;
+    for (v, d) in results {
+        all.extend(v);
+        decisive += d;
+    }
+    (all, decisive)
+}
+
 /// HOW a game ended. "Draw" is three different failures wearing one label, and only one of
 /// them is a real draw: a stalemate is chess, a 50-move expiry is two players shuffling, and
 /// hitting the ply cap is the harness giving up. Generation 37 of the ARCH run produced 0

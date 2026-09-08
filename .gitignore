@@ -1,10 +1,14 @@
 
+arch_run.log
 *.bin
+champion_arch.net
+champion_vol.net
 /data/
 .DS_Store
 # Generated at release time by `cargo about`
 # Learned artifacts and the content-addressed store (CRATE.md 0.1, 1): data is not code
 ledger.jsonl
+ledger_vol.jsonl
 # Local
 *.net
 *.nnue
@@ -15,3 +19,4 @@ ledger.jsonl
 *.swp
 /target/
 /THIRD_PARTY_LICENSES
+vol_run.log
