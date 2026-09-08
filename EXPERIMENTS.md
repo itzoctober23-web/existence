@@ -1,7 +1,33 @@
 # EXPERIMENTS — what was tried, and why it failed
 
-The do-not-regress list. Every entry states the design, the result, and — where the
-result did not hold up — what was wrong with the EXPERIMENT rather than the idea.
+The do-not-regress list. Every entry states the design, the result, and — where the result did
+not hold up — what was wrong with the EXPERIMENT rather than the idea.
+
+---
+
+## CURRENT STATE (2026-09-08) — the defaults and what each rests on
+
+| constant | value | evidence |
+|---|---|---|
+| `blend` | **0.75** | +0.0453 +/- 0.0158 over blend 0 against a trained champion, ~6.6 SE. Plateau 0.5-1.0. Costs nothing at iteration zero (0.5617 vs 0.5574). 0.75 not 1.0 is a JUDGEMENT about drift, not a measurement. |
+| `horizon-cap` | **1000** (rail) | Optimum moves outward with champion strength: ~40 random, uncapped trained. The SCHEDULE `10+5*(g-1)` already does that; the cap only has to stop strangling it. h160 and h1000 select the same 58,734 positions. |
+| `steps-per-gen` | **0** (off) | Refuted on a controlled A/B: 0.5352 vs epochs' 0.5444, difference not significant and the sign REVERSED from the loop. |
+| `gate-depth-cap` | **4** | Full-tree cost from startpos: d3 1,921 / d4 3,145 / d5 140,009 / d6 328,495 nodes. At the old default of 6 a 4,000-node budget bought 1.29% of the tree and both sides played at random. |
+| `cost-nodes` | **derived** | Tree size is NET-DEPENDENT; a fixed 4,000 covered 57% of one seed's tree and 33% of another's, aborting 4 of 6 experiment arms. |
+| interpreter accumulator | **width >= 64** | eval+apply per node: 399->441ns at w16 (WORSE), 665->582 at w64, 2290->1456 at w256. |
+
+**The one methodological finding that produced most of the others:** these constants are
+COUPLED, and a one-dimensional sweep through a two-dimensional interaction returns a confident,
+reproducible, wrong answer. The horizon was swept four times and shipped three times before the
+blend was found; every reading was real and every one was taken with the other constant set
+wrong. Nothing inside those measurements could have revealed it.
+
+**Second finding, about instruments:** the loop has 0.151 run-to-run variance on the control
+metric — larger than most effects worth testing — because it is path-dependent. A fixed-dataset
+A/B has se ~0.005 on the same question. Use the loop to ask whether something COMPOUNDS; use
+the A/B to ask whether it works at all.
+
+---
 
 ## 2026-09-08 — METHODOLOGICAL: my arms have been n=1, and it shows
 
