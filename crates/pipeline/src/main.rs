@@ -297,14 +297,26 @@ fn main() {
         let mcnemar = if a_only + b_only > 0 {
             (a_only as f64 - b_only as f64) / ((a_only + b_only) as f64).sqrt()
         } else { 0.0 };
-        let sc = gate::match_nets(&cand, &champion, depth, gate_pairs, seed ^ g as u64);
+        // SEQUENTIAL. Same reasoning as the search track: a fixed pair count is simultaneously
+        // too few for a modest real gain to clear the interval and too many for a candidate
+        // that is losing every game. FITNESS 7.2 makes the count the EVIDENCE's decision.
+        // gate_pairs is now a CAP, not a target, and most candidates stop far short of it.
+        let (verdict, sc, llr) = gate::sprt_match_nets(
+            &cand, &champion, depth, gate_pairs, seed ^ g as u64, 4, 0.0, 5.0);
+        let _ = verdict;
         let _draw_rate = sc.draws as f64 / sc.games().max(1) as f64;
         // Resolution is a property of the INTERVAL, not the draw rate. Draw rate was a proxy
         // for width under the binomial; with pentanomial the same games give a ~5x tighter
         // interval, so a 90%-draw match can still decide. Test the thing directly.
         let gate_can_resolve = sc.ci95() < 0.05;
         let no_regression = sc.pent_rate() + sc.ci95() > 0.5;
-        let better = if gate_can_resolve {
+        let better = if verdict == gate::Sprt::Accept {
+            true
+        } else if verdict == gate::Sprt::Reject {
+            false
+        } else if gate_can_resolve {
+            // Cap reached without a verdict: fall back to the interval, which is the honest
+            // reading of "the evidence did not decide within the budget I allowed it".
             sc.rate() - sc.ci95() > 0.5
         } else {
             mcnemar > 1.96 && no_regression
@@ -334,7 +346,7 @@ fn main() {
                 ci95: sc.ci95(),
                 resolved: gate_can_resolve,
             }],
-            surrogate: vec![("mcnemar_z", mcnemar), ("train_loss", loss as f64)],
+            surrogate: vec![("mcnemar_z", mcnemar), ("train_loss", loss as f64), ("llr", llr)],
         });
 
         if better {

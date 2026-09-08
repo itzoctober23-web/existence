@@ -288,3 +288,25 @@ pub fn sprt_match_capped(
     let llr = total.llr(elo0, elo1);
     (Sprt::Inconclusive, total, llr)
 }
+
+/// Sequential net-vs-net at fixed DEPTH (the main learning loop's gate), as opposed to
+/// `sprt_match_capped` which is node-budgeted for cross-architecture comparisons.
+pub fn sprt_match_nets(
+    a: &Net, b: &Net, depth: u32, max_pairs: usize, seed: u64, chunk: usize,
+    elo0: f64, elo1: f64,
+) -> (Sprt, Score, f64) {
+    let mut total = Score::default();
+    let mut played = 0usize;
+    while played < max_pairs {
+        let n = chunk.min(max_pairs - played);
+        let s = match_nets(a, b, depth, n, seed ^ (played as u64) << 8);
+        total.wins += s.wins; total.draws += s.draws; total.losses += s.losses;
+        for i in 0..5 { total.pent[i] += s.pent[i]; }
+        played += n;
+        let llr = total.llr(elo0, elo1);
+        if llr >= LLR_BOUND { return (Sprt::Accept, total, llr); }
+        if llr <= -LLR_BOUND { return (Sprt::Reject, total, llr); }
+    }
+    let llr = total.llr(elo0, elo1);
+    (Sprt::Inconclusive, total, llr)
+}
