@@ -88,7 +88,15 @@ pub struct Interp<'a> {
     hash: HashMap<u64, Slot>,
     scratch: Vec<f32>,
     budget: i64,
+    /// Current call depth, against the hard ceiling of GRAMMAR 8. Without it an evolved
+    /// program that recurses unboundedly takes down the whole process -- FITNESS 10 lists
+    /// "infinite loop / stack blow" as a degenerate solution the ceilings are supposed to
+    /// catch, and a faithful proof-number search hit it on the very first run.
+    depth: u32,
 }
+
+/// GRAMMAR 8: "Hard runtime ceilings: recursion depth 128."
+pub const MAX_CALL_DEPTH: u32 = 128;
 
 type Env<'p> = Vec<(&'p str, Value)>;
 
@@ -102,6 +110,7 @@ impl<'a> Interp<'a> {
             hash: HashMap::new(),
             scratch: Vec::new(),
             budget: i64::MAX,
+            depth: 0,
         }
     }
 
@@ -109,6 +118,7 @@ impl<'a> Interp<'a> {
         self.cost = 0;
         self.evals = 0;
         self.budget = budget;
+        self.depth = 0;
         self.hash.clear();
         let f = prog.entry();
         let mut env: Env<'p> = vec![
@@ -356,6 +366,10 @@ impl<'a> Interp<'a> {
                 Value::Mv(best)
             }
             Node::Call(idx, args) => {
+                if self.depth >= MAX_CALL_DEPTH {
+                    // Ceiling reached: unwind with a neutral value rather than crashing.
+                    return Flow::Ret(Value::Num(0));
+                }
                 let f = &prog.funcs[*idx];
                 let mut vals = Vec::with_capacity(args.len());
                 for a in args {
@@ -367,7 +381,10 @@ impl<'a> Interp<'a> {
                     .zip(vals)
                     .map(|((n, _), v)| (n.as_str(), v))
                     .collect();
-                match self.exec(&f.body, prog, &mut inner) {
+                self.depth += 1;
+                let r = self.exec(&f.body, prog, &mut inner);
+                self.depth -= 1;
+                match r {
                     Flow::Ret(v) | Flow::Normal(v) => v,
                 }
             }

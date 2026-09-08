@@ -256,13 +256,32 @@ move that is not in `moves(p)`). Mates-per-cost uses `terminal`-derived outcomes
 Using the author's existing net as the test eval (methodology only), verify each step
 is expressible, is 1-3 mutations from the previous, and beats it on mates-per-cost
 and/or fixed-time games:
-1. depth-one (8)
-2. depth-two: wrap-loop + add-arg + call -> minimax without bounds (18)
-3. add window args + set accumulators + wrap-if(cmp(a,b,>=)) ret -> bare alpha-beta (29)
-4. probe before recursing, store after -> hash reuse (41)
-5. loop over depth in choose -> iterative deepening (52)
-6. wrap-if(pred(m,p,is_capture)) around depth check -> capture extension at horizon (61)
-7. tread(reduction, depth, index) in the recursive depth -> table-driven reduction (72)
+1. depth-one (**9**, measured)
+2. depth-two: wrap-loop + add-arg + call -> minimax without bounds
+3. add window args + set accumulators + wrap-if(cmp(a,b,>=)) ret -> bare alpha-beta (**71**)
+4. probe before recursing, store after -> hash reuse (**89**)
+5. loop over depth in choose -> iterative deepening
+6. wrap-if(pred(m,p,is_capture)) around depth check -> capture extension at horizon
+7. tread(reduction, depth, index) in the recursive depth -> table-driven reduction
+
+Counts in bold are MEASURED by `crates/grammar`; the unbolded rungs are not yet written out.
+The original parenthetical estimates (8/18/29/41/52/61/72) were the same hand guesses that
+measured 2.4x wrong elsewhere in this document and have been removed rather than corrected.
+
+**FIRST RUNGS MEASURED (`crates/interp/examples/ladder.rs`), MATE-1 set of 120 positions:**
+
+| rung | mates found | cost | mates per Mcost |
+|---|---|---|---|
+| depth-one | 1/120 | 24k | 41.1 (cheap, but blind to mate) |
+| bare alpha-beta | **120/120** | 61.8M | 1.9 |
+| alpha-beta + hash reuse | **120/120** | 19.2M | **6.3** |
+
+Step 4's predicted gain is confirmed on paper: hash reuse finds the SAME mates for **3.2x less
+cost**. This is what the ladder check is for -- if a step is not a gain, the grammar or the
+fitness is changed here, before any compute is spent.
+
+MCTS and PN score 0 on this set at a budget of 16 simulations; both need many simulations to
+prove anything and neither is a rung of this ladder.
 Each step's expected gain type is recorded (2-3: mates-per-cost; 4-7: fixed-time Elo).
 If any step fails to be a gain, the grammar or fitness is changed HERE, on paper.
 
