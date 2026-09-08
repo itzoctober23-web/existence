@@ -130,3 +130,47 @@ It also raises a question worth measuring rather than assuming: whether the effe
 2 being SHALLOW (a 0.030 difference against the origin that a deeper search washes out) or about
 intransitivity genuinely weakening with depth. 600 pairs at depth 3 gives ci95 0.020, so a real
 0.013 edge would not resolve -- absence of detection here is not detection of absence.
+
+
+---
+
+# BLEND A/B: the self-referential target is REQUIRED, not the brake (2026-09-08)
+
+Pre-registered: *"CONFIRMED if mean gate rate rises as blend falls; REFUTED if 0.75 holds or wins."*
+
+| blend | n | mean gate rate | accepts |
+|---|---|---|---|
+| **0.75 (shipped)** | 28 | **0.5008 +/- 0.0058** | 1 |
+| 0.25 | 30 | **0.3358 +/- 0.0115** | 0 |
+| 0.00 | 31 | **0.2723 +/- 0.0165** | 0 |
+
+**REFUTED, and not narrowly.** `Trainer` builds `target = (1 - blend) * z + blend * root`, where
+`root` is the champion's own search score. I argued that at blend 0.75 three-quarters of the
+objective is "reproduce your parent", which would explain candidates landing at exactly 0.50 --
+and main.rs:277 already warned that mixing the net's own root score into its target "is
+self-referential and teaches nothing".
+
+Removing it does not free the loop. It destroys it. At blend 0.00 -- training purely on the game
+outcome -- candidates lose about 73% of their games to the champion they came from.
+
+The reason is visible in the data the loop generates: `z` is the final result of a game between two
+near-random players, and main.rs already documents that far-from-terminal labels are anti-signal at
+this strength. The root score is a far better-conditioned target, and the blend is what makes the
+training signal usable at all. The gradient from 0.00 -> 0.25 -> 0.75 is monotonic and each step is
+enormous relative to its interval.
+
+## What this closes and what it leaves
+
+CLOSED: the training target. blend 0.75 is not a compromise to be improved on -- it is holding the
+loop together, and every direction away from it is measurably worse. It won its own earlier A/B
+against the frozen origin and now wins on the candidate-vs-champion question too, which was the
+gap I claimed it had never been tested against.
+
+Every configuration axis is now measured: gate resolution (fixed, 40 -> 224), the accept surrogate
+(uninformative, disabled), replay window (no effect), training budget (more is worse), and the
+training target (0.75 required). None of them made the lineage improve.
+
+WHAT REMAINS is the one thing that is not a parameter: **non-transitivity, demonstrated at depth 2**
+-- ep_1 beats champion_long 0.545 +/- 0.018 while scoring 0.834 against the origin where
+champion_long scores 0.864. The anchor gate written for exactly this is queued and untested. That
+is now the only open hypothesis with evidence behind it.
