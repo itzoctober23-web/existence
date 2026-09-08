@@ -264,6 +264,64 @@ fn fitness(prog: &Program, set: &[(Position, Option<board::Move>)], net: &Net, d
 /// looks right.
 
 /// Read the DECLARED search-track parameters. Panics rather than defaulting: see the config file.
+
+/// IS MCTS WEAK, OR JUST UNDER-BUDGETED? `evolve mctsbudget [n1 n2 n3 depth]`
+///
+/// The valley probe measured UCT at 1/25 mates for 157M cost against alpha-beta's 25/25 for
+/// 9.93e9 -- but that is 63x LESS COMPUTE, so it is not a comparison, it is the same equal-cost
+/// error as scoring each net width against its own origin. `run(prog, pos, budget)` passes 16, and
+/// the UCT program spends playouts against `Budget`; alpha-beta ignores it and recurses on the
+/// depth table. So the two seeds were never given the same resources.
+///
+/// This sweeps the budget and reports mates AND cost, so the question becomes the right one: at
+/// the cost alpha-beta actually spends, how many of the 25 does MCTS get? If it approaches 25 the
+/// second lineage is viable and its guard is meaningful. If it stays near 1 even at matched cost,
+/// then seeding a lineage with it creates a population whose mate guard is `f >= 1` -- vacuous --
+/// and that is a reason to say so rather than to build it and watch it degenerate.
+fn mcts_budget() {
+    let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
+    let (n1, n2, n3, depth) = (a(2, 15) as usize, a(3, 5) as usize, a(4, 5) as usize, a(5, 3));
+    let net = Net::random(32, 20260907);
+    let mut set = mate_set(n1);
+    set.extend(disagreement_set(n2, depth, &net, 4_000));
+    set.extend(window_sensitive_set(n3, depth, &net, 8, 4_000));
+    let ab = reference::bare_alpha_beta();
+    let (abf, abc, abr) = fitness(&ab, &set, &net, depth);
+    println!("=== MCTS budget sweep, {} positions at depth {depth} ===", set.len());
+    println!("  reference: bare alpha-beta {abf}/{} mates, {abc} cost, {abr:.6} mates/Mcost",
+             set.len());
+    println!("\n  {:>10} {:>7} {:>16} {:>14} {:>12}", "budget", "mates", "cost", "mates/Mcost",
+             "cost vs AB");
+    let mcts = reference::uct_mcts();
+    for b in [16i64, 64, 256, 1024, 4096, 16384, 65536] {
+        let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+        let (mut found, mut cost) = (0u32, 0u64);
+        for (p, forcing) in &set {
+            let mv = it.run(&mcts, p, b);
+            cost += it.cost;
+            match forcing {
+                Some(best) => { if mv == *best { found += 1; } }
+                None => {
+                    if mv != board::types::MOVE_NONE {
+                        let mut q = p.clone();
+                        if let Some(m) = q.legal_moves().as_slice().iter().copied().find(|x| *x == mv) {
+                            q.make_move(m);
+                            if q.legal_moves().is_empty() && q.outcome() == Outcome::Loss { found += 1; }
+                        }
+                    }
+                }
+            }
+        }
+        let rate = found as f64 * 1e6 / cost.max(1) as f64;
+        println!("  {b:>10} {found:>7} {cost:>16} {rate:>14.6} {:>11.3}x",
+                 cost as f64 / abc.max(1) as f64);
+    }
+    println!("\n  Approaching {}/{} at cost ~1.0x AB => the lineage is viable and its guard bites.",
+             set.len(), set.len());
+    println!("  Stuck near 1 at matched cost => a lineage seeded here has a VACUOUS mate guard");
+    println!("  (f >= 1), which is the degenerate-optimiser regime the guards exist to prevent.");
+}
+
 fn read_declared(path: &str) -> (usize, f64) {
     let txt = std::fs::read_to_string(path).unwrap_or_else(|e| {
         panic!("declared parameters missing at {path}: {e}. This file is part of the Given \
@@ -350,6 +408,9 @@ fn valley() {
 fn main() {
     if std::env::args().nth(1).as_deref() == Some("valley") {
         return valley();
+    }
+    if std::env::args().nth(1).as_deref() == Some("mctsbudget") {
+        return mcts_budget();
     }
     let gens: usize = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(30);
     let pop: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(24);
