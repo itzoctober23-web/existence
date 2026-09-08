@@ -38,6 +38,40 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — BLEND: training flips from harmful to beneficial. The stall was the LABEL.
+
+Same trained champion, same data, horizon 10, 10 replicates per arm. Only the training TARGET
+differs: `(1-blend) * game_outcome + blend * own_root_score`.
+
+| blend | mean | 95% CI | |
+|---|---|---|---|
+| 0.00 | 0.4805 | [0.4722, 0.4887] | significantly WORSE than the champion |
+| 0.25 | 0.4898 | [0.4799, 0.4997] | worse |
+| 0.50 | **0.5188** | [0.5114, 0.5261] | **BETTER, excludes 0.5** |
+| 0.75 | **0.5258** | [0.5123, 0.5393] | **BETTER, excludes 0.5** |
+
+0.75 vs 0.00 is **+0.0453 +/- 0.0158**, monotone across the sweep.
+
+**This is the acceptance stall, and it was never a horizon problem.** Every horizon arm was
+below 0.5 because the LABEL was wrong, not because the wrong positions were selected. I swept
+the horizon from 3 to 1000 and the whole axis topped out at "no change"; changing one term in
+the target moves it to a measured gain.
+
+The loop hardcodes `blend = 0.0`, and the comment says why: mixing the net's own root score
+into its target is self-referential WHEN THE NET IS RANDOM, so it "teaches nothing". True at
+iteration zero, and it stopped being true the moment the net was trained — but the constant
+never moved, and nothing re-tested it. MASTER_PLAN lists "Objectives: game outcome; agreement
+with own deeper search" in the GIVEN column: half of the declared objective was switched off.
+
+The mechanism is AlphaZero's: the search score is a lower-variance target than a single game
+outcome, because it summarises a subtree rather than one playout. It only becomes a BETTER
+target once the search is worth trusting — which is the same condition the code comment
+describes for deepening, and which nothing had checked had arrived.
+
+Peak not yet located: 0.75 is the highest arm tested and the curve is still rising. blend = 1.0
+is pure self-reference (train toward what the net already says) and must be degenerate, so
+there is a peak between. Refining before changing the default.
+
 ## 2026-09-08 — horizon tuning is EXHAUSTED: the best case is neutral, never a gain
 
 Completing the sweep against the trained champion with narrower arms:
