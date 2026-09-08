@@ -117,3 +117,55 @@ not reachable, and nothing in the repo connected the two until now.
 3. Either way, add a REACHABILITY TEST to the ladder: for each rung, assert that some finite
    sequence of operators can produce it from the seed. That test would have failed on day one and
    is the check whose absence let ~690 candidates run against an impossible target.
+
+
+---
+
+# THE ACCEPTS ARE THE SHALLOWNESS MODE AGAIN — my guard does not bite at D=3 (2026-09-08)
+
+I said these accepts were "not the degenerate mode" because 20/20 mates held including the
+forced-mate-in-2 positions. Wrong. Program saving landed, the program can now be read, and it is
+the shallowness failure wearing a different depth.
+
+Exact numbers, six decimals:
+
+    seed      20 mates  0.002436 mates/Mcost  71 nodes
+    gen 13    20 mates  0.026726 mates/Mcost  73 nodes   11.0x
+    gen 23    20 mates  0.026794 mates/Mcost  73 nodes
+
+`diff seed.prog evolved_gen13.prog` is TWO changes:
+
+1. **`Const(0)` -> `Const(1)`** inside `If(Cmp(Var("d"), Const(0), Eq), Ret(Eval(Var("p"))))` --
+   the HORIZON GUARD. The search now returns eval at `d == 1` instead of `d == 0`, i.e. it stops
+   **one ply earlier**. At fitness depth 3 it effectively searches depth 2. That is the whole 11x.
+2. `Set("best", Max(best, vv))` wrapped in `Loop(Const(2), ...)` -- semantically a no-op, since
+   Max is idempotent. It contributes the +2 nodes and a little cost. gen 23's further "gain" is
+   that same Loop constant going 2 -> 1, i.e. doing the redundant work once instead of twice.
+
+No `Pred` appears, so the new WrapIfPred operator had nothing to do with it.
+
+## Why the guard failed
+
+I added forced-mate-in-2 positions this morning specifically so a shallow program would lose
+mates. That guard was calibrated for a fitness depth of 2, where dropping to depth 1 costs 23 of 40
+forcing moves. The fitness now runs at depth 3, and I measured earlier that the mate-in-2 set is
+solved **40/40 at depth 2** -- the forcing move is also the eval-best move, so it is found without
+needing the extra ply. Cutting depth 3 -> 2 therefore costs nothing on this set.
+
+**A depth guard has to require the FULL fitness depth, and mine required less than it.** When I
+moved the fitness from D=2 to D=3 I did not re-check whether the guard still had teeth. It did not.
+
+## The fix this points to
+
+Positions where the answer is genuinely unavailable one ply shallower -- constructed by DISAGREEMENT
+rather than by mate distance: run the seed at depth D-1 and depth D and keep positions where they
+return different moves and the deeper one is correct. That is self-calibrating: it requires exactly
+the depth the fitness runs at, whatever that is set to, instead of assuming a mate-in-N implies
+N plies of search.
+
+## Standing correction
+
+Everything said today about the search track "finding two genuine improvements at D=3" is
+withdrawn. It found "search one ply less", twice, and my window-narrowing test refuted the wrong
+hypothesis -- the mechanism was depth all along, which is the same mode I had already caught and
+believed I had fenced off.
