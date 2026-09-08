@@ -31,11 +31,37 @@ fn main() {
         Ok(n) => n,
         Err(e) => { eprintln!("could not load {champ_path}: {e}"); std::process::exit(2); }
     };
-    // The origin is reproducible: main.rs builds it as Net::random(WIDTH_MENU[rung], seed) with
-    // the default seed. Same construction here, so this really is the frozen iteration-zero net.
-    let origin = Net::random(champ.n_hidden, 20260907);
-    println!("champion {champ_path} (hidden {})  vs  origin Net::random({}, 20260907)",
-             champ.n_hidden, champ.n_hidden);
+    // --opponent NET plays two saved nets against EACH OTHER instead of against the origin.
+    //
+    // This exists to test NON-TRANSITIVITY, which is the open question after eight runs today: the
+    // per-generation gate says candidates beat their own champion (mean rate >= 0.5 in ALL EIGHT
+    // runs, 0.5011 to 0.5275), yet not one final net is above the 0.864 champion they all started
+    // from -- three are resolved WORSE. "Beats its parent" and "is stronger" are pulling apart, and
+    // with only champion-vs-origin scoring there was no way to see it happen directly.
+    //
+    // The decisive shape: ep_1 scores 0.834 against the origin where champion_long scores 0.864.
+    // If ep_1 nonetheless BEATS champion_long head to head, non-transitivity is demonstrated rather
+    // than inferred, and the loop's objective is measurably not the thing it is trying to maximise.
+    let opponent_path = get("--opponent");
+    let (origin, opp_desc) = match &opponent_path {
+        Some(path) => match Net::load(path) {
+            Ok(n) => {
+                if n.n_hidden != champ.n_hidden {
+                    eprintln!("width mismatch: {champ_path} is {} and {path} is {} -- a match \
+                               between different widths is not the comparison you think it is",
+                              champ.n_hidden, n.n_hidden);
+                    std::process::exit(2);
+                }
+                (n, path.clone())
+            }
+            Err(e) => { eprintln!("could not load opponent {path}: {e}"); std::process::exit(2); }
+        },
+        // The origin is reproducible: main.rs builds it as Net::random(WIDTH_MENU[rung], seed)
+        // with the default seed. Same construction, so this is the frozen iteration-zero net.
+        None => (Net::random(champ.n_hidden, 20260907),
+                 format!("origin Net::random({}, 20260907)", champ.n_hidden)),
+    };
+    println!("champion {champ_path} (hidden {})  vs  {opp_desc}", champ.n_hidden);
     println!("{pairs} pairs per gate, both sides of every opening\n");
 
     // 1. The per-generation gate: fixed depth, uncapped.
