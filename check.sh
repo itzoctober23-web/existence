@@ -4,6 +4,25 @@
 # then reports 0 failures. That exact sequence let a broken tree get committed once.
 set -uo pipefail
 cd "$(dirname "$0")"
+# Report live runs, do NOT refuse. MEASURED 2026-09-07: a full check.sh rebuild ran while a
+# 40-generation training run was in flight and the run kept producing generations -- cargo
+# replaces the binary via rename, and the running process keeps its original inode (which then
+# shows as "(deleted)" in /proc). Rebuilding under a Rust run is safe here. Refusing would only
+# stop me gating during the long runs where gating matters most.
+#
+# NOTE THE PATTERN. `readlink /proc/N/exe` returns "<path> (deleted)" once the file is replaced,
+# so a `case "$e" in */learn)` match silently fails and reports the process as GONE. That is how
+# I concluded a rebuild had killed a run that was in fact still running -- a broken predicate
+# read as an absence, which is its own entry on the do-not-repeat list.
+for p in /proc/[0-9]*; do
+  e=$(readlink "$p/exe" 2>/dev/null) || continue
+  e=${e% (deleted)}
+  case "$e" in
+    */existence/target/release/learn|*/existence/target/release/examples/*)
+      echo "note: run live (pid ${p#/proc/}, $(basename "$e")) — rebuilding is safe, it keeps its inode";;
+  esac
+done
+
 echo "== build (all targets) =="
 # Check CARGO's exit status, not a grep's. The previous form was
 #   if ! cargo build ... | grep -E "^error"; then echo ok
@@ -24,5 +43,20 @@ n=$(grep -oE "test result: ok\. [0-9]+ passed" <<<"$out" | grep -oE "[0-9]+" | p
 echo "  $n tests passed"
 # Ratchet: the floor is the count at the last commit, so a test that silently stops being
 # compiled (or gets deleted) fails the gate instead of passing a smaller suite quietly.
-[ "${n:-0}" -ge 33 ] || { echo "  EXPECTED >=33 tests, got ${n:-0} — did they compile?"; exit 1; }
+[ "${n:-0}" -ge 34 ] || { echo "  EXPECTED >=34 tests, got ${n:-0} — did they compile?"; exit 1; }
+
+# The movegen cross-check must actually RUN, not silently skip. The test passes when the
+# reference engine is absent (so the repo stays testable without Stockfish), which would be a
+# hole in the gate — so assert the marker here. A check that can quietly not-run is not a check.
+echo "== movegen cross-check vs external engine =="
+xc=$(cargo test --release -p board --test xcheck -- --nocapture 2>&1)
+if line=$(grep -m1 "XCHECK-RAN" <<<"$xc"); then
+  echo "  ${line#XCHECK-RAN: }"
+  grep -q "0 divergences" <<<"$line" || { echo "  DIVERGENCES FOUND"; exit 1; }
+else
+  echo "  NOT RUN — $(grep -m1 'XCHECK-SKIPPED' <<<"$xc" || echo 'no marker at all')"
+  echo "  install stockfish or set XCHECK_ENGINE; half (b) of CRATE.md 2 is not being verified"
+  exit 1
+fi
+
 echo "ALL GREEN"

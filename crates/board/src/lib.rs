@@ -10,6 +10,14 @@ pub mod chess;
 pub mod movegen;
 pub mod perft;
 pub mod types;
+/// Movegen cross-check against an external engine. A LIBRARY, not only an example, so that
+/// `tests/xcheck.rs` and `examples/xcheck.rs` run identical code. Two copies of "the same"
+/// logic are free to drift — which is exactly the bug that had the pipeline's search and the
+/// shipped engine's search silently disagreeing while a comment asserted they matched.
+///
+/// It spawns an external process, so it is verification tooling rather than rules. It lives
+/// here because it verifies THIS crate and nothing above it: no evaluation, no strategy.
+pub mod xcheck;
 pub mod zobrist;
 
 pub use chess::Position;
