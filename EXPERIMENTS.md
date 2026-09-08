@@ -21,6 +21,16 @@ not hold up — what was wrong with the EXPERIMENT rather than the idea.
 | `games` per generation | **2400** (of those tried) | Equal wall-clock, origin-scored: 150 -> 0.555, 600 -> 0.773, 2400 -> 0.828. Monotone, and the INVERSE of generation count (140 / 45 / 12 generations). |
 | acceptance | sign, then width, then surrogate | Gate resolves the SIGN -> it decides. Narrow interval straddling 0.5 -> reject (precisely measured null). Only a WIDE straddle reaches the surrogate. |
 
+**WHAT IS CLOSED, as of 2026-09-08.** Two explanations for the plateau are now measured out:
+
+| explanation | status |
+|---|---|
+| not enough CAPACITY | **CLOSED at every rung.** 16->32 and 16->64 reached the game gates and lost (64 loses at EQUAL NODES, 0.498); 16->128 and 16->256 never passed the surrogate filter. Two different failure modes, one conclusion. |
+| not enough SEARCH DEPTH | untested here; the gates run at depth 2-4 by design |
+| the TRAINER NEVER SEES HISTORY | **OPEN, and the current lead.** ~250k positions generated per generation, ~50k trained on, everything older discarded. The replay buffer is written every generation and, with `--steps-per-gen 0`, never read. |
+| CONVERSION blind spot | OPEN. Every gate and control starts from a RANDOMISED opening, so the true starting position is never scored or trained on. 88% of won positions convert from random openings (n=200). |
+| the champion loses 44/320 to a RANDOM net | OPEN and unexplained. Distinguishable by running the control at several depths; not yet run. |
+
 **The one methodological finding that produced most of the others:** these constants are
 COUPLED, and a one-dimensional sweep through a two-dimensional interaction returns a confident,
 reproducible, wrong answer. The horizon was swept four times and shipped three times before the
