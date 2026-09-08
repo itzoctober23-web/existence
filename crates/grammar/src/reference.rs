@@ -283,6 +283,74 @@ pub fn ab_hash() -> Program {
     p
 }
 
+
+/// ITERATIVE DEEPENING, with and without the transposition table.
+///
+/// GRAMMAR 9's ladder was corrected on 2026-09-07: hash reuse measured 1.6 mates/Mcost against
+/// the seed's 1.9 — a LOSS, not the 3.2x gain the broken encoding had shown. The explanation
+/// offered there was that a transposition table needs REPEATED searches of the same positions
+/// to pay for itself, and iterative deepening is what creates them. That explanation makes a
+/// sharp, falsifiable prediction, which these two programs exist to test:
+///
+///   ID alone      should be a LOSS  — it re-searches every shallower depth from scratch and,
+///                                     without ordering or a table, gains nothing for it.
+///   ID + TT       should be a GAIN  — each iteration re-visits positions the previous one
+///                                     stored, which is the traffic the table was missing.
+///
+/// If BOTH are losses the reordering is wrong. If ID+TT is the only gain, then the first
+/// "discovery" on the ladder requires TWO simultaneous mutations rather than one, which is a
+/// real problem for the plan's feasibility and belongs in the declared prior — GRAMMAR 9
+/// requires each rung to be 1-3 mutations from the last.
+///
+/// `choose` becomes: search depth 1, then loop D-1 times searching depths 2..D, keeping the
+/// last completed result. `Loop` exposes no counter, so the depth is an explicit variable.
+fn with_iterative_deepening(mut p: Program) -> Program {
+    let d = Node::TRead(0, vec![]);
+    let inf = Node::TRead(1, vec![]);
+    let search_at = |depth: Node| {
+        Node::Argmax(
+            b(Node::Moves(b(v("p")))),
+            "m".into(),
+            b(Node::Arith(
+                ArithOp::Neg,
+                vec![Node::Call(
+                    1,
+                    vec![
+                        Node::Apply(b(v("p")), b(v("m"))),
+                        depth,
+                        Node::Arith(ArithOp::Neg, vec![inf.clone()]),
+                        inf.clone(),
+                    ],
+                )],
+            )),
+        )
+    };
+    p.funcs[0].body = Node::seq(vec![
+        Node::Let("dd".into(), b(Node::Const(1)), b(Node::Nop)),
+        Node::Let("bm".into(), b(search_at(v("dd"))), b(Node::Nop)),
+        Node::Loop(
+            b(Node::Arith(ArithOp::Sub, vec![d, Node::Const(1)])),
+            b(Node::seq(vec![
+                Node::Set("dd".into(), b(Node::Arith(ArithOp::Add, vec![v("dd"), Node::Const(1)]))),
+                Node::Set("bm".into(), b(search_at(v("dd")))),
+            ])),
+        ),
+        Node::Ret(b(v("bm"))),
+    ]);
+    p
+}
+
+/// Bare alpha-beta driven by iterative deepening. No table.
+pub fn ab_id() -> Program {
+    with_iterative_deepening(bare_alpha_beta())
+}
+
+/// Alpha-beta + transposition table, driven by iterative deepening. The combination the
+/// corrected ladder predicts is the real first rung.
+pub fn ab_hash_id() -> Program {
+    with_iterative_deepening(ab_hash())
+}
+
 /// FAITHFUL UCT: descend by the selection rule to a leaf, expand it, evaluate, and
 /// backpropagate the value up the visited path. The earlier version in this file was a sketch
 /// (no descent, no backprop) and therefore a LOWER BOUND on MCTS's length, which is why
@@ -501,6 +569,8 @@ pub fn all() -> Vec<(&'static str, Program)> {
         ("depth-one (purity seed)", depth_one()),
         ("bare alpha-beta (main seed)", bare_alpha_beta()),
         ("alpha-beta + hash reuse", ab_hash()),
+        ("alpha-beta + iterative deepening", ab_id()),
+        ("alpha-beta + hash + ID", ab_hash_id()),
         ("UCT-style MCTS", uct_mcts()),
         ("proof-number search", proof_number()),
     ]

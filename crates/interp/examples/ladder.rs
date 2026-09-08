@@ -37,11 +37,21 @@ fn main() {
         }
     }
     println!("  MATE-1 set: {} positions (retrograde from random legal walks)", mates.len());
-    println!("  {:<28} {:>7} {:>12} {:>16}", "program", "mates", "cost", "mates/Mcost");
 
+    // DEPTH SWEEP, not a single depth. At D=2 the metric cannot evaluate steps 4-7 at all:
+    // iteration 1 of iterative deepening stores entries at depth 1, iteration 2 probes needing
+    // depth >= 2 and rejects every one, so a transposition table has literally no reuse to find
+    // and contributes only probe/store cost. Measuring hash reuse there and calling it a LOSS
+    // says nothing about hash reuse -- it says the test was too shallow to contain the effect.
+    // Two hypotheses died to learn that (TT alone should gain; ID should give the TT traffic),
+    // which is the signal that the harness is the thing to doubt.
+    let depths: Vec<i64> = std::env::args().skip(1).filter_map(|a| a.parse().ok()).collect();
+    let depths = if depths.is_empty() { vec![2, 3, 4] } else { depths };
+    for depth in depths {
+    println!("\n  === D = {depth} ===");
+    println!("  {:<32} {:>7} {:>12} {:>16}", "program", "mates", "cost", "mates/Mcost");
     for (name, prog) in reference::all() {
-        // D=2 so a one-move mate is inside every rung's horizon; INF, exploration weight
-        let mut it = Interp::new(&net, vec![2, 32_000, 8]);
+        let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
         let (mut found, mut cost) = (0u32, 0u64);
         for p in &mates {
             let mv = it.run(&prog, p, 16);
@@ -54,8 +64,9 @@ fn main() {
                 }
             }
         }
-        println!("  {:<28} {:>7} {:>12} {:>16.1}", name, found, cost,
+        println!("  {:<32} {:>7} {:>12} {:>16.1}", name, found, cost,
             found as f64 * 1e6 / cost.max(1) as f64);
+    }
     }
     println!("\n  a rung must BEAT the previous one on this metric (GRAMMAR 9)");
 }
