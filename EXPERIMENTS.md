@@ -57,6 +57,55 @@ cheaply, not the idea. A retrograde construction (start from a mated position, u
 plies) would produce them by the thousand and is the obvious next attempt if this surrogate
 ever needs to bite.
 
+## 2026-09-08 — step budget: REFUTED on a controlled A/B. The loop signal was trajectory noise.
+
+Same champion, ONE shared dataset (4000 games, 17,266 training samples), 8 replicates per arm
+differing only in the hyperparameter and the training seed, each gated against that champion:
+
+| arm | updates | mean | sd | 95% CI |
+|---|---|---|---|---|
+| epochs 3 | ~51,798 | **0.5444** | 0.0168 | [0.5328, 0.5561] |
+| steps-per-gen 20000 | 20,000 | 0.5352 | 0.0167 | [0.5236, 0.5467] |
+
+Difference 0.0092 +/- 0.0163 at 95%. **Not significant, and the sign is REVERSED** from the
+loop, where steps led on 2 of 2 seeds.
+
+**This refutes the mechanism, not just the effect.** The morning diagnosis was that raising
+self-play volume 125x pushed gradient steps per generation from ~200 to ~110,000 and was
+overwriting the champion each cycle. If that were right, the arm doing 2.6x MORE updates should
+be worse. It is nominally better.
+
+**And it shows why the loop could not answer this.** The standard error here is 0.0059 against
+the loop's 0.151 run-to-run spread -- a 25x improvement in resolution, from removing path
+dependence rather than from more compute. The loop's apparent effect was the trajectory, which
+is exactly what the variance measurement predicted.
+
+`--steps-per-gen` stays defaulted OFF and is now off for a measured reason. Kept in the code
+because the harness that tests it is worth more than the flag.
+
+WHAT THIS DOES NOT SHOW: whether a step budget matters over MANY generations. A single-step A/B
+cannot see a compounding effect. But the burden has moved -- there is no longer a measured
+single-step benefit to compound.
+
+## 2026-09-08 — mate-in-2 surrogate: NULL, the set is too rare to build
+
+The mate-in-1 surrogate is saturated: the seed's terminal guard fires before its depth guard,
+so every program finds all of them without searching and the count filter compares 0 < 0
+forever. Mate-in-2 needs real lookahead, so it should discriminate — a program that prunes
+unsoundly misses it, which is the failure FITNESS 3 exists to catch before games are spent.
+
+Built it (forward search: a move such that for every reply, some follow-up mates; sparse
+positions so depth 3 stays cheap). MEASURED: **400,000 random walks produced 2 positions.**
+Mate-in-1 needs ONE winning move to exist; mate-in-2 needs EVERY reply to lose, which is orders
+of magnitude rarer on positions reached by random play.
+
+A 2-position surrogate carries no signal, so the default reverts to mate-in-1 plus the
+mates-per-COST rate check, which does discriminate — on waste rather than on correctness. The
+builder is kept behind `--mate2` because it works; what failed is finding enough instances
+cheaply, not the idea. A retrograde construction (start from a mated position, unwind three
+plies) would produce them by the thousand and is the obvious next attempt if this surrogate
+ever needs to bite.
+
 ## 2026-09-08 — step budget: INTERIM, 2 of 3 seeds, and the SEED VARIANCE dominates
 
 Control vs the frozen origin at generation 10:
