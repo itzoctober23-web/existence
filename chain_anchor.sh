@@ -31,10 +31,20 @@ for _ in $(seq 1 120); do
 done
 echo "box clear — building learn with the anchor gate"
 cargo build --release -p pipeline --bin learn 2>&1 | tail -2
-if ! ./target/release/learn --help 2>&1 | grep -q -- '--anchor-pairs' \
-   && ! strings ./target/release/learn | grep -q -- '--anchor-pairs'; then
-  echo "ABORT: the built binary does not contain --anchor-pairs. Both arms would be identical."
-  exit 1
-fi
-echo "verified: --anchor-pairs is in the binary"
+# VERIFY BY BEHAVIOUR, NOT BY BYTES. The first version grepped the binary for the string and
+# aborted this experiment on a FALSE NEGATIVE: rustc does not store arg()-only literals as
+# contiguous greppable text, so --horizon-cap also greps 0 while demonstrably working, and
+# --gate-pairs greps 1 only because it appears in a println format string. It also called
+# `learn --help`, which learn does not implement -- so that "check" silently STARTED A TRAINING
+# RUN with default settings.
+#
+# learn now prints anchor-pairs in its settings line, so the flag can be confirmed from the
+# program's own output on a 1-generation run.
+probe=$(timeout 120 ./target/release/learn --gens 1 --games 4 --anchor-pairs 224 \
+        --arch-every 0 --control-every 0 2>&1 | head -1)
+case "$probe" in
+  *anchor-pairs=224*) echo "verified from its own output: $probe" ;;
+  *) echo "ABORT: binary did not report anchor-pairs=224. Both arms would be identical."
+     echo "  got: $probe"; exit 1 ;;
+esac
 exec ./anchor_ab.sh

@@ -339,7 +339,14 @@ fn main() {
         .and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(0.75);
     let tr = Trainer::new(0.01, blend);
     let mut rung = start_rung;
-    println!("gens={gens} games/gen={games} depth={depth} epochs={epochs} gate-pairs={gate_pairs} blend={blend}");
+    // anchor-pairs is printed with the rest of the settings, and that is load-bearing rather than
+    // cosmetic. chain_anchor.sh verified the flag existed by grepping the BINARY for the string --
+    // which returns 0 for any arg()-only literal, because rustc does not store them as contiguous
+    // greppable text. (Control: --horizon-cap also greps 0 and demonstrably works; --gate-pairs
+    // greps 1 only because it appears in THIS format string.) That false negative aborted the
+    // anchor A/B. A setting that cannot be observed in the program's own output cannot be verified
+    // by anything except reading the source.
+    println!("gens={gens} games/gen={games} depth={depth} epochs={epochs} gate-pairs={gate_pairs} anchor-pairs={anchor_pairs} blend={blend}");
     println!("ARCH menu {WIDTH_MENU:?}  start rung {rung} (width {})  arch-every {arch_every}",
              WIDTH_MENU[rung]);
     // ORIGIN is always the reproducible iteration-zero net, even when we resume. The control
