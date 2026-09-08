@@ -9,6 +9,11 @@
 # the gate resolve.
 set -u
 failed=0
+# NO --cost-nodes: it is DERIVED per net from the measured tree at the cap depth. Passing 4000
+# explicitly is what aborted 4 of 6 arms twice -- tree size is net-dependent, so a constant that
+# covers 57% of one seed's depth-4 tree covers 33% of another's, and the coverage guard
+# (correctly) refuses to run a gate that would return a meaningless 0.500. The derive fix landed
+# in the binary while this caller kept overriding it.
 cd "$(dirname "$0")"
 for seed in 20260907 424242 987654; do
   for arm in ep3 steps; do
@@ -18,7 +23,7 @@ for seed in 20260907 424242 987654; do
     taskset -c 12-15 nice -n 15 ./target/release/learn \
       --gens 20 --games 6000 --threads 4 --depth 2 $FLAGS \
       --gate-pairs 32 --arch-pairs 160 --rung 0 --arch-every 5 \
-      --cost-nodes 4000 --control-every 10 --horizon-cap 40 \
+      --control-every 10 --horizon-cap 40 \
       --seed "$seed" --out "champion_${tag}.net" --ledger "ledger_${tag}.jsonl" \
       > "run_${tag}.log" 2>&1
     rc=$?
