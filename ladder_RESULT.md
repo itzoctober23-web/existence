@@ -111,3 +111,58 @@ numbers are a ceiling reading, not a search reading.
 search track is climbing at the one depth where the rung that WOULD pay is measured as a loss.
 That is now the leading explanation for its zero accepts, and it is testable by moving its fitness
 depth to 3.
+
+
+---
+
+# THE STRUCTURAL RESULT (2026-09-08): the fitter rung is UNREACHABLE by mutation
+
+Correcting my own prediction from an hour ago. I moved the search track to D=3 saying it should
+"now be able to find the hash-reuse-shaped step that D=2 hid". It cannot, and the node counts say
+so outright.
+
+| program | nodes | vs seed | fitness at D=3 |
+|---|---|---|---|
+| bare alpha-beta (seed) | 71 | — | 1.00x |
+| capture extension (rung 6) | 80 | **+9** | 1.02x LOSS |
+| table reduction (rung 7) | 86 | **+15** | 1.01x LOSS |
+| alpha-beta + iterative deepening | 100 | **+29** | 1.10x LOSS |
+| **alpha-beta + hash reuse** | 175 | **+104** | **0.98x FITTER** |
+| alpha-beta + hash + ID | 204 | +133 | 1.08x LOSS |
+
+`mutate_program` applies `1 + rng.below(3)` edits — one to three. So:
+
+* The **only** rung that is fitter than the seed sits **+104 nodes away**. That is on the order of
+  a hundred edits, not one to three. It is not in the mutation neighbourhood at any depth.
+* The rungs that ARE within plausible reach (+9, +15) are both **losses** at D=3.
+
+**So there is no verified single-mutation ascent step from the seed, at any depth measured.** The
+search track's ~690 candidates with zero accepts is not a bug, not the wrong depth, and not the
+mutation operators failing — its reachable neighbourhood simply contains no known improvement.
+
+## What this says about GRAMMAR 9
+
+GRAMMAR 9 requires "a path of single mutations from the seed exists where every step is fitter".
+The declared ladder does not demonstrate that, and cannot: its rungs are whole programs 9 to 133
+nodes from the seed, so the ladder verifies **"these programs are expressible, and one of them is
+fitter"** — a different and much weaker claim than "a mutation-reachable ascent path exists".
+
+That distinction had not been drawn. The ladder is a fine expressibility check and a fine ranking
+of finished programs; it is not evidence for the search track's premise.
+
+## What would settle it
+
+Either (a) find intermediate programs between the seed and hash reuse where each step is both small
+and fitter — i.e. actually construct the path GRAMMAR 9 asserts — or (b) accept that the ascent is
+not single-mutation and change the search track to match, e.g. much larger edit counts, or seeding
+from a program that already has the TT machinery so the remaining edits are small.
+
+Neither is a code change to make on a hunch. What is established today is that the current
+configuration cannot climb, and why.
+
+## Note on the D=3 move
+
+Keeping it. D=2 systematically misprices anything TT-shaped (no reuse exists at depth 2, so a
+transposition table can only cost), and mispricing a whole class of programs is worse than the 11x
+cost. But it should be recorded honestly that the depth change does NOT fix the search track, and
+I said it might.
