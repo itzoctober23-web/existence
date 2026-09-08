@@ -37,12 +37,21 @@ cd "$(dirname "$0")"
 # exactly the degenerate 333x accept this loop produced before the mixed set was added.
 GENS=${GENS:-2000}
 POP=${POP:-12}
-N1=${N1:-40}
-N2=${N2:-20}
+# SET SHRUNK because the fitness depth moved 2 -> 3, which costs ~11x per position. The GRAMMAR 9
+# ladder has exactly one verified ascent step from the seed (hash reuse, 0.98x the seed's cost for
+# identical mates) and it exists ONLY at D=3; at D=2 that same rung measures 1.01x, a loss. This
+# track was evaluating at D=2 -- the one depth where the single known improvement is invisible --
+# and has accepted zero of ~690 candidates.
+#
+# Fitness here is DETERMINISTIC (fixed positions, fixed net, no sampling), so a 2% cost difference
+# is exact at any set size. A smaller set samples fewer positions; it does not add noise.
+N1=${N1:-15}
+N2=${N2:-5}
+DEPTH=${DEPTH:-3}
 LOG=${LOG:-search_track.log}
 
 [ -x ./target/release/examples/evolve ] || { echo "no evolve binary; build it when nothing is running"; exit 1; }
 
-echo "=== P2 search track: $GENS generations, pop $POP, set ${N1}+${N2}, seeded from bare alpha-beta ===" >> "$LOG"
+echo "=== P2 search track: $GENS generations, pop $POP, set ${N1}+${N2} at depth ${DEPTH}, seeded from bare alpha-beta ===" >> "$LOG"
 echo "=== started $(date +%F_%H:%M) — prior run reached gen 13 with 0 improvements ===" >> "$LOG"
-exec taskset -c 12-14 nice -n 19 ionice -c 3 ./target/release/examples/evolve "$GENS" "$POP" "$N1" "$N2" >> "$LOG" 2>&1
+exec taskset -c 12-14 nice -n 19 ionice -c 3 ./target/release/examples/evolve "$GENS" "$POP" "$N1" "$N2" "$DEPTH" >> "$LOG" 2>&1

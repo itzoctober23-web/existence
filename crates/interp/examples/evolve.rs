@@ -100,8 +100,25 @@ fn forced_mate_set(n: usize, cap: usize) -> Vec<(Position, Option<board::Move>)>
 
 /// mates per million cost units, and the mate count (a program that finds fewer mates more
 /// cheaply is NOT better -- unsound pruning's characteristic failure is a missed forced mate).
-fn fitness(prog: &Program, set: &[(Position, Option<board::Move>)], net: &Net) -> (u32, u64, f64) {
-    let mut it = Interp::new(net, vec![2, 32_000, 8]);
+/// FITNESS DEPTH IS A PARAMETER, and D=2 was the wrong value.
+///
+/// The GRAMMAR 9 ladder has exactly one verified ascent step from the seed: alpha-beta + hash
+/// reuse, 0.98x the seed's cost for the identical 120 mates. That step exists at **D=3**. At D=2
+/// the same rung measures 1.01x -- a LOSS -- because iteration 1 of ID stores entries at depth 1
+/// and iteration 2 rejects every probe, so a transposition table has no reuse to find and pays
+/// only probe/store cost. ladder.rs says this outright in its own comment.
+///
+/// This loop was evaluating every candidate at D=2, i.e. at the one depth where the single known
+/// improvement is invisible. ~690 candidates across two runs, zero accepts. That is the leading
+/// explanation, and this makes it testable instead of assumed.
+///
+/// D=3 costs roughly 11x D=2 per position (50.9e9 vs 4.6e9 over 120 positions), so the set has to
+/// shrink to keep a generation affordable. That is an acceptable trade because the fitness is
+/// DETERMINISTIC -- fixed positions, fixed net, no sampling -- so a 2% cost difference is exact at
+/// any set size; a smaller set measures a smaller sample of positions, not a noisier number.
+fn fitness(prog: &Program, set: &[(Position, Option<board::Move>)], net: &Net, depth: i64)
+    -> (u32, u64, f64) {
+    let mut it = Interp::new(net, vec![depth, 32_000, 8]);
     let (mut found, mut cost) = (0u32, 0u64);
     for (p, forcing) in set {
         let mv = it.run(prog, p, 16);
@@ -138,6 +155,7 @@ fn main() {
     // Cost is per candidate-evaluation: pop x (n1 + n2) positions, ~37M cost units each.
     let n1: usize = std::env::args().nth(3).and_then(|s| s.parse().ok()).unwrap_or(40);
     let n2: usize = std::env::args().nth(4).and_then(|s| s.parse().ok()).unwrap_or(20);
+    let depth: i64 = std::env::args().nth(5).and_then(|s| s.parse().ok()).unwrap_or(3);
     let net = Net::random(32, 20260907);
     // MIXED on purpose: mate-in-1 alone made the surrogate maximisable by searching less.
     let mut set = mate_set(n1);
@@ -146,9 +164,9 @@ fn main() {
     set.extend(deep);
 
     let mut champ = reference::bare_alpha_beta();
-    let (f0, c0, r0) = fitness(&champ, &set, &net);
-    println!("  surrogate set {} positions ({} mate-in-1, {} forced-mate-in-2)",
-             set.len(), set.len() - n_deep, n_deep);
+    let (f0, c0, r0) = fitness(&champ, &set, &net, depth);
+    println!("  surrogate set {} positions ({} mate-in-1, {} forced-mate-in-2), fitness depth {}",
+             set.len(), set.len() - n_deep, n_deep, depth);
     if n_deep == 0 {
         println!("  REFUSING TO RUN: no depth-requiring positions, so the 'do not lose mates'");
         println!("  guard cannot bite and this loop optimises toward a depth-1 mate detector.");
@@ -165,7 +183,7 @@ fn main() {
         for i in 0..pop {
             let mut r = Rng::new((g as u64) << 20 ^ i as u64 ^ 0xBEEF);
             let cand = match mutate::mutate_program(&champ, &mut r) { Some(c) => c, None => { ill += 1; continue } };
-            let (f, _c, rate) = fitness(&cand, &set, &net);
+            let (f, _c, rate) = fitness(&cand, &set, &net, depth);
             // must not LOSE mates, and must improve cost-efficiency
             if f >= best_found && rate > best_rate {
                 if best.as_ref().map_or(true, |(_, _, br)| rate > *br) { best = Some((cand, f, rate)); }
