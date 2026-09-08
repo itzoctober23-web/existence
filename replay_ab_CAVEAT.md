@@ -67,7 +67,15 @@ The problem is what judges it. The sweep runs `--gate-pairs 32`, so ci95 ~0.079 
 statistic is held-out loss on this generation's slice, decides most accepts. So the larger-window
 arms are penalised by the very quantity that a larger window is expected to raise.
 
-Accept counts so far are consistent with that: arm 1 took 6 in 42 generations, arm 8 has 1 in 12.
+MEASURED FROM THE LEDGER, not inferred from the interval width -- the gate resolved in **0 of 57
+generations**:
+
+    rp_1 (window 1)  0/42 could resolve   accepted 6, regression 14, no_evidence 22
+    rp_8 (window 8)  0/15 could resolve   accepted 2, regression  4, no_evidence  9
+
+Not "rarely". Never. Every acceptance decision in this sweep came from the surrogate or the
+non-regression guard, and `no_evidence` dominates (31 of 57) -- the loop honestly reporting that
+its gate saw nothing either way. The strict branch of the acceptance rule did not execute once.
 
 WHAT THIS DOES AND DOES NOT INVALIDATE
   - The FINAL verdict is sound. Each arm's champion is scored against the same frozen origin by
