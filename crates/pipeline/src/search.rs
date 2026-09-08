@@ -36,6 +36,27 @@ pub struct Searcher {
     feat_b: Vec<u16>,
     on: Vec<u16>,
     off: Vec<u16>,
+    /// Shuffle state. MASTER_PLAN "Iteration zero" declares children in emission order
+    /// (SHUFFLED), and `crates/engine/src/search.rs` -- the binary that actually ships -- does
+    /// shuffle, at its root and inside alphabeta.
+    ///
+    /// This file did not, while its own header claimed "Same semantics as
+    /// engine/src/search.rs". That was two bugs at once. Unshuffled, the search inherits the
+    /// MOVEGEN'S emission order, which is by piece type -- gen_pawns runs first -- so alpha-beta
+    /// was being handed a free "try pawn moves first" heuristic that nobody declared and nobody
+    /// earned. Move ordering is worth a large fraction of alpha-beta's strength; that is exactly
+    /// why the plan puts it on the DISCOVERY list and shuffles the seed to deny it.
+    /// And because datagen and every gate run THIS searcher while the engine ships the other
+    /// one, every label and every verdict was produced by a different search from the one under
+    /// test.
+    rng: u64,
+    /// Per-depth scratch for the shuffled child list, so shuffling costs no allocation after
+    /// the first visit to each depth.
+    order: Vec<Vec<Move>>,
+    /// A/B switch, kept so the SIZE of the ordering prior stays measurable rather than being
+    /// a claim in a comment. Setting it false reproduces the old behaviour (movegen emission
+    /// order), and examples/ordering_prior.rs reports the node-count difference.
+    pub shuffle_children: bool,
 }
 
 impl Searcher {
@@ -61,6 +82,35 @@ impl Searcher {
             feat_b: Vec::new(),
             on: Vec::new(),
             off: Vec::new(),
+            rng: 0x9E3779B97F4A7C15,
+            order: Vec::new(),
+            shuffle_children: true,
+        }
+    }
+
+    /// Fix the shuffle stream. Determinism is a gate requirement (FITNESS 10, "stochastic
+    /// program that passes by luck -> determinism check; seeds fixed per game"), so the shuffle
+    /// is seeded per game rather than drawn from the clock.
+    pub fn with_seed(seed: u64) -> Self {
+        let mut s = Self::new();
+        s.rng = seed | 1;
+        s
+    }
+
+    #[inline]
+    fn rand(&mut self) -> u64 {
+        self.rng ^= self.rng << 13;
+        self.rng ^= self.rng >> 7;
+        self.rng ^= self.rng << 17;
+        self.rng
+    }
+
+    #[inline]
+    fn shuffle(&mut self, v: &mut [Move]) {
+        if !self.shuffle_children { return; }
+        for i in (1..v.len()).rev() {
+            let j = (self.rand() % (i as u64 + 1)) as usize;
+            v.swap(i, j);
         }
     }
 
@@ -123,8 +173,10 @@ impl Searcher {
         if list.is_empty() {
             return (MOVE_NONE, if pos.in_check(pos.stm) { -MATE } else { 0 });
         }
-        let (mut best, mut best_s, mut alpha) = (list.as_slice()[0], -INF, -INF);
-        for &m in list.as_slice() {
+        let mut moves: Vec<Move> = list.as_slice().to_vec();
+        self.shuffle(&mut moves);
+        let (mut best, mut best_s, mut alpha) = (moves[0], -INF, -INF);
+        for &m in &moves {
             let u = self.push_move(pos, m, net);
             let s = -self.ab(pos, depth.saturating_sub(1), -INF, -alpha, net);
             self.pop_move(pos, m, u, net);
@@ -211,16 +263,27 @@ impl Searcher {
                 net.eval(pos, &mut self.scratch)
             };
         }
+        // Shuffle the children, as the seed program declares. Reuses a per-depth buffer, so
+        // this costs no allocation after the first visit to each depth.
+        let d = depth as usize;
+        while self.order.len() <= d { self.order.push(Vec::new()); }
+        let mut buf = std::mem::take(&mut self.order[d]);
+        buf.clear();
+        buf.extend_from_slice(list.as_slice());
+        self.shuffle(&mut buf);
+
         let mut best = -INF;
-        for &m in list.as_slice() {
+        for i in 0..buf.len() {
+            let m = buf[i];
             let u = self.push_move(pos, m, net);
             let s = -self.ab(pos, depth - 1, -beta, -alpha, net);
             self.pop_move(pos, m, u, net);
-            if self.aborted { return best.max(-INF); }
+            if self.aborted { self.order[d] = buf; return best.max(-INF); }
             if s > best { best = s; }
             if best > alpha { alpha = best; }
             if alpha >= beta { break; }
         }
+        self.order[d] = buf;
         best
     }
 }

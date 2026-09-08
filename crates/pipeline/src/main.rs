@@ -135,6 +135,7 @@ fn main() {
     // Replay buffer. An ARCH candidate starts from random weights, so it needs more than one
     // generation of data to be a fair challenger to a champion that has had many.
     let mut replay: Vec<Sample> = Vec::new();
+    let mut judge_pool: Vec<Sample> = Vec::new();
     let replay_gens = 8usize;
     let mut replay_marks: std::collections::VecDeque<usize> = std::collections::VecDeque::new();
 
@@ -169,16 +170,33 @@ fn main() {
         // version evaluated McNemar on the tail of the same list it trained on, which measures
         // training-set fit and accepted 7 of 10 candidates whose champion then scored 0.500
         // against the original random net. The control caught it.
-        // Keep the last `replay_gens` generations for the ARCH arm, which trains from scratch.
-        replay.extend(pool.iter().cloned());
-        replay_marks.push_back(pool.len());
+        let cut = pool.len() * 3 / 4;
+        let (subset, heldout) = pool.split_at(cut);
+
+        // Replay buffer for the ARCH arm, which trains from scratch and needs more than one
+        // generation of data to be a fair challenger.
+        //
+        // ONLY the trained-on part goes in. The first version pushed the whole pool and then
+        // took the ARCH held-out set as the last 25% of the buffer -- i.e. the most RECENT
+        // generation. That trained the candidate on old positions and scored it on new ones,
+        // while the champion had trained on those new ones, and the candidate lost on held-out
+        // loss (1.2372 vs 0.5049) for reasons that had nothing to do with its width. Comparing
+        // on data one side has seen and the other has not measures memory, not architecture.
+        replay.extend(subset.iter().cloned());
+        replay_marks.push_back(subset.len());
         while replay_marks.len() > replay_gens {
             let drop_n = replay_marks.pop_front().unwrap();
             replay.drain(0..drop_n.min(replay.len()));
         }
-
-        let cut = pool.len() * 3 / 4;
-        let (subset, heldout) = pool.split_at(cut);
+        // JUDGING RESERVOIR: every generation's held-out slice, accumulated and never given to
+        // any trainer. One generation's slice is 11-89 positions after the horizon filter --
+        // far under the n>=30-per-half the paired test needs -- so a per-generation set would
+        // silently disable the ARCH surrogate rather than inform it.
+        judge_pool.extend(heldout.iter().cloned());
+        if judge_pool.len() > 6000 {
+            let excess = judge_pool.len() - 6000;
+            judge_pool.drain(0..excess);
+        }
         let mut cand = champion.clone();
         let mut loss = 0.0;
         for e in 0..epochs {
@@ -233,15 +251,27 @@ fn main() {
         // A wider net that only passes the first is the degenerate solution FITNESS 10 names
         // outright ("bigger net that wins fixed-cost-budget, loses on clock"), so BOTH are
         // required to move the rung, and both results are printed either way.
-        if arch_every > 0 && g % arch_every == 0 && replay.len() >= 200 {
+        // `held.len() >= 60` so both halves clear the n>=30 floor in paired_loss_z; below that
+        // the surrogate returns 0.0 and the arm would be deciding on nothing.
+        if arch_every > 0 && g % arch_every == 0 && replay.len() >= 200 && judge_pool.len() >= 120 {
             if let Some(p) = arch::propose(rung, arch_attempts) {
                 arch_attempts += 1;
-                let rcut = replay.len() * 3 / 4;
-                let (rsub, rheld) = replay.split_at(rcut);
-                let rheld_ref: Vec<&Sample> = rheld.iter().collect();
-                let (acand, acand_loss, aeps) =
-                    train_fresh(p.width(), rsub, &rheld_ref, &tr, seed ^ 0xA5 ^ g as u64, 30);
-                let champ_loss = tr.loss(&champion, &rheld_ref);
+                // The comparison set is THIS generation's held-out slice: it is in neither the
+                // champion's training history nor the replay buffer, so both arms meet it for
+                // the first time. Split in two so the candidate early-stops on one half and is
+                // JUDGED on the other -- early-stopping on the judging set would hand the
+                // challenger a free peek that the incumbent never gets.
+                // Split the reservoir by INDEX PARITY, not by a cut point: the pool is ordered
+                // by generation, so a front/back cut would put early, weaker-play positions in
+                // one half and late ones in the other and the two halves would not be samples
+                // of the same thing. Parity interleaves them.
+                let astop: Vec<&Sample> = judge_pool.iter().step_by(2).collect();
+                let ajudge: Vec<&Sample> = judge_pool.iter().skip(1).step_by(2).collect();
+                let (acand, _stop_loss, aeps) =
+                    train_fresh(p.width(), &replay, &astop, &tr, seed ^ 0xA5 ^ g as u64, 30);
+                let acand_loss = tr.loss(&acand, &ajudge);
+                let champ_loss = tr.loss(&champion, &ajudge);
+                let rheld_ref = ajudge;
                 // FITNESS 5 filter: "must not be worse than the champion by more than 0.5%".
                 // Better loss does NOT accept; it only buys the right to spend gate time.
                 if acand_loss > champ_loss * 1.005 {

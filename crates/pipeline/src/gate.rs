@@ -92,6 +92,7 @@ pub fn match_nets_open(a: &Net, b: &Net, depth: u32, pairs: usize, seed: u64, op
     let mut sc = Score::default();
     let mut rng = Rng(seed | 1);
     for _ in 0..pairs {
+        let pair_seed = rng.next();
         // one random opening, played from both sides
         let mut opening = Position::startpos();
         for _ in 0..open_plies {
@@ -102,7 +103,10 @@ pub fn match_nets_open(a: &Net, b: &Net, depth: u32, pairs: usize, seed: u64, op
         // Play the SAME opening from both sides and score the PAIR, not the two games.
         let mut pair_half = 0usize;
         for a_is_white in [true, false] {
-            let r = play(a, b, a_is_white, &opening, depth);
+            // SAME shuffle seed for both halves of the pair, so the pairing cancels child-order
+            // luck the way it cancels opening bias. A fresh seed per game would put the two
+            // halves on different move orders and reintroduce the variance pairing removes.
+            let r = play(a, b, a_is_white, &opening, depth, pair_seed);
             match r {
                 Some(true) => { sc.wins += 1; pair_half += 2; }
                 Some(false) => { sc.losses += 1; }
@@ -154,7 +158,7 @@ fn play_capped(
     seed: u64,
 ) -> Option<bool> {
     let mut pos = start.clone();
-    let mut s = Searcher::new();
+    let mut s = Searcher::with_seed(seed);
     for ply in 0..200u64 {
         let l = pos.legal_moves();
         if l.is_empty() {
@@ -178,9 +182,11 @@ fn play_capped(
 }
 
 /// Returns Some(true) if A won, Some(false) if B won, None for a draw.
-fn play(a: &Net, b: &Net, a_is_white: bool, start: &Position, depth: u32) -> Option<bool> {
+fn play(a: &Net, b: &Net, a_is_white: bool, start: &Position, depth: u32, shuffle_seed: u64)
+    -> Option<bool>
+{
     let mut pos = start.clone();
-    let mut s = Searcher::new();
+    let mut s = Searcher::with_seed(shuffle_seed);
     for _ in 0..200 {
         let l = pos.legal_moves();
         if l.is_empty() {

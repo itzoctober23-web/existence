@@ -38,6 +38,18 @@ impl Rng {
     }
 }
 
+/// HOW a game ended. "Draw" is three different failures wearing one label, and only one of
+/// them is a real draw: a stalemate is chess, a 50-move expiry is two players shuffling, and
+/// hitting the ply cap is the harness giving up. Generation 37 of the ARCH run produced 0
+/// decisive games out of 80 and the loop had no way to say which of the three it was.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GameEnd {
+    Mate,
+    Stalemate,
+    FiftyMove,
+    PlyCap,
+}
+
 /// Play one self-play game, returning every recorded position labelled with the final result.
 pub fn play_game(
     net: &Net,
@@ -47,8 +59,23 @@ pub fn play_game(
     max_plies: usize,
     out: &mut Vec<Sample>,
 ) -> Outcome {
+    play_game_ext(net, depth, rng, open_plies, max_plies, out).0
+}
+
+/// As `play_game`, but also reports HOW the game ended.
+pub fn play_game_ext(
+    net: &Net,
+    depth: u32,
+    rng: &mut Rng,
+    open_plies: usize,
+    max_plies: usize,
+    out: &mut Vec<Sample>,
+) -> (Outcome, GameEnd) {
     let mut pos = Position::startpos();
-    let mut s = Searcher::new();
+    // Seed the shuffle from the caller's stream, so every game explores a different child
+    // order instead of every game replaying the same one, and the whole run still replays
+    // exactly from its top-level seed.
+    let mut s = Searcher::with_seed(rng.next());
     let start = out.len();
 
     // Random opening plies, unrecorded: coverage the net's own preferences would never reach.
@@ -62,14 +89,17 @@ pub fn play_game(
     }
 
     let mut result = Outcome::Draw;
+    let mut how = GameEnd::PlyCap;
     for ply in 0..max_plies {
         let l = pos.legal_moves();
         if l.is_empty() {
             result = pos.outcome();
+            how = if result == Outcome::Loss { GameEnd::Mate } else { GameEnd::Stalemate };
             break;
         }
         if pos.halfmove >= 100 {
             result = Outcome::Draw;
+            how = GameEnd::FiftyMove;
             break;
         }
         let (mv, score) = s.best_move(&mut pos, depth, net);
@@ -99,5 +129,5 @@ pub fn play_game(
         sample.z = z;
         sample.plies_to_end = (n - 1 - i) as u32;
     }
-    result
+    (result, how)
 }
