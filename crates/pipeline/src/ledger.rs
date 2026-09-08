@@ -39,6 +39,12 @@ pub enum Reason {
     SurrogateFilter,
     /// The gate could resolve, and the candidate's interval did not clear 0.5.
     LostOnGames,
+    /// Beat the champion but was resolved WORSE against the fixed anchor, so the promotion was
+    /// vetoed. This is the intransitive case, and it is a distinct outcome from losing the
+    /// champion match: measured 2026-09-08, ep_1 beat champion_long 0.545 +/- 0.018 head to head
+    /// while scoring 0.834 against the origin where champion_long scored 0.864. Without its own
+    /// reason code these would be filed as NoEvidence and the cycle would stay invisible.
+    AnchorRegression,
     /// Gates could NOT resolve (all-draw or near it), and the surrogate did not show a
     /// significant improvement either. No evidence in either direction.
     NoEvidence,
@@ -63,6 +69,7 @@ impl Reason {
             Reason::Accepted => "accepted",
             Reason::SurrogateFilter => "surrogate_filter",
             Reason::LostOnGames => "lost_on_games",
+            Reason::AnchorRegression => "anchor_regression",
             Reason::NoEvidence => "no_evidence",
             Reason::LostOnClock => "lost_on_clock",
             Reason::LostOnCost => "lost_on_cost",
@@ -78,6 +85,10 @@ impl Reason {
                 "held-out loss was worse than the champion's, so it never reached a gate",
             Reason::LostOnGames =>
                 "the gate could resolve and its interval did not clear 0.5",
+            Reason::AnchorRegression =>
+                "beat the champion but was resolved WORSE against the fixed anchor: an \
+                 intransitive candidate, stronger than its parent and weaker than the parent \
+                 is against a third opponent",
             Reason::NoEvidence =>
                 "the gate could not resolve and the surrogate showed nothing significant, \
                  so there is no evidence either way",

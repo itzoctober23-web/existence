@@ -127,6 +127,22 @@ fn main() {
     // and the per-generation gate was simply never revisited. SPRT stops early when the evidence
     // is clear, so this is a CAP: a decisive candidate still costs far fewer than 224 pairs.
     let gate_pairs = arg("--gate-pairs", 224);
+    // ANCHOR GATE. A candidate must also not REGRESS against a fixed opponent.
+    //
+    // MEASURED 2026-09-08, and this is the root cause of the loop not learning rather than a
+    // refinement: ep_1 beats champion_long head to head at 0.545 +/- 0.018 (excludes 0.5) while
+    // scoring 0.834 against the frozen origin where champion_long scores 0.864 (a 0.030 gap
+    // against a 0.018 floor). Both directions resolved. The accept rule is "does the candidate
+    // beat the current champion", and that quantity demonstrably moves OPPOSITE to strength
+    // against a fixed opponent, so the loop can run perfectly and still walk downhill.
+    //
+    // Across eight runs the mean gate rate was >= 0.5 in ALL EIGHT -- candidates really do beat
+    // their parents -- and not one final net was above the 0.864 they started from, three
+    // resolved worse. Intransitivity is a known property of a self-play objective; the standard
+    // response is to score against a FIXED reference or a pool rather than only the champion.
+    //
+    // 0 = off, preserving today's behaviour exactly so this can be A/B'd rather than assumed.
+    let anchor_pairs = arg("--anchor-pairs", 0);
     // The surrogate may override the games only if asked for explicitly. See the acceptance
     // chain: measured at corr -0.095 against 239 paired gate results, it is not a decision rule.
     let surrogate_fallback = std::env::args().any(|a| a == "--surrogate-fallback");
@@ -370,6 +386,11 @@ fn main() {
         },
         None => origin.clone(),
     };
+    // The SAME construction examples/control.rs uses, so the in-loop anchor and the end-of-run
+    // origin score are the same opponent. A different seed here would silently make the accept
+    // decision and the final measurement disagree about what "the origin" is.
+    let anchor = Net::random(champion.n_hidden, 20260907);
+    let mut champ_anchor: Option<f64> = None;   // measured lazily, only if the anchor gate is on
     let cost_nodes = {
         let mut probe = pipeline::search::Searcher::with_seed(1);
         let mut p0 = Position::startpos();
@@ -631,11 +652,36 @@ fn main() {
         } else {
             false
         };
+
+        // ---- ANCHOR GATE: a promotion must not REGRESS against a fixed opponent.
+        //
+        // Applied AFTER the champion match, and only to candidates that already passed it, so it
+        // can only ever veto. It cannot promote anything the champion gate rejected.
+        //
+        // The rule is "not resolved WORSE", not "better". Demanding an improvement against the
+        // anchor every generation would reject genuine small gains the anchor match cannot see:
+        // at 224 pairs its ci95 is ~0.031, and real steps are far smaller than that. Demanding
+        // merely that the candidate is not MEASURABLY worse blocks the failure actually observed
+        // -- ep_1 was 0.030 below its champion against the origin, which a 0.031 interval resolves
+        // -- while staying silent where the anchor has no opinion.
+        let (better, anchor_veto) = if better && anchor_pairs > 0 {
+            let ca = *champ_anchor.get_or_insert_with(|| {
+                gate::match_nets(&champion, &anchor, depth as u32, anchor_pairs, seed ^ 0xA1C).pent_rate()
+            });
+            let cs = gate::match_nets(&cand, &anchor, depth as u32, anchor_pairs, seed ^ 0xA1C ^ g as u64);
+            // Same seed family for both sides so they meet the anchor on the same openings.
+            let veto = cs.pent_rate() + cs.ci95() < ca;
+            (!veto, veto)
+        } else {
+            (better, false)
+        };
         // LEDGER: record the decision, accepted or not, with a NAMED reason. A rejection is the
         // more reusable fact — it says do not spend this compute again — and "reject" alone is
         // not a finding.
         let net_reason = if better {
             Reason::Accepted
+        } else if anchor_veto {
+            Reason::AnchorRegression
         } else if gate_can_resolve {
             Reason::LostOnGames
         } else if !no_regression {
@@ -671,6 +717,10 @@ fn main() {
         });
 
         if better {
+            // The new champion's anchor score is re-measured lazily on the next generation that
+            // needs it; clearing it is what prevents the OLD champion's score being compared
+            // against a NEW champion's candidates.
+            if anchor_pairs > 0 { champ_anchor = None; }
             champion = cand;
             accepted += 1;
             // Persist on every acceptance, not at the end: a run killed by a timeout used to
