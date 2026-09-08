@@ -38,6 +38,43 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — operator fairness: CONFIRMED live, after three layers of the same bug
+
+The search track's operator draw is now uniform. 249 proposals on a freshly built binary:
+
+| operator | count | share |
+|---|---|---|
+| ReplaceConst | 41 | 16.5% |
+| Dup | 41 | 16.5% |
+| WrapIf | 33 | 13.3% |
+| Delete | 32 | 12.9% |
+| SwapSiblings | 31 | 12.4% |
+| Tweak | 27 | 10.8% |
+| InsertMax | 24 | 9.6% |
+| WrapLoop | 20 | 8.0% |
+
+Expected 12.5% each; at n=249 that is 31 +/- 5.5 per bucket at 1 sigma, so an 8.0-16.5% range
+is chance. Before: **InsertMax 38%, WrapIf 3%** — a 12x spread, now 2x.
+
+It took three fixes, and each one revealed the next:
+1. **Selection was a race.** A fresh random operator was drawn on every retry and whichever
+   applied first was kept, so usage was proportional to how many node types an operator
+   accepts. Tweak appeared 0 times in 67 proposals.
+2. **The draw itself was skewed.** With the operator chosen before placement, the distribution
+   was still Delete 40 / InsertMax 39 / SwapSiblings 2. `Rng::new` was `Rng(seed | 1)` with no
+   warmup, and the search seeds a fresh generator per candidate from a small structured value;
+   a bare xorshift64's first output correlates with its seed. splitmix64 finalizer fixed it.
+3. **The running process had a stale binary.** The ledger still showed InsertMax 38% because
+   the isolated build tree's last build was the RNG negative control. Restoring source is not
+   deploying it. (run.sh now builds and asserts freshness in the tree it executes.)
+
+TWO SIDE EFFECTS, both good and neither predicted:
+- `0 ill-typed` per generation, down from 2. Try-every-position no longer abandons an operator
+  that is merely hard to place.
+- Oracle rejection fell from ~70% to 9 of 24. The operators that used to dominate were the most
+  destructive ones, so a fair draw sends more candidates to the gate — the search got cheaper
+  per useful candidate as a consequence of being fair.
+
 ## 2026-09-08 — datagen depth is a NULL at blend 0, and the reason is structural
 
 | datagen depth | decisive | samples | mean | 95% CI |
