@@ -630,11 +630,13 @@ fn main() {
             // trainer saw with what the gate decided. It goes to the log line already, but the
             // log is not queryable -- every quantitative claim made about this loop today came
             // from the ledger, and the replay-window question could not be asked of it at all.
-            surrogate: vec![("mcnemar_z", mcnemar), // NAME IT WHAT IT IS. `train_from` returns best_loss = tr.loss(&net, held) -- the HELD-OUT
-                // loss, not the training loss. Reading it as training loss makes "loss falls while the
-                // paired statistic degrades" look like ordinary overfitting, which is the wrong
-                // diagnosis: both are measured on held-out data, so they cannot both be right.
-                ("heldout_loss", loss as f64), ("llr", llr),
+            // TRAINING loss, on the trained-on subset. I renamed this to "heldout_loss" earlier
+            // today and that was WRONG: the held-out one is `train_from`'s best_loss
+            // (tr.loss(&net, held)), and train_from is called ONLY by the ARCH arm. The NET arm
+            // trains with `for e in 0..epochs { loss = tr.epoch(&mut cand, subset, ..) }`, and
+            // tr.epoch accumulates over the data it is training on. Second time today I asserted
+            // which code path produced a value without following it; the name stays literal now.
+            surrogate: vec![("mcnemar_z", mcnemar), ("train_loss", loss as f64), ("llr", llr),
                             ("pool", replay.len() as f64), ("train_n", subset.len() as f64)],
         });
 
