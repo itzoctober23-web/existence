@@ -734,8 +734,13 @@ fn main() {
                 if c.rate() - c.ci95() > 0.5 { "  *" } else { "" });
         }
         println!(
-            "gen {g:>3}  pos {:>6}  train {:>5} (h{:>3})  dec {:>3}/{:<3}  loss {:.4}  gate {}W-{}D-{}L {:.3}+/-{:.3}  {}  [{:.0}s]",
-            data.len(), subset.len(), horizon, dec, dec + drawn, loss, sc.wins, sc.draws, sc.losses, sc.pent_rate(), sc.ci95(),
+            // `pool` is the size of what the TRAINER actually saw. Without it the log shows
+            // positions GENERATED and this generation's slice, and the replay buffer -- the
+            // thing --replay-gens varies -- is invisible. A smoke test comparing windows 1 and
+            // 999 printed identical lines for exactly that reason, which is indistinguishable
+            // from the flag not working. Show the quantity under test.
+            "gen {g:>3}  pos {:>6}  train {:>5} pool {:>6} (h{:>3})  dec {:>3}/{:<3}  loss {:.4}  gate {}W-{}D-{}L {:.3}+/-{:.3}  {}  [{:.0}s]",
+            data.len(), subset.len(), replay.len(), horizon, dec, dec + drawn, loss, sc.wins, sc.draws, sc.losses, sc.pent_rate(), sc.ci95(),
             if better { "ACCEPT" } else { "reject" }, t_gen
         );
     }

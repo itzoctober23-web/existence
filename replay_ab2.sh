@@ -37,7 +37,11 @@ SECS=${SECS:-1200}
 PAIRS=${PAIRS:-64}
 SEED=20260907
 INIT=${INIT:-champion_long.net}
-WINDOWS=${WINDOWS:-"8 32 999"}
+WINDOWS=${WINDOWS:-"1 8 999"}
+# STEPS must be > 0 or the replay buffer is never read and every arm is identical. Sized to the
+# measured epochs-3 update count (~51,798 on ~17k samples) so the arms differ ONLY in how much
+# HISTORY the pool spans, not in how much training each one does.
+STEPS=${STEPS:-50000}
 
 [ -f "$INIT" ] || { echo "no champion at $INIT — cannot test the plateau regime without one"; exit 1; }
 echo "=== replay window, PLATEAU regime: ${SECS}s per arm, all resuming from $INIT ==="
@@ -45,7 +49,8 @@ for W in $WINDOWS; do
   echo "--- arm: replay-gens $W ---"
   timeout "$SECS" taskset -c 15 nice -n 19 ionice -c 3 ./target/release/learn \
     --init "$INIT" --gens 1000000 --games 2400 --threads 1 --depth 2 --epochs 3 \
-    --gate-pairs 32 --arch-every 0 --control-every 0 --replay-gens "$W" \
+    --gate-pairs 32 --arch-every 0 --control-every 0 \
+    --steps-per-gen "$STEPS" --replay-gens "$W" \
     --seed "$SEED" --out "rp_${W}.net" --ledger "rp_${W}.jsonl" > "rp_${W}.log" 2>&1
   gens=$(grep -cE '^gen ' "rp_${W}.log")
   acc=$(grep -cE 'ACCEPT' "rp_${W}.log")
