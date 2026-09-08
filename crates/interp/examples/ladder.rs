@@ -49,7 +49,11 @@ fn main() {
     let depths = if depths.is_empty() { vec![2, 3, 4] } else { depths };
     for depth in depths {
     println!("\n  === D = {depth} ===");
-    println!("  {:<32} {:>7} {:>12} {:>16}", "program", "mates", "cost", "mates/Mcost");
+    println!("  {:<32} {:>7} {:>14} {:>13} {:>10}",
+             "program", "mates", "cost", "mates/Mcost", "vs seed");
+    // The seed's cost at this depth is the denominator that matters: "1.22x the seed" is
+    // legible where "0.2 vs 0.1 mates/Mcost" rounds the whole effect away.
+    let mut seed_cost = 0u64;
     for (name, prog) in reference::all() {
         let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
         let (mut found, mut cost) = (0u32, 0u64);
@@ -64,8 +68,12 @@ fn main() {
                 }
             }
         }
-        println!("  {:<32} {:>7} {:>12} {:>16.1}", name, found, cost,
-            found as f64 * 1e6 / cost.max(1) as f64);
+        if name.starts_with("bare alpha-beta") { seed_cost = cost; }
+        let vs = if seed_cost > 0 && cost > 0 {
+            format!("{:.2}x", cost as f64 / seed_cost as f64)
+        } else { "-".into() };
+        println!("  {:<32} {:>7} {:>14} {:>13.3} {:>10}", name, found, cost,
+            found as f64 * 1e6 / cost.max(1) as f64, vs);
     }
     }
     println!("\n  a rung must BEAT the previous one on this metric (GRAMMAR 9)");

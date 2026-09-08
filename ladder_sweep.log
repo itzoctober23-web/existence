@@ -1,0 +1,33 @@
+  MATE-1 set: 120 positions (retrograde from random legal walks)
+
+  === D = 2 ===
+  program                            mates         cost      mates/Mcost
+  depth-one (purity seed)                1        24335             41.1
+  bare alpha-beta (main seed)          120     61787227              1.9
+  alpha-beta + hash reuse              120     77224902              1.6
+  alpha-beta + iterative deepening     120     66956990              1.8
+  alpha-beta + hash + ID               120     83827821              1.4
+  UCT-style MCTS                         0      6352940              0.0
+  proof-number search                    0     68274112              0.0
+
+  === D = 3 ===
+  program                            mates         cost      mates/Mcost
+  depth-one (purity seed)                1        24335             41.1
+  bare alpha-beta (main seed)          120    680349326              0.2
+  alpha-beta + hash reuse              120    828581235              0.1
+  alpha-beta + iterative deepening     120    747307036              0.2
+  alpha-beta + hash + ID               120    912554929              0.1
+  UCT-style MCTS                         0      6352940              0.0
+  proof-number search                    0     68274112              0.0
+
+  === D = 4 ===
+  program                            mates         cost      mates/Mcost
+  depth-one (purity seed)                1        24335             41.1
+  bare alpha-beta (main seed)          120   8727575157              0.0
+  alpha-beta + hash reuse              120   9717262285              0.0
+  alpha-beta + iterative deepening     120   9474882913              0.0
+  alpha-beta + hash + ID               120  10632081555              0.0
+  UCT-style MCTS                         0      6352940              0.0
+  proof-number search                    0     68274112              0.0
+
+  a rung must BEAT the previous one on this metric (GRAMMAR 9)

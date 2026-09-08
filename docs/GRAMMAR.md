@@ -180,180 +180,39 @@ prior, labelled `faithful`, under a line reading "no sketches remain".
 After the repair: agrees 60/60 at every depth (a sound TT does not change alpha-beta's value),
 and it now earns its keep in evaluations — 59,347,691 vs 66,932,291 at depth 4, **-11.3%**.
 
-**CONSEQUENCE, and it inverts a stated expectation.** MASTER_PLAN's "Expected rediscovery
-order" opens with *hash reuse*, and GRAMMAR 9's ladder makes it step 4 — both assume it is the
-NEAREST milestone. Measured faithfully it is the FARTHEST reference program from the seed:
-**+104 nodes, against +33 for UCT and +12 for PN.** And `tt_pressure` shows it is also more
-expensive in COST units at these depths (1.12x at depth 4), because the probe/store machinery
-outweighs an 11.3% eval saving. So there are two independent reasons to predict evolution will
-NOT reach hash reuse first, and both are falsifiable once the loop runs. The old 89 hid this
-because a program that never stores anything needs no depth field, no validity marker, and no
-bound types — the three things that make a transposition table cost 175 nodes.
+**CONSEQUENCE: hash reuse is not a rung AT THESE DEPTHS, and that is a statement about the
+regime rather than about the technique.** `examples/ladder.rs` now sweeps depth. Cost relative
+to the bare alpha-beta seed:
 
-**The prior, stated.** Bare alpha-beta is 71 nodes and is the main seed. A faithful
-proof-number search is **+12**; a faithful UCT is **+33**. Alpha-beta is the shortest of the
-three paradigms, so the grammar is biased toward it, and the bias is roughly three times
-larger against MCTS than against PN. `sqrt`, `log`, `avg`, `sample` and the `count`/`sum` slot
-fields exist so MCTS is expressible at all; without them "stayed in the alpha-beta basin"
-would be vacuous.
-
-**History, kept because every error here was instructive.** The original hand estimates were
-29 (AB) and 44 (MCTS), concluding a ~15-node bias toward alpha-beta. Then: the parser measured
-AB at 71, 2.4x the guess. A SKETCH MCTS measured 60 and briefly made AB look like the LONGEST
-program, putting the skew direction in doubt. A faithful UCT moved it to 104, restoring the
-original direction at double the magnitude. A SKETCH PN measured 43 (-28 from the seed); the
-faithful version is 83 (+12), flipping that sign too.
-
-The rule that fell out, and it is the one to carry into the write-up: **an expressiveness
-comparison is only valid between encodings of equal fidelity. A sketch is a lower bound, never
-a datum, and a lower bound can invert the sign of the very claim being made.**
-
-**Discount rule for the write-up:** the purity lineage rediscovering bounding is
-reported with the distance depth-one -> bare AB attached. That distance is **62 nodes
-(MEASURED: depth-one 9, bare AB 71)**, not the "~19 nodes, ~8 mutations" this line carried
-from the hand-estimate era — a 3.3x understatement, and in the flattering direction, since it
-made the purity lineage's climb look three times shorter than it is. Any claim that the engine
-"chose alpha-beta over MCTS" is reported alongside the +33-node gap that made MCTS harder to
-reach (and +12 for PN).
-
-## 7. Fitness interface (details in FITNESS.md)
-A program exposes `choose`. Exactness is NOT program-settable. The compiler derives a
-static taint per returned Score: a score is **exact** iff it provably came through
-`max`/`min` over the FULL child list of `moves(p)` at every level of the returning path
-(no `ret` inside the `foreach` before the list is exhausted, no `avg`/`mix`/`sample`/
-`tread` on the path, no depth reduction relative to the declared depth argument).
-Anything else is **inexact**. The taint is computed once per program from the tree and
-cannot be influenced by runtime control flow. (If the flag were program-settable,
-evolution's optimal policy would be to never claim exactness, disabling the strong
-check — the same class of exploit the oracle exists to catch. Added to 10.5.)
-
-The correctness oracle (FITNESS.md) compares programs against a reference full-width
-search on a fixed position set: exact scores must match the reference exactly; inexact
-scores must not be provably impossible (e.g., a claimed forced win where the reference
-finds none within the searched depth; a score outside [LOSS, WIN] bounds; a returned
-move that is not in `moves(p)`). Mates-per-cost uses `terminal`-derived outcomes only.
-
-## 8. Cost model and compilation
-- Cost model: a declared per-primitive cost (cycles estimate) table. The interpreter
-  accumulates it at runtime; that running sum IS the budget unit (`budget`, #12).
-- The static per-node cost cap (3x the seed) that earlier drafts used is REMOVED. Under a
-  cost-unit budget an expensive-per-step program simply takes fewer steps in the same
-  budget, and the time-based gate charges for the rest — the cap was redundant, and it
-  was a declared bias against per-simulation paradigms (10.4). Removing it deletes a bias
-  rather than renaming a metric. What remains: a sanity ceiling — a candidate must
-  complete `choose` on a fixed smoke-test position within budget or it is rejected
-  (catches runaway programs, not paradigms).
-- Hard runtime ceilings: recursion depth 128; total cost units per `choose` = budget; wall
-  time enforced by the harness.
-- **ACCEPTANCE MEASUREMENT: PASSED at 0.98-0.99x (line is 0.50), by the tree-walker alone.**
-  Measured by `crates/interp` (examples/bench_interp.rs) at depths 3 and 4, with an
-  EQUIVALENCE CHECK that both arms evaluated the same number of leaves (2099 vs 2099;
-  19675 vs 19675) before any ratio is believed.
-  Consequence: the register bytecode of CRATE 4 is NOT needed to clear this gate and can be
-  deferred. `Net::eval` dominates both arms identically (~10k nps either way, a dense forward
-  pass with no incremental accumulator), so interpretation overhead is near-free at the
-  current eval cost. Re-measure when the eval gets fast: the ratio only becomes informative
-  once eval stops dominating.
-  **An earlier reading of 0.14x was a HARNESS BUG, not a result** -- three stacked errors:
-  (1) the seed's `choose` expands the root itself, so passing D=depth searched one ply deeper
-  than the reference; (2) a `Let` written as a statement in the encoded seed scoped only over
-  its own placeholder, so the `best` accumulator was invisible to the loop and read 0;
-  (3) the reference narrowed alpha across root moves while the seed gives each a full window.
-  Two "fixes" aimed at the interpreter (removing string-keyed env lookup, making Position
-  refcounted) changed the number by nothing, which is what exposed the harness as the culprit.
-  The eval-count check is now permanent so a ratio can never again be printed for two
-  different trees.
-- Compilation target: a register-based bytecode with a Rust interpreter. Acceptance
-  criterion for the interpreter design: the compiled main seed runs at >= 50% of the NPS
-  of a hand-written Rust bare alpha-beta with the same net. If not met, the grammar
-  design is revisited before P0 proceeds.
-
-  Elo per doubling of speed — the constant that prices interpreter overhead. Derivation
-  inlined so no private document is needed:
-  - 2-player literature at normal TC: ~50-90 Elo/doubling.
-  - Author's 4PC engine, threat-input builds gated at movetime 0.15s, back-solving
-    (Elo cost) / (log2 of speed ratio), holding the fixed-node quality delta constant:
-      old build: 0.329x speed = 1.60 doublings, cost 219 Elo -> 137 Elo/doubling (48 pairs)
-      new build: 0.647x speed = 0.63 doublings, cost 107 Elo -> 170 Elo/doubling (148 pairs)
-    The source (the 4PC engine's threat_v2/README.md) notes the combined ~176 "is high
-    enough that it is probably an artefact of the 48-pair sample". Later internal notes
-    cite 176 as measured without that caveat; the better-supported single measurement is
-    170 from 148 pairs, and the author's own flag applies to the whole cluster.
-  - Caveats carried from the source: one TC (0.15s), one engine, one variant, and the
-    assumption that the fixed-node eval delta transfers unchanged to the shallower depths
-    reachable in 0.15s. Decisive-heavy 4PC games also inflate Elo per game relative to
-    2-player chess.
-  - Honest bracket for Existence, which gates at fixed time: **50-170**. The interpreter
-    argument holds at every point in it (at 50 it is ~3.4x weaker than at 170). A dedicated
-    calibration — same engine, same net, halved movetime — is the first measurement to
-    take once the seed runs, and it replaces this bracket in the ledger.
-  Interpreter overhead is the cheapest way to lose the project.
-- Determinism: fixed RNG seeds per game for `sample` and for `moves` shuffling; all
-  candidates reproducible from (program, tables, net, seed).
-
-## 9. The ladder check (run offline before any compute is spent)
-Using the author's existing net as the test eval (methodology only), verify each step
-is expressible, is 1-3 mutations from the previous, and beats it on mates-per-cost
-and/or fixed-time games:
-1. depth-one (**9**, measured)
-2. depth-two: wrap-loop + add-arg + call -> minimax without bounds
-3. add window args + set accumulators + wrap-if(cmp(a,b,>=)) ret -> bare alpha-beta (**71**)
-4. probe before recursing, store after -> hash reuse (**89**)
-5. loop over depth in choose -> iterative deepening
-6. wrap-if(pred(m,p,is_capture)) around depth check -> capture extension at horizon
-7. tread(reduction, depth, index) in the recursive depth -> table-driven reduction
-
-Counts in bold are MEASURED by `crates/grammar`; the unbolded rungs are not yet written out.
-The original parenthetical estimates (8/18/29/41/52/61/72) were the same hand guesses that
-measured 2.4x wrong elsewhere in this document and have been removed rather than corrected.
-
-**FIRST RUNGS MEASURED (`crates/interp/examples/ladder.rs`), MATE-1 set of 120 positions:**
-
-| rung | mates found | cost | mates per Mcost |
+| program | D=2 | D=3 | D=4 |
 |---|---|---|---|
-| depth-one | 1/120 | 24k | 41.1 (cheap, but blind to mate) |
-| bare alpha-beta | **120/120** | 61.8M | **1.9** |
-| alpha-beta + hash reuse | **120/120** | 77.2M | **1.6** |
+| hash reuse | 1.250x | 1.218x | **1.113x** |
+| iterative deepening | 1.084x | 1.098x | 1.086x |
+| hash reuse + ID | 1.357x | 1.341x | 1.218x |
 
-**STEP 4 IS NOT A RUNG. Corrected 2026-09-07, and the correction reverses the conclusion.**
+The overhead SHRINKS with depth and the shrinking accelerates (-0.032 D2->D3, then -0.105
+D3->D4), which is what "a table needs transpositions and a shallow search has none" predicts.
+Break-even lands near depth 5-6 on two independent estimates: extrapolating this trend, and
+`tt_pressure.rs` measuring an 11.3% eval saving at depth 4 against a ~22% cost overhead (so the
+table must remove >18% of nodes to pay for itself).
 
-This table previously read `19.2M cost, 6.3 mates/Mcost` and concluded "Step 4's predicted gain
-is confirmed on paper: hash reuse finds the SAME mates for 3.2x less cost." That was measured
-against the BROKEN `ab_hash` documented in section 6 — a program that never called `eval` and
-returned the constant 0 at every leaf. Mate-in-1 is found by the TERMINAL guard, not by the
-eval, so a program that had stopped searching still scored 120/120 while costing a third as
-much. The "confirmed gain" was the bug.
+So the ladder's step 4 is real, and it is simply **not reachable from a depth-2 fitness
+function**. Evolution searching at depth 2 would correctly reject it as a 25% loss. That
+constraint is now recorded in MASTER_PLAN's rediscovery order.
 
-Re-measured against the faithful transposition table: **77.2M cost, 1.6 mates/Mcost — a 25%
-LOSS against the seed**, not a 3.2x gain.
+**TWO HYPOTHESES DIED HERE AND BOTH ARE KEPT, because the wrong ones were instructive.**
 
-**Three independent measurements now agree, and they contradict the plan's expected order:**
+1. *"Hash reuse should be a gain, the ladder confirms it."* — that confirmation was measured
+   against a broken encoding that never called `eval`; see the correction above.
+2. *"Iterative deepening is what creates the traffic a table needs, so steps 4 and 5 should be
+   SWAPPED."* — written into this document and into MASTER_PLAN, then measured and REFUTED. ID's
+   cost is FLAT at ~1.086x across D2-D4, and hash+ID is worse than hash alone at every depth.
+   ID re-searches from scratch; the entries it stores at depth d-1 are rejected by a probe
+   needing depth >= d. The swap has been reverted in both documents.
 
-| measurement | says |
-|---|---|
-| program length (§6) | hash reuse is **+104 nodes**, the FARTHEST reference program (UCT +33, PN +12) |
-| cost at fixed depth (`tt_pressure.rs`) | **1.12–1.27x more expensive** than bare alpha-beta at depths 2–4 |
-| mates-per-cost (this table) | **1.6 vs 1.9** — a loss |
-
-**Why, and what it implies for the ORDER.** A transposition table pays for itself when the same
-position is reached repeatedly. A single fixed-depth search offers almost no such traffic — a
-few transpositions by move-order permutation — so the probe/store machinery costs more than it
-saves. The thing that CREATES repeated searches of the same positions is ITERATIVE DEEPENING,
-which this ladder lists as step 5, AFTER hash reuse.
-
-So the ladder's order is wrong, and the plan's "Expected rediscovery order" (which opens with
-hash reuse) is wrong with it. **Iterative deepening has to come first, or the two have to
-arrive together**; a TT discovered before ID has nothing to hit and would be rejected by the
-very fitness function meant to reward it. Step 4 and step 5 are provisionally SWAPPED, pending
-a measurement of ID alone, which is the next thing this ladder should cost out.
-
-This is precisely what the offline ladder check is for: a predicted rung was measured, failed,
-and the sequence changed on paper — before any compute was spent chasing it.
-
-MCTS and PN score 0 on this set at a budget of 16 simulations; both need many simulations to
-prove anything and neither is a rung of this ladder.
-Each step's expected gain type is recorded (2-3: mates-per-cost; 4-7: fixed-time Elo).
-If any step fails to be a gain, the grammar or fitness is changed HERE, on paper.
+Two wrong hypotheses in a row was also the signal that the HARNESS was the thing to doubt: the
+ladder had a single hardcoded D=2, a depth at which no transposition-table effect can exist.
+Sweeping depth is what turned a flat "hash reuse is a loss" into a trend with a break-even.
 
 ## 10. Audit
 ### 10.1 Neutrality (Shogi test, per primitive)

@@ -354,21 +354,42 @@ frozen while tables test and vice versa. Bandit floors. Declared STC/LTC values 
 explanation sentence traceable to a number. Concept names marked as annotation.
 
 ## Expected rediscovery order
-Search (main lineage, from bare alpha-beta): iterative deepening -> hash reuse ->
+Search (main lineage, from bare alpha-beta): hash reuse -> iterative deepening ->
 hash-move-first -> capture extension (qsearch) -> history/killers -> LMR-shaped
 reductions -> null move -> futility-style margins.
-
-CORRECTED 2026-09-07: this list opened with HASH REUSE and the first two entries are now
-swapped, on measurement. A transposition table only pays when the same position is reached
-repeatedly, and a single fixed-depth search generates almost none of that traffic — iterative
-deepening is what creates it. Measured three ways in GRAMMAR 6 and 9: faithful hash reuse is
-+104 nodes from the seed (the FARTHEST reference program, vs +33 for UCT and +12 for PN), costs
-1.12–1.27x more than bare alpha-beta at depths 2–4, and scores 1.6 vs 1.9 mates-per-cost — a
-LOSS. Discovered before iterative deepening it would have nothing to hit, and the fitness
-function meant to reward it would reject it. The earlier ordering rested on a ladder measurement
-taken against a broken encoding that never called `eval`.
 Search (purity lineage, from depth-one): lookahead -> minimax -> alpha-beta bounding
 -> then as above.
+
+**MEASURED CONSTRAINT ON THE EARLY REGIME (2026-09-07). The order above is not wrong; it
+is unreachable at shallow depth.** Cost of each program relative to the bare alpha-beta seed,
+on the GRAMMAR 9 mate-in-1 set (`examples/ladder.rs`):
+
+| program | D=2 | D=3 | D=4 |
+|---|---|---|---|
+| hash reuse | 1.250x | 1.218x | **1.113x** |
+| iterative deepening | 1.084x | 1.098x | 1.086x |
+| hash reuse + ID | 1.357x | 1.341x | 1.218x |
+
+Hash reuse is a LOSS at every depth tested, but the loss SHRINKS with depth and the shrinking
+accelerates (-0.032 from D2 to D3, then -0.105 from D3 to D4). A transposition table needs
+transpositions, and a shallow search barely has any. Two independent estimates put break-even
+near **depth 5-6**: extrapolating this trend, and separately, `tt_pressure.rs` measures an 11.3%
+eval saving at depth 4 against a ~22% cost overhead, so the table must eliminate >18% of nodes
+to pay.
+
+**The consequence for the bootstrap, which this plan did not previously state:** evolution
+running at depth 2 cannot discover hash reuse, because at depth 2 hash reuse is a 25% loss and
+the fitness function will correctly reject it. The first predicted milestone is only reachable
+once the engine already searches deep enough for it to pay. That is a chicken-and-egg in the
+search track and it should be handled deliberately -- by running the PROGRAM arm's fitness at a
+deeper fixed budget than datagen uses, or by accepting that the early ladder rungs arrive out
+of the predicted order.
+
+(Correction log: an earlier revision of this line SWAPPED hash reuse and iterative deepening,
+reasoning that ID creates the repeated searches a table needs. Measured and REFUTED: ID's cost
+is flat at ~1.086x across D2-D4, and hash+ID is worse than hash alone at every depth. The swap
+has been reverted. What is true is the depth constraint above, not a reordering.)
+
 Eval: material -> king safety -> mobility, structure -> king-relative / threat-like
 features. Then its own point on the eval/search dial. Anything outside this list is
 the headline.
