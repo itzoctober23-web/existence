@@ -382,7 +382,20 @@ fn main() {
     // generation of data to be a fair challenger to a champion that has had many.
     let mut replay: Vec<Sample> = Vec::new();
     let mut judge_pool: Vec<Sample> = Vec::new();
-    let replay_gens = 8usize;
+    // REPLAY WINDOW, in generations. Was a bare `8` with no derivation and no measurement.
+    //
+    // He asked whether throwing data away is worth it: 22.6M positions have been generated and
+    // the loop trains on the newest ~250k. The argument FOR a window is real -- positions from
+    // 100 generations ago came from a much weaker champion, and training on them teaches the net
+    // to reproduce play it has outgrown; AlphaZero and Leela both use one. But 8 was never
+    // tested here, and today four separate constants turned out wrong for exactly that reason:
+    // `ci95 < 0.05` could never fire (measured 0.050-0.053), `arch-pairs 160` was derived to hit
+    // that threshold EXACTLY and missed by 0.001, the 30-epoch training budget was tuned for
+    // width 16 and silently blocked widths 128/256, and the +/-1 proposal stride could not reach
+    // past one rung. A constant that has never been varied is not a measurement.
+    //
+    // A flag, so it can be swept against the same frozen origin with everything else held fixed.
+    let replay_gens = arg("--replay-gens", 8);
     let mut replay_marks: std::collections::VecDeque<usize> = std::collections::VecDeque::new();
 
     for g in 1..=gens {
