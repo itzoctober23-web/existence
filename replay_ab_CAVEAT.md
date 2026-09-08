@@ -214,3 +214,41 @@ It also determines which comparison carries the most information:
 those two are literally the same run for the first fifth of it. When the scores land, read 1 vs
 999 first; a small 8-vs-999 gap is expected from the shared prefix alone and should not be read
 as "8 and unlimited are equivalent".
+
+## RESULT — 2026-09-08, re-scored at 600 pairs against the point all arms STARTED from
+
+The sweep's own scoring used 64 pairs (ci95 0.038-0.060, resolves only a gap >0.054), so it
+could not have detected its own hypothesis. Re-scored at 600 pairs (ci95 0.013, two-sample
+resolution ~0.018), and with the baseline the sweep never measured:
+
+| net | rate | vs baseline |
+|---|---|---|
+| BASELINE champion_long (the common start) | 0.864 +/- 0.013 | — |
+| replay-gens 1 | 0.843 +/- 0.013 | **-0.021, RESOLVED worse** |
+| replay-gens 8 (default) | 0.862 +/- 0.013 | -0.002, unchanged |
+| replay-gens 999 (keep everything) | 0.863 +/- 0.013 | -0.001, unchanged |
+
+**NO ARM IMPROVED ON ITS STARTING POINT.** 42 generations each, 6-11 accepted candidates each,
+and the best outcome is indistinguishable from where it began. That is the headline and it is not
+about the replay window at all.
+
+On the window question, which is what the sweep was for:
+  * 1 vs 999 = 0.020 against an 0.018 floor. It JUST clears, so: discarding aggressively is
+    measurably harmful. Treat it as suggestive rather than settled — it clears by 0.002.
+  * 8 vs 999 = 0.001. NOT RESOLVED. The current default is as good as keeping everything, so
+    there is no gain available from widening the window, and no harm either.
+  * The direction matters: the conventional staleness argument predicts 1 > 8 > 999 and the
+    measurement is the opposite ordering. Keeping data is not costing anything here.
+
+WHY THE BASELINE COULD NOT BE INHERITED. replay_ab2.sh's header says the resumed champion
+"measured ~0.83-0.85", and reading the arms against that would have made 0.862/0.863 look like
+gains. Those readings predate the control fix, where examples/control had a hardcoded
+depth-6/4000-node budget that searched 0.4% of the intended tree; repairing it moved a reading
+from 0.504 +/- 0.008 to 0.781 +/- 0.060. Re-measured with the same binary, seed and pair count,
+the true starting point is 0.864 — ABOVE all three arms. The inherited number would have
+inverted the conclusion.
+
+NEXT: this is consistent with the gate's measured detection floor (median ci95 0.072 at 40 pairs
+=> only resolves ~+50 Elo, confirmed again by gate_ab arm 40: 41 generations, 7 accepted, median
+ci95 0.072). A gate that cannot see real gains accepts noise instead, and accepted noise walks
+downhill. gate_ab is testing exactly that.
