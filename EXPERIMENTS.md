@@ -38,6 +38,33 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — no blend RAMP is needed: 0.75 is free at iteration zero and wins later
+
+Blend sweep against a RANDOM champion (iteration zero), 10 replicates, horizon 10:
+
+| blend | mean | 95% CI |
+|---|---|---|
+| 0.00 | 0.5574 | [0.5455, 0.5693] |
+| 0.25 | 0.5637 | [0.5550, 0.5724] |
+| 0.75 | 0.5617 | [0.5512, 0.5722] |
+| 1.00 | 0.5461 | [0.5327, 0.5594] |
+
+All above 0.5 — training a random net helps regardless — and 0 through 0.75 are
+statistically indistinguishable. So the blend costs NOTHING at iteration zero.
+
+Set against the trained-champion sweep (blend 0 -> 0.4805, blend 0.75 -> 0.5258), a FIXED 0.75
+is correct throughout and no ramp is required. That is worth knowing because the obvious design
+— ramp the blend as the search becomes trustworthy — would have added a schedule, and a
+schedule is another constant to get wrong. The measurement says a constant suffices.
+
+TWO SIDE POINTS:
+- blend 1.0 is the WORST arm here, which is the only place all day that pure self-reference has
+  shown a cost. It supports the anchor argument used to pick 0.75 over 1.0 — an argument I
+  explicitly recorded as a judgement the data did not support at the time. It does now, at the
+  end of the curve where the search is least trustworthy.
+- the original random-champion horizon sweep that produced "peak at 20" ran at blend 0. Whether
+  removing the cap is safe at iteration zero is the last open piece; running it now.
+
 ## 2026-09-08 — search track PAUSED: it cannot discriminate at the only depth it can afford
 
 294 candidates across ~12 generations, on a correct and fair mutation operator set:
