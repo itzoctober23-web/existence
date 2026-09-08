@@ -16,6 +16,7 @@ not hold up — what was wrong with the EXPERIMENT rather than the idea.
 | `cost-nodes` | **derived** | Tree size is NET-DEPENDENT; a fixed 4,000 covered 57% of one seed's tree and 33% of another's, aborting 4 of 6 experiment arms. |
 | interpreter accumulator | **width >= 64** | eval+apply per node: 399->441ns at w16 (WORSE), 665->582 at w64, 2290->1456 at w256. DORMANT while the champion is width 16. |
 | search accumulator | **width >= 64** | Independent measurement, same crossover: 32 is 0.91x (LOSS), 128 is 1.14x, 512 is 1.51x. This is why width 32 loses the CLOCK gate — a wider net's cost with none of the saving. |
+| `arch-pairs` | **224** (was 160) | 160 was derived to hit ci95 < 0.05 EXACTLY. Four gates in two runs measured 0.050/0.051/0.052/0.053 — `resolves` false every time by 0.001-0.003, so its strict branch never executed. 224 targets 0.0435. |
 | `arch` stride | **grows: +1,-1,+2,-2,...** | At stride 1 the only widening from rung 0 is width 32, a rung the clock gate must reject (measured 0.372 +/- 0.053), so the arm re-proposed a known cost cliff forever and width 128 was unreachable. Reach, not answer: the gates still decide. |
 | `games` per generation | **2400** (of those tried) | Equal wall-clock, origin-scored: 150 -> 0.555, 600 -> 0.773, 2400 -> 0.828. Monotone, and the INVERSE of generation count (140 / 45 / 12 generations). |
 | acceptance | sign, then width, then surrogate | Gate resolves the SIGN -> it decides. Narrow interval straddling 0.5 -> reject (precisely measured null). Only a WIDE straddle reaches the surrogate. |
@@ -33,7 +34,35 @@ the A/B to ask whether it works at all.
 
 ---
 
-## 2026-09-08 — the ARCH surrogate filter is a COIN FLIP against a moving baseline (n=4, observation)
+## 2026-09-08 — CAPACITY IS NOT THE CONSTRAINT: width 64 loses at EQUAL NODES, not just on the clock
+
+The stride fix let the arm reach an untried rung. It reached it, and the answer refutes my own
+framing of the problem:
+
+| step | surrogate | fixed-cost (equal NODES) | clock (equal TIME) | nodes cand vs champ |
+|---|---|---|---|---|
+| 16 -> 32 | 0.0730 vs 0.0777, z 2.43 | 0.544 +/- 0.050 | 0.334 +/- 0.052 | 6119 vs 7252 |
+| 16 -> 64 | 0.0701 vs 0.0775, z **4.12** | **0.498 +/- 0.053** | **0.281 +/- 0.043** | 5511 vs 7584 |
+
+**I had the shape of this wrong.** The cost-cliff story was: a wider net knows more per node and
+merely cannot pay its clock cost, so reaching a rung where the accumulator pays (128 at 1.14x)
+might flip it. Width 64 kills that. It does not beat width 16 at EQUAL NODES -- 0.498 straddles
+0.5 -- so the extra capacity is buying no extra knowledge at all, and it is simultaneously much
+slower (5511 nodes against 7584). Worse on both axes, and worse than width 32 on both axes.
+
+Note the surrogate said the opposite, loudly: held-out loss 0.0701 vs 0.0775 at paired z 4.12,
+the strongest surrogate reading any ARCH candidate has produced. Lower held-out loss, no more
+games won. That is the FITNESS 5 surrogate doing exactly what the docs warn it does -- proposing,
+not deciding -- and it is the clearest example yet of why the gate is the authority.
+
+**What this closes and what it does not.** Widening is measured harmful at 32 and neutral-to-
+harmful at 64, from a width-16 champion on this corpus. It does NOT close 128+: the accumulator
+crossover is real and unmeasured above 64, and `capacity.rs` exists because "wider is better"
+already failed once here. But the prior should now be that capacity is NOT the plateau's cause,
+and the plateau needs a different explanation -- the conversion blind spot (every gate starts
+from a randomised opening; the true starting position is never scored) is the current candidate.
+
+ against a moving baseline (n=4, observation)
 
 Every ARCH attempt is now in the ledger with a named reason. Four on record:
 

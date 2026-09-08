@@ -101,7 +101,18 @@ fn main() {
     // as 1/sqrt(n), so reaching 0.05 from 0.11 needs (0.11/0.05)^2 = 4.8x the pairs.
     // An ARCH step changes the champion's shape and is judged only every `arch_every`
     // generations, so it can afford the games a per-generation NET gate cannot.
-    let arch_pairs = arg("--arch-pairs", 160);
+    //
+    // 160 -> 224, because that derivation aimed at EXACTLY the threshold and left no margin.
+    // Every ARCH gate since has landed just the wrong side of it: measured ci95 across four
+    // gates in two runs was 0.050, 0.051, 0.052, 0.053 -- so `resolves` was false EVERY time,
+    // by 0.001 to 0.003, and the strict branch it guards has never once executed. A check that
+    // structurally cannot fire is not a check.
+    //
+    // 224 = 160 x 1.4, putting the expected interval at 0.0515 / sqrt(1.4) = 0.0435. That is
+    // below 0.05 with room for the run-to-run spread actually observed, rather than aimed at
+    // the line again. Cost is 40% more games on a step taken once every `arch_every`
+    // generations; the NET gate's per-generation budget is untouched.
+    let arch_pairs = arg("--arch-pairs", 224);
     // FITNESS 6 declares the fixed cost budget as "the cost of ~20k seed-program evaluations on
     // the seed net". 20k at P1 scale makes a single gate take minutes, so the budget is smaller
     // here and RECORDED rather than silently different; the ratio, not the absolute, is what
@@ -354,7 +365,18 @@ fn main() {
 
     let mut rng = Rng(seed);
     let mut accepted = 0;
-    let mut arch_attempts = 0usize;
+    // ARCH attempts already spent, so a RESUMED run continues the sweep instead of restarting it.
+    //
+    // `--init` restores the champion but this counter is what drives the proposal STRIDE
+    // (+1,-1,+2,-2,...), so a resumed run began again at stride 1 and re-walked the rungs it had
+    // already rejected. Measured: width 32 has now been proposed four times across two runs and
+    // lost on the clock twice (0.372 and 0.334) -- each repeat costs a full ARCH gate, and the
+    // arm cannot reach an untried rung while it is re-deriving a known answer.
+    //
+    // Explicit flag rather than hidden state beside the champion file: the sweep position is an
+    // experimental parameter, and a resumed run that silently starts somewhere unstated is how a
+    // measurement stops being reproducible.
+    let mut arch_attempts = arg("--arch-attempts-done", 0);
     let mut arch_accepted = 0usize;
     // Replay buffer. An ARCH candidate starts from random weights, so it needs more than one
     // generation of data to be a fair challenger to a champion that has had many.
