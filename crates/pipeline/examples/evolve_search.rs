@@ -85,6 +85,53 @@ fn passes_oracle(prog: &Program, set: &[Position], depth: u32, net: &Net) -> (us
     (ok, n)
 }
 
+
+/// FITNESS 3's mates-per-cost surrogate. CHEAP, and it runs BEFORE the games.
+///
+/// The gate is the expensive stage: 12 pairs is 24 games of up to 160 plies, each move a full
+/// budgeted search. Spending that on a candidate that cannot find a mate-in-1 is waste. The
+/// surrogate proposes; the gate disposes.
+///
+/// Denominated in COST UNITS, not evaluations, because proof-number search proves mates with
+/// zero eval calls and an eval-count denominator would divide by zero for it (FITNESS 3).
+fn mates_per_cost(prog: &Program, set: &[Position], depth: i64, net: &Net) -> (u32, f64) {
+    let mut it = Interp::new(net, vec![depth, 32_000, 8]);
+    let (mut found, mut cost) = (0u32, 0u64);
+    for p in set {
+        let mv = it.run(prog, p, 1 << 28);
+        cost += it.cost;
+        let mut q = p.clone();
+        if q.legal_moves().as_slice().contains(&mv) {
+            q.make_move(mv);
+            if q.legal_moves().is_empty() && q.outcome() == Outcome::Loss { found += 1; }
+        }
+    }
+    (found, found as f64 * 1e6 / cost.max(1) as f64)
+}
+
+/// Positions where the side to move has a mate in one. Rules-derived: a position is MATE-1 iff
+/// some legal move ends the game as a win. No chess knowledge enters.
+fn mate_set(n: usize, rnd: &mut impl FnMut() -> u64) -> Vec<Position> {
+    let mut out = Vec::new();
+    while out.len() < n {
+        let mut p = Position::startpos();
+        for _ in 0..60 {
+            let l = p.legal_moves();
+            if l.is_empty() { break; }
+            let mut winning = false;
+            for &m in l.as_slice() {
+                let u = p.make_move(m);
+                if p.legal_moves().is_empty() && p.outcome() == Outcome::Loss { winning = true; }
+                p.unmake_move(m, u);
+                if winning { break; }
+            }
+            if winning { out.push(p.clone()); break; }
+            p.make_move(l.as_slice()[(rnd() % l.len() as u64) as usize]);
+        }
+    }
+    out
+}
+
 /// One game, program vs program, SAME net, each move capped at `budget` COST UNITS.
 /// Returns Some(true) if A won.
 fn play(a: &Program, b: &Program, a_white: bool, start: &Position, net: &Net,
@@ -171,14 +218,17 @@ fn main() {
         if !p.legal_moves().is_empty() { oracle_set.push(p); }
     }
 
+    let mates = mate_set(40, &mut rnd);
     let mut champ = reference::bare_alpha_beta();
     let (ok, n) = passes_oracle(&champ, &oracle_set, oracle_depth, &net);
-    println!("seed: bare alpha-beta, {} nodes; oracle {ok}/{n}", champ.size());
+    let (seed_mates, seed_rate) = mates_per_cost(&champ, &mates, depth, &net);
+    println!("seed: bare alpha-beta, {} nodes; oracle {ok}/{n}; surrogate {seed_mates}/{} mates at {seed_rate:.3} per Mcost",
+             champ.size(), mates.len());
     println!("gate: candidate vs champion PROGRAM, same net, {budget} cost units/move, {pairs} pairs\n");
 
     let mut accepted = 0;
     for g in 1..=gens {
-        let (mut tried, mut ill, mut oracle_fail) = (0, 0, 0);
+        let (mut tried, mut ill, mut oracle_fail, mut surrogate_fail) = (0, 0, 0, 0);
         let mut best: Option<(Program, Pent)> = None;
         for i in 0..pop {
             let mut r = MRng::new((g as u64) << 24 ^ i as u64 ^ 0xBEEF);
@@ -191,7 +241,12 @@ fn main() {
             //    stops "cheaper" from being confused with "better".
             let (co, cn) = passes_oracle(&cand, &oracle_set, oracle_depth, &net);
             if cn == 0 || co * 100 < cn * 95 { oracle_fail += 1; continue; }
-            // 2. GAMES. The only thing that decides.
+            // 2. SURROGATE (FITNESS 3). Must not LOSE mates -- a program that finds fewer
+            //    mates more cheaply is not better, and missing a forced mate is unsound
+            //    pruning's characteristic failure. Cheap, so it runs before the games.
+            let (cm, _cr) = mates_per_cost(&cand, &mates, depth, &net);
+            if cm < seed_mates { surrogate_fail += 1; continue; }
+            // 3. GAMES. The only thing that decides.
             let sc = match_programs(&cand, &champ, &net, pairs, depth, budget,
                                     0xA11CE ^ (g as u64) << 8 ^ i as u64);
             if sc.pent_rate() - sc.ci95() > 0.5 {
@@ -203,13 +258,13 @@ fn main() {
         match best {
             Some((c, sc)) => {
                 println!("gen {g:>3}  ACCEPT  {} nodes  {}W-{}D-{}L  {:.3}+/-{:.3}  \
-                          ({tried} typed, {ill} ill-typed, {oracle_fail} failed oracle)",
+                          ({tried} typed, {ill} ill-typed, {oracle_fail} oracle, {surrogate_fail} surrogate)",
                          c.size(), sc.wins, sc.draws, sc.losses, sc.pent_rate(), sc.ci95());
                 champ = c;
                 accepted += 1;
             }
-            None => println!("gen {g:>3}  --      ({tried} typed, {ill} ill-typed, \
-                              {oracle_fail} failed oracle, none beat the champion)"),
+            None => println!("gen {g:>3}  --      ({tried} typed, {ill} ill-typed, {oracle_fail} oracle, \
+                              {surrogate_fail} surrogate, none beat the champion)"),
         }
     }
 

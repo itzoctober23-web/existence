@@ -38,6 +38,53 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — the cost model was never built, and it inverted a published result
+
+GRAMMAR 8 and CRATE 4 both specify a per-primitive cost table (`configs/cost.toml`).
+Neither existed; the interpreter charged a flat `self.cost += 1` per node, so a full NNUE
+forward pass cost exactly what `const 3` cost. That is not neutral — it is a thumb on the
+scale against any program that spends cheap work to avoid expensive work, which is exactly
+a transposition table's trade. MEASURED (examples/cost_calibrate.rs, width 32, min-of-5):
+
+| primitive | cost | |
+|---|---|---|
+| arith / cmp / const / var | 1 | |
+| key (zobrist) | 97 | |
+| terminal | 703 | |
+| apply | 788 | |
+| eval | **1365** | 293 ns |
+| moves (legal_moves) | 2232 | |
+
+Re-derived ladder, hash reuse relative to the seed: flat 1.250x (D2) / 1.218x (D3) becomes
+**1.04x / 1.01x**. The 25% penalty was the instrument. RETRACTS the magnitude of the
+"break-even near depth 5-6" claim and the chicken-and-egg constraint written into
+MASTER_PLAN from it; the direction (overhead falls with depth) survives.
+
+## 2026-09-08 — a fixed gate budget is wrong when tree size is NET-DEPENDENT
+
+The 3-seed experiment reported ALL ARMS COMPLETE with 4 of 6 arms at zero generations. The
+gate-coverage guard had aborted them: a fixed 4,000-node budget covered 57% of one seed's
+depth-4 tree and 33% of another's, because different random nets produce different
+alpha-beta cutoffs and therefore different tree sizes. The guard was RIGHT — it refused to
+run gates that would return confident-looking 0.500s. `--cost-nodes` now derives from the
+measured full tree at the cap depth.
+
+The second half is worse and is a repeat: the wrapper never checked exit codes, so four
+aborts printed as success. The 4PC queue runner already carries this exact lesson — "a
+failed EXPERIMENT is a result; a failed SCRIPT is a bug."
+
+## 2026-09-08 — the search track exists, and its oracle caught its own bug first
+
+`evolve_search.rs`: mutate -> CORRECTNESS ORACLE (full-width negamax agreement) -> mates-per-cost
+surrogate -> GAME GATE (candidate program vs champion program, same net, equal COST budget,
+pentanomial). The previous `evolve.rs` had only the surrogate, scored against a random net.
+
+First run printed `seed: bare alpha-beta, 71 nodes; oracle 7/10`. A seed failing its own
+oracle is impossible — alpha-beta returns the full-width minimax value by construction. The
+reference was a ply shallow: the seed's `choose` expands the ROOT itself then searches D more
+plies, and I called the reference with depth-1. That is the SAME off-by-one GRAMMAR 8 records
+behind the bogus "0.14x" interpreter reading. Fixed; seed now 10/10.
+
 ## 2026-09-07 — the ones that held
 
 - **Self-play VOLUME.** 80 -> 10,000 games/generation. Training samples 33-267 ->
