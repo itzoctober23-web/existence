@@ -29,6 +29,22 @@
 #   * The 0.151 run-to-run variance across full restarts does not apply here (both arms resume
 #     from the same champion), but two arms is still two samples -- a gap under ~0.018 is not
 #     resolved at 600 pairs.
+#
+# GATE-PAIRS 40, NOT 224, AND THAT IS THE WHOLE POINT OF THE REDESIGN.
+#
+# The first version ran at 224 pairs and was UNINFORMATIVE BY CONSTRUCTION: the control arm
+# accepted ZERO candidates in 23 generations, so the anchor gate -- which can only VETO -- had
+# nothing to act on. Both arms would have ended on the identical champion and the A/B would have
+# "resolved" nothing while looking like a clean null. I designed it to run in a regime where the
+# failure it exists to prevent does not occur.
+#
+# The failure IS reproducible at 40 pairs: that gate accepted 7 candidates and drove the champion
+# from 0.864 to 0.826 -- a resolved 0.038 drop, well above the 0.019 floor. So run there. The
+# anchor should veto the bad promotions and land the arm near 0.864 while the unanchored arm
+# repeats the decline. That is a difference large enough for 600 pairs to see, which the
+# 224-pair regime was not.
+#
+# A fix has to be tested where the bug happens.
 set -uo pipefail
 cd "$(dirname "$0")"
 SECS=${SECS:-900}
@@ -37,12 +53,12 @@ INIT=${INIT:-champion_long.net}
 PAIRS_SCORE=${PAIRS_SCORE:-600}
 
 [ -f "$INIT" ] || { echo "no champion at $INIT"; exit 1; }
-echo "=== anchor gate A/B: ${SECS}s per arm, gate-pairs 224, epochs 3 ==="
+echo "=== anchor gate A/B: ${SECS}s per arm, gate-pairs 40 (where the degradation reproduces), epochs 3 ==="
 for A in 0 224; do
   echo "--- arm: anchor-pairs $A ---"
   timeout "$SECS" taskset -c 15 nice -n 19 ionice -c 3 ./target/release/learn \
     --init "$INIT" --gens 1000000 --games 2400 --threads 1 --depth 2 --epochs 3 \
-    --gate-pairs 224 --anchor-pairs "$A" --arch-every 0 --control-every 0 \
+    --gate-pairs 40 --anchor-pairs "$A" --arch-every 0 --control-every 0 \
     --seed "$SEED" --out "an_${A}.net" --ledger "an_${A}.jsonl" > "an_${A}.log" 2>&1
   echo "  generation $(grep -cE '^gen ' "an_${A}.log"), $(grep -cE 'ACCEPT' "an_${A}.log") accepted"
 done
