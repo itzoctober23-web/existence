@@ -80,6 +80,13 @@ fn main() {
     // free to walk away from it, and the run prints where it ended up.
     let start_rung = arg("--rung", 0).min(WIDTH_MENU.len() - 1);
     let arch_every = arg("--arch-every", 5);
+    // ARCH gets its OWN pair count, and the number is derived rather than picked. At 32 pairs
+    // the ARCH gates measured +/-0.096 to +/-0.119, against the <0.05 needed for `resolves`, so
+    // every architecture decision fell through to the surrogate. A pentanomial interval scales
+    // as 1/sqrt(n), so reaching 0.05 from 0.11 needs (0.11/0.05)^2 = 4.8x the pairs.
+    // An ARCH step changes the champion's shape and is judged only every `arch_every`
+    // generations, so it can afford the games a per-generation NET gate cannot.
+    let arch_pairs = arg("--arch-pairs", 160);
     // FITNESS 6 declares the fixed cost budget as "the cost of ~20k seed-program evaluations on
     // the seed net". 20k at P1 scale makes a single gate take minutes, so the budget is smaller
     // here and RECORDED rather than silently different; the ratio, not the absolute, is what
@@ -356,11 +363,11 @@ fn main() {
                 } else {
                     let fixed = gate::match_nets_capped(
                         &acand, &champion, gate_depth_cap, cost_nodes, cost_nodes,
-                        gate_pairs, seed ^ 0xB6 ^ g as u64, 4);
+                        arch_pairs, seed ^ 0xB6 ^ g as u64, 4);
                     let (ca, cb) = arch::equal_time_caps(&acand, &champion, budget_ns, depth.max(3));
                     let clock = gate::match_nets_capped(
                         &acand, &champion, gate_depth_cap, ca, cb,
-                        gate_pairs, seed ^ 0xC7 ^ g as u64, 4);
+                        arch_pairs, seed ^ 0xC7 ^ g as u64, 4);
                     // Can these gates resolve anything? At iteration zero two wandering nets
                     // draw every game, and a match of 24 draws carries no information whatever
                     // its point estimate says. When neither gate can resolve, the decision falls
@@ -440,7 +447,7 @@ fn main() {
             // its extra cost as strength.
             let (ca, cb) = arch::equal_time_caps(&champion, &origin, budget_ns, depth.max(3));
             let c = gate::match_nets_capped(&champion, &origin, gate_depth_cap, ca, cb,
-                                            gate_pairs, seed ^ 0xC0 ^ g as u64, 4);
+                                            arch_pairs, seed ^ 0xC0 ^ g as u64, 4);
             println!("      control vs origin @gen {g}: {}W-{}D-{}L  rate {:.3} +/- {:.3}{}",
                 c.wins, c.draws, c.losses, c.pent_rate(), c.ci95(),
                 if c.rate() - c.ci95() > 0.5 { "  *" } else { "" });
