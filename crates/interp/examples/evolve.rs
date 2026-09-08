@@ -14,7 +14,7 @@ use grammar::{reference, Program};
 use interp::Interp;
 use nnue::Net;
 
-fn mate_set(n: usize) -> Vec<Position> {
+fn mate_set(n: usize) -> Vec<(Position, Option<board::Move>)> {
     let mut rng: u64 = 0xC0DE_F00D;
     let mut out = Vec::new();
     while out.len() < n {
@@ -29,7 +29,7 @@ fn mate_set(n: usize) -> Vec<Position> {
                 p.unmake_move(m, u);
                 if winning { break; }
             }
-            if winning { out.push(p.clone()); break; }
+            if winning { out.push((p.clone(), None)); break; }
             rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
             p.make_move(l.as_slice()[(rng % l.len() as u64) as usize]);
         }
@@ -37,19 +37,89 @@ fn mate_set(n: usize) -> Vec<Position> {
     out
 }
 
+
+/// Positions with NO mate in one, where some move FORCES mate next turn (every reply loses).
+///
+/// WHY THIS SET EXISTS. The loop accepts on `f >= best_found && rate > best_rate` -- keep every
+/// mate, get cheaper -- with no game gate. On a mate-in-ONE-only set no amount of shallowness can
+/// lose a mate, so the "must not lose mates" guard could never bite and the optimiser was free to
+/// drive cost to zero. It did: the first restarted run went 0.03 -> 8.73 mates/Mcost in ONE
+/// type-preserving edit, 333x cheaper at an unchanged node count.
+///
+/// MEASURED (examples/mate_surrogate_probe.rs), seed alpha-beta, no mutation involved:
+///     mate-in-1 set   depth 1: 80/80 mates at 246M cost   depth 2: 80/80 at 3049M
+///                     -> shallower keeps every mate and costs 12x less. Guard cannot bite.
+///     mate-in-2 set   depth 1: 17/40 forcing moves        depth 2: 40/40
+///                     -> shallower LOSES 23 mates. Guard bites, as written.
+/// So the repair is the SET, not the rule: the rule was always right and had nothing to enforce.
+fn forced_mate_set(n: usize, cap: usize) -> Vec<(Position, Option<board::Move>)> {
+    let mut rng: u64 = 0x5EED_1234;
+    let mut out = Vec::new();
+    let mut tries = 0;
+    while out.len() < n && tries < cap {
+        tries += 1;
+        let mut p = Position::startpos();
+        for _ in 0..(10 + rng % 40) {
+            let l = p.legal_moves();
+            if l.is_empty() { break; }
+            rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
+            p.make_move(l.as_slice()[(rng % l.len() as u64) as usize]);
+        }
+        if p.legal_moves().is_empty() { continue; }
+        let mut has_m1 = false;
+        for &m in p.legal_moves().as_slice() {
+            let u = p.make_move(m);
+            if p.legal_moves().is_empty() && p.outcome() == Outcome::Loss { has_m1 = true; }
+            p.unmake_move(m, u);
+            if has_m1 { break; }
+        }
+        if has_m1 { continue; }   // a mate in one here would let depth 1 solve it
+        let moves: Vec<_> = p.legal_moves().as_slice().to_vec();
+        for m in moves {
+            let u = p.make_move(m);
+            let replies: Vec<_> = p.legal_moves().as_slice().to_vec();
+            let mut all_lose = !replies.is_empty();
+            for r in replies {
+                let u2 = p.make_move(r);
+                let mut mates = false;
+                for &m2 in p.legal_moves().as_slice() {
+                    let u3 = p.make_move(m2);
+                    if p.legal_moves().is_empty() && p.outcome() == Outcome::Loss { mates = true; }
+                    p.unmake_move(m2, u3);
+                    if mates { break; }
+                }
+                p.unmake_move(r, u2);
+                if !mates { all_lose = false; break; }
+            }
+            p.unmake_move(m, u);
+            if all_lose { out.push((p.clone(), Some(m))); break; }
+        }
+    }
+    out
+}
+
 /// mates per million cost units, and the mate count (a program that finds fewer mates more
 /// cheaply is NOT better -- unsound pruning's characteristic failure is a missed forced mate).
-fn fitness(prog: &Program, set: &[Position], net: &Net) -> (u32, u64, f64) {
+fn fitness(prog: &Program, set: &[(Position, Option<board::Move>)], net: &Net) -> (u32, u64, f64) {
     let mut it = Interp::new(net, vec![2, 32_000, 8]);
     let (mut found, mut cost) = (0u32, 0u64);
-    for p in set {
+    for (p, forcing) in set {
         let mv = it.run(prog, p, 16);
         cost += it.cost;
-        if mv != board::types::MOVE_NONE {
-            let mut q = p.clone();
-            if let Some(m) = q.legal_moves().as_slice().iter().copied().find(|x| *x == mv) {
-                q.make_move(m);
-                if q.legal_moves().is_empty() && q.outcome() == Outcome::Loss { found += 1; }
+        match forcing {
+            // MATE IN TWO: credit the FORCING move. The first move of a mate in two never mates
+            // on this ply, so the immediate-mate test below scores it 0 by construction -- that
+            // bug made depth 1, 2 and 3 all read 0 until the control caught it.
+            Some(best) => { if mv == *best { found += 1; } }
+            // MATE IN ONE: any move that mates now, since there may be several.
+            None => {
+                if mv != board::types::MOVE_NONE {
+                    let mut q = p.clone();
+                    if let Some(m) = q.legal_moves().as_slice().iter().copied().find(|x| *x == mv) {
+                        q.make_move(m);
+                        if q.legal_moves().is_empty() && q.outcome() == Outcome::Loss { found += 1; }
+                    }
+                }
             }
         }
     }
@@ -60,11 +130,21 @@ fn main() {
     let gens: usize = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(30);
     let pop: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(24);
     let net = Net::random(32, 20260907);
-    let set = mate_set(80);
+    // MIXED on purpose: mate-in-1 alone made the surrogate maximisable by searching less.
+    let mut set = mate_set(80);
+    let deep = forced_mate_set(40, 400_000);
+    let n_deep = deep.len();
+    set.extend(deep);
 
     let mut champ = reference::bare_alpha_beta();
     let (f0, c0, r0) = fitness(&champ, &set, &net);
-    println!("  MATE-1 set {} positions", set.len());
+    println!("  surrogate set {} positions ({} mate-in-1, {} forced-mate-in-2)",
+             set.len(), set.len() - n_deep, n_deep);
+    if n_deep == 0 {
+        println!("  REFUSING TO RUN: no depth-requiring positions, so the 'do not lose mates'");
+        println!("  guard cannot bite and this loop optimises toward a depth-1 mate detector.");
+        return;
+    }
     println!("  seed: bare alpha-beta  {f0} mates  {c0} cost  {r0:.2} mates/Mcost  ({} nodes)", champ.size());
     let (mut best_found, mut best_rate) = (f0, r0);
 
