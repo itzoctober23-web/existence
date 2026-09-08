@@ -588,6 +588,11 @@ fn main() {
     println!("  population MU={MU}, lambda={pop}, plateau tolerance EPS={EPS:.3} \
 (deepest measured valley half is 0.009)");
 
+    // Silence the per-candidate panic backtraces: they are EXPECTED output now, one line per
+    // malformed candidate, and at 12 candidates a generation they would bury the results. The
+    // count is what matters and it is visible as `mate-ok` falling.
+    std::panic::set_hook(Box::new(|_| {}));
+
     let mut rng = Rng::new(0xE0FFEE);
     for g in 1..=gens {
         // Snapshot every lineage's programs BEFORE this generation, so crossover donors are drawn
@@ -631,8 +636,32 @@ fn main() {
                         sc.spawn(move || {
                             part.iter()
                                 .map(|c| {
-                                    let (f, _cst, rate) = fitness(c, set, net, depth, bud);
-                                    (c.clone(), f, rate)
+                                    // A CANDIDATE THAT PANICS SCORES ZERO. It does not kill the run.
+                                    //
+                                    // Crossover produces programs that pass the TYPE CHECKER and
+                                    // still violate a runtime invariant -- an unbound variable
+                                    // types as Unit and then reaches an accessor expecting a Pos.
+                                    // Two such crashes in one hour took the whole track down:
+                                    // "make_move: empty from-square", then "type error: expected
+                                    // Pos".
+                                    //
+                                    // Guarding each accessor as it is discovered is whack-a-mole
+                                    // against a search whose entire job is to generate programs
+                                    // nobody anticipated. This is the general form: whatever
+                                    // invariant a candidate violates, it is caught here, scored
+                                    // as the worst possible program, and rejected by the mate
+                                    // guard on the next line. The search continues.
+                                    //
+                                    // Scoring 0 mates is exactly right rather than merely safe --
+                                    // a program that cannot complete an evaluation has, in fact,
+                                    // answered nothing.
+                                    let r = std::panic::catch_unwind(
+                                        std::panic::AssertUnwindSafe(|| fitness(c, set, net, depth, bud)),
+                                    );
+                                    match r {
+                                        Ok((f, _cst, rate)) => (c.clone(), f, rate),
+                                        Err(_) => (c.clone(), 0, 0.0),
+                                    }
                                 })
                                 .collect::<Vec<_>>()
                         })
