@@ -55,3 +55,53 @@ of this has to cover both halves.
 Whether "candidate beats champion" can be made to mean "candidate is stronger". Every configuration
 knob has now been turned without moving the origin score, so the next question is about the
 OBJECTIVE, not its parameters.
+
+
+---
+
+# NON-TRANSITIVITY: DEMONSTRATED, not inferred (2026-09-08)
+
+The hypothesis above -- "beating the champion is not the same as getting stronger" -- was inferred
+from eight runs. It is now measured directly, with `control --opponent`:
+
+| match | result | resolved? |
+|---|---|---|
+| `ep_1` vs `champion_long` (head to head, 600 pairs, depth 2) | **0.545 +/- 0.018** | YES, excludes 0.5 |
+| `champion_long` vs frozen origin | 0.864 +/- 0.013 | — |
+| `ep_1` vs frozen origin | 0.834 +/- 0.013 | YES, 0.030 gap vs a 0.018 floor |
+
+**ep_1 BEATS champion_long, and champion_long BEATS ep_1 against a common third opponent.** Both
+directions clear their intervals. This is an intransitive cycle, measured on the real nets the loop
+produced, at the exact depth the loop's own gate uses.
+
+## Why this is the root cause and not another symptom
+
+The loop's accept rule is "does the candidate beat the current champion". This result says that
+quantity can move in the OPPOSITE direction to strength against a fixed opponent. So the loop can
+run perfectly -- gate correctly sized, surrogate disabled, every candidate honestly measured -- and
+still walk sideways or downhill, because it is climbing the wrong quantity.
+
+It explains the whole table above without any additional assumption:
+
+* mean gate rate >= 0.5 in **all eight** runs: candidates really do beat their parents.
+* not one final net above the 0.864 start, three resolved worse: those wins do not accumulate into
+  strength.
+* `corr(accepts, origin score) = -0.075`: promoting more of them changes nothing, because what is
+  being promoted is not what is being measured at the end.
+
+## What it does NOT say
+
+* NOT that the gate is broken. The gate measures candidate-vs-champion accurately; that is the
+  problem, not a defect in it.
+* NOT that self-play cannot work. Intransitivity is a known property of self-play objectives, and
+  the standard responses are to score against a FIXED reference or a POOL of past opponents rather
+  than only the current champion.
+* NOT that ep_1 is a bad net in some absolute sense -- it is better than champion_long at playing
+  champion_long, which is exactly what it was trained to be.
+
+## Next, and it is a design change rather than a parameter
+
+Gate candidates against something that does not move: the frozen origin, or a pool of past
+champions, or both alongside the champion match. The origin control already exists and is already
+used to score runs at the END -- the change is to consult it during the accept decision, where the
+whole day's evidence says the champion match alone is insufficient.
