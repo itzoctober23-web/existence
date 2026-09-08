@@ -38,6 +38,29 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — step budget: INTERIM, seed 1 of 3
+
+First arms to complete with the derived per-net gate budget (the earlier attempts aborted on
+the coverage guard). Control vs the frozen origin, seed 20260907:
+
+| gen | epochs 3 | steps-per-gen 20000 |
+|---|---|---|
+| 10 | 0.641 +/- 0.045 | **0.756 +/- 0.043** |
+| 20 | 0.809 +/- 0.040 | **0.834 +/- 0.035** |
+
+At generation 10 the intervals do not overlap ([0.596, 0.686] vs [0.713, 0.799]), which is a
+real separation favouring the fixed step budget. By generation 20 they overlap and the
+difference is not significant.
+
+**NOT A RESULT YET, and the reason is written above in this file.** This is n=1. Two runs at
+IDENTICAL settings disagreed earlier today — that is what started this experiment — so a single
+seed showing a clean separation is exactly the evidence that has already misled me once. Seeds
+424242 and 987654 are running. The claim waits for the pooled three.
+
+What IS established independently of the arms: both now compound strongly (0.809 and 0.834
+against the origin at gen 20, against 0.694 in the earlier run), because the derived budget
+gives the gate 100% coverage instead of the 33-57% a fixed 4000 nodes happened to produce.
+
 ## 2026-09-08 — FIRST SEARCH-TRACK RESULT: 128 mutations, 0 accepted
 
 The search track ran end to end for the first time. 8 generations x 16 candidates against the
