@@ -462,3 +462,30 @@ held-out set and the ~85% zero labels.
 attributing a null to the data or the architecture. Three hypotheses and roughly an hour were
 spent explaining a result produced by a sign error. The same control settled the equivalent
 question on the sibling 4PC project in one run.
+
+**2026-09-07, P1 finding: the outcome label is only informative NEAR the terminal.**
+
+With the trainer fixed, a paired before/after test on held-out decided positions, sweeping how
+far from the end a training position may be (distance to terminal is rules-derived, so this
+filter is legal):
+
+| training set | n | sign accuracy before -> after |
+|---|---|---|
+| all decided | 2087 | 0.452 -> **0.441** (worse) |
+| <= 60 plies from end | 1673 | 0.452 -> 0.536 |
+| <= 30 plies from end | 1067 | 0.452 -> 0.521 |
+| <= 10 plies from end | 414 | 0.452 -> **0.543** |
+
+Training on ALL decided positions degrades the eval. Restricting to near-terminal positions
+improves it, and the effect is strongest with 5x LESS data. Interpretation: when both players
+are near-random, the game result is nearly independent of a position 40 plies earlier, so
+distant labels are not weak signal -- they are anti-signal, and they dominate by count.
+
+This is the bootstrap problem in its concrete form. The label only becomes informative further
+back as play improves, which is why the horizon should widen with strength rather than being
+fixed. That schedule is a hyperparameter, i.e. LEARNED, not declared.
+
+**Metric note:** paired squared error is NEGATIVE in every arm even where sign accuracy
+clearly improves, because an untrained net predicts ~0 -- safe under MSE (error ~1) and
+useless in play -- while a trained net predicts with magnitude and is sometimes wrong. MSE
+punishes confidence. Sign accuracy plus McNemar is the meaningful pair here; report both.

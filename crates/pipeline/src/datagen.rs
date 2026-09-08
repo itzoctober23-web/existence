@@ -13,6 +13,11 @@ use crate::search::Searcher;
 
 pub struct Sample {
     pub fen: String,
+    /// Plies from this position to the end of the game. Rules-derived. In self-play by a
+    /// near-random engine the OUTCOME is nearly independent of a position 40 plies earlier --
+    /// the players are noise, so the result is not yet determined by the position. Distance to
+    /// terminal is how that is testable.
+    pub plies_to_end: u32,
     /// Game result from WHITE's point of view: +1 white won, -1 black won, 0 drawn.
     pub z: f32,
     /// The engine's own root search score at this position, mover-relative.
@@ -70,7 +75,7 @@ pub fn play_game(
         if mv == board::types::MOVE_NONE {
             break;
         }
-        out.push(Sample { fen: pos.to_fen(), z: 0.0, root: score });
+        out.push(Sample { fen: pos.to_fen(), z: 0.0, root: score, plies_to_end: 0 });
         // Temperature early: pick a random legal move occasionally so games diverge.
         let m: Move = if ply < 6 && rng.next() % 4 == 0 {
             l.as_slice()[rng.below(l.len())]
@@ -88,8 +93,10 @@ pub fn play_game(
         }
         _ => 0.0,
     };
-    for sample in &mut out[start..] {
+    let n = out.len() - start;
+    for (i, sample) in out[start..].iter_mut().enumerate() {
         sample.z = z;
+        sample.plies_to_end = (n - 1 - i) as u32;
     }
     result
 }
