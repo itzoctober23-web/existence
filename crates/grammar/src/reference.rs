@@ -446,14 +446,46 @@ pub fn uct_mcts() -> Program {
     let child = || Node::Apply(b(v("p")), b(v("m")));
 
     // Q + C * sqrt(log(N_parent) / N_child)
-    let q = Node::Avg(b(sum(child())), b(visits(child())));
+    //
+    // NEGATED, and it was not. A node's `sum` is accumulated in ITS OWN mover's perspective --
+    // backprop stores `val = Neg(Call(simulate, child))`, i.e. the child's return flipped into
+    // the parent's frame. So reading a CHILD's sum from the parent gives the child's frame and
+    // must be flipped again. Without the Neg the sign is inverted and the parent prefers the
+    // moves that are WORST for it.
+    //
+    // This is why the mating move could never be found. A child that is checkmate stores
+    // ScoreOf(Loss, 0) = -29936 from its own perspective (it is lost, which is exactly what the
+    // parent wants). Un-negated, that reads as q = -29936: the single most REPELLENT move on the
+    // board. MEASURED at 0/23 forced mates across budgets 64, 256 and 1024.
+    let q = Node::Arith(
+        ArithOp::Neg,
+        vec![Node::Avg(b(sum(child())), b(visits(child())))],
+    );
+    // FIRST-PLAY URGENCY. The denominator is visits(child) + 1, not visits(child).
+    //
+    // The interpreter is integer arithmetic and `Div` by zero returns 0, so an UNVISITED child
+    // computed u = Sqrt(Div(Log(N), 0)) = 0, and q = Avg(sum, 0) = 0 by the same guard. An
+    // unexplored child therefore scored the LOWEST possible value when UCT requires it to score
+    // the HIGHEST -- so the search locked onto the first child it expanded and never looked at a
+    // sibling again. MEASURED before the fix: 0/23 forced mates at budgets 64, 256 AND 1024, only
+    // 2 distinct moves returned across 23 different positions, and the ladder sweep independently
+    // reported 0 mates out of 120.
+    //
+    // Same root cause family as the PN defects fixed in this file today: an unvisited slot is
+    // Slot::default(), all zeros, and nothing distinguished "no data" from a real value. There it
+    // made unexplored nodes look PROVEN (zero = best); here it makes them look WORTHLESS (zero =
+    // worst). Both directions, same missing distinction.
+    //
+    // With +1: an unvisited child gets u = Sqrt(Log(N)) > 0, above any heavily-visited sibling
+    // whose integer Div collapses to 0, so unexplored moves are tried before the tree deepens --
+    // which is what UCT's infinite FPU does in the real algorithm.
     let u = Node::Arith(
         ArithOp::Sqrt,
         vec![Node::Arith(
             ArithOp::Div,
             vec![
                 Node::Arith(ArithOp::Log, vec![visits(v("p"))]),
-                visits(child()),
+                Node::Arith(ArithOp::Add, vec![visits(child()), Node::Const(1)]),
             ],
         )],
     );
@@ -465,16 +497,46 @@ pub fn uct_mcts() -> Program {
 
     // simulate(p) -> Score
     let sim_body = Node::seq(vec![
+        // TERMINAL. It must RECORD the visit, not just return a value.
+        //
+        // This branch used to `Ret` immediately with no Store, so a terminal child accumulated no
+        // visits and no sum. `choose` selects by Argmax(moves, m, visits(child)) -- visit count --
+        // so a MATING child sat permanently at visits 0 and could never be chosen however good it
+        // was. Measured before the fix: 0/23 forced mates at budgets 64, 256 AND 1024, and only 4
+        // distinct moves returned across 23 different positions. The ladder sweep independently
+        // reported 0 mates out of 120.
+        //
+        // Same shape as the PN terminal bug fixed in this file today, and the same shape as the
+        // hash-reuse program that never wrote its table: the branch that reaches the ANSWER is the
+        // one that forgets to record it.
         Node::If(
             b(Node::Cmp(
                 b(Node::Terminal(b(v("p")))),
                 b(Node::OutcomeLit(OutcomeLit::None)),
                 Rel::Ne,
             )),
-            b(Node::Ret(b(Node::ScoreOf(
-                b(Node::Terminal(b(v("p")))),
-                b(Node::Const(0)),
-            )))),
+            b(Node::seq(vec![
+                Node::Store(
+                    b(Node::Key(b(v("p")))),
+                    FieldId::Count,
+                    b(Node::Arith(ArithOp::Add, vec![visits(v("p")), Node::Const(1)])),
+                ),
+                Node::Store(
+                    b(Node::Key(b(v("p")))),
+                    FieldId::Sum,
+                    b(Node::Arith(
+                        ArithOp::Add,
+                        vec![
+                            sum(v("p")),
+                            Node::ScoreOf(b(Node::Terminal(b(v("p")))), b(Node::Const(0))),
+                        ],
+                    )),
+                ),
+                Node::Ret(b(Node::ScoreOf(
+                    b(Node::Terminal(b(v("p")))),
+                    b(Node::Const(0)),
+                ))),
+            ])),
             None,
         ),
         // unvisited leaf: expand, evaluate, return

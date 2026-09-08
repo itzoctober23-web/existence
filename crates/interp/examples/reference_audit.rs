@@ -137,9 +137,45 @@ fn main() {
              ps.len());
     println!("  @sims 64  legal {m_legal2}/{}  over {m_over_b}  evals {m_ev_b}  cost {m_cost_b}",
              ps.len());
-    let mcts_ok = m_legal2 == ps.len() && m_over_b == 0 && m_ev_b > 0 && m_cost_b > m_cost_s;
-    println!("  VERDICT: {}", if mcts_ok { "FAITHFUL — runs, evaluates, spends its budget" }
-                              else { "FAILS — and the control passed, so this is the program" });
+    // SAME BAR AS PN, and it was not applied here first time round. The original MCTS verdict
+    // asked only: legal move, evals > 0, cost scales with simulations. PN was additionally
+    // required to SOLVE. Holding two reference programs to different standards is how a
+    // degenerate program keeps a "faithful" label -- exactly what happened to hash-reuse. The
+    // ladder sweep (ladder_sweep.log) independently reports MCTS finding 0 mates out of 120.
+    let mut m_solved = [0usize; 3];
+    // EXPLORATION-WEIGHT SWEEP. Mix(q,u,k) = (q*k + u*(16-k))/16, and the audit passes
+    // tables[2] = 1 -- which weights the EXPLOITATION term at 1/16 and is close to pure random
+    // exploration. That is a harness choice about a LEARNED table, not a property of the program,
+    // so a shortfall at k=1 must not be reported as the encoding failing.
+    for kw in [1i64, 4, 8, 16] {
+        let mut sv = 0usize;
+        for (q, best) in &mates {
+            let mut i = Interp::new(&net, vec![depth, 32_000, kw]);
+            if i.run(&mcts, q, 256) == *best { sv += 1; }
+        }
+        println!("  exploration weight {kw:>3} (budget 256): mate-in-one {sv}/{}", mates.len());
+    }
+    for (k, bgt) in [64i64, 256, 1024].iter().enumerate() {
+        for (q, best) in &mates {
+            let mut i = Interp::new(&net, vec![depth, 32_000, 1]);
+            if i.run(&mcts, q, *bgt) == *best { m_solved[k] += 1; }
+        }
+        println!("  budget {bgt:>5}: mate-in-one {}/{}", m_solved[k], mates.len());
+    }
+    // Same diagnostic that separated "weak search" from "never selects" for PN.
+    let (mut m_first, mut m_distinct) = (0usize, std::collections::HashSet::new());
+    for (q, _best) in &mates {
+        let mut i = Interp::new(&net, vec![depth, 32_000, 1]);
+        let mv = i.run(&mcts, q, 256);
+        if q.legal_moves().as_slice().first() == Some(&mv) { m_first += 1; }
+        m_distinct.insert(format!("{mv:?}"));
+    }
+    println!("  returns the FIRST legal move  {m_first}/{}", mates.len());
+    println!("  distinct moves over {} positions {}", mates.len(), m_distinct.len());
+    let mcts_ok = m_legal2 == ps.len() && m_over_b == 0 && m_ev_b > 0 && m_cost_b > m_cost_s
+                  && m_solved[2] == mates.len();
+    println!("  VERDICT: {}", if mcts_ok { "FAITHFUL — runs, evaluates, spends its budget, and SOLVES" }
+                              else { "FAILS the solving bar — the same bar PN is held to" });
 
     // ---- PROOF-NUMBER SEARCH ---------------------------------------------------------------
     let pn = reference::proof_number();

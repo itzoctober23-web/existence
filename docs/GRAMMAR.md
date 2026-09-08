@@ -177,7 +177,7 @@ The grammar was implemented and the counts replaced; the status line was not upd
 | bare alpha-beta | 71 | faithful (main seed) |
 | alpha-beta + hash reuse | **175** | faithful (validity marker, depth, EXACT/LOWER/UPPER bounds) |
 | proof-number search | **175** | faithful — VERIFIED BY EXECUTION, 23/23 forced mates |
-| UCT MCTS | 104 | faithful — VERIFIED BY EXECUTION (runs, evaluates, spends its budget) |
+| UCT MCTS | **130** | PARTIAL — solves 20/23 forced mates, not 23/23. See the correction below |
 
 **CORRECTION 2026-09-08 — "faithful" meant COUNTED AND READ, and for PN it was wrong.**
 
@@ -188,7 +188,34 @@ returning the constant 0 — and it was caught the same way, by running it
 (`crates/interp/examples/reference_audit.rs`, judged against bare alpha-beta as a control on the
 same positions at the same depth).
 
-MCTS passed. **Proof-number search was degenerate:** it returned the FIRST legal move on 23/23
+**MCTS DID NOT PASS, AND MY FIRST VERDICT SAYING IT DID WAS WRONG.** I held the two programs to
+different bars: PN had to SOLVE forced mates, while MCTS only had to return a legal move, call
+`eval`, and spend its budget. It passed that weaker bar and I wrote "faithful — VERIFIED BY
+EXECUTION" into this table on the strength of it. The ladder sweep had independently reported MCTS
+finding **0 mates out of 120** the day before, which I had not reconciled. Applying PN's bar:
+**0/23 forced mates at budgets 64, 256 AND 1024**, and only 2 distinct moves returned across 23
+different positions. Two defects, both now fixed:
+
+* **No first-play urgency.** The interpreter is integer arithmetic and `Div` by zero returns 0, so
+  an unvisited child computed `u = Sqrt(Div(Log(N), 0)) = 0` and `q = Avg(sum, 0) = 0`. An
+  unexplored child scored the LOWEST possible value where UCT requires the highest, so the search
+  locked onto the first child it expanded. Denominator is now `visits(child) + 1`.
+* **The Q term had its sign inverted.** Backprop stores `val = Neg(simulate(child))`, so a node's
+  `sum` is in its OWN mover's frame; reading a child's sum from the parent needs another flip and
+  did not get one. A checkmate child stores `ScoreOf(Loss,0) = -29936` — exactly what the parent
+  wants — and un-negated that reads as the single most repellent move on the board.
+
+After both: **20/23**, first-move 3/23, 19 distinct moves. Better by every measure and still short
+of the bar, so this entry says PARTIAL rather than faithful. The shortfall is neither budget (20/23
+at 256 AND at 1024) nor the learned exploration weight (swept: k=1 gives 20/23, k=16 gives 14/23,
+so the audit's k=1 is already the best of those tested) — it is a real remaining limitation.
+
+Both MCTS defects are the same root cause as PN's: an unvisited slot is `Slot::default()`, all
+zeros, and nothing distinguishes "no data" from a real value. For PN zero meant PROVEN WIN (the
+best); for MCTS it means worthless (the worst). Same missing distinction, opposite directions,
+three reference programs affected counting hash-reuse.
+
+**Proof-number search was degenerate:** it returned the FIRST legal move on 23/23
 mate-in-one positions, found 0/23, and agreed with alpha-beta 0/23, while the control found 23/23.
 Three separate defects, each measured:
 
@@ -217,6 +244,8 @@ shortfall at 64 is RESOURCE, not a defect — checked by sweeping the budget rat
 
 The count moved 83 -> 175 and the PN distance with it, +70 -> **+104**. The old number counted a
 program that could not prove a mate in one, so it was never a PN distance in the first place.
+
+MCTS is now 130 nodes (+59), PN 175 (+104).
 
 **All entries measured by `crates/grammar` (examples/prior.rs) at EQUAL FIDELITY.** Run it to
 reproduce.
