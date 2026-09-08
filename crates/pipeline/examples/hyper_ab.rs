@@ -58,7 +58,13 @@ fn main() {
     let tr = Trainer::new(0.01, 0.0);
 
 
-    let arms: Vec<(String, u32, bool)> = if compare == "horizon" {
+    let sweep: Vec<u32> = a.iter().position(|x| x == "--horizons")
+        .and_then(|i| a.get(i + 1))
+        .map(|v| v.split(',').filter_map(|t| t.trim().parse().ok()).collect())
+        .unwrap_or_default();
+    let arms: Vec<(String, u32, bool)> = if !sweep.is_empty() {
+        sweep.iter().map(|h| (format!("horizon {h}"), *h, true)).collect()
+    } else if compare == "horizon" {
         vec![(format!("horizon {h_a}"), h_a, true), (format!("horizon {h_b}"), h_b, true)]
     } else {
         vec![("epochs".into(), 40, true), ("steps".into(), 40, false)]
