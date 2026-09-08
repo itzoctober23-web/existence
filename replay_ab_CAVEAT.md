@@ -50,7 +50,30 @@ plateaued champion. That is the regime the argument is actually about. Not done 
 because the script was already executing and editing a running bash script is how 2811 gate
 pairs were destroyed -- bash reads it by byte offset.
 
-## CONFOUND found mid-run (2026-09-08): the surrogate systematically penalises the larger windows
+## RETRACTED — the confound below does not apply, and the data says the opposite
+
+**I was wrong.** Measured at generation 21/42:
+
+    window 1   6 accepts in 42 generations (14%)   accepted mcnemar z: 2.6 -0.6 2.1 -2.1 2.7 4.1
+    window 8   6 accepts in 22 generations (27%)   accepted mcnemar z: 4.8  4.3 0.5  3.1 2.1 2.0
+
+The larger window accepts at TWICE the rate and its accepted candidates score HIGHER on the
+surrogate, not lower.
+
+Two mistakes in the reasoning below. First, I argued from ABSOLUTE held-out loss (genuinely
+higher for the big-pool arm) but the NET arm's acceptance uses `mcnemar` -- a PAIRED sign test on
+the same judge positions. The champion is scored on that identical slice, so a higher absolute
+loss does not make the paired comparison worse. Second, the absolute-loss filter I was worried
+about (`acand_loss > champ_loss * 1.005`) belongs to the ARCH arm, which this sweep disables with
+`--arch-every 0`. The confound cannot occur here at all.
+
+Kept below rather than deleted: the reasoning was published, acted on, and wrong, and the way it
+was wrong -- reasoning about a statistic the code does not use on a path the run does not take --
+is worth more than a clean file.
+
+---
+
+## (RETRACTED) CONFOUND found mid-run (2026-09-08): the surrogate systematically penalises the larger windows
 
 Observed at generation 12:
 
