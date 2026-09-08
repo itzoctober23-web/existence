@@ -369,6 +369,8 @@ pub struct Interp<'a> {
     /// Leaf evaluations. The benchmark compares this against the reference's count to prove
     /// both arms searched the SAME tree before believing any speed ratio.
     pub evals: u64,
+    /// Illegal/none moves handed to `apply` by a program. Diagnostic, not an error.
+    pub illegal_applies: u64,
     /// Times the recursion ceiling was hit and a call unwound with the substitute value 0.
     ///
     /// That substitute is documented as "a neutral value", and for most programs it is. For
@@ -423,6 +425,7 @@ impl<'a> Interp<'a> {
             net,
             cost: 0,
             evals: 0,
+            illegal_applies: 0,
             ceiling_hits: 0,
             tables,
             hash: Tt::new(),
@@ -447,6 +450,7 @@ impl<'a> Interp<'a> {
     pub fn run<'p>(&mut self, prog: &'p Program, pos: &Position, budget: i64) -> Move {
         self.cost = 0;
         self.evals = 0;
+        self.illegal_applies = 0;
         self.ceiling_hits = 0;
         self.budget = budget;
         self.over_budget = false;
@@ -513,6 +517,29 @@ impl<'a> Interp<'a> {
             Node::Apply(p, m) => {
                 let pv = val!(p);
                 let mv = val!(m).mv();
+                // APPLYING AN ILLEGAL MOVE IS A NO-OP, NOT A PANIC.
+                //
+                // `Position::make_move` expects a legal move and panics on an empty from-square.
+                // That is the right contract for the engine, where every move comes from the
+                // generator -- and the wrong one for the INTERPRETER, where the move is whatever
+                // an evolved program computed.
+                //
+                // FOUND BY CROSSOVER, on its first run: grafting `field(probe(key(p)), Move)` into
+                // an Apply site reads the Move field of an EMPTY hash slot, which is MOVE_NONE,
+                // and the whole search track died with "make_move: empty from-square". The bug is
+                // not the graft. A program that computes nonsense must SCORE badly, never take the
+                // process down -- otherwise the fitness function is undefined on exactly the
+                // candidates the search is there to explore, and the operator that finds them
+                // looks broken instead of the interpreter.
+                //
+                // Returning the position unchanged makes it score badly by itself: a program that
+                // never advances the position finds no mates and burns cost.
+                if mv == board::types::MOVE_NONE
+                    || !pv.posacc().pos.legal_moves().as_slice().contains(&mv)
+                {
+                    self.illegal_applies += 1;
+                    return Flow::Normal(pv);
+                }
                 let mut sc = std::mem::take(&mut self.featbuf);
                 let child = pv.posacc().child(self.net, mv, &mut sc);
                 self.featbuf = sc;
