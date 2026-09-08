@@ -157,7 +157,13 @@ fn main() {
         return;
     }
 
-    let tr = Trainer::new(0.01, 0.0);
+    // The horizon sweep must honour --blend for the same reason the datagen-depth arm did:
+    // measuring a DATA-SELECTION knob under a target that ignores the search score answers a
+    // different question from the one the loop now asks. The shipped horizon default was
+    // measured at blend 0 and the shipped blend is now 0.75.
+    let sweep_blend: f32 = a.iter().position(|x| x == "--blend")
+        .and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(0.0);
+    let tr = Trainer::new(0.01, sweep_blend);
     let arms: Vec<(String, u32, bool)> = if !sweep.is_empty() {
         sweep.iter().map(|h| (format!("horizon {h}"), *h, true)).collect()
     } else if compare == "horizon" {
