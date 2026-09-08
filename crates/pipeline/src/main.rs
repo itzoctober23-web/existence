@@ -394,7 +394,21 @@ fn main() {
         // for width under the binomial; with pentanomial the same games give a ~5x tighter
         // interval, so a 90%-draw match can still decide. Test the thing directly.
         let gate_can_resolve = sc.ci95() < 0.05;
-        let no_regression = sc.pent_rate() + sc.ci95() > 0.5;
+        // NON-REGRESSION GUARD. This must be able to REFUSE, or it is decoration.
+        //
+        // It used to read `pent_rate() + ci95() > 0.5`, which passes anything above
+        // 0.5 - ci95. MEASURED on ledger_newdefaults.jsonl: at generation 8 that bar was 0.407,
+        // and a candidate that went 15W-32D-17L -- rate 0.484, a LOSING record -- was promoted
+        // over the champion on the surrogate's word (mcnemar 3.55) while the gate's own point
+        // estimate said it was worse. Adding the interval to the candidate's score is the wrong
+        // direction: it converts uncertainty into permission.
+        //
+        // The guard is not being asked "is the candidate proven worse?" -- with a wide interval
+        // nothing is ever proven, so that question always answers no. It is being asked "does
+        // the gate CONTRADICT the surrogate?", and a point estimate below 0.5 contradicts it.
+        // Keeping the champion costs one generation; promoting a worse net costs every
+        // generation after it, because the next candidate is trained against the damage.
+        let no_regression = sc.pent_rate() >= 0.5;
         let better = if verdict == gate::Sprt::Accept {
             true
         } else if verdict == gate::Sprt::Reject {
@@ -577,7 +591,11 @@ fn main() {
         // Periodic control against the FROZEN origin. One step of learning is not a curve:
         // the question P1 turns on is whether strength COMPOUNDS or stops after generation 1.
         // Measured against the same fixed opponent every time, so the numbers are comparable.
-        if g % ctrl_every == 0 {
+        // `> 0` is not decoration: `--control-every 0` reads naturally as "never run the control"
+        // and instead panicked with "attempt to calculate the remainder with a divisor of zero",
+        // aborting the whole run on SIGABRT. `arch_every` was already guarded this way at the
+        // ARCH step; this one was not, so the two flags disagreed about what 0 meant.
+        if ctrl_every > 0 && g % ctrl_every == 0 {
             // EQUAL TIME, not equal depth: once the ARCH arm can change the champion's width,
             // a depth-matched control would hand a wider champion free computation and report
             // its extra cost as strength.

@@ -29,6 +29,67 @@ the A/B to ask whether it works at all.
 
 ---
 
+## 2026-09-08 — DEFECT: the gate promoted a LOSING candidate, and the guard was named `no_regression`
+
+Found by reading `ledger_newdefaults.jsonl` after the loop plateaued from generation 7:
+
+| gen | gate rate | ci95 | resolved | mcnemar z | decision |
+|---|---|---|---|---|---|
+| 6 | 0.656 | 0.079 | false | 9.15 | accepted |
+| 7 | 0.539 | 0.086 | false | 0.39 | no_evidence |
+| **8** | **0.484** | 0.093 | false | 3.55 | **accepted** |
+| 9 | 0.508 | 0.084 | false | -1.89 | no_evidence |
+
+Generation 8 went **15W-32D-17L** — a losing record — and was promoted over the champion.
+
+**Two defects, compounding.**
+
+1. `no_regression` read `pent_rate() + ci95() > 0.5`, which passes anything above `0.5 - ci95`.
+   At generation 8 that bar was **0.407**. Adding the interval to the candidate's own score
+   converts uncertainty into permission; the check could not refuse. It now reads
+   `pent_rate() >= 0.5`. The guard is not asked "is the candidate PROVEN worse?" — with a wide
+   interval nothing is ever proven and that question always answers no — it is asked "does the
+   gate CONTRADICT the surrogate?", and a point estimate below 0.5 does.
+
+2. The handover to the gate never happens. `gate_can_resolve` requires `ci95 < 0.05`; the actual
+   ci95 at 24-64 pairs is 0.048-0.095, so it was true **once in ten generations** (gen 1). The
+   surrogate was documented as deciding only during bootstrap, "until play is decisive enough to
+   resolve". In practice it decides permanently, so once mcnemar stops tracking real strength the
+   champion random-walks on the surrogate's noise. That is exactly the shape of the plateau.
+
+**Verified after the fix:** generation 28 scored 0.479 and was REJECTED, where the old rule
+would have computed `0.479 + 0.028 = 0.507 > 0.5` and let the surrogate promote it.
+
+Defect 2 is fixed only in the sense that defect 1 now backstops it. The threshold itself is
+still unreachable at the pair counts the loop runs, and that remains open.
+
+---
+
+## 2026-09-08 — `--control-every 0` aborted the whole run with SIGABRT
+
+`if g % ctrl_every == 0` with no positive guard: "attempt to calculate the remainder with a
+divisor of zero". `arch_every` was already guarded as `arch_every > 0 && ...` at the ARCH step,
+so the two flags disagreed about what `0` meant, and the natural reading of "never run the
+control" killed the process. Cost two timing probes before it was spotted.
+
+---
+
+## 2026-09-08 — the "biggest single win" is DORMANT in every run the loop performs
+
+`INCREMENTAL_MIN_WIDTH = 64` (crates/interp/src/lib.rs:71), and the loop starts at
+`WIDTH_MENU` rung 0 = **width 16** (crates/pipeline/src/arch.rs:31). The incremental accumulator
+is therefore switched OFF for the entire loop unless an ARCH step widens the champion to >= 64.
+
+The threshold is correct on its own evidence — the accumulator is a measured LOSS at width 16
+(399->441ns per node) and only pays from 64 up. Both facts are right and the conclusion is still
+that the headline optimisation buys the running loop nothing. This is not a code defect; it is a
+threshold interacting with a starting rung, which no measurement of either one alone would show.
+
+Open question, not yet measured: whether the loop should start at a wider rung at all. Do not
+assume wider is better — `capacity.rs` exists because that assumption failed before.
+
+---
+
 ## 2026-09-08 — METHODOLOGICAL: my arms have been n=1, and it shows
 
 **The problem, stated against my own data.** I ran single-seed arms all day and drew
