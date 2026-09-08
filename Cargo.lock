@@ -39,5 +39,7 @@ name = "pipeline"
 version = "0.1.0"
 dependencies = [
  "board",
+ "grammar",
+ "interp",
  "nnue",
 ]

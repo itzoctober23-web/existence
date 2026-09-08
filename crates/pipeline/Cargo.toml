@@ -9,6 +9,10 @@ description = "The learning loop: self-play datagen, trainer, gate."
 [dependencies]
 board = { path = "../board" }
 nnue = { path = "../nnue" }
+# The loop gates candidates. PROGRAM candidates are one of FITNESS 1's classes, so the loop
+# needs to run them -- no cycle: interp depends on grammar/nnue/board and not on pipeline.
+grammar = { path = "../grammar" }
+interp = { path = "../interp" }
 
 [[bin]]
 name = "learn"
