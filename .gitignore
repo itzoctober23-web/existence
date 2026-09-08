@@ -1,6 +1,7 @@
 # Learned artifacts and the content-addressed store (CRATE.md 0.1, 1): data is not code
 /data/
 *.nnue
+*.net
 *.qnn
 *.pt
 *.bin
