@@ -588,10 +588,18 @@ fn main() {
     println!("  population MU={MU}, lambda={pop}, plateau tolerance EPS={EPS:.3} \
 (deepest measured valley half is 0.009)");
 
-    // Silence the per-candidate panic backtraces: they are EXPECTED output now, one line per
-    // malformed candidate, and at 12 candidates a generation they would bury the results. The
-    // count is what matters and it is visible as `mate-ok` falling.
-    std::panic::set_hook(Box::new(|_| {}));
+    // RECORD panics, do not silence them. The first version of this hook discarded the message
+    // entirely, and the very next crash was therefore INVISIBLE -- the run died with no diagnostic
+    // at all, which is strictly worse than the backtrace spam it was avoiding. Append one line per
+    // panic to a file instead: out of the results, still on disk.
+    std::panic::set_hook(Box::new(|info| {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true).append(true).open("search_track_panics.log")
+        {
+            let _ = writeln!(f, "{info}");
+        }
+    }));
 
     let mut rng = Rng::new(0xE0FFEE);
     for g in 1..=gens {
@@ -696,9 +704,25 @@ fn main() {
             let tt: Vec<usize> = popn.iter().map(|(p, _, _)| tt_prims(p)).collect();
             if popn[0].2 > best_rate {
                 let (c, f, rate) = popn[0].clone();
-                let gsc = gate::match_progs(&c, &lineages[li].champ, &net,
-                                            vec![depth, 32_000, 8], bud, gate_pairs,
-                                            0xC0FFEE ^ g as u64 ^ (li as u64) << 8, 4);
+                // THE GAME GATE RUNS EVOLVED PROGRAMS ON A BOARD, so it is exactly as exposed
+                // to a malformed candidate as the fitness call is, and it was NOT wrapped. A
+                // candidate that survives fitness can still violate an invariant once it is asked
+                // to play 200 plies against another program.
+                let gsc = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    gate::match_progs(&c, &lineages[li].champ, &net,
+                                      vec![depth, 32_000, 8], bud, gate_pairs,
+                                      0xC0FFEE ^ g as u64 ^ (li as u64) << 8, 4)
+                })) {
+                    Ok(sc) => sc,
+                    Err(_) => {
+                        // Cannot finish a game => cannot be promoted. Same rule as fitness: the
+                        // candidate scores as the worst possible program and the run continues.
+                        println!("  gen {g:>3} {:<5} gate PANIC -- candidate cannot play, rejected",
+                                 lineages[li].name);
+                        lineages[li].best_rate = rate;
+                        continue;
+                    }
+                };
                 let resolved_up = gsc.pent_rate() - gsc.ci95() > 0.5;
                 if !resolved_up {
                     println!("  gen {g:>3} {:<5} gate REJECT {:.3}+/-{:.3} ({} games)  surrogate {rate:.6}",
