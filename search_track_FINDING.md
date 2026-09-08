@@ -169,3 +169,53 @@ Everything said today about the search track "finding two genuine improvements a
 withdrawn. It found "search one ply less", twice, and my window-narrowing test refuted the wrong
 hypothesis -- the mechanism was depth all along, which is the same mode I had already caught and
 believed I had fenced off.
+
+
+---
+
+# WITH THE DISAGREEMENT GUARD: the depth cheat is blocked, and what it found instead is a RAISED ALPHA (2026-09-08)
+
+First run where a shallowness cheat cannot pass. Results are now small instead of 11x:
+
+    seed            0.002589 mates/Mcost   71 nodes
+    gen 11 ACCEPT   0.003297               74 nodes
+    gen 12 ACCEPT   0.003331               74 nodes
+    gen 15 ACCEPT   0.003331               70 nodes   same rate, FEWER nodes (a simplification)
+
+~28% total over 43 generations. That is what a working guard looks like: the 11x disappeared with
+the depth exploit, and modest gains remain.
+
+## What it actually changed, from the saved program
+
+`diff seed.prog evolved_gen12.prog` is one substitution, in the alpha argument of the root call:
+
+    seed:    Arith(Neg, [TRead(1, [])])                       // neg(INF) = -32000
+    evolved: Max(Const(8), Max(Const(-3), Const(-2)))         // = 8
+
+It raised the initial alpha from -INF to **+8**. That is an aspiration-style lower bound: every
+move scoring under 8 centipawns is cut immediately, which prunes hard.
+
+**This is a real alpha-beta technique, not a defect in the search.** The horizon guard is
+untouched -- the depth cheat is genuinely blocked. But its CORRECTNESS is surrogate-dependent: it
+survives here because every position in this set has an answer worth about +/-30000, so the true
+best move is never below alpha. In ordinary play, where the best move is often worth -50, this
+search fails low and returns whatever the move generator emitted first.
+
+## The remaining hole in the fitness, stated precisely
+
+The disagreement positions fixed the DEPTH axis. They do not fix the SCORE-MAGNITUDE axis: every
+position in the set, mate-in-1 and disagreement alike, is decided by an extreme evaluation. So a
+program can still buy cost reductions by narrowing the score window it will consider, and this
+surrogate cannot tell that from a general improvement.
+
+Earlier I tested window narrowing by sweeping INF and found only 13% -- and concluded the window
+was not an exploitable axis. That test moved the wrong knob: INF is the MAGNITUDE bound, while
+this mutation moved ALPHA, the lower bound of the search window. Sweeping one and clearing the
+other was not the same question.
+
+## The next guard, by the same principle that fixed the depth axis
+
+Positions whose correct answer is SMALL -- a best move worth a few centipawns, where raising alpha
+above it changes the answer. Constructed the same self-calibrating way as the disagreement set:
+keep positions where the seed's answer CHANGES when alpha is raised. Any program that raises alpha
+then scores zero on them, exactly as a shallower program scores zero on the disagreement set.
