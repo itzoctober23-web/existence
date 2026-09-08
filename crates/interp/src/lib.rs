@@ -214,6 +214,22 @@ pub struct Interp<'a> {
     hash: Tt,
     scratch: Vec<f32>,
     budget: i64,
+    /// Set when a program exceeded its cost budget. GRAMMAR 8 requires "total cost units per
+    /// `choose` = budget" as a HARD ceiling, alongside the recursion ceiling. Only the
+    /// recursion one existed, so an evolved program with an unbounded loop ran forever: the
+    /// first real search-track run burned a full core for FOUR HOURS on one candidate with no
+    /// output. FITNESS 10 lists exactly this ("infinite loop / budget abuse") as a degenerate
+    /// solution the ceilings are supposed to catch.
+    pub over_budget: bool,
+    /// SAFETY ceiling on accumulated cost, separate from the program-visible `budget`.
+    ///
+    /// These are different quantities and conflating them was a mistake. `budget` is the value
+    /// the program RECEIVES as its second parameter and reads via the `budget` primitive —
+    /// UCT uses it as a simulation count, alpha-beta ignores it. The ceiling is the harness
+    /// refusing to let any program run forever. Enforcing the former as the latter made
+    /// `run(prog, pos, 24)` mean "stop after 24 cost units", which is less than a single eval
+    /// (1365) and made every reference program forfeit instantly.
+    pub cost_cap: u64,
     /// Current call depth, against the hard ceiling of GRAMMAR 8. Without it an evolved
     /// program that recurses unboundedly takes down the whole process -- FITNESS 10 lists
     /// "infinite loop / stack blow" as a degenerate solution the ceilings are supposed to
@@ -236,6 +252,10 @@ impl<'a> Interp<'a> {
             hash: Tt::new(),
             scratch: Vec::new(),
             budget: i64::MAX,
+            over_budget: false,
+            // Generous but FINITE. Large enough that no honest program notices, small enough
+            // that a runaway dies in seconds rather than hours.
+            cost_cap: 2_000_000_000,
             depth: 0,
         }
     }
@@ -251,6 +271,7 @@ impl<'a> Interp<'a> {
         self.cost = 0;
         self.evals = 0;
         self.budget = budget;
+        self.over_budget = false;
         self.depth = 0;
         self.hash.clear();
         let f = prog.entry();
@@ -281,6 +302,12 @@ impl<'a> Interp<'a> {
 
     fn exec<'p>(&mut self, n: &'p Node, prog: &'p Program, env: &mut Env<'p>) -> Flow {
         self.cost += cost_of(n);
+        if self.cost >= self.cost_cap {
+            // Stop the whole program, not just this node. Returning Ret unwinds every frame,
+            // and `run` reports MOVE_NONE, which callers already treat as a forfeit.
+            self.over_budget = true;
+            return Flow::Ret(Value::Unit);
+        }
         macro_rules! val {
             ($e:expr) => {
                 match self.exec($e, prog, env) {

@@ -54,12 +54,16 @@ fn reference_value(pos: &mut Position, depth: u32, net: &Net, scratch: &mut Vec<
 /// picks a different one of them is not wrong. Requiring an exact move match would reject
 /// correct programs for tie-breaking differently, which is a preference, not a correctness
 /// criterion.
+/// Budgets here are BOUNDED (100M cost units), not effectively-infinite. They were 1<<30 and
+/// 1<<28, which mattered nothing while the interpreter ignored its budget entirely and matters
+/// a great deal now that it enforces one: a mutant with an unbounded loop hung the first real
+/// search-track run for four hours on a single candidate.
 fn passes_oracle(prog: &Program, set: &[Position], depth: u32, net: &Net) -> (usize, usize) {
     let mut scratch = Vec::new();
     let (mut ok, mut n) = (0usize, 0usize);
     for p0 in set {
         let mut it = Interp::new(net, vec![depth as i64, 32_000, 8]);
-        let mv = it.run(prog, p0, 1 << 30);
+        let mv = it.run(prog, p0, 100_000_000);
         let mut p = p0.clone();
         let list = p.legal_moves();
         if list.is_empty() { continue; }
@@ -98,7 +102,7 @@ fn mates_per_cost(prog: &Program, set: &[Position], depth: i64, net: &Net) -> (u
     let mut it = Interp::new(net, vec![depth, 32_000, 8]);
     let (mut found, mut cost) = (0u32, 0u64);
     for p in set {
-        let mv = it.run(prog, p, 1 << 28);
+        let mv = it.run(prog, p, 100_000_000);
         cost += it.cost;
         let mut q = p.clone();
         if q.legal_moves().as_slice().contains(&mv) {
