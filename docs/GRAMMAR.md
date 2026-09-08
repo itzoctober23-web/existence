@@ -68,7 +68,7 @@ Grouped by role. "Prior" notes which reference programs each primitive shortens.
 
 ### 2.5 Memory (3)
 | 20 | probe | Key -> Slot? | hash read |
-| 21 | store | Key x Slot -> Unit | hash write (replacement policy is the program's or a table's) |
+| 21 | store | Key x FieldId x Int -> Unit | hash write of ONE named slot field. **Amended from `Key x Slot -> Unit`:** the grammar has no primitive that CONSTRUCTS a Slot, so the original signature was unimplementable. Writing a named field is what every reference program actually needs and avoids adding a record-constructor primitive (which would be a new Given row). Found while making the faithful UCT executable |
 | 22 | field | Slot x FieldId -> T, where T is fixed by FieldId (score/depth/flag/count/sum -> Int; move -> Move) | read a slot field; the FieldId determines the static type, so the tree stays well-typed |
 
 ### 2.6 Selection (3)
@@ -330,6 +330,16 @@ weighted MCTS, PN-search, and two hybrids are all written out and counted. PASS.
 - Budget unit: nodes -> evaluations -> COST UNITS (evaluations were gameable by terminal-
   driven search). Static per-node cost cap removed; the 10.4 bias it caused is gone.
 - Mates metric renamed mates-per-cost to match FITNESS.md.
+### 10.6c Corrections applied in third self-audit (implementation)
+- `store` was declared `Key x Slot -> Unit`, but no primitive constructs a Slot — the signature
+  could not be implemented. Amended to `Key x FieldId x Int -> Unit` (write one named field).
+- The interpreter stored a single scalar per key, so MCTS's `count` and `sum` collided: a
+  faithful UCT would have measured the right SIZE while computing garbage if RUN. Slots now
+  carry score/depth/flag/count/sum/move separately.
+- `Node::seq` scoped a `Let` statement over its own placeholder instead of the rest of the
+  sequence, which made the alpha-beta seed's `best` accumulator read 0. Fixed; the seed's node
+  count fell 75 -> 71 once the placeholder nodes went away.
+
 ### 10.7 Open items (to resolve in FITNESS.md / CRATE.md)
 - Exact `claims_exact` semantics for mixed (max-then-avg) backups.
 - Whether `sample`'s RNG seed is per-game or per-node (reproducibility vs. diversity).

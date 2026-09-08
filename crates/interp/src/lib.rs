@@ -32,6 +32,7 @@ pub enum Value {
     Out(Outcome),
     Bool(bool),
     Key(u64),
+    Slot(Slot),
     Unit,
 }
 
@@ -57,6 +58,19 @@ impl Value {
     }
 }
 
+/// A hash record. GRAMMAR 1 lists the fields; a program uses the ones it reads and writes.
+/// Storing a single scalar per key (the first cut) made MCTS's `count` and `sum` collide, so
+/// a faithful UCT would have computed garbage while still measuring the right SIZE.
+#[derive(Copy, Clone, Debug, Default)]
+pub struct Slot {
+    pub score: i64,
+    pub depth: i64,
+    pub flag: i64,
+    pub count: i64,
+    pub sum: i64,
+    pub mv: u32,
+}
+
 /// Early exit carrying a `ret` value, so the window cutoff costs no extra machinery.
 enum Flow {
     Normal(Value),
@@ -71,7 +85,7 @@ pub struct Interp<'a> {
     pub evals: u64,
     /// Learned integer tables. Index 0 = D (depth), 1 = INF, 2.. = whatever a program reads.
     pub tables: Vec<i64>,
-    hash: HashMap<u64, i64>,
+    hash: HashMap<u64, Slot>,
     scratch: Vec<f32>,
     budget: i64,
 }
@@ -241,18 +255,37 @@ impl<'a> Interp<'a> {
                     Value::Key(x) => x,
                     _ => 0,
                 };
-                Value::Num(*self.hash.get(&key).unwrap_or(&i64::MIN))
+                Value::Slot(self.hash.get(&key).copied().unwrap_or_default())
             }
-            Node::Store(k, v) => {
+            Node::Store(k, field, v) => {
                 let key = match val!(k) {
                     Value::Key(x) => x,
                     _ => 0,
                 };
                 let val = val!(v).num();
-                self.hash.insert(key, val);
+                let e = self.hash.entry(key).or_default();
+                match field {
+                    FieldId::Score => e.score = val,
+                    FieldId::Depth => e.depth = val,
+                    FieldId::Flag => e.flag = val,
+                    FieldId::Count => e.count = val,
+                    FieldId::Sum => e.sum = val,
+                    FieldId::Move => e.mv = val as u32,
+                }
                 Value::Unit
             }
-            Node::Field(s, _) => val!(s),
+            Node::Field(s, field) => {
+                let sv = val!(s);
+                match (sv, field) {
+                    (Value::Slot(sl), FieldId::Score) => Value::Num(sl.score),
+                    (Value::Slot(sl), FieldId::Depth) => Value::Num(sl.depth),
+                    (Value::Slot(sl), FieldId::Flag) => Value::Num(sl.flag),
+                    (Value::Slot(sl), FieldId::Count) => Value::Num(sl.count),
+                    (Value::Slot(sl), FieldId::Sum) => Value::Num(sl.sum),
+                    (Value::Slot(sl), FieldId::Move) => Value::Mv(Move(sl.mv)),
+                    (other, _) => other,
+                }
+            }
 
             Node::Let(name, init, body) => {
                 let v = val!(init);

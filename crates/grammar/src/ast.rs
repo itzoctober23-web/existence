@@ -128,7 +128,12 @@ pub enum Node {
 
     // 2.5 memory
     Probe(Box<Node>),
-    Store(Box<Node>, Box<Node>),
+    /// `store(key, field, value)`. GRAMMAR 2.5 declares `store : Key x Slot -> Unit`, but the
+    /// grammar has NO primitive that constructs a Slot, so that signature is unimplementable
+    /// as written. Carrying the FieldId is the minimal repair: a program writes one named
+    /// field of the slot, which is what every reference program actually needs, and it keeps
+    /// the tree typed without adding a record-constructor primitive.
+    Store(Box<Node>, FieldId, Box<Node>),
     Field(Box<Node>, FieldId),
 
     // 2.6 selection
@@ -185,10 +190,11 @@ impl Node {
         1 + match self {
             Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => 0,
             Moves(a) | Terminal(a) | Key(a) | Eval(a) | Ret(a) | Probe(a) | Field(a, _) => a.size(),
-            Apply(a, b) | Store(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) => {
+            Apply(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) => {
                 a.size() + b.size()
             }
             Cmp(a, b, _) => a.size() + b.size(),
+            Store(a, _, b) => a.size() + b.size(),
             Pred(a, b, _) => a.size() + b.size(),
             Mix(a, b, c) => a.size() + b.size() + c.size(),
             Set(_, a) => a.size(),

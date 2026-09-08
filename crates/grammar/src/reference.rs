@@ -168,7 +168,7 @@ pub fn ab_hash() -> Program {
         )))),
         None,
     );
-    let store = Node::Store(b(Node::Key(b(v("p")))), b(v("best")));
+    let store = Node::Store(b(Node::Key(b(v("p")))), FieldId::Score, b(v("best")));
     if let Node::Let(_, _, _) = &p.funcs[1].body {}
     p.funcs[1].body = Node::seq(vec![probe, p.funcs[1].body.clone(), store]);
     p
@@ -231,7 +231,7 @@ pub fn uct_mcts() -> Program {
         Node::If(
             b(Node::Cmp(b(visits(v("p"))), b(Node::Const(0)), Rel::Le)),
             b(Node::seq(vec![
-                Node::Store(b(Node::Key(b(v("p")))), b(Node::Const(1))),
+                Node::Store(b(Node::Key(b(v("p")))), FieldId::Count, b(Node::Const(1))),
                 Node::Ret(b(Node::Eval(b(v("p"))))),
             ])),
             None,
@@ -248,10 +248,12 @@ pub fn uct_mcts() -> Program {
         // backpropagate: bump this node's visit count and running sum
         Node::Store(
             b(Node::Key(b(v("p")))),
+            FieldId::Count,
             b(Node::Arith(ArithOp::Add, vec![visits(v("p")), Node::Const(1)])),
         ),
         Node::Store(
             b(Node::Key(b(v("p")))),
+            FieldId::Sum,
             b(Node::Arith(ArithOp::Add, vec![sum(v("p")), v("val")])),
         ),
         Node::Ret(b(v("val"))),
@@ -319,6 +321,7 @@ pub fn proof_number() -> Program {
                 )),
                 b(Node::Store(
                     b(Node::Key(b(Node::Apply(b(v("p")), b(v("m")))))),
+                    FieldId::Count,
                     b(Node::Const(1)),
                 )),
             )),
