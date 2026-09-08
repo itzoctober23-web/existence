@@ -156,13 +156,29 @@ fn main() {
     // evidence was stronger than a single endpoint (uncapped showed EIGHT consecutive
     // generations below 0.5 with four flagged `regression` in the ledger, which is a pattern),
     // but the cross-arm claim rests on one run each and I said so nowhere at the time.
-    // SUPERSEDED 2026-09-08: re-tested on a controlled fixed-data A/B (examples/hyper_ab.rs
+    // SUPERSEDED AGAIN 2026-09-08, and this time the SCHEDULE is vindicated rather than the
+    // cap. Both sweeps re-run at the shipped blend of 0.75 (they had been run at blend 0, where
+    // the target ignores the search score and the answer is meaningless):
+    //
+    //   RANDOM champion   h10 0.5633  h20 0.5906  h40 0.5980  h1000 0.5801   -> peak near 40
+    //   TRAINED champion  h10 0.5352  h20 0.5539  h40 0.5988  h1000 0.6242   -> no cap best
+    //
+    // The optimum MOVES OUTWARD as the champion improves, which is exactly what
+    // `horizon = 10 + 5*(g-1)` does: it reaches 40 at generation 7 and 160 at generation 31.
+    // The schedule was right; the CAP was strangling it. At the previous default of 20 the
+    // schedule stopped ramping at generation 3.
+    //
+    // So the cap becomes a safety rail, not a tuning knob. 1000 is above the longest game
+    // (h160 and h1000 select the SAME 58,734 positions, so nothing lies beyond 160 plies).
+    //
+    // PREVIOUS NOTE, kept because the correction matters more than the conclusion:
+    // re-tested on a controlled fixed-data A/B (examples/hyper_ab.rs
     // --compare horizon, 10 replicates per arm). horizon 40 scored 0.5371 +/- 0.0042 against
     // uncapped 0.5188 +/- 0.0053; difference 0.0183 +/- 0.0133 at 95%, excluding zero. The
     // capped arm wins on 43% FEWER samples, so it is data QUALITY and not quantity. The
     // default now rests on evidence that survives the n>=3 standard, and the loop-based
     // re-run is unnecessary -- the loop has 25x worse resolution for this question.
-    let horizon_cap = arg("--horizon-cap", 20) as u32;
+    let horizon_cap = arg("--horizon-cap", 1000) as u32;
     // DEPTH SCHEDULE. Depth 1 gives ~47x the labels per second and bootstraps the net out of
     // randomness, but at depth 1 the search is barely stronger than the raw eval, so the data
     // stops being better than the net that made it and acceptance stalls (measured: accepted
