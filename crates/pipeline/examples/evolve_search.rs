@@ -98,19 +98,20 @@ fn passes_oracle(prog: &Program, set: &[Position], depth: u32, net: &Net) -> (us
 ///
 /// Denominated in COST UNITS, not evaluations, because proof-number search proves mates with
 /// zero eval calls and an eval-count denominator would divide by zero for it (FITNESS 3).
-fn mates_per_cost(prog: &Program, set: &[Position], depth: i64, net: &Net) -> (u32, f64) {
+fn mates_per_cost(prog: &Program, set: &[Position], depth: i64, net: &Net) -> (u32, f64, u32) {
     let mut it = Interp::new(net, vec![depth, 32_000, 8]);
-    let (mut found, mut cost) = (0u32, 0u64);
+    let (mut found, mut cost, mut forfeits) = (0u32, 0u64, 0u32);
     for p in set {
         let mv = it.run(prog, p, 100_000_000);
         cost += it.cost;
+        if it.over_budget { forfeits += 1; }
         let mut q = p.clone();
         if q.legal_moves().as_slice().contains(&mv) {
             q.make_move(mv);
             if q.legal_moves().is_empty() && q.outcome() == Outcome::Loss { found += 1; }
         }
     }
-    (found, found as f64 * 1e6 / cost.max(1) as f64)
+    (found, found as f64 * 1e6 / cost.max(1) as f64, forfeits)
 }
 
 /// Positions where the side to move has a mate in one. Rules-derived: a position is MATE-1 iff
@@ -225,9 +226,13 @@ fn main() {
     let mates = mate_set(40, &mut rnd);
     let mut champ = reference::bare_alpha_beta();
     let (ok, n) = passes_oracle(&champ, &oracle_set, oracle_depth, &net);
-    let (seed_mates, seed_rate) = mates_per_cost(&champ, &mates, depth, &net);
-    println!("seed: bare alpha-beta, {} nodes; oracle {ok}/{n}; surrogate {seed_mates}/{} mates at {seed_rate:.3} per Mcost",
+    let surrogate_depth = get("--surrogate-depth", 2) as i64;
+    let (seed_mates, seed_rate, seed_ff) = mates_per_cost(&champ, &mates, surrogate_depth, &net);
+    println!("seed: bare alpha-beta, {} nodes; oracle {ok}/{n}; surrogate {seed_mates}/{} mates at {seed_rate:.3} per Mcost ({seed_ff} forfeits)",
              champ.size(), mates.len());
+    assert!(seed_mates > 0, "the SEED finds no mates on the mate-in-1 set -- the surrogate is \
+             inert and would filter nothing (it scored {seed_mates}/{}, {seed_ff} over budget)",
+             mates.len());
     println!("gate: candidate vs champion PROGRAM, same net, {budget} cost units/move, {pairs} pairs\n");
 
     let mut accepted = 0;
@@ -248,7 +253,7 @@ fn main() {
             // 2. SURROGATE (FITNESS 3). Must not LOSE mates -- a program that finds fewer
             //    mates more cheaply is not better, and missing a forced mate is unsound
             //    pruning's characteristic failure. Cheap, so it runs before the games.
-            let (cm, _cr) = mates_per_cost(&cand, &mates, depth, &net);
+            let (cm, _cr, _cf) = mates_per_cost(&cand, &mates, surrogate_depth, &net);
             if cm < seed_mates { surrogate_fail += 1; continue; }
             // 3. GAMES. The only thing that decides.
             let sc = match_programs(&cand, &champ, &net, pairs, depth, budget,

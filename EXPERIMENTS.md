@@ -38,6 +38,39 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — FIRST SEARCH-TRACK RESULT: 128 mutations, 0 accepted
+
+The search track ran end to end for the first time. 8 generations x 16 candidates against the
+bare alpha-beta seed, gated on games at equal cost budget:
+
+    106 well-typed, 22 ill-typed (type checker rejected them before any compute)
+     90 failed the correctness oracle
+     16 reached the game gate
+      0 beat the champion
+
+**This is the expected outcome and it is a measurement, not a failure.** A single random
+mutation of a 71-node program that already computes the exact minimax value has almost no way
+to improve it; GRAMMAR 6 puts the nearest real milestone (hash reuse) at +104 nodes, which is
+not one mutation away. What the run establishes is that the PIPELINE works: candidates are
+generated, ill-typed ones are rejected for free, incorrect ones are caught before spending
+games, and the survivors are judged by play.
+
+The oracle is doing the heavy lifting -- 90 of 106 well-typed candidates were REJECTED FOR
+BEING WRONG, i.e. they returned a move the full-width reference disagreed with. Without that
+stage every one of them would have gone to the gate, and the cheap-but-worse ones would have
+been indistinguishable from genuine improvements on a cost-based metric.
+
+TWO BUGS THE RUN EXPOSED, both in my harness rather than in the idea:
+
+1. THE INTERPRETER NEVER ENFORCED ITS BUDGET (see above). One mutant looped for four hours.
+2. THE SURROGATE WAS INERT. The seed scored 0/40 on the mate-in-1 set, so the filter compared
+   0 < 0 and passed everything. Cause: the surrogate ran at the GAMES depth (3), where a
+   single position costs ~411M cost units (ladder), overshooting the 2e9 safety cap and
+   forfeiting. Mate-in-1 needs one ply. Given its own --surrogate-depth (default 2) it now
+   scores 40/40 with 0 forfeits, and an assertion aborts the run if the seed ever fails its
+   own surrogate again -- an inert filter that silently passes everything is worse than no
+   filter, because it looks like a stage.
+
 ## 2026-09-08 — the cost model was never built, and it inverted a published result
 
 GRAMMAR 8 and CRATE 4 both specify a per-primitive cost table (`configs/cost.toml`).
