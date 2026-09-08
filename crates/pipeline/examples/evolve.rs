@@ -10,6 +10,7 @@
 //! from the interpreter's own accounting. No chess knowledge enters.
 use board::{Outcome, Position};
 use grammar::mutate::{self, Rng};
+use grammar::ast::Node;
 use grammar::{reference, Program};
 use interp::Interp;
 use pipeline::gate;
@@ -252,6 +253,35 @@ fn fitness(prog: &Program, set: &[(Position, Option<board::Move>)], net: &Net, d
 ///   * The FULL rung is measured too, as a CONTROL. If it does not reproduce its 0.98x on this
 ///     set then nothing else in the table means anything and the 0.98x is what needs
 ///     re-examining -- so it is re-measured here rather than carried in from a comment.
+
+/// How many transposition-table primitives does a program contain? Probe/Store/Key/Field.
+///
+/// WHY THIS EXISTS. The plateau tolerance was reported as "carrying the first step into the
+/// valley" on the strength of a RATE COINCIDENCE: the carried member sits at 0.9972x the seed and
+/// the store-only reference measures 0.9968x. Close is not the same, and "a cheap variant that
+/// happens to cost about what a store costs" is a completely different claim from "a store".
+/// Counting the primitives answers it directly instead of inferring it from a number that merely
+/// looks right.
+fn tt_prims(p: &Program) -> usize {
+    fn walk(n: &Node) -> usize {
+        use Node::*;
+        let here = matches!(n, Probe(_) | Store(..) | Key(_) | Field(..)) as usize;
+        here + match n {
+            Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => 0,
+            Moves(a) | Terminal(a) | Key(a) | Eval(a) | Ret(a) | Probe(a) | Field(a, _)
+            | Set(_, a) => walk(a),
+            Apply(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) | Cmp(a, b, _)
+            | Pred(a, b, _) | Loop(a, b) | Store(a, _, b) => walk(a) + walk(b),
+            Mix(a, b, c) => walk(a) + walk(b) + walk(c),
+            Foreach(a, _, b) | Argmax(a, _, b) | Sort(a, _, b) | Sample(a, _, b)
+            | Let(_, a, b) => walk(a) + walk(b),
+            If(c, t, e) => walk(c) + walk(t) + e.as_ref().map_or(0, |x| walk(x)),
+            Call(_, args) | Arith(_, args) | TRead(_, args) => args.iter().map(walk).sum(),
+        }
+    }
+    p.funcs.iter().map(|f| walk(&f.body)).sum()
+}
+
 fn valley() {
     let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
     let (n1, n2, n3, depth) = (a(2, 15) as usize, a(3, 5) as usize, a(4, 5) as usize, a(5, 3));
@@ -511,8 +541,9 @@ gate {:.3}+/-{:.3}", c.size(), best_rate, gsc.pent_rate(), gsc.ci95());
             let span = if rel.is_empty() { "none".to_string() }
                        else { format!("{rlo:.3}-{rhi:.3}x seed") };
             println!("  gen {g:>3}  ..no improvement ({n_scored} cand, {ill} ill-typed, \
-mate-ok {mate_ok}, rates {span})  pop {} spread {:.6}-{:.6}",
-                     popn.len(), spread_lo, spread_hi);
+mate-ok {mate_ok}, rates {span})  pop {} spread {:.6}-{:.6} tt{:?}",
+                     popn.len(), spread_lo, spread_hi,
+                     popn.iter().map(|(p, _, _)| tt_prims(p)).collect::<Vec<_>>());
         }
     }
     let _ = rng.next();
