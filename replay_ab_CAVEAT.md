@@ -94,3 +94,24 @@ expected interval at 0.030, under the 0.05 `resolves` threshold, so the GAMES de
 surrogate returns to proposing. Re-running this sweep at 224 pairs would remove the confound
 entirely. Not done here because changing the binary mid-sweep gives the arms different code,
 which is the confound that already invalidated one experiment today.
+
+## MEASURED: a larger window costs NOTHING in wall-clock
+
+    window 1   42 gens   median 27s/gen   final pool  54,621
+    window 8   17 gens   median 27s/gen   final pool 372,736
+
+A 6.8x larger training pool runs at the SAME cost per generation, because `--steps-per-gen
+50000` fixes the number of gradient steps regardless of pool size. The pool determines what those
+50,000 steps sample FROM, not how many there are.
+
+(The generation-count difference is not a slowdown -- arm 8 was still mid-run when this was
+measured. Checked before concluding, because "fewer generations" and "slower generations" look
+identical in a progress line and mean opposite things.)
+
+This changes the economics of the question. Keeping history is not a trade against speed: if it
+helps at all, it is free. The only cost is memory for the buffer, which at ~370k samples is
+negligible on this box.
+
+It also means the DEFAULT is the expensive choice in the way that matters. The loop currently
+generates ~250k positions per generation and trains on ~50k of them, discarding the rest -- and
+the measurement above shows retaining them would not have cost a single second.
