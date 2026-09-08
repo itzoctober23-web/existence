@@ -143,6 +143,10 @@ fn main() {
     //
     // 0 = off, preserving today's behaviour exactly so this can be A/B'd rather than assumed.
     let anchor_pairs = arg("--anchor-pairs", 0);
+    // Node budget per move for the NET gate. 0 = fixed depth (today's behaviour); >0 = the
+    // fixed-cost-budget gate of FITNESS 6, which the loop has never actually used even though
+    // match_nets_capped was implemented for it and ARCH already calls it.
+    let gate_nodes = arg("--gate-nodes", 0) as u64;
     // The surrogate may override the games only if asked for explicitly. See the acceptance
     // chain: measured at corr -0.095 against 239 paired gate results, it is not a decision rule.
     let surrogate_fallback = std::env::args().any(|a| a == "--surrogate-fallback");
@@ -346,7 +350,7 @@ fn main() {
     // greps 1 only because it appears in THIS format string.) That false negative aborted the
     // anchor A/B. A setting that cannot be observed in the program's own output cannot be verified
     // by anything except reading the source.
-    println!("gens={gens} games/gen={games} depth={depth} epochs={epochs} gate-pairs={gate_pairs} anchor-pairs={anchor_pairs} blend={blend}");
+    println!("gens={gens} games/gen={games} depth={depth} epochs={epochs} gate-pairs={gate_pairs} gate-nodes={gate_nodes} anchor-pairs={anchor_pairs} blend={blend}");
     println!("ARCH menu {WIDTH_MENU:?}  start rung {rung} (width {})  arch-every {arch_every}",
              WIDTH_MENU[rung]);
     // ORIGIN is always the reproducible iteration-zero net, even when we resume. The control
@@ -566,8 +570,16 @@ fn main() {
         // too few for a modest real gain to clear the interval and too many for a candidate
         // that is losing every game. FITNESS 7.2 makes the count the EVIDENCE's decision.
         // gate_pairs is now a CAP, not a target, and most candidates stop far short of it.
-        let (verdict, sc, llr) = gate::sprt_match_nets(
-            &cand, &champion, depth, gate_pairs, seed ^ g as u64, 4, 0.0, 5.0);
+        // --gate-nodes N > 0 switches the NET gate from fixed DEPTH to the fixed COST BUDGET
+        // that FITNESS 6 specifies. Default 0 keeps today's behaviour so the two are A/B-able
+        // rather than silently swapped -- every result measured today used the depth gate, and
+        // changing it by default would make them incomparable without saying so.
+        let (verdict, sc, llr) = if gate_nodes > 0 {
+            gate::sprt_match_nets_capped(&cand, &champion, depth, gate_nodes, gate_nodes,
+                                         gate_pairs, seed ^ g as u64, 4, 0.0, 5.0)
+        } else {
+            gate::sprt_match_nets(&cand, &champion, depth, gate_pairs, seed ^ g as u64, 4, 0.0, 5.0)
+        };
         let _ = verdict;
         let _draw_rate = sc.draws as f64 / sc.games().max(1) as f64;
         // Resolution is a property of the INTERVAL, not the draw rate. Draw rate was a proxy

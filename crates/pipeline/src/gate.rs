@@ -291,6 +291,39 @@ pub fn sprt_match_capped(
 
 /// Sequential net-vs-net at fixed DEPTH (the main learning loop's gate), as opposed to
 /// `sprt_match_capped` which is node-budgeted for cross-architecture comparisons.
+/// SPRT at a FIXED COST BUDGET -- the gate FITNESS 6 actually specifies.
+///
+/// FITNESS line 22 lists the NET class as "fixed-cost-budget gate, then STC, LTC", line 82 says
+/// "all fixed budgets in this file are counted in COST UNITS", and section 6 is titled
+/// "Fixed-cost-budget gate". The NET gate has been running `sprt_match_nets`, which is
+/// DEPTH-matched -- while `match_nets_capped` (equal cost, right below) was already implemented
+/// and already used by the ARCH arm and the origin control. The correct gate existed and the
+/// primary decision path did not call it.
+///
+/// Why it matters even though a NET step keeps the architecture fixed, so both sides cost the
+/// same per node: a fixed DEPTH makes the comparison horizon-sensitive. At depth 2 -- where every
+/// measurement today was taken -- the horizon dominates, and a net is charged nothing for how
+/// many nodes it needed to get there. A fixed node budget lets each side reach whatever depth its
+/// own pruning earns, which is the paradigm-neutral comparison the spec asks for.
+pub fn sprt_match_nets_capped(
+    a: &Net, b: &Net, depth_cap: u32, cap_a: u64, cap_b: u64, max_pairs: usize, seed: u64,
+    chunk: usize, elo0: f64, elo1: f64,
+) -> (Sprt, Score, f64) {
+    let mut total = Score::default();
+    let mut played = 0usize;
+    while played < max_pairs {
+        let n = chunk.min(max_pairs - played);
+        let s = match_nets_capped(a, b, depth_cap, cap_a, cap_b, n, seed ^ (played as u64) << 8, 4);
+        total.wins += s.wins; total.draws += s.draws; total.losses += s.losses;
+        for i in 0..5 { total.pent[i] += s.pent[i]; }
+        played += n;
+        let llr = total.llr(elo0, elo1);
+        if llr >= LLR_BOUND { return (Sprt::Accept, total, llr); }
+        if llr <= -LLR_BOUND { return (Sprt::Reject, total, llr); }
+    }
+    (Sprt::Inconclusive, total, total.llr(elo0, elo1))
+}
+
 pub fn sprt_match_nets(
     a: &Net, b: &Net, depth: u32, max_pairs: usize, seed: u64, chunk: usize,
     elo0: f64, elo1: f64,
