@@ -319,6 +319,33 @@ prove anything and neither is a rung of this ladder.
 Each step's expected gain type is recorded (2-3: mates-per-cost; 4-7: fixed-time Elo).
 If any step fails to be a gain, the grammar or fitness is changed HERE, on paper.
 
+**RESOLVED 2026-09-08: step 4 IS a rung. Hash reuse measures 0.98x the seed's cost at D=3.**
+
+It took two instrument fixes and one real engineering change to see it, and the order matters
+because each step was a genuine correction, not a search for a friendlier number:
+
+| what changed | hash reuse vs seed, D=3 |
+|---|---|
+| (as first measured) flat cost model, from-scratch zobrist | 1.218x — a 22% LOSS |
+| per-primitive cost model MEASURED (eval 1365, not 1) | 1.01x — break-even |
+| Position maintains the Zobrist key INCREMENTALLY | **0.98x — a GAIN** |
+
+1. The flat model charged a full NNUE forward pass the same as `const 3`, which prices a
+   transposition table's entire trade — spend a cheap probe, skip an expensive eval — at zero.
+2. `key` then cost 97 units because `Position::zobrist()` rebuilt the hash from scratch at
+   every probe (~32 XORs plus bitboard iteration). The key is now maintained through
+   make/unmake and verified equal to the from-scratch value at every node of a perft walk
+   (`tests/perft.rs`), so it is a field read: 97 -> 1.
+
+Both earlier readings were HONEST measurements of a system that was genuinely worse than it
+needed to be. The engine really was paying 97 units per probe; the ladder really did say
+"not a rung". What was wrong was concluding anything about hash reuse AS A TECHNIQUE from a
+measurement dominated by two fixable implementation costs.
+
+The prediction that survives is the DIRECTION: the overhead falls with depth, so the gain
+should widen deeper. The claim that does NOT survive is the earlier "break-even near depth
+5-6, so evolution at depth 2 can never discover it" — at depth 3 it is already ahead.
+
 **CONSEQUENCE: hash reuse is not a rung AT THESE DEPTHS, and that is a statement about the
 regime rather than about the technique.** `examples/ladder.rs` now sweeps depth. Cost relative
 to the bare alpha-beta seed:

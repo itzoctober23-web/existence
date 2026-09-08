@@ -180,7 +180,10 @@ fn cost_of(n: &Node) -> u64 {
         Node::Moves(_) => 2232,
         Node::Apply(..) => 788,
         Node::Terminal(_) => 703,
-        Node::Key(_) => 97,
+        // Was 97 (a from-scratch zobrist: ~32 XORs plus bitboard iteration). Position now
+        // maintains the key incrementally through make/unmake, verified equal to the
+        // from-scratch value at every node of a perft walk, so reading it is a field load.
+        Node::Key(_) => 1,
         Node::Pred(..) => 40,
         Node::Probe(_) => 12,
         Node::Store(..) => 12,
@@ -315,7 +318,7 @@ impl<'a> Interp<'a> {
             }
             Node::Key(p) => {
                 let p = val!(p);
-                Value::Key(p.pos().zobrist())
+                Value::Key(p.pos().key)
             }
             Node::Eval(p) => {
                 self.evals += 1;

@@ -79,3 +79,38 @@ fn zobrist_distinguishes_positions_and_is_stable() {
         }
     }
 }
+
+/// The incremental Zobrist key must equal the from-scratch one at EVERY node.
+///
+/// This is the check `zobrist.rs` asked for when it said "incremental update in make/unmake is
+/// the obvious next step, and the test that would guard it is `incremental == from_scratch` at
+/// every node". An incremental hash that drifts is the worst kind of bug: it does not crash, it
+/// silently makes two different positions collide, and FITNESS 10 lists "exploit hash collision
+/// / stale slot" as a degenerate solution a program can be REWARDED for finding.
+#[test]
+fn incremental_zobrist_matches_from_scratch_everywhere() {
+    fn walk(p: &mut board::Position, depth: u32, n: &mut usize) {
+        assert_eq!(p.key, p.zobrist(), "key drifted at {}", p.to_fen());
+        *n += 1;
+        if depth == 0 { return; }
+        let list = p.legal_moves();
+        for &m in list.as_slice() {
+            let u = p.make_move(m);
+            walk(p, depth - 1, n);
+            p.unmake_move(m, u);
+            // and it must be restored EXACTLY by unmake, not merely recomputable
+            assert_eq!(p.key, p.zobrist(), "key not restored by unmake of {m}");
+        }
+    }
+    let mut n = 0;
+    for fen in [
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+        "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+    ] {
+        let mut p = board::Position::from_fen(fen).expect("valid fen");
+        walk(&mut p, 3, &mut n);
+    }
+    assert!(n > 20_000, "only {n} nodes checked — the walk is too shallow to mean anything");
+}

@@ -35,6 +35,13 @@ pub struct Position {
     pub ep: Option<Square>,
     pub halfmove: u16,
     pub fullmove: u16,
+    /// Incrementally maintained Zobrist key. `zobrist()` recomputes it from scratch and stays
+    /// as the reference; `tests/perft.rs` asserts the two agree at EVERY node of a perft walk,
+    /// which is the check the old comment here asked for.
+    ///
+    /// Worth doing because the measured cost model prices `key` at 97 units against an
+    /// arithmetic op's 1 (configs/cost.toml), and every hash-using program pays it per node.
+    pub key: u64,
 }
 
 impl Default for Position {
@@ -54,6 +61,7 @@ impl Position {
             ep: None,
             halfmove: 0,
             fullmove: 1,
+            key: 0,
         }
     }
 
@@ -202,6 +210,12 @@ impl Position {
         {
             return Err("fen: each side needs exactly one king".into());
         }
+        // Seed the incremental key ONCE, from scratch. from_fen writes the piece bitboards
+        // directly rather than through `put`, so there is nothing incremental to fold here --
+        // and computing it outright is correct by construction rather than by my reading of
+        // which code paths touch which fields. It costs ~32 XORs per position CONSTRUCTED,
+        // which is nothing next to the per-NODE cost this change exists to remove.
+        pos.key = pos.zobrist();
         Ok(pos)
     }
 
@@ -254,6 +268,7 @@ impl Position {
 
     #[inline]
     fn put(&mut self, c: Color, k: PieceKind, sq: u8) {
+        self.key ^= crate::zobrist::KEYS.piece[c.idx()][k.idx()][sq as usize];
         let b = bb::bit(sq);
         self.pieces[c.idx()][k.idx()] |= b;
         self.occ[c.idx()] |= b;
@@ -262,13 +277,26 @@ impl Position {
 
     #[inline]
     fn take(&mut self, c: Color, k: PieceKind, sq: u8) {
+        self.key ^= crate::zobrist::KEYS.piece[c.idx()][k.idx()][sq as usize];
         let b = !bb::bit(sq);
         self.pieces[c.idx()][k.idx()] &= b;
         self.occ[c.idx()] &= b;
         self.all &= b;
     }
 
+    /// Castling rights, en-passant file and side to move — everything in the key that is NOT
+    /// a piece on a square. Handled by XORing the OLD value out on entry and the NEW value in
+    /// on exit, which is correct without enumerating every way those fields can change.
+    #[inline]
+    fn nonpiece_key(&self) -> u64 {
+        let mut h = crate::zobrist::KEYS.castle[(self.castling & 15) as usize];
+        if let Some(ep) = self.ep { h ^= crate::zobrist::KEYS.ep_file[ep.file() as usize]; }
+        if self.stm == Color::Black { h ^= crate::zobrist::KEYS.side; }
+        h
+    }
+
     pub fn make_move(&mut self, m: Move) -> Undo {
+        let np_before = self.nonpiece_key();
         let us = self.stm;
         let them = us.flip();
         let from = m.from().0;
@@ -335,10 +363,13 @@ impl Position {
             self.fullmove += 1;
         }
         self.stm = them;
+        // XOR the OLD non-piece state out and the NEW in. Pieces were handled by put/take.
+        self.key ^= np_before ^ self.nonpiece_key();
         undo
     }
 
     pub fn unmake_move(&mut self, m: Move, undo: Undo) {
+        let np_before = self.nonpiece_key();
         let them = self.stm;
         let us = them.flip();
         let from = m.from().0;
@@ -384,6 +415,7 @@ impl Position {
                 _ => self.put(them, ck, to),
             }
         }
+        self.key ^= np_before ^ self.nonpiece_key();
     }
 }
 

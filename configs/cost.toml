@@ -10,7 +10,7 @@ eval         =    1356    # 291.4 ns
 moves        =     708    # 152.3 ns
 apply        =     774    # 166.4 ns
 terminal     =     695    # 149.3 ns
-key          =      97    # 20.7 ns
+key          =       1    # incremental field read (was 97 from-scratch)
 
 # The number that matters for the ladder: eval / (probe-ish cheap op) = 1356x.
 # Under the current FLAT model that ratio is 1, so a transposition table's whole
