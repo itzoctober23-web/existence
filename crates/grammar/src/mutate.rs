@@ -237,11 +237,28 @@ fn apply_op(n: &Node, op: Op, r: u64) -> Option<Node> {
                 } else {
                     Node::Const((r % 9) as i8 - 4)
                 };
-                Some(Node::Store(
-                    Box::new(Node::Key(Box::new(Node::Var("p".into())))),
-                    FS[(r % 5) as usize],
-                    Box::new(val),
-                ))
+                // APPEND, DO NOT REPLACE. This originally replaced the statement, which meant
+                // landing on a `Set` destroyed an accumulator update -- `set best`, `set alpha` --
+                // and wrecked the search outright.
+                //
+                // MEASURED CONSEQUENCE: generation 1 reported `mate-ok 0`, all 12 offspring
+                // failing the correctness guard, so the plateau tolerance could never be exercised
+                // because nothing survived to reach it.
+                //
+                // Appending makes this the one BEHAVIOUR-PRESERVING mutation in the set: a store
+                // nothing reads cannot change what the search returns, only what it costs. That is
+                // precisely the harmless half of the transposition-table valley (store-only,
+                // measured at 0.997x), so it keeps all 25 answers and lands slightly cheaper-
+                // than-nothing -- exactly the step the population is there to carry until a probe
+                // arrives to read it back.
+                Some(Node::seq(vec![
+                    n.clone(),
+                    Node::Store(
+                        Box::new(Node::Key(Box::new(Node::Var("p".into())))),
+                        FS[(r % 5) as usize],
+                        Box::new(val),
+                    ),
+                ]))
             }
             _ => None,
         },
