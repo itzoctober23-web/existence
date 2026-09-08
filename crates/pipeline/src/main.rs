@@ -122,6 +122,8 @@ fn main() {
     let ctrl_every = arg("--control-every", 10);
     let out = a.iter().position(|x| x == "--out").and_then(|i| a.get(i + 1)).cloned()
         .unwrap_or_else(|| "champion.net".to_string());
+    // Resume from a saved champion instead of starting at iteration zero. See the use site.
+    let init_net = a.iter().position(|x| x == "--init").and_then(|i| a.get(i + 1)).cloned();
     // Cap on the widening horizon. Measured 2026-09-07: labels far from the terminal are
     // ANTI-signal while play is weak (sign acc 0.452 -> 0.441 when training on all decided
     // positions). An unbounded schedule reaches 205 plies by gen 40, i.e. no filter at all,
@@ -240,8 +242,34 @@ fn main() {
     println!("gens={gens} games/gen={games} depth={depth} epochs={epochs} gate-pairs={gate_pairs} blend={blend}");
     println!("ARCH menu {WIDTH_MENU:?}  start rung {rung} (width {})  arch-every {arch_every}",
              WIDTH_MENU[rung]);
-    let mut champion = Net::random(WIDTH_MENU[rung], seed);
-    let origin = champion.clone();
+    // ORIGIN is always the reproducible iteration-zero net, even when we resume. The control
+    // measures "how far has this got from nothing", and it is only comparable across runs if
+    // every run scores against the SAME opponent. Seeding it from a resumed champion would
+    // silently redefine the yardstick and make every control number a fresh scale.
+    let origin = Net::random(WIDTH_MENU[rung], seed);
+    // --init RESUMES from a saved champion. Without it, a run killed for any reason -- a
+    // rebuild, a restart to pick up a fix, a machine reboot -- throws away everything it
+    // learned and starts from random again. That cost a live 2400-games run 21 generations
+    // today purely to adopt a corrected acceptance rule.
+    //
+    // The resumed net must match the rung's width, or the ARCH menu and the origin control are
+    // describing a different architecture than the one playing. Refuse rather than silently
+    // reshape: a mismatched resume is the kind of error that produces plausible numbers.
+    let mut champion = match init_net {
+        Some(ref path) => match Net::load(path) {
+            Ok(n) if n.n_hidden == WIDTH_MENU[rung] => {
+                println!("RESUMED champion from {path} (width {})", n.n_hidden);
+                n
+            }
+            Ok(n) => {
+                eprintln!("ABORT: {path} is width {} but rung {rung} is width {}",
+                          n.n_hidden, WIDTH_MENU[rung]);
+                std::process::exit(2);
+            }
+            Err(e) => { eprintln!("ABORT: could not load {path}: {e}"); std::process::exit(2); }
+        },
+        None => origin.clone(),
+    };
     let cost_nodes = {
         let mut probe = pipeline::search::Searcher::with_seed(1);
         let mut p0 = Position::startpos();
