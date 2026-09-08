@@ -20,7 +20,20 @@ fn main() {
     let mut out = std::io::stdout();
     let mut pos = Position::startpos();
     // Iteration zero: the net has no knowledge in it. The seed only makes runs reproducible.
-    let mut search = Search::new(Net::random(256, 0xE1_57_E0_1C), 0xC0FFEE);
+    // Load a learned net if one is present, else fall back to iteration zero. The engine used
+    // to ALWAYS call Net::random(), so every training run was discarded and the shipped binary
+    // stayed at iteration-zero strength no matter what the loop had learned.
+    let net_path = std::env::var("EXISTENCE_NET").unwrap_or_else(|_| "champion.net".to_string());
+    let (net, loaded) = match Net::load(&net_path) {
+        Ok(n) => (n, true),
+        Err(_) => (Net::random(256, 0xE1_57_E0_1C), false),
+    };
+    if loaded {
+        eprintln!("info string loaded net {net_path} ({} hidden)", net.n_hidden);
+    } else {
+        eprintln!("info string no net at {net_path}; using random init (iteration zero)");
+    }
+    let mut search = Search::new(net, 0xC0FFEE);
     let mut depth: u32 = 4;
 
     for line in stdin.lock().lines() {

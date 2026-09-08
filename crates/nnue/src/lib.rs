@@ -180,6 +180,70 @@ impl Acc {
     }
 }
 
+impl Net {
+    /// Serialise. SCHEMAS.md 4: the HEADER IS THE ARCHITECTURE -- n_hidden and the input count
+    /// come from the file, and `nnue` builds itself from them, so an architecture change is a
+    /// data change and not a code change.
+    ///
+    /// Without this the learning loop was a no-op in practice: it trained a champion, printed a
+    /// score, and exited, discarding the weights. The engine called Net::random() on every
+    /// start, so the shipped binary stayed at iteration zero no matter how much it learned.
+    pub fn save(&self, path: &str) -> std::io::Result<()> {
+        use std::io::Write;
+        let mut f = std::io::BufWriter::new(std::fs::File::create(path)?);
+        f.write_all(b"EXNT")?;                                  // magic
+        f.write_all(&1u16.to_le_bytes())?;                      // schema version
+        f.write_all(&(self.n_hidden as u32).to_le_bytes())?;
+        f.write_all(&(N_INPUTS as u32).to_le_bytes())?;
+        f.write_all(&self.scale.to_le_bytes())?;
+        f.write_all(&self.b2.to_le_bytes())?;
+        for v in self.b1.iter().chain(self.w2.iter()).chain(self.w1.iter()) {
+            f.write_all(&v.to_le_bytes())?;
+        }
+        f.flush()
+    }
+
+    pub fn load(path: &str) -> std::io::Result<Self> {
+        use std::io::Read;
+        let mut f = std::io::BufReader::new(std::fs::File::open(path)?);
+        let mut m = [0u8; 4];
+        f.read_exact(&mut m)?;
+        if &m != b"EXNT" {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "bad magic"));
+        }
+        let mut u16b = [0u8; 2];
+        f.read_exact(&mut u16b)?;
+        let ver = u16::from_le_bytes(u16b);
+        if ver != 1 {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData,
+                format!("unknown schema version {ver}")));
+        }
+        let mut u32b = [0u8; 4];
+        f.read_exact(&mut u32b)?;
+        let n_hidden = u32::from_le_bytes(u32b) as usize;
+        f.read_exact(&mut u32b)?;
+        let n_in = u32::from_le_bytes(u32b) as usize;
+        if n_in != N_INPUTS {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData,
+                format!("net has {n_in} inputs, this build has {N_INPUTS}")));
+        }
+        let rf = |f: &mut std::io::BufReader<std::fs::File>| -> std::io::Result<f32> {
+            let mut b = [0u8; 4];
+            f.read_exact(&mut b)?;
+            Ok(f32::from_le_bytes(b))
+        };
+        let scale = rf(&mut f)?;
+        let b2 = rf(&mut f)?;
+        let mut b1 = Vec::with_capacity(n_hidden);
+        for _ in 0..n_hidden { b1.push(rf(&mut f)?); }
+        let mut w2 = Vec::with_capacity(n_hidden);
+        for _ in 0..n_hidden { w2.push(rf(&mut f)?); }
+        let mut w1 = Vec::with_capacity(N_INPUTS * n_hidden);
+        for _ in 0..N_INPUTS * n_hidden { w1.push(rf(&mut f)?); }
+        Ok(Net { n_hidden, w1, b1, w2, b2, scale })
+    }
+}
+
 struct Rng(u64);
 impl Rng {
     fn next(&mut self) -> u64 {

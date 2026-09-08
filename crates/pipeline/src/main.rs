@@ -47,6 +47,8 @@ fn main() {
     let hidden = arg("--hidden", 128);
     let seed = arg("--seed", 20260907) as u64;
     let ctrl_every = arg("--control-every", 10);
+    let out = a.iter().position(|x| x == "--out").and_then(|i| a.get(i + 1)).cloned()
+        .unwrap_or_else(|| "champion.net".to_string());
     // Cap on the widening horizon. Measured 2026-09-07: labels far from the terminal are
     // ANTI-signal while play is weak (sign acc 0.452 -> 0.441 when training on all decided
     // positions). An unbounded schedule reaches 205 plies by gen 40, i.e. no filter at all,
@@ -137,6 +139,11 @@ fn main() {
         if better {
             champion = cand;
             accepted += 1;
+            // Persist on every acceptance, not at the end: a run killed by a timeout used to
+            // discard everything it had learned.
+            if let Err(e) = champion.save(&out) {
+                eprintln!("  WARN could not save champion to {out}: {e}");
+            }
         }
         // Periodic control against the FROZEN origin. One step of learning is not a curve:
         // the question P1 turns on is whether strength COMPOUNDS or stops after generation 1.
