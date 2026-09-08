@@ -117,7 +117,15 @@ fn main() {
     // ANTI-signal while play is weak (sign acc 0.452 -> 0.441 when training on all decided
     // positions). An unbounded schedule reaches 205 plies by gen 40, i.e. no filter at all,
     // which would reintroduce exactly that. This tests whether the plateau is self-inflicted.
-    let horizon_cap = arg("--horizon-cap", 1000) as u32;
+    // MEASURED 2026-09-07, paired arms on the same seed. The default was 1000, i.e. the
+    // safeguard was switched off, and the schedule 10+5*(g-1) reached h95 by generation 18.
+    //   uncapped   control vs origin:  0.664 -> 0.648 -> 0.508 (FAILED at gen 15)
+    //   h<=40      control vs origin:  0.552 -> 0.567 -> 0.570 -> 0.694 (all pass)
+    // Uncapped, the per-generation gate collapsed to 0.352-0.430 once the horizon passed 60
+    // plies -- eight straight generations of candidates WORSE than the champion, four of them
+    // flagged `regression` in the ledger. Capped, it holds ~0.49 and the champion compounds.
+    // 40 is not tuned; it is measured better than no cap. 20 and 60 are untested.
+    let horizon_cap = arg("--horizon-cap", 40) as u32;
     // DEPTH SCHEDULE. Depth 1 gives ~47x the labels per second and bootstraps the net out of
     // randomness, but at depth 1 the search is barely stronger than the raw eval, so the data
     // stops being better than the net that made it and acceptance stalls (measured: accepted
