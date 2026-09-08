@@ -33,20 +33,21 @@ the A/B to ask whether it works at all.
 
 ---
 
-## 2026-09-08 — the ARCH surrogate filter is a COIN FLIP against a moving baseline (n=3, observation)
+## 2026-09-08 — the ARCH surrogate filter is a COIN FLIP against a moving baseline (n=4, observation)
 
-Every ARCH attempt is now in the ledger with a named reason. Three on record:
+Every ARCH attempt is now in the ledger with a named reason. Four on record:
 
 | candidate loss | champion loss | outcome |
 |---|---|---|
 | 0.0746 | 0.0847 | reached the gate -> `lost_on_clock` |
 | 0.0762 | 0.0719 | `surrogate_filter` |
 | 0.0857 | 0.0706 | `surrogate_filter` |
+| 0.0730 | 0.0777 | reached the gate -> `lost_on_clock` |
 
 The champion's OWN held-out loss moves 0.0706 -> 0.0847 across generations, a ~20% spread,
 because the judge set is that generation's held-out slice and the champion changes underneath
 it. The candidate's post-training loss moves about as much. So `acand_loss > champ_loss * 1.005`
-is one noisy number against another noisy number, and 1 attempt in 3 reached a gate.
+is one noisy number against another noisy number, and 2 attempts in 4 reached a gate.
 
 **Function-preserving widening guarantees equality AT BIRTH, not after training.** The candidate
 starts as an exact copy of the champion's function and is then trained up to 30 epochs; that
@@ -105,6 +106,18 @@ ever stepped +/-1 rung. So from rung 0 the ONLY widening available was width 32 
 clock gate must reject -- and the arm would re-propose that same cliff forever. Width 128, where
 the same measurements say the cost flips, was unreachable BY CONSTRUCTION. The capacity ladder
 had a hole at its first rung and no way over it.
+
+**REPLICATED 2026-09-08, second independent run.** The clock verdict is not one noisy reading:
+
+| run | fixed-cost (equal nodes) | clock (equal time) | nodes cand vs champ |
+|---|---|---|---|
+| gen 20, long_run3 | 0.525 +/- 0.051 | **0.372 +/- 0.053** | 5962 vs 6985 |
+| gen 30, long_run4 | 0.544 +/- 0.050 | **0.334 +/- 0.052** | 6119 vs 7252 |
+
+Both say the same thing: width 32 knows MORE per node (~0.53-0.54) and is much worse per SECOND
+(~0.33-0.37). The second attempt also cleared the surrogate independently (loss 0.0730 vs
+0.0777, paired z 2.43), so the widening fix reproduces too -- the pre-fix arm never once got
+this far.
 
 **CONFIRMED LIVE, not just argued from the code.** The very next ARCH attempt in the same run
 (generation 40, still on the stride-1 binary) proposed the IDENTICAL rung:
