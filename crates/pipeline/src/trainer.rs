@@ -1,6 +1,6 @@
 //! Train the net on self-play outcomes. Hand-written backprop for the 782 -> H -> 1 net.
 //!
-//! Target = the game outcome from the MOVER's point of view, blended with the engine's own
+//! Target = the game outcome from WHITE's point of view, blended with the engine's own
 //! root search score. Both are self-referential (MASTER_PLAN Given: "game outcome; agreement
 //! with own deeper search"). Nothing human enters.
 
