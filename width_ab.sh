@@ -66,8 +66,12 @@ done
 echo
 echo "=== VERDICT: width 64 vs width 16, HEAD TO HEAD at equal TIME ==="
 if [ -f wd_r2.net ] && [ -f wd_r0.net ]; then
+  # FULL OUTPUT TO A FILE. The first version piped this through `tail -12`, which kept the
+  # trailing diagnostic block and CUT OFF the actual result line -- the verdict was computed and
+  # then thrown away by the harness that was supposed to report it.
   timeout 1800 taskset -c 15 nice -n 19 ionice -c 3 "$CTRL" \
-    --champion wd_r2.net --opponent wd_r0.net --pairs "$PAIRS" 2>&1 | tail -12
+    --champion wd_r2.net --opponent wd_r0.net --pairs "$PAIRS" > width_headtohead.log 2>&1
+  grep -E "champion|depth cap|fixed depth|NOTE" width_headtohead.log
 else
   echo "  one or both arms produced no net -- read wd_r0.log / wd_r2.log"
 fi
