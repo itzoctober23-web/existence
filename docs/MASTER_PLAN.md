@@ -489,3 +489,28 @@ fixed. That schedule is a hyperparameter, i.e. LEARNED, not declared.
 clearly improves, because an untrained net predicts ~0 -- safe under MSE (error ~1) and
 useless in play -- while a trained net predicts with magnitude and is sometimes wrong. MSE
 punishes confidence. Sign accuracy plus McNemar is the meaningful pair here; report both.
+
+**2026-09-07, P1 status: loop closed end-to-end, learning NOT yet demonstrated.**
+
+The loop runs: self-play -> near-terminal filter -> train -> acceptance -> control. Two bugs
+were found by the control, both of the same family (measuring the thing you trained on):
+
+- The first "hold-out" was the tail of the training list. It measured training-set fit,
+  accepted 7 of 10 candidates, and the resulting champion scored **0.500** against the original
+  random net. Fixed by splitting BEFORE training; acceptances fell to 4 of 10 and the control
+  is unchanged at **0.497 +/- 0.077**. Keep the control-vs-origin match permanently: it is the
+  only statistic in the loop that cannot be gamed by a bad hold-out.
+- Acceptance at iteration zero cannot use the game-gate: two wandering nets draw 86-100%, so an
+  80-game match carries +/-0.11 and rejects everything on merit-independent grounds. During
+  bootstrap the held-out surrogate decides and the gate acts as a NON-REGRESSION guard; the
+  gate takes over automatically once the draw rate falls below 60%.
+
+**The binding constraint is data volume, not a bug.** 150 self-play games give ~21,000
+positions, of which 6-19 games are decisive, and the near-terminal filter leaves **13-295
+labels per generation**. A 25k-parameter net cannot learn from ~150 labels, and McNemar on ~40
+held-out positions is noise -- which is why acceptances look random.
+
+Ranked next steps: (a) orders of magnitude more self-play, which needs the search fast enough
+that datagen is not the bottleneck; (b) raise the decisive fraction -- adjudication by a
+rules-derived terminal condition, not by a material heuristic, which would be a Given row;
+(c) only then revisit acceptance thresholds.

@@ -11,6 +11,28 @@ use nnue::Net;
 use pipeline::datagen::{self, Rng, Sample};
 use pipeline::gate;
 use pipeline::trainer::Trainer;
+use board::{Color, Position};
+
+/// Paired sign-agreement counts: positions the champion got right and the candidate got wrong,
+/// and vice versa. McNemar's statistic is built from exactly these two.
+fn paired_sign(champ: &Net, cand: &Net, held: &[&Sample]) -> (u32, u32) {
+    let mut s = Vec::new();
+    let (mut b_only, mut a_only) = (0u32, 0u32);
+    let ok = |net: &Net, p: &Position, z: f32, s: &mut Vec<f32>| {
+        let mover = net.eval(p, s) as f32;
+        let white = if p.stm == Color::White { mover } else { -mover };
+        (white > 0.0) == (z > 0.0)
+    };
+    for h in held {
+        let p = match Position::from_fen(&h.fen) { Ok(p) => p, Err(_) => continue };
+        match (ok(champ, &p, h.z, &mut s), ok(cand, &p, h.z, &mut s)) {
+            (true, false) => b_only += 1,
+            (false, true) => a_only += 1,
+            _ => {}
+        }
+    }
+    (b_only, a_only)
+}
 
 fn main() {
     let a: Vec<String> = std::env::args().collect();
@@ -53,23 +75,57 @@ fn main() {
         }
         let t_gen = t0.elapsed().as_secs_f64();
 
-        // ---- train a candidate from the champion
+        // ---- train a candidate from the champion.
+        // HORIZON: only positions within `horizon` plies of the terminal, and only from decided
+        // games. Measured 2026-09-07: training on ALL decided positions makes the eval WORSE
+        // (sign acc 0.452 -> 0.441) while <=10 plies makes it BETTER (-> 0.543) on 5x less
+        // data. Far-from-terminal labels are anti-signal while both players are near-random.
+        // The horizon WIDENS with generation, because the label becomes informative further
+        // back as play improves.
+        let horizon = 10 + (g as u32 - 1) * 5;
+        let pool: Vec<Sample> = data.iter()
+            .filter(|s| s.z != 0.0 && s.plies_to_end <= horizon)
+            .map(|s| Sample { fen: s.fen.clone(), z: s.z, root: s.root, plies_to_end: s.plies_to_end })
+            .collect();
+        // TRUE hold-out: split BEFORE training and never train on the held part. The first
+        // version evaluated McNemar on the tail of the same list it trained on, which measures
+        // training-set fit and accepted 7 of 10 candidates whose champion then scored 0.500
+        // against the original random net. The control caught it.
+        let cut = pool.len() * 3 / 4;
+        let (subset, heldout) = pool.split_at(cut);
         let mut cand = champion.clone();
         let mut loss = 0.0;
         for e in 0..epochs {
-            loss = tr.epoch(&mut cand, &data, seed ^ (g as u64) << 8 ^ e as u64);
+            loss = tr.epoch(&mut cand, subset, seed ^ (g as u64) << 8 ^ e as u64);
         }
 
-        // ---- GATE: the only thing that decides
+        // ---- ACCEPTANCE.
+        // At iteration zero the game-gate is BLIND: two wandering nets draw 86-100% of their
+        // games, so an 80-game match carries +/-0.11 and rejects everything regardless of
+        // merit. During bootstrap the held-out surrogate DECIDES and the gate serves as a
+        // non-regression guard; the gate takes back over once play is decisive enough to
+        // resolve (tracked by the draw rate, reported every generation).
+        let held: Vec<&Sample> = heldout.iter().collect();
+        let (b_only, a_only) = paired_sign(&champion, &cand, &held);
+        let mcnemar = if a_only + b_only > 0 {
+            (a_only as f64 - b_only as f64) / ((a_only + b_only) as f64).sqrt()
+        } else { 0.0 };
         let sc = gate::match_nets(&cand, &champion, depth, gate_pairs, seed ^ g as u64);
-        let better = sc.rate() - sc.ci95() > 0.5;
+        let draw_rate = sc.draws as f64 / sc.games().max(1) as f64;
+        let gate_can_resolve = draw_rate < 0.60;
+        let no_regression = sc.rate() + sc.ci95() > 0.5;
+        let better = if gate_can_resolve {
+            sc.rate() - sc.ci95() > 0.5
+        } else {
+            mcnemar > 1.96 && no_regression
+        };
         if better {
             champion = cand;
             accepted += 1;
         }
         println!(
-            "gen {g:>3}  pos {:>6}  decisive {:>3}/{:<3}  loss {:.4}  gate {}W-{}D-{}L rate {:.3}+/-{:.3}  {}  [{:.0}s]",
-            data.len(), dec, dec + drawn, loss, sc.wins, sc.draws, sc.losses, sc.rate(), sc.ci95(),
+            "gen {g:>3}  pos {:>6}  train {:>5} (h{:>3})  dec {:>3}/{:<3}  loss {:.4}  gate {}W-{}D-{}L {:.3}+/-{:.3}  {}  [{:.0}s]",
+            data.len(), subset.len(), horizon, dec, dec + drawn, loss, sc.wins, sc.draws, sc.losses, sc.rate(), sc.ci95(),
             if better { "ACCEPT" } else { "reject" }, t_gen
         );
     }
