@@ -38,6 +38,30 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — datagen depth is a NULL at blend 0, and the reason is structural
+
+| datagen depth | decisive | samples | mean | 95% CI |
+|---|---|---|---|---|
+| 2 | 415/1500 (28%) | 3,345 | 0.4703 | [0.4622, 0.4784] |
+| 3 | 948/1500 (63%) | 7,733 | 0.4703 | [0.4521, 0.4885] |
+
+Identical means, despite depth 3 producing **more than twice the decisive rate** — much better
+play, same training result.
+
+The reason is structural rather than empirical, and I should have seen it before running the
+sweep: **at blend = 0 the stored root score is never read.** The training target is the game
+outcome alone, so search depth can only change WHICH GAMES ARE PLAYED, never what the label
+says about them. `--deepen-at` defaulting to 1,000,000 meant the deepening the code calls
+"AlphaZero's engine of improvement" had never run — but running it changes nothing while the
+label ignores the search.
+
+So the two knobs are COUPLED and I tested them independently: deeper search is worth more
+precisely when the target includes the search score. Re-running depth 2/3/4 at blend 0.75.
+
+This is the same shape as the blend finding itself. The loop had two halves of one mechanism —
+a search score worth trusting, and a target that reads it — and both were switched off, each
+for a reason that made sense at iteration zero.
+
 ## 2026-09-08 — BLEND: training flips from harmful to beneficial. The stall was the LABEL.
 
 Same trained champion, same data, horizon 10, 10 replicates per arm. Only the training TARGET

@@ -95,7 +95,9 @@ fn main() {
         .unwrap_or_default();
     if !dg_depths.is_empty() {
         let horizon = get("--horizon", 10) as u32;
-        println!("datagen-depth sweep at horizon {horizon}, {games} games each\n");
+        let dg_blend: f32 = a.iter().position(|x| x == "--blend")
+            .and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(0.0);
+        println!("datagen-depth sweep at horizon {horizon}, blend {dg_blend}, {games} games each\n");
         for d in &dg_depths {
             let mut r2 = Rng(seed ^ 0xDEE9);
             let (data, dec) = datagen::play_games(&champion, *d, r2.next(), games, 4, 160, 4);
@@ -103,7 +105,13 @@ fn main() {
                 .filter(|s| s.z != 0.0 && s.plies_to_end <= horizon).collect();
             let cut = owned.len() * 3 / 4;
             let (train, _) = owned.split_at(cut);
-            let tr = Trainer::new(0.01, 0.0);
+            // Use the CONFIGURED blend, not 0. At blend = 0 the stored root score is unused,
+            // so datagen depth can only change which games are played and never the label --
+            // which is exactly what the first run of this sweep measured: depth 2 and depth 3
+            // both returned 0.4703 despite depth 3 producing 63% decisive games against 28%.
+            // The two knobs are coupled: deeper search is worth more precisely when the target
+            // includes the search score.
+            let tr = Trainer::new(0.01, dg_blend);
             let mut rates = Vec::new();
             for r in 0..reps {
                 let tseed = seed ^ ((r as u64 + 1) << 32) ^ *d as u64;
