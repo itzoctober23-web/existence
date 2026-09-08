@@ -24,5 +24,5 @@ n=$(grep -oE "test result: ok\. [0-9]+ passed" <<<"$out" | grep -oE "[0-9]+" | p
 echo "  $n tests passed"
 # Ratchet: the floor is the count at the last commit, so a test that silently stops being
 # compiled (or gets deleted) fails the gate instead of passing a smaller suite quietly.
-[ "${n:-0}" -ge 27 ] || { echo "  EXPECTED >=27 tests, got ${n:-0} — did they compile?"; exit 1; }
+[ "${n:-0}" -ge 33 ] || { echo "  EXPECTED >=33 tests, got ${n:-0} — did they compile?"; exit 1; }
 echo "ALL GREEN"
