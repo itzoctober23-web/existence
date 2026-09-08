@@ -98,11 +98,22 @@ fn map_nth(n: &Node, k: &mut usize, applied: &mut bool, f: &mut dyn FnMut(&Node)
 
 /// One mutation. Returns None if it produced nothing valid — the caller simply tries again,
 /// which is cheaper than making every operator universally applicable.
+/// Apply `op` at a RANDOM position. Kept for callers that want one shot.
 pub fn mutate(p: &Program, op: Op, rng: &mut Rng) -> Option<Program> {
+    let fi = rng.below(p.funcs.len());
+    let total = count_nodes(&p.funcs[fi].body);
+    let k = rng.below(total);
+    mutate_at(p, op, rng, fi, k)
+}
+
+/// Apply `op` at a SPECIFIC node index of a specific function.
+///
+/// Exposed so a caller can try an operator at every position before giving up on it. With a
+/// single random position, an operator that matches only a few node types abandons most of the
+/// time, and abandoning is what makes the effective operator set differ from the declared one.
+pub fn mutate_at(p: &Program, op: Op, rng: &mut Rng, fi: usize, k0: usize) -> Option<Program> {
     let mut out = p.clone();
-    let fi = rng.below(out.funcs.len());
-    let total = count_nodes(&out.funcs[fi].body);
-    let mut k = rng.below(total);
+    let mut k = k0;
     let mut applied = false;
     let r = rng.next();
 
@@ -205,13 +216,39 @@ pub fn mutate_program_n(p: &Program, rng: &mut Rng, edits: usize) -> Option<(Pro
     let mut cur = p.clone();
     let mut applied = Vec::with_capacity(edits);
     for _ in 0..edits.max(1) {
+        // PICK THE OPERATOR FIRST, then retry that SAME operator on different nodes.
+        //
+        // The original drew a fresh random operator on every retry and kept whichever applied
+        // first, which is a race that broadly-applicable operators always win. `mutate` picks
+        // ONE random node and returns None if the operator does not match it, so an operator's
+        // chance of winning is proportional to how many node types it accepts. MEASURED from
+        // the search ledger over 67 proposals:
+        //     InsertMax 32   Delete 16   WrapIf 9   WrapLoop 4   ReplaceConst 4   SwapSiblings 2
+        //     Tweak 0
+        // InsertMax wraps any Score node; Tweak matches only Const/Cmp/Field, about 6 of the
+        // seed's 71 nodes, so it never won a race and was effectively absent from the operator
+        // set. GRAMMAR 4 declares that set as a Given-column entry, so the set the search
+        // ACTUALLY draws from has to be the declared one, not a subset weighted by how easy
+        // each operator is to place.
+        let op = ALL_OPS[rng.below(ALL_OPS.len())];
+        // Try the chosen operator at EVERY position, in a shuffled order, before giving up on
+        // it. One random position per attempt made an operator matching few node types abandon
+        // most of the time (89/200 proposals produced no change), and abandoning is itself a
+        // bias -- it silently thins exactly the operators the skew already under-represented.
         let mut ok = None;
-        for _ in 0..40 {
-            let op = ALL_OPS[rng.below(ALL_OPS.len())];
-            if let Some(next) = mutate(&cur, op, rng) { ok = Some((next, op)); break; }
+        for fi in 0..cur.funcs.len() {
+            let total = count_nodes(&cur.funcs[fi].body);
+            let mut order: Vec<usize> = (0..total).collect();
+            for i in (1..order.len()).rev() { let j = rng.below(i + 1); order.swap(i, j); }
+            for k in order {
+                if let Some(next) = mutate_at(&cur, op, rng, fi, k) { ok = Some(next); break; }
+            }
+            if ok.is_some() { break; }
         }
-        let (next, op) = ok?;
-        cur = next;
+        // If this operator cannot be placed anywhere after 40 tries, the candidate is abandoned
+        // rather than silently substituting a different operator -- that substitution is what
+        // produced the skew.
+        cur = ok?;
         applied.push(op);
     }
     Some((cur, applied))
