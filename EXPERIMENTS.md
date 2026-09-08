@@ -38,6 +38,39 @@ so resolving a 0.05 effect needs ~800 pairs, not 320.
   fixed-budget arm should hold its McNemar z above zero where the epochs arm goes
   negative. If both go negative, the mechanism is wrong and the cause is elsewhere.
 
+## 2026-09-08 — the horizon filter should be REMOVED, not tuned (at blend 0.75)
+
+Full sweep against the trained champion at blend 0.75, 10 replicates per arm:
+
+| horizon | samples | mean | 95% CI |
+|---|---|---|---|
+| 10 | 8,854 | 0.5352 | [0.5265, 0.5438] |
+| 20 | 16,830 | 0.5539 | [0.5445, 0.5633] |
+| 40 | 32,229 | 0.5988 | [0.5846, 0.6130] |
+| 80 | 53,775 | 0.6074 | [0.5930, 0.6219] |
+| 160 | 58,734 | 0.6215 | [0.6052, 0.6378] |
+| 1000 | **58,734** | 0.6242 | [0.6057, 0.6428] |
+
+h160 and h1000 have the SAME sample count, so no decided position lies beyond 160 plies and
+those two arms are the same dataset — the filter is inert past 160 and the curve has saturated,
+not peaked.
+
+**So the horizon filter is not a knob to tune, it is a restriction to remove.** Monotone
+improvement all the way to "use every decided position", 0.5352 -> 0.6242.
+
+The arc of this constant today, which is worth keeping as a caution about one-dimensional
+sweeps:
+1. shipped cap 40 (n=1, uncapped looked catastrophic)
+2. swept at blend 0, found a peak at 20, shipped 20
+3. swept at blend 0 against a TRAINED champion, found the whole axis below 0.5 and declared
+   the schedule "backwards" and the axis "exhausted"
+4. shipped blend 0.75 for unrelated reasons
+5. re-swept: the optimum inverted, and the correct setting is no cap at all
+
+Every step was measured. Steps 2 and 3 were measured under a blend that made the answer
+meaningless, and nothing in the measurement itself could reveal that — only changing the OTHER
+constant did.
+
 ## 2026-09-08 — horizon at blend 0.75: monotone up, plateau from ~40
 
 Completed sweep against the trained champion, blend 0.75, 10 replicates per arm:
