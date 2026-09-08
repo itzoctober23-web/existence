@@ -174,27 +174,36 @@ pub fn ab_hash() -> Program {
     p
 }
 
-/// UCT-style MCTS with the net's value and no policy head. Present so that "the engine stayed
-/// in the alpha-beta basin" is a finding rather than an artefact of MCTS being inexpressible;
-/// `sqrt`, `log`, `avg`, `sample` and the count/sum slot fields exist for exactly this.
+/// FAITHFUL UCT: descend by the selection rule to a leaf, expand it, evaluate, and
+/// backpropagate the value up the visited path. The earlier version in this file was a sketch
+/// (no descent, no backprop) and therefore a LOWER BOUND on MCTS's length, which is why
+/// GRAMMAR 6 recorded the skew direction as UNRESOLVED. This one has all four phases, so its
+/// count is comparable with the alpha-beta seed's.
+///
+/// Structure, in the grammar's terms:
+///   choose(p,B) = loop B times { simulate(p) }; argmax(moves(p), visits)
+///   simulate(p) -> Score:
+///     if terminal(p) != NONE: ret score_of(terminal(p), 0)
+///     if visits(p) == 0: store(key p, 1); ret eval(p)              -- expand + evaluate
+///     m   = argmax(moves(p), UCT)                                   -- select
+///     v   = neg(simulate(apply(p,m)))                               -- recurse
+///     store(key p, visits+1); store(sum p, sum+v); ret v            -- backpropagate
 pub fn uct_mcts() -> Program {
-    let c = Node::TRead(2, vec![]); // exploration constant, learned
-    // select(p) = argmax(moves(p), m -> mix(avg(sum,count), sqrt(log(N)/count), C))
-    let child_key = Node::Key(b(Node::Apply(b(v("p")), b(v("m")))));
-    let q = Node::Avg(
-        b(Node::Field(b(Node::Probe(b(child_key.clone()))), FieldId::Sum)),
-        b(Node::Field(b(Node::Probe(b(child_key.clone()))), FieldId::Count)),
-    );
+    let c = Node::TRead(2, vec![]); // exploration weight, learned
+
+    let visits = |node: Node| Node::Field(b(Node::Probe(b(Node::Key(b(node))))), FieldId::Count);
+    let sum = |node: Node| Node::Field(b(Node::Probe(b(Node::Key(b(node))))), FieldId::Sum);
+    let child = || Node::Apply(b(v("p")), b(v("m")));
+
+    // Q + C * sqrt(log(N_parent) / N_child)
+    let q = Node::Avg(b(sum(child())), b(visits(child())));
     let u = Node::Arith(
         ArithOp::Sqrt,
         vec![Node::Arith(
             ArithOp::Div,
             vec![
-                Node::Arith(
-                    ArithOp::Log,
-                    vec![Node::Field(b(Node::Probe(b(Node::Key(b(v("p")))))), FieldId::Count)],
-                ),
-                Node::Field(b(Node::Probe(b(child_key))), FieldId::Count),
+                Node::Arith(ArithOp::Log, vec![visits(v("p"))]),
+                visits(child()),
             ],
         )],
     );
@@ -203,34 +212,75 @@ pub fn uct_mcts() -> Program {
         "m".into(),
         b(Node::Mix(b(q), b(u), b(c))),
     );
-    // choose runs `budget` simulations then picks the most-visited child.
-    let sim = Node::seq(vec![
-        Node::Let("m".into(), b(select.clone()), b(Node::Nop)),
+
+    // simulate(p) -> Score
+    let sim_body = Node::seq(vec![
+        Node::If(
+            b(Node::Cmp(
+                b(Node::Terminal(b(v("p")))),
+                b(Node::OutcomeLit(OutcomeLit::None)),
+                Rel::Ne,
+            )),
+            b(Node::Ret(b(Node::ScoreOf(
+                b(Node::Terminal(b(v("p")))),
+                b(Node::Const(0)),
+            )))),
+            None,
+        ),
+        // unvisited leaf: expand, evaluate, return
+        Node::If(
+            b(Node::Cmp(b(visits(v("p"))), b(Node::Const(0)), Rel::Le)),
+            b(Node::seq(vec![
+                Node::Store(b(Node::Key(b(v("p")))), b(Node::Const(1))),
+                Node::Ret(b(Node::Eval(b(v("p"))))),
+            ])),
+            None,
+        ),
+        Node::Let("m".into(), b(select), b(Node::Nop)),
         Node::Let(
-            "leaf".into(),
-            b(Node::Apply(b(v("p")), b(v("m")))),
+            "val".into(),
+            b(Node::Arith(
+                ArithOp::Neg,
+                vec![Node::Call(1, vec![child()])],
+            )),
             b(Node::Nop),
         ),
-        Node::Store(b(Node::Key(b(v("leaf")))), b(Node::Eval(b(v("leaf"))))),
+        // backpropagate: bump this node's visit count and running sum
+        Node::Store(
+            b(Node::Key(b(v("p")))),
+            b(Node::Arith(ArithOp::Add, vec![visits(v("p")), Node::Const(1)])),
+        ),
+        Node::Store(
+            b(Node::Key(b(v("p")))),
+            b(Node::Arith(ArithOp::Add, vec![sum(v("p")), v("val")])),
+        ),
+        Node::Ret(b(v("val"))),
     ]);
-    let body = Node::seq(vec![
-        Node::Loop(b(Node::Budget), b(sim)),
+
+    let choose = Node::seq(vec![
+        Node::Loop(b(Node::Budget), b(Node::Call(1, vec![v("p")]))),
         Node::Ret(b(Node::Argmax(
             b(Node::Moves(b(v("p")))),
             "m".into(),
-            b(Node::Field(
-                b(Node::Probe(b(Node::Key(b(Node::Apply(b(v("p")), b(v("m")))))))),
-                FieldId::Count,
-            )),
+            b(visits(child())),
         ))),
     ]);
+
     Program {
-        funcs: vec![Func {
-            name: "choose".into(),
-            params: vec![("p".into(), Ty::Pos), ("B".into(), Ty::Int)],
-            ret: Ty::Move,
-            body,
-        }],
+        funcs: vec![
+            Func {
+                name: "choose".into(),
+                params: vec![("p".into(), Ty::Pos), ("B".into(), Ty::Int)],
+                ret: Ty::Move,
+                body: choose,
+            },
+            Func {
+                name: "simulate".into(),
+                params: vec![("p".into(), Ty::Pos)],
+                ret: Ty::Score,
+                body: sim_body,
+            },
+        ],
         lineage: Lineage::Main,
     }
 }

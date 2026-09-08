@@ -143,29 +143,33 @@ are replaced by the parser's exact counts the day the grammar is implemented, an
 prior statement below is re-derived from those. Relative ordering (AB < PN < MCTS,
 hybrids between) is robust to the estimate error; the absolute skew is not yet exact.
 
-| Program | Nodes (MEASURED) | Fidelity of the encoding |
+| Program | Nodes (MEASURED) | Fidelity |
 |---|---|---|
 | depth-one | 9 | faithful (purity seed) |
-| bare alpha-beta | 75 | faithful (main seed) |
-| alpha-beta + hash reuse | 93 | faithful |
-| UCT-style MCTS | 60 | SKETCH -- no true backprop/expansion; a LOWER BOUND |
+| bare alpha-beta | 71 | faithful (main seed) |
+| alpha-beta + hash reuse | 89 | faithful |
+| UCT MCTS (select/expand/evaluate/backpropagate) | 104 | faithful |
 | proof-number search | 43 | SKETCH -- terminal-driven core only; a LOWER BOUND |
 
-**STATUS: measured by `crates/grammar` (examples/prior.rs), not estimated.** Run it to
-reproduce. The earlier hand estimates in this section were badly wrong -- bare alpha-beta was
-guessed at 29 and measures **75**, a 2.6x error, far outside the +/-20% they were flagged at.
-Nothing derived from the old numbers survives.
+**Measured by `crates/grammar` (examples/prior.rs), not estimated.** Run it to reproduce.
 
-**The prior, restated honestly.** The old text claimed the grammar was biased TOWARD
-alpha-beta by ~15-17 nodes. On measured counts the seed is the LONGEST faithful program in the
-table, so that claim is not supported and its sign may well be reversed. But the MCTS and PN
-rows are sketches and therefore lower bounds, so the comparison is not yet apples-to-apples
-and **the direction of the skew is currently UNRESOLVED**. Resolving it requires faithful
-encodings of MCTS and PN; until those exist, no claim about which paradigm the grammar favours
-should appear in a write-up.
+**The prior, stated.** Bare alpha-beta is 71 nodes and is the main seed; a FAITHFUL UCT is
+104, i.e. **+33 nodes**. The grammar is therefore biased toward alpha-beta, and by roughly
+twice what the original hand estimate said. `sqrt`, `log`, `avg`, `sample` and the
+`count`/`sum` slot fields exist so that MCTS is expressible at all -- without them the
+"stayed in the alpha-beta basin" result would be vacuous.
 
-What IS established: the main seed is bare alpha-beta and costs 75 nodes; the purity lineage
-starts 66 nodes away from it; hash reuse is +18 from the seed.
+**History, kept because both errors are instructive.** The first hand estimates were 29 for
+alpha-beta and 44 for MCTS, concluding a ~15-node bias toward alpha-beta. The parser measured
+alpha-beta at 71 -- 2.4x the guess -- and a SKETCH MCTS at 60, which briefly made the seed look
+like the longest program and put the skew direction in doubt. Writing MCTS faithfully (adding
+the descent and the backpropagation the sketch omitted) moved it to 104 and restored the
+original direction with a bigger magnitude. The lesson recorded for the write-up: an
+expressiveness comparison is only valid between encodings of EQUAL fidelity, and a sketch is a
+lower bound, never a datum.
+
+Proof-number search remains a sketch at 43 and is still a lower bound; no claim about PN's
+distance should be made until it is written faithfully.
 
 **Discount rule for the write-up:** the purity lineage rediscovering bounding is
 reported with the distance depth-one -> bare AB (~19 nodes, ~8 mutations) attached. Any
