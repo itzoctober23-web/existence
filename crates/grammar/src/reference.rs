@@ -149,28 +149,137 @@ pub fn bare_alpha_beta() -> Program {
     }
 }
 
-/// Alpha-beta plus hash reuse: probe before searching, store after. The first milestone the
-/// search track is expected to discover (GRAMMAR 9 step 4).
+/// FAITHFUL alpha-beta + transposition table. The first milestone the search track is expected
+/// to discover (GRAMMAR 9 step 4).
+///
+/// THE PREVIOUS VERSION IN THIS FILE WAS NOT A TRANSPOSITION TABLE AT ALL. It was:
+///
+/// ```text
+/// if probe(p).depth >= d:  ret probe(p).score
+/// ...body...
+/// store(key p, Score, best)
+/// ```
+///
+/// and it stored ONLY `Score`. `Depth` was never written, so every slot in the table had
+/// `depth = 0`, and an EMPTY slot returns `Slot::default()` which is also `depth = 0`. So the
+/// guard read `0 >= d`, which is TRUE at every leaf — and the program returned `score` from an
+/// empty slot, i.e. the constant 0, without ever calling `eval`.
+///
+/// MEASURED (crates/interp/examples/tt_pressure.rs), 60 random positions:
+///
+/// ```text
+/// depth 2   EVALS hash 0   bare   516,829     cost 0.285x
+/// depth 3   EVALS hash 0   bare 7,206,527     cost 0.218x
+/// depth 4   EVALS hash 0   bare 66,932,291    cost 0.072x
+/// ```
+/// Zero evaluations at every depth. The "14x cheaper than alpha-beta" was a search that had
+/// stopped searching. It agreed with bare alpha-beta on 1 of 60 positions at depth 4.
+///
+/// This is precisely the failure GRAMMAR 6 records as its central lesson — "a sketch is a lower
+/// bound, never a datum" — sitting inside the table that claims "no sketches remain", labelled
+/// `faithful`. It is also the degenerate solution FITNESS 10 lists first ("prune everything /
+/// return eval"), except worse: it returns a CONSTANT and never evaluates. It was not produced
+/// by evolution; it was in the reference set used to calibrate the prior.
+///
+/// The faithful version needs the two things a real TT cannot omit:
+///   1. A VALIDITY marker. `flag != 0` distinguishes a stored entry from an empty slot; the
+///      old code had no way to, which is the whole bug.
+///   2. BOUND TYPES. An alpha-beta score is only a bound outside the window it was searched
+///      with, so a cutoff is legal only when the bound permits: EXACT always, LOWER when it
+///      still fails high, UPPER when it still fails low. Returning a stored score
+///      unconditionally is unsound even with a correct depth check.
+/// flags: 0 = empty, 1 = EXACT, 2 = LOWER (fail-high), 3 = UPPER (fail-low).
+///
+/// Declared deviation, stated rather than hidden: the beta-cutoff path returns from inside the
+/// move loop and so does not store. That is sound (it stores strictly less), and it is what the
+/// seed's control flow allows without restructuring the loop.
 pub fn ab_hash() -> Program {
     let mut p = bare_alpha_beta();
-    let probe = Node::If(
-        b(Node::Cmp(
-            b(Node::Field(
-                b(Node::Probe(b(Node::Key(b(v("p")))))),
-                FieldId::Depth,
-            )),
-            b(v("d")),
-            Rel::Ge,
-        )),
-        b(Node::Ret(b(Node::Field(
-            b(Node::Probe(b(Node::Key(b(v("p")))))),
-            FieldId::Score,
-        )))),
+    let slot = || Node::Probe(b(Node::Key(b(v("p")))));
+    let f = |id: FieldId| Node::Field(b(slot()), id);
+
+    // if flag != 0 { if depth >= d { <bound-checked cutoffs> } }
+    // Nested ifs rather than a conjunction: the grammar has no `and`, and adding one for this
+    // would change the primitive count that GRAMMAR 6's prior is measured in.
+    let exact = Node::If(
+        b(Node::Cmp(b(f(FieldId::Flag)), b(Node::Const(1)), Rel::Eq)),
+        b(Node::Ret(b(f(FieldId::Score)))),
         None,
     );
-    let store = Node::Store(b(Node::Key(b(v("p")))), FieldId::Score, b(v("best")));
-    if let Node::Let(_, _, _) = &p.funcs[1].body {}
-    p.funcs[1].body = Node::seq(vec![probe, p.funcs[1].body.clone(), store]);
+    let lower = Node::If(
+        b(Node::Cmp(b(f(FieldId::Flag)), b(Node::Const(2)), Rel::Eq)),
+        b(Node::If(
+            b(Node::Cmp(b(f(FieldId::Score)), b(v("b")), Rel::Ge)),
+            b(Node::Ret(b(f(FieldId::Score)))),
+            None,
+        )),
+        None,
+    );
+    let upper = Node::If(
+        b(Node::Cmp(b(f(FieldId::Flag)), b(Node::Const(3)), Rel::Eq)),
+        b(Node::If(
+            b(Node::Cmp(b(f(FieldId::Score)), b(v("a")), Rel::Le)),
+            b(Node::Ret(b(f(FieldId::Score)))),
+            None,
+        )),
+        None,
+    );
+    let probe = Node::If(
+        b(Node::Cmp(b(f(FieldId::Flag)), b(Node::Const(0)), Rel::Ne)),
+        b(Node::If(
+            b(Node::Cmp(b(f(FieldId::Depth)), b(v("d")), Rel::Ge)),
+            b(Node::seq(vec![exact, lower, upper])),
+            None,
+        )),
+        None,
+    );
+
+    // Store score, depth, and the bound type. `a0` captures the ORIGINAL alpha, because the
+    // loop mutates `a` and the bound type is defined against the window the node was entered
+    // with, not the one it ended with.
+    let store = Node::seq(vec![
+        Node::Store(b(Node::Key(b(v("p")))), FieldId::Score, b(v("r"))),
+        Node::Store(b(Node::Key(b(v("p")))), FieldId::Depth, b(v("d"))),
+        Node::Store(b(Node::Key(b(v("p")))), FieldId::Flag, b(Node::Const(1))),
+        Node::If(
+            b(Node::Cmp(b(v("r")), b(v("a0")), Rel::Le)),
+            b(Node::Store(b(Node::Key(b(v("p")))), FieldId::Flag, b(Node::Const(3)))),
+            None,
+        ),
+        Node::If(
+            b(Node::Cmp(b(v("r")), b(v("b")), Rel::Ge)),
+            b(Node::Store(b(Node::Key(b(v("p")))), FieldId::Flag, b(Node::Const(2)))),
+            None,
+        ),
+    ]);
+
+    // THE STORE CANNOT SIMPLY BE APPENDED AFTER THE BODY. `Node::seq` desugars to nested
+    // `Let("_", stmt, rest)`, and the body's tail is `ret best`, so a Ret unwinds straight past
+    // anything sequenced after it. `seq[probe, body, store]` therefore never reached `store` --
+    // the table was never written, every slot kept `flag = 0` / `depth = 0`, and that is the
+    // root of BOTH the original bug and of the "sound but saves nothing" first repair (evals
+    // identical to bare alpha-beta at every depth, cost 1.265x for probe machinery that could
+    // never hit).
+    //
+    // So rewrite the TAIL RETURN instead: bind its value once, store, then return the binding.
+    // Binding matters -- duplicating the expression would re-run `eval` and break the
+    // eval-count equivalence the benchmark depends on.
+    fn wrap_tail(n: Node, f: &dyn Fn(Node) -> Node) -> Node {
+        match n {
+            Node::Let(name, init, body) => Node::Let(name, init, b(wrap_tail(*body, f))),
+            other => f(other),
+        }
+    }
+    let body = wrap_tail(p.funcs[1].body.clone(), &move |tail| match tail {
+        Node::Ret(e) => Node::Let(
+            "r".into(),
+            e,
+            b(Node::seq(vec![store.clone(), Node::Ret(b(v("r")))])),
+        ),
+        other => other,
+    });
+
+    p.funcs[1].body = Node::Let("a0".into(), b(v("a")), b(Node::seq(vec![probe, body])));
     p
 }
 

@@ -13,7 +13,6 @@
 //! fixed-budget check in FITNESS are denominated in these units, which is what keeps them
 //! paradigm-neutral and ungameable by a program that simply avoids calling `eval`.
 
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use board::types::{MOVE_NONE, Move, Outcome};
@@ -71,6 +70,83 @@ pub struct Slot {
     pub mv: u32,
 }
 
+/// A BOUNDED transposition table: fixed slot count, direct-indexed, always-replace.
+///
+/// The first cut was a `HashMap<u64, Slot>`, and that is a SKETCH of a transposition table in
+/// exactly the sense GRAMMAR 6 warns about. It never evicts, so:
+///   - it grows without limit during a search (millions of entries at depth 5), which is the
+///     unbounded-resource failure GRAMMAR 8's ceilings exist to prevent; and
+///   - it hands an evolved program an IDEALISED INFINITE TABLE that no real engine has. Hash
+///     reuse is item 1 on the expected discovery order, so the very first thing evolution is
+///     predicted to find would have had its gain measured against a table that cannot exist.
+/// GRAMMAR 6's own lesson: a sketch is a lower bound, and a lower bound can invert the sign of
+/// the claim being made.
+///
+/// Replacement policy is ALWAYS-REPLACE, deliberately the most naive one available. MASTER_PLAN
+/// lists "hash replacement" among the table-driven decisions SPSA tunes, so the default here
+/// has to be the policy with the least opinion in it, not a hand-tuned depth-preferred scheme
+/// that would be an undeclared search heuristic smuggled into the Given column.
+///
+/// Slots are validated by full key, and a mismatch counts as a collision rather than returning
+/// another position's data — FITNESS 10 lists "exploit hash collision / stale slot" as a
+/// degenerate solution, and it is only checkable if collisions are counted.
+pub const HASH_SLOTS: usize = 1 << 16;
+
+struct Tt {
+    keys: Vec<u64>,
+    /// Generation stamp, so clearing the table between searches is O(1) instead of 64k writes,
+    /// and so a slot holding the legitimate key 0 is distinguishable from an empty one.
+    stamp: Vec<u32>,
+    slots: Vec<Slot>,
+    cur: u32,
+    pub collisions: u64,
+}
+
+impl Tt {
+    fn new() -> Self {
+        Tt {
+            keys: vec![0; HASH_SLOTS],
+            stamp: vec![0; HASH_SLOTS],
+            slots: vec![Slot::default(); HASH_SLOTS],
+            cur: 1,
+            collisions: 0,
+        }
+    }
+    #[inline]
+    fn idx(key: u64) -> usize {
+        // Multiplicative index: the low bits of a Zobrist key are not better mixed than the
+        // high ones, and `key % n` on a power of two would use the low bits only.
+        (((key as u128 * HASH_SLOTS as u128) >> 64) as usize).min(HASH_SLOTS - 1)
+    }
+    fn clear(&mut self) {
+        self.cur = self.cur.wrapping_add(1);
+        if self.cur == 0 {
+            // Wrapped: stale stamps could alias, so genuinely reset once every 4 billion runs.
+            self.stamp.iter_mut().for_each(|g| *g = 0);
+            self.cur = 1;
+        }
+        self.collisions = 0;
+    }
+    fn probe(&mut self, key: u64) -> Slot {
+        let i = Self::idx(key);
+        if self.stamp[i] == self.cur && self.keys[i] == key {
+            self.slots[i]
+        } else {
+            if self.stamp[i] == self.cur { self.collisions += 1; }
+            Slot::default()
+        }
+    }
+    fn entry(&mut self, key: u64) -> &mut Slot {
+        let i = Self::idx(key);
+        if self.stamp[i] != self.cur || self.keys[i] != key {
+            self.keys[i] = key;
+            self.stamp[i] = self.cur;
+            self.slots[i] = Slot::default();
+        }
+        &mut self.slots[i]
+    }
+}
+
 /// Early exit carrying a `ret` value, so the window cutoff costs no extra machinery.
 enum Flow {
     Normal(Value),
@@ -85,7 +161,7 @@ pub struct Interp<'a> {
     pub evals: u64,
     /// Learned integer tables. Index 0 = D (depth), 1 = INF, 2.. = whatever a program reads.
     pub tables: Vec<i64>,
-    hash: HashMap<u64, Slot>,
+    hash: Tt,
     scratch: Vec<f32>,
     budget: i64,
     /// Current call depth, against the hard ceiling of GRAMMAR 8. Without it an evolved
@@ -107,11 +183,18 @@ impl<'a> Interp<'a> {
             cost: 0,
             evals: 0,
             tables,
-            hash: HashMap::new(),
+            hash: Tt::new(),
             scratch: Vec::new(),
             budget: i64::MAX,
             depth: 0,
         }
+    }
+
+    /// Slot collisions in the last run: probes that hit an occupied slot holding a DIFFERENT
+    /// position's key. FITNESS 10 lists "exploit hash collision / stale slot" as a degenerate
+    /// solution, and a rate nobody measures is a rate nobody can bound.
+    pub fn hash_collisions(&self) -> u64 {
+        self.hash.collisions
     }
 
     pub fn run<'p>(&mut self, prog: &'p Program, pos: &Position, budget: i64) -> Move {
@@ -265,7 +348,7 @@ impl<'a> Interp<'a> {
                     Value::Key(x) => x,
                     _ => 0,
                 };
-                Value::Slot(self.hash.get(&key).copied().unwrap_or_default())
+                Value::Slot(self.hash.probe(key))
             }
             Node::Store(k, field, v) => {
                 let key = match val!(k) {
@@ -273,7 +356,7 @@ impl<'a> Interp<'a> {
                     _ => 0,
                 };
                 let val = val!(v).num();
-                let e = self.hash.entry(key).or_default();
+                let e = self.hash.entry(key);
                 match field {
                     FieldId::Score => e.score = val,
                     FieldId::Depth => e.depth = val,

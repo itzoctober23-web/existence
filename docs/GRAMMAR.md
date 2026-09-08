@@ -138,21 +138,57 @@ which is shuffled by the engine (declared: ordering carries no opinion at the se
 
 ## 6. Reference programs and THE DECLARED PRIOR
 Node counts are of the well-typed tree, counting every primitive and variable reference
-once; lambdas count as one node plus their body. **STATUS: hand estimates, +/-20%.** They
-are replaced by the parser's exact counts the day the grammar is implemented, and the
-prior statement below is re-derived from those. Relative ordering (AB < PN < MCTS,
-hybrids between) is robust to the estimate error; the absolute skew is not yet exact.
+once; lambdas count as one node plus their body. **STATUS: MEASURED by the parser.** Every
+number in this section is produced by `cargo run --release --example prior -p grammar`.
+(This line read "hand estimates, +/-20%, the absolute skew is not yet exact" while the table
+one row below was already labelled MEASURED and the text below it said "no sketches remain" —
+the document contradicted itself inside the paragraph that states the project's central claim.
+The grammar was implemented and the counts replaced; the status line was not updated with it.)
 
 | Program | Nodes (MEASURED) | Fidelity |
 |---|---|---|
 | depth-one | 9 | faithful (purity seed) |
 | bare alpha-beta | 71 | faithful (main seed) |
-| alpha-beta + hash reuse | 89 | faithful |
+| alpha-beta + hash reuse | **175** | faithful (validity marker, depth, EXACT/LOWER/UPPER bounds) |
 | proof-number search | 83 | faithful (proof/disproof numbers, most-proving-node, back-up) |
 | UCT MCTS | 104 | faithful (select/expand/evaluate/backpropagate) |
 
 **All entries measured by `crates/grammar` (examples/prior.rs) at EQUAL FIDELITY.** Run it to
-reproduce. No sketches remain.
+reproduce.
+
+**CORRECTION 2026-09-07 — the hash-reuse entry was 89 and was not a transposition table.**
+The encoded program was `if probe(p).depth >= d: ret probe(p).score` with a store that wrote
+only `Score`. `Depth` was never written, so every slot held `depth = 0` — and so does an EMPTY
+slot, since `Slot::default()` is all zeros. The guard therefore read `0 >= d`, true at every
+leaf, and the program returned an empty slot's `score`, i.e. the constant **0**, without ever
+calling `eval`. Worse, `Node::seq` desugars to nested `Let("_", stmt, rest)`, so the body's
+tail `ret best` unwound straight past the trailing store: the table was never written at all.
+
+Measured before the repair (`crates/interp/examples/tt_pressure.rs`, 60 random positions):
+
+| depth | evals (hash) | evals (bare) | cost ratio | agrees with bare |
+|---|---|---|---|---|
+| 2 | **0** | 516,829 | 0.285x | 0/60 |
+| 3 | **0** | 7,206,527 | 0.218x | 2/60 |
+| 4 | **0** | 66,932,291 | 0.072x | 1/60 |
+
+Zero evaluations at every depth. The apparent "14x cheaper than alpha-beta" was a search that
+had stopped searching — the degenerate solution FITNESS 10 lists first, except it returns a
+constant rather than an eval, and it was sitting in the REFERENCE SET used to calibrate the
+prior, labelled `faithful`, under a line reading "no sketches remain".
+
+After the repair: agrees 60/60 at every depth (a sound TT does not change alpha-beta's value),
+and it now earns its keep in evaluations — 59,347,691 vs 66,932,291 at depth 4, **-11.3%**.
+
+**CONSEQUENCE, and it inverts a stated expectation.** MASTER_PLAN's "Expected rediscovery
+order" opens with *hash reuse*, and GRAMMAR 9's ladder makes it step 4 — both assume it is the
+NEAREST milestone. Measured faithfully it is the FARTHEST reference program from the seed:
+**+104 nodes, against +33 for UCT and +12 for PN.** And `tt_pressure` shows it is also more
+expensive in COST units at these depths (1.12x at depth 4), because the probe/store machinery
+outweighs an 11.3% eval saving. So there are two independent reasons to predict evolution will
+NOT reach hash reuse first, and both are falsifiable once the loop runs. The old 89 hid this
+because a program that never stores anything needs no depth field, no validity marker, and no
+bound types — the three things that make a transposition table cost 175 nodes.
 
 **The prior, stated.** Bare alpha-beta is 71 nodes and is the main seed. A faithful
 proof-number search is **+12**; a faithful UCT is **+33**. Alpha-beta is the shortest of the
@@ -173,9 +209,12 @@ comparison is only valid between encodings of equal fidelity. A sketch is a lowe
 a datum, and a lower bound can invert the sign of the very claim being made.**
 
 **Discount rule for the write-up:** the purity lineage rediscovering bounding is
-reported with the distance depth-one -> bare AB (~19 nodes, ~8 mutations) attached. Any
-claim that the engine "chose alpha-beta over MCTS" is reported alongside the 12-mutation
-gap that made MCTS harder to reach.
+reported with the distance depth-one -> bare AB attached. That distance is **62 nodes
+(MEASURED: depth-one 9, bare AB 71)**, not the "~19 nodes, ~8 mutations" this line carried
+from the hand-estimate era — a 3.3x understatement, and in the flattering direction, since it
+made the purity lineage's climb look three times shorter than it is. Any claim that the engine
+"chose alpha-beta over MCTS" is reported alongside the +33-node gap that made MCTS harder to
+reach (and +12 for PN).
 
 ## 7. Fitness interface (details in FITNESS.md)
 A program exposes `choose`. Exactness is NOT program-settable. The compiler derives a
