@@ -167,3 +167,99 @@ fn the_operators_cannot_introduce_a_primitive_the_seed_lacks() {
          WrapIfPred, and gained {{Probe, Key, Field, Store}} with ProbeRead and StoreHere."
     );
 }
+
+
+/// CROSSOVER must be able to move the primitives a HYBRID would need between lineages.
+///
+/// The two seeds are disjoint in exactly the way that matters: bare alpha-beta has no `Avg`, no
+/// `Sample` and no `Field(count/sum)` -- those are UCT's averaging backup and its stochastic
+/// selection -- while UCT has no window arithmetic. So a hybrid cannot be reached by mutating
+/// either seed alone at any edit count; the primitives are not merely unreachable, they are in the
+/// OTHER program. Crossover is the only route, and this asserts it actually carries them rather
+/// than assuming a generic subtree graft happens to.
+///
+/// It is deliberately a REACHABILITY test, not a quality one. Moving `Avg` into alpha-beta almost
+/// certainly produces a worse program; the claim here is only that the search SPACE contains the
+/// combination, which is the precondition for discovery being possible at all.
+#[test]
+fn crossover_can_move_primitives_between_lineages() {
+    let ab = reference::bare_alpha_beta();
+    let uct = reference::uct_mcts();
+    let ab_kinds = prog_kinds(&ab);
+    let uct_kinds = prog_kinds(&uct);
+
+    // What UCT has that alpha-beta does not. If this is empty the test is vacuous, so assert it.
+    let only_uct: BTreeSet<&str> = uct_kinds.difference(&ab_kinds).copied().collect();
+    println!("kinds only in UCT: {only_uct:?}");
+    assert!(
+        !only_uct.is_empty(),
+        "the two lineage seeds share every node kind, so crossover has nothing to carry and the \
+         second lineage adds no reachability -- check the seeds before trusting any hybrid claim"
+    );
+
+    // Graft UCT subtrees into alpha-beta many times and collect every kind that arrives.
+    let mut moved = BTreeSet::new();
+    for k in 0..600u64 {
+        let mut rng = mutate::Rng::new(k ^ 0xC0FFEE);
+        if let Some(child) = mutate::crossover(&ab, &uct, &mut rng) {
+            for kd in prog_kinds(&child) {
+                if !ab_kinds.contains(kd) { moved.insert(kd); }
+            }
+        }
+    }
+    println!("crossover moved UCT -> alpha-beta: {moved:?}");
+    assert!(
+        !moved.is_empty(),
+        "crossover produced no candidate carrying a kind alpha-beta lacks. Either it never \
+         type-checks a graft, or it only ever grafts kinds both seeds already share -- both make \
+         the hybrid unreachable and neither is visible without this test."
+    );
+
+    // And the reverse direction, since a hybrid may be built on either seed.
+    let mut moved_back = BTreeSet::new();
+    for k in 0..600u64 {
+        let mut rng = mutate::Rng::new(k ^ 0xBEEF11);
+        if let Some(child) = mutate::crossover(&uct, &ab, &mut rng) {
+            for kd in prog_kinds(&child) {
+                if !uct_kinds.contains(kd) { moved_back.insert(kd); }
+            }
+        }
+    }
+    println!("crossover moved alpha-beta -> UCT: {moved_back:?}");
+
+    // THE NAMED PRIMITIVES. A hybrid needs UCT's averaging backup (Avg, and Field for count/sum)
+    // and, for hash reuse, Probe/Store. Assert each individually so a partial regression names the
+    // primitive that stopped moving instead of failing on a set comparison.
+    for kd in ["Probe", "Store", "Avg", "Field"] {
+        assert!(
+            moved.contains(kd),
+            "crossover no longer carries `{kd}` from UCT into alpha-beta. That primitive is in the \
+             hybrid's critical path and this is the only operator that can move it."
+        );
+    }
+
+    // TWO DEVIATIONS FROM THE BRIEF, RECORDED RATHER THAN PAPERED OVER.
+    //
+    // `Sample` was named as a primitive crossover should move, and it CANNOT BE: the reference UCT
+    // does not contain one. GRAMMAR 6's uct_mcts selects with `Argmax` over the UCT formula, which
+    // is what faithful UCT does -- `Sample` is the grammar's stochastic-selection primitive and no
+    // reference program uses it. So there is nowhere to move it FROM. Asserting it would be
+    // asserting a property of a program that does not exist.
+    assert!(
+        !uct_kinds.contains("Sample"),
+        "the reference UCT now contains Sample -- the note above is stale and the assertion list \
+         should be extended to cover it."
+    );
+    // `Loop` IS unique to UCT and is never successfully grafted. Recorded as the current state so
+    // a future improvement to crossover shows up here as a failure rather than passing silently.
+    assert!(
+        !moved.contains("Loop"),
+        "crossover now moves `Loop` between lineages, which it previously could not. Good news: \
+         update this assertion and note what changed."
+    );
+    assert!(
+        !moved_back.is_empty(),
+        "crossover is one-directional: it carries kinds into alpha-beta but not into UCT. A \
+         hybrid built on the MCTS seed would be unreachable and the asymmetry would be silent."
+    );
+}

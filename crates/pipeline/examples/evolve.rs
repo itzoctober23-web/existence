@@ -207,12 +207,16 @@ fn window_sensitive_set(n: usize, depth: i64, net: &Net, narrow: i64, cap: usize
 /// shrink to keep a generation affordable. That is an acceptable trade because the fitness is
 /// DETERMINISTIC -- fixed positions, fixed net, no sampling -- so a 2% cost difference is exact at
 /// any set size; a smaller set measures a smaller sample of positions, not a noisier number.
-fn fitness(prog: &Program, set: &[(Position, Option<board::Move>)], net: &Net, depth: i64)
+fn fitness(prog: &Program, set: &[(Position, Option<board::Move>)], net: &Net, depth: i64,
+           budget: i64)
     -> (u32, u64, f64) {
     let mut it = Interp::new(net, vec![depth, 32_000, 8]);
     let (mut found, mut cost) = (0u32, 0u64);
     for (p, forcing) in set {
-        let mv = it.run(prog, p, 16);
+        // BUDGET IS PER LINEAGE. Alpha-beta ignores it and recurses on the depth table; UCT
+        // spends playouts against it. A single global 16 was therefore tuned for the lineage that
+        // does not read it, and scored the UCT seed at 1/25 for 1.6% of the cost.
+        let mv = it.run(prog, p, budget);
         cost += it.cost;
         match forcing {
             // MATE IN TWO: credit the FORCING move. The first move of a mate in two never mates
@@ -286,7 +290,7 @@ fn mcts_budget() {
     set.extend(disagreement_set(n2, depth, &net, 4_000));
     set.extend(window_sensitive_set(n3, depth, &net, 8, 4_000));
     let ab = reference::bare_alpha_beta();
-    let (abf, abc, abr) = fitness(&ab, &set, &net, depth);
+    let (abf, abc, abr) = fitness(&ab, &set, &net, depth, 16);
     println!("=== MCTS budget sweep, {} positions at depth {depth} ===", set.len());
     println!("  reference: bare alpha-beta {abf}/{} mates, {abc} cost, {abr:.6} mates/Mcost",
              set.len());
@@ -322,7 +326,7 @@ fn mcts_budget() {
     println!("  (f >= 1), which is the degenerate-optimiser regime the guards exist to prevent.");
 }
 
-fn read_declared(path: &str) -> (usize, f64) {
+fn read_declared(path: &str) -> (usize, f64, i64, i64) {
     let txt = std::fs::read_to_string(path).unwrap_or_else(|e| {
         panic!("declared parameters missing at {path}: {e}. This file is part of the Given \
                 column; running without it would silently substitute a default for a choice that \
@@ -330,6 +334,8 @@ fn read_declared(path: &str) -> (usize, f64) {
     });
     let mut mu = None;
     let mut eps = None;
+    let mut bmain = None;
+    let mut bmcts = None;
     for line in txt.lines() {
         let line = line.split('#').next().unwrap_or("").trim();
         if line.is_empty() { continue; }
@@ -337,11 +343,15 @@ fn read_declared(path: &str) -> (usize, f64) {
         match k.trim() {
             "mu" => mu = Some(v.trim().parse().unwrap_or_else(|e| panic!("mu does not parse: {e}"))),
             "eps" => eps = Some(v.trim().parse().unwrap_or_else(|e| panic!("eps does not parse: {e}"))),
+            "budget_main" => bmain = Some(v.trim().parse().unwrap_or_else(|e| panic!("budget_main does not parse: {e}"))),
+            "budget_mcts" => bmcts = Some(v.trim().parse().unwrap_or_else(|e| panic!("budget_mcts does not parse: {e}"))),
             _ => {}
         }
     }
     (mu.expect("configs/search_track.conf declares no `mu`"),
-     eps.expect("configs/search_track.conf declares no `eps`"))
+     eps.expect("configs/search_track.conf declares no `eps`"),
+     bmain.expect("configs/search_track.conf declares no `budget_main`"),
+     bmcts.expect("configs/search_track.conf declares no `budget_mcts`"))
 }
 
 fn tt_prims(p: &Program) -> usize {
@@ -387,13 +397,13 @@ fn valley() {
         // confusing log line.
         ("UCT MCTS (2nd lineage seed)", reference::uct_mcts()),
     ];
-    let (_, _, base_rate) = fitness(&progs[0].1, &set, &net, depth);
+    let (_, _, base_rate) = fitness(&progs[0].1, &set, &net, depth, 16);
     let base_nodes = progs[0].1.size() as i64;
 
     println!("\n  {:<28} {:>6} {:>7} {:>16} {:>14} {:>10}",
              "program", "nodes", "mates", "cost", "mates/Mcost", "vs seed");
     for (name, p) in &progs {
-        let (found, cost, rate) = fitness(p, &set, &net, depth);
+        let (found, cost, rate) = fitness(p, &set, &net, depth, 16);
         let nodes = p.size() as i64;
         println!("  {name:<28} {:>+6} {found:>7} {cost:>16} {rate:>14.6} {:>9.3}x",
                  nodes - base_nodes, rate / base_rate.max(1e-12));
@@ -442,213 +452,174 @@ fn main() {
     set.extend(deep);
     set.extend(win);
 
-    let mut champ = reference::bare_alpha_beta();
-    let (f0, c0, r0) = fitness(&champ, &set, &net, depth);
-    println!("  surrogate set {} positions ({} mate-in-1, {} depth-requiring, {} window-sensitive), fitness depth {}",
-             set.len(), set.len() - n_deep - n_win, n_deep, n_win, depth);
-    if n_win < n3 {
-        println!("  REFUSING TO RUN: found {n_win} window-sensitive positions, wanted {n3}.");
-        println!("  Without them a candidate can raise alpha and buy cost for free, which is");
-        println!("  exactly what happened once the depth exploit was closed.");
-        return;
-    }
-    if n_deep < n2 {
-        println!("  REFUSING TO RUN: found {n_deep} depth-requiring positions, wanted {n2}.");
-        println!("  Without them the 'do not lose mates' guard cannot bite and this loop");
-        println!("  optimises toward searching one ply less -- which is exactly what it did");
-        println!("  when the guard was built from mate distance instead of disagreement.");
-        return;
-    }
-    println!("  seed: bare alpha-beta  {f0} mates  {c0} cost  {r0:.2} mates/Mcost  ({} nodes)", champ.size());
-    let (mut best_found, mut best_rate) = (f0, r0);
-
-    // ---- (MU + LAMBDA) WITH PLATEAU TOLERANCE, replacing the strict (1+lambda) hill climb.
-    //
-    // THE HILL CLIMB WAS PROVABLY UNABLE TO REACH THE ONE RUNG WE KNOW IS FITTER. Measured in
-    // ladder_valley_RESULT.md, with this same fitness on this same set: hash reuse is 1.024x the
-    // seed, but its halves are 0.991x (probe with nothing stored -- every probe a guaranteed miss)
-    // and 0.997x (store nothing reads). The payoff is CONJUNCTIVE, so acceptance on
-    // `rate > best_rate` can never take the first step, and the rung sits at the bottom of a
-    // ~0.9% valley. That is not a tuning problem; no pair count or depth fixes it.
-    //
-    // EPS = 0.03 is chosen against that measurement, not by taste: the deepest half is 0.9% down,
-    // so the window has to exceed 0.009 to admit it, and 0.03 clears it with margin while still
-    // discarding anything meaningfully worse. Stated as a number so it can be argued with.
-    //
-    // THE MATE GUARD STAYS STRICT -- `f >= best_found`, never relaxed. Plateau tolerance applies
-    // to COST ONLY. This matters more than it sounds: the two exploits this track has already
-    // found (searching one ply shallower, raising the initial alpha) both work by giving up
-    // correctness for cost, and both are caught by the mate/disagreement/window guards scoring
-    // ZERO rather than "fewer". Relaxing the cost bar does not weaken any of them.
-    // DECLARED, NOT HARDCODED. configs/search_track.conf carries mu and eps with their
-    // justification; this REFUSES TO RUN if the file is missing or a key does not parse, because a
-    // declared parameter that silently falls back to a default is not declared. The escalation
-    // rule for eps (once to 0.05, then stop) is written in that file, not in code, so raising it
-    // is a visible edit rather than a constant nudged mid-run.
-    let (mu, eps) = read_declared("configs/search_track.conf");
+    // ---- DECLARED PARAMETERS FIRST: everything below depends on them.
+    let (mu, eps, budget_main, budget_mcts) = read_declared("configs/search_track.conf");
     let (MU, EPS) = (mu, eps);
-    let mut popn: Vec<(Program, u32, f64)> = vec![(champ.clone(), f0, r0); MU];
+
+    // ---- TWO LINEAGES, each with its own seed, budget and population.
+    //
+    // GRAMMAR 6 records both as declared seeds with the same status: bare alpha-beta (71 nodes)
+    // and UCT MCTS (130). NEITHER is a hybrid -- seeding one would answer the question the search
+    // track exists to ask. If a hybrid appears it must be built by crossover or mutation.
+    //
+    // BUDGETS DIFFER BY LINEAGE AND THAT IS THE POINT. Alpha-beta ignores `budget` and recurses on
+    // the depth table; UCT spends playouts against it. A single global 16 scored the UCT seed at
+    // 1/25 for 1.6% of alpha-beta's cost -- and 2.525x its mates-per-cost, i.e. the fittest thing
+    // on the board by being cheap and wrong. At the declared 256 the seeds spend comparable cost
+    // and UCT scores 12/25, giving that lineage a mate guard of f >= 12 rather than a vacuous
+    // f >= 1.
+    //
+    // EACH LINEAGE'S MATE GUARD IS ITS OWN SEED'S SCORE. Holding MCTS to alpha-beta's 25 would
+    // freeze it permanently; holding alpha-beta to 12 would gut its guard. Cross-lineage
+    // comparison by RATE is therefore meaningless and is never done -- only the game gate
+    // promotes, and it plays programs against each other on a board.
+    struct Lineage {
+        name: &'static str,
+        budget: i64,
+        popn: Vec<(Program, u32, f64)>,
+        champ: Program,
+        best_found: u32,
+        best_rate: f64,
+        accepted: usize,
+    }
+    let mut lineages: Vec<Lineage> = Vec::new();
+    for (name, seed_prog, bud) in [
+        ("MAIN", reference::bare_alpha_beta(), budget_main),
+        ("MCTS", reference::uct_mcts(), budget_mcts),
+    ] {
+        let (f, c, r) = fitness(&seed_prog, &set, &net, depth, bud);
+        println!("  lineage {name:<5} seed {:>3} nodes, budget {bud:<5} -> {f}/{} mates, {c} cost, \
+{r:.6} mates/Mcost", seed_prog.size(), set.len());
+        lineages.push(Lineage {
+            name,
+            budget: bud,
+            popn: vec![(seed_prog.clone(), f, r); MU],
+            champ: seed_prog,
+            best_found: f,
+            best_rate: r,
+            accepted: 0,
+        });
+    }
     println!("  population MU={MU}, lambda={pop}, plateau tolerance EPS={EPS:.3} \
 (deepest measured valley half is 0.009)");
 
     let mut rng = Rng::new(0xE0FFEE);
-    let mut accepted = 0;
     for g in 1..=gens {
-        // MUTATE FIRST, EVALUATE IN PARALLEL. Mutation is microseconds; fitness is the whole
-        // generation.
-        //
-        // WHY THIS IS FREE AND NOT A TRADE. Fitness is DETERMINISTIC -- fixed position set, fixed
-        // net, no sampling -- so a candidate's score does not depend on which thread computes it
-        // or in what order. The results are bit-identical to the sequential loop; only the wall
-        // clock changes. Order is preserved by chunking rather than by a work queue, so even the
-        // tie-breaking in the sort below is unchanged.
-        //
-        // MEASURED WASTE: the process ran at 99.5% CPU -- ONE core -- while pinned by
-        // run_search_track.sh to cores 12-14. Two of three cores sat idle through a ~3 minute
-        // generation. A depth-3 fitness is a 4-PLY search (choose applies the root move, then
-        // recurses with the FULL D, so the tree is D+1 plies) at ~144k evals per position, which
-        // is genuinely expensive and cannot be cut without losing the one rung that only pays at
-        // 4 plies. This is the part that was pure waste.
-        let cands: Vec<(usize, Program)> = (0..pop)
-            .filter_map(|i| {
-                // Parent chosen round-robin across the population, so every member breeds.
-                // Sampling uniformly at random would let a member die without ever being tried,
-                // which defeats the point of keeping a worse-but-different program alive.
-                let parent = &popn[i % popn.len()].0;
-                let mut r = Rng::new((g as u64) << 20 ^ i as u64 ^ 0xBEEF);
-                mutate::mutate_program(parent, &mut r).map(|c| (i, c))
-            })
+        // Snapshot every lineage's programs BEFORE this generation, so crossover donors are drawn
+        // from a fixed set rather than from populations mutating underneath the loop -- otherwise
+        // whether a graft is possible depends on lineage order, which is not a property anyone
+        // declared.
+        let donors: Vec<Program> = lineages
+            .iter()
+            .flat_map(|l| l.popn.iter().map(|(p, _, _)| p.clone()))
             .collect();
-        let ill = pop - cands.len();
-        const THREADS: usize = 3;
-        let chunk = cands.len().div_ceil(THREADS).max(1);
-        let scored: Vec<(Program, u32, f64)> = std::thread::scope(|sc| {
-            let handles: Vec<_> = cands
-                .chunks(chunk)
-                .map(|part| {
-                    let (set, net) = (&set, &net);
-                    sc.spawn(move || {
-                        part.iter()
-                            .map(|(_, c)| {
-                                let (f, _cst, rate) = fitness(c, set, net, depth);
-                                (c.clone(), f, rate)
-                            })
-                            .collect::<Vec<_>>()
-                    })
+
+        for li in 0..lineages.len() {
+            let (bud, best_found, best_rate) =
+                (lineages[li].budget, lineages[li].best_found, lineages[li].best_rate);
+            let popsnap = lineages[li].popn.clone();
+
+            // MUTATE OR CROSS, then evaluate in parallel. One in four proposals is a crossover:
+            // the hybrid, if it exists, is only reachable this way, but crossover between two
+            // programs that already work is far more destructive than a single mutation, so it
+            // does not get to crowd out the operator set.
+            let cands: Vec<Program> = (0..pop)
+                .filter_map(|i| {
+                    let parent = &popsnap[i % popsnap.len()].0;
+                    let mut r = Rng::new((g as u64) << 20 ^ (li as u64) << 16 ^ i as u64 ^ 0xBEEF);
+                    if i % 4 == 3 && donors.len() > 1 {
+                        let d = &donors[(r.next() as usize) % donors.len()];
+                        mutate::crossover(parent, d, &mut r)
+                    } else {
+                        mutate::mutate_program(parent, &mut r)
+                    }
                 })
                 .collect();
-            handles.into_iter().flat_map(|h| h.join().unwrap()).collect()
-        });
-        // WHY THE POPULATION COLLAPSES, measured rather than guessed. First run of the plateau
-        // tolerance reported `pop 1`: everything died and the diagnostic could not say WHY,
-        // because the mate guard runs before any rate is looked at. Two very different causes
-        // produce the same collapse -- offspring losing mates, or offspring being far worse than
-        // EPS -- and they call for opposite fixes. So both are counted.
-        //
-        // If most candidates fail the MATE guard, single mutations of a search program are simply
-        // destructive and the population needs a gentler operator, not a wider window. If they
-        // pass the mate guard but sit far below EPS, then EPS is the binding constraint and the
-        // 0.9% valley figure -- taken from two hand-built reference programs -- is not
-        // representative of what mutation actually produces.
-        let n_scored = scored.len();
-        let mate_ok = scored.iter().filter(|(_, f, _)| *f >= best_found).count();
-        let rel: Vec<f64> = scored
-            .iter()
-            .filter(|(_, f, _)| *f >= best_found)
-            .map(|(_, _, r)| r / best_rate.max(1e-12))
-            .collect();
-        let (rlo, rhi) = rel.iter().fold((f64::MAX, 0.0f64), |(a, b), x| (a.min(*x), b.max(*x)));
-        let offspring: Vec<(Program, u32, f64)> =
-            scored.into_iter().filter(|(_, f, _)| *f >= best_found).collect();
+            let ill = pop - cands.len();
+            const THREADS: usize = 3;
+            let chunk = cands.len().div_ceil(THREADS).max(1);
+            let scored: Vec<(Program, u32, f64)> = std::thread::scope(|sc| {
+                let handles: Vec<_> = cands
+                    .chunks(chunk)
+                    .map(|part| {
+                        let (set, net) = (&set, &net);
+                        sc.spawn(move || {
+                            part.iter()
+                                .map(|c| {
+                                    let (f, _cst, rate) = fitness(c, set, net, depth, bud);
+                                    (c.clone(), f, rate)
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                    })
+                    .collect();
+                handles.into_iter().flat_map(|h| h.join().unwrap()).collect()
+            });
 
-        // (MU + LAMBDA): parents and offspring compete together, so the best-so-far can never be
-        // lost -- elitist, which keeps the drift from becoming a random walk.
-        let mut pool = popn.clone();
-        pool.extend(offspring);
-        pool.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
-        let top = pool[0].2;
-        pool.retain(|x| x.2 >= top * (1.0 - EPS));
-        // DEDUPE BY STRUCTURE, and this is load-bearing rather than tidy.
-        //
-        // The population starts as MU IDENTICAL copies of the seed. (MU+LAMBDA) is elitist and
-        // ties are kept in sort order, so those clones occupied all MU slots and every offspring
-        // was truncated away -- the population could never diversify and this silently degenerated
-        // into the exact hill climb it was written to replace. MEASURED on the first run: `pop 4
-        // spread 0.002518-0.002518`, four members at one rate, which is precisely what the spread
-        // diagnostic was added to expose. It reported the defect on generation 1.
-        //
-        // Comparing by rate alone would be wrong: two structurally different programs can cost the
-        // same, and collapsing them would throw away the diversity this exists to keep. The Debug
-        // string is a faithful rendering of the AST, and at MU+LAMBDA = 16 items per ~3-minute
-        // generation its cost is irrelevant.
-        let mut seen = std::collections::HashSet::new();
-        pool.retain(|x| seen.insert(format!("{:?}", x.0)));
-        pool.truncate(MU);
-        popn = pool;
+            let n_scored = scored.len();
+            let mate_ok = scored.iter().filter(|(_, f, _)| *f >= best_found).count();
+            let rel: Vec<f64> = scored
+                .iter()
+                .filter(|(_, f, _)| *f >= best_found)
+                .map(|(_, _, r)| r / best_rate.max(1e-12))
+                .collect();
+            let (rlo, rhi) = rel.iter().fold((f64::MAX, 0.0f64), |(a, b), x| (a.min(*x), b.max(*x)));
+            let offspring: Vec<(Program, u32, f64)> =
+                scored.into_iter().filter(|(_, f, _)| *f >= best_found).collect();
 
-        let (spread_lo, spread_hi) = (popn.last().unwrap().2, popn[0].2);
-        if popn[0].2 > best_rate {
-            let (c, f, rate) = popn[0].clone();
-            // ---- THE GAME GATE. The surrogate proposes; games decide.
-            //
-            // MASTER_PLAN:276 makes the gate the arbiter and the search track never had one. It
-            // promoted on mates-per-cost alone, and that surrogate has been exploited TWICE by
-            // programs strictly worse at chess -- one searched a ply shallower, one raised the
-            // initial alpha to +8 -- each keeping every mate while being unplayable. Each was
-            // caught by a guard written AFTER the fact, and the next exploit will be found the
-            // same way. Games close the whole class: a program that prunes real moves loses, and
-            // no property of the position set can hide it.
-            //
-            // Only reached when the surrogate says the candidate is better, so games are spent on
-            // candidates that earned them -- "a candidate that cannot even improve mates-per-cost
-            // has no business consuming gate time".
-            let gsc = gate::match_progs(&c, &champ, &net, vec![depth, 32_000, 8], 16,
-                                        gate_pairs, 0xC0FFEE ^ g as u64, 4);
-            let resolved_up = gsc.pent_rate() - gsc.ci95() > 0.5;
-            if !resolved_up {
-                // NOT promoted, but NOT discarded either: it stays in the population, so the
-                // search can keep building on it. A candidate that is cheaper on the surrogate
-                // and merely UNPROVEN on the board is exactly what the plateau tolerance exists
-                // to carry -- half a transposition table looks like this.
-                println!("  gen {g:>3}  gate REJECT  {:.3}+/-{:.3} ({} games)  surrogate said {rate:.6}",
-                         gsc.pent_rate(), gsc.ci95(), gsc.games());
-                // RAISE THE SURROGATE BAR ANYWAY, without promoting the champion. Otherwise
-                // `popn[0].2 > best_rate` stays true forever and this candidate is re-gated every
-                // generation for the rest of the run -- 12 games each time, on a question already
-                // answered. best_rate now tracks the SURROGATE frontier and champ tracks the last
-                // program that actually won on the board; they are different questions and this
-                // makes that explicit rather than conflating them.
-                best_rate = rate;
-                continue;
+            let mut pool = popsnap.clone();
+            pool.extend(offspring);
+            pool.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+            let top = pool[0].2;
+            pool.retain(|x| x.2 >= top * (1.0 - EPS));
+            let mut seen = std::collections::HashSet::new();
+            pool.retain(|x| seen.insert(format!("{:?}", x.0)));
+            pool.truncate(MU);
+            lineages[li].popn = pool;
+
+            let popn = &lineages[li].popn;
+            let (spread_lo, spread_hi) = (popn.last().unwrap().2, popn[0].2);
+            let tt: Vec<usize> = popn.iter().map(|(p, _, _)| tt_prims(p)).collect();
+            if popn[0].2 > best_rate {
+                let (c, f, rate) = popn[0].clone();
+                let gsc = gate::match_progs(&c, &lineages[li].champ, &net,
+                                            vec![depth, 32_000, 8], bud, gate_pairs,
+                                            0xC0FFEE ^ g as u64 ^ (li as u64) << 8, 4);
+                let resolved_up = gsc.pent_rate() - gsc.ci95() > 0.5;
+                if !resolved_up {
+                    println!("  gen {g:>3} {:<5} gate REJECT {:.3}+/-{:.3} ({} games)  surrogate {rate:.6}",
+                             lineages[li].name, gsc.pent_rate(), gsc.ci95(), gsc.games());
+                    lineages[li].best_rate = rate;
+                    continue;
+                }
+                println!("  gen {g:>3} {:<5} ACCEPT  {f} mates  {rate:.6} ({} nodes, was {:.6})  gate {:.3}",
+                         lineages[li].name, c.size(), best_rate, gsc.pent_rate());
+                lineages[li].champ = c.clone();
+                lineages[li].best_found = f;
+                lineages[li].best_rate = rate;
+                lineages[li].accepted += 1;
+                let _ = std::fs::write(
+                    format!("evolved_{}_gen{g}.prog", lineages[li].name),
+                    format!("// {f} mates, {rate:.6} mates/Mcost, {} nodes, gen {g}\n{:#?}\n",
+                            c.size(), c));
+            } else {
+                let span = if rel.is_empty() { "none".to_string() }
+                           else { format!("{rlo:.3}-{rhi:.3}x") };
+                println!("  gen {g:>3} {:<5} ..none ({n_scored} cand, {ill} ill, mate-ok {mate_ok}, \
+rates {span})  pop {} spread {:.6}-{:.6} tt{:?}",
+                         lineages[li].name, popn.len(), spread_lo, spread_hi, tt);
             }
-            println!("  gen {g:>3}  ACCEPT  {f} mates  {rate:.6} mates/Mcost  ({} nodes, was {:.6})  \
-gate {:.3}+/-{:.3}", c.size(), best_rate, gsc.pent_rate(), gsc.ci95());
-            champ = c; best_found = f; best_rate = rate; accepted += 1;
-            if let Err(e) = std::fs::write(
-                format!("evolved_gen{g}.prog"),
-                format!("// {f} mates, {rate:.6} mates/Mcost, {} nodes, generation {g}\n{:#?}\n",
-                        champ.size(), champ)) {
-                eprintln!("  WARNING: could not save the evolved program: {e}");
-            }
-        } else {
-            // The population SPREAD is the diagnostic that matters now. All members at an
-            // identical rate means the plateau tolerance is admitting nothing and this has
-            // silently degenerated back into the hill climb it replaced -- which would look
-            // exactly like healthy "no improvement" output without this number.
-            let span = if rel.is_empty() { "none".to_string() }
-                       else { format!("{rlo:.3}-{rhi:.3}x seed") };
-            println!("  gen {g:>3}  ..no improvement ({n_scored} cand, {ill} ill-typed, \
-mate-ok {mate_ok}, rates {span})  pop {} spread {:.6}-{:.6} tt{:?}",
-                     popn.len(), spread_lo, spread_hi,
-                     popn.iter().map(|(p, _, _)| tt_prims(p)).collect::<Vec<_>>());
         }
     }
+
     let _ = rng.next();
-    println!("\n  {accepted} accepted over {gens} generations");
-    println!("  final: {best_found} mates  {best_rate:.6} mates/Mcost  ({} nodes)", champ.size());
-    println!("  seed was: {f0} mates  {r0:.6} mates/Mcost  ({} nodes)", reference::bare_alpha_beta().size());
-    if accepted > 0 {
-        println!("  improvement over the seed: {:.2}x on mates-per-cost", best_rate / r0.max(1e-12));
-        println!("  saved: evolved_gen*.prog  (read them; a rate this loop cannot explain is a bug, not a discovery)");
+    let _ = rng.next();
+    println!("\n=== per-lineage summary over {gens} generations ===");
+    for l in &lineages {
+        println!("  {:<5} {} accepted   final {} mates {:.6} mates/Mcost ({} nodes)",
+                 l.name, l.accepted, l.best_found, l.best_rate, l.champ.size());
     }
+    println!("\n  Cross-lineage RATE comparison is meaningless and is not printed: the two seeds");
+    println!("  run at different budgets against different mate guards (MAIN f>=25, MCTS f>=12).");
+    println!("  Only the game gate compares programs, and it plays them on a board.");
 }

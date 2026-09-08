@@ -368,6 +368,63 @@ pub fn try_at(p: &Program, op: Op, rng: &mut Rng, fi: usize, k0: usize)
 }
 
 /// 1..3 operators per candidate (GRAMMAR 4), retrying sites that do not apply.
+
+/// Extract the k-th node in pre-order, for crossover's donor side.
+fn get_nth(n: &Node, k: &mut usize) -> Option<Node> {
+    if *k == 0 { *k = usize::MAX; return Some(n.clone()); }
+    *k = k.saturating_sub(1);
+    for c in children(n) {
+        if let Some(found) = get_nth(c, k) { return Some(found); }
+    }
+    None
+}
+
+/// CROSSOVER: graft a typed subtree from a DONOR program into a type-compatible site in the
+/// RECIPIENT. Generic and chess-blind -- it moves whatever subtree it lands on.
+///
+/// WHY IT IS A FUNCTION AND NOT AN `Op` VARIANT. Every other operator has the signature
+/// (one program) -> (one program) and is dispatched through `mutate_at`. Crossover needs a SECOND
+/// program, so bolting it into that enum would mean threading a donor through every call site of a
+/// nine-variant match that does not want one. Stated plainly rather than forced into the shape the
+/// brief assumed, because the brief's `Op::Cross(a, b)` cannot be typed against the existing API.
+///
+/// TYPE COMPATIBILITY IS DECIDED BY THE EXISTING CHECKER, NOT BY A SECOND ONE. The obvious
+/// implementation infers the donor subtree's type and looks for a site of the same type, which
+/// means writing type inference a second time and letting it drift from typecheck.rs -- and a
+/// crossover that silently disagrees with the checker would produce candidates rejected for
+/// reasons no log explains. Instead this SPLICES and then asks `check_program`, keeping the first
+/// graft that type-checks. GRAMMAR 3's economics say exactly this: an ill-typed candidate costs a
+/// tree walk, and a bad one that reaches the gate costs thousands of games.
+///
+/// This is the ONLY route by which a hybrid may appear. No operator inserts a multi-primitive
+/// gadget; a program that combines UCT's averaging backup with alpha-beta's window has to be built
+/// by moving one subtree at a time, which is what makes "the hybrid was discovered" a real claim.
+pub fn crossover(recipient: &Program, donor: &Program, rng: &mut Rng) -> Option<Program> {
+    let rn: usize = recipient.funcs.iter().map(|f| count_nodes(&f.body)).sum();
+    let dn: usize = donor.funcs.iter().map(|f| count_nodes(&f.body)).sum();
+    if rn == 0 || dn == 0 { return None; }
+    for _ in 0..96 {
+        let dfi = rng.below(donor.funcs.len());
+        let dsize = count_nodes(&donor.funcs[dfi].body);
+        let mut dk = rng.below(dsize);
+        let sub = match get_nth(&donor.funcs[dfi].body, &mut dk) { Some(x) => x, None => continue };
+        let rfi = rng.below(recipient.funcs.len());
+        let rsize = count_nodes(&recipient.funcs[rfi].body);
+        let mut rk = rng.below(rsize);
+        let mut applied = false;
+        let grafted = map_nth(&recipient.funcs[rfi].body, &mut rk, &mut applied,
+                              &mut |_n: &Node| Some(sub.clone()));
+        if !applied { continue; }
+        let mut out = recipient.clone();
+        out.funcs[rfi].body = grafted;
+        // Reject a no-op graft: splicing a subtree onto an identical one burns a candidate slot
+        // and reports success, the same defect `applied` was added to catch for mutation.
+        if format!("{:?}", out.funcs[rfi].body) == format!("{:?}", recipient.funcs[rfi].body) { continue; }
+        if crate::typecheck::check_program(&out).is_ok() { return Some(out); }
+    }
+    None
+}
+
 pub fn mutate_program(p: &Program, rng: &mut Rng) -> Option<Program> {
     let edits = 1 + rng.below(3);
     mutate_program_n(p, rng, edits).map(|(prog, _)| prog)
