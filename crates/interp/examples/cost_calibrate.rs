@@ -69,7 +69,14 @@ fn main() {
     // they are what evolved programs actually pay.
     let nodes: Vec<interp::PosAcc> =
         ps.iter().map(|p| interp::PosAcc::fresh(&net, p.clone())).collect();
-    let t_eval = bench(20_000, || { std::hint::black_box(nodes[next()].score(&net)); });
+    // score_with, not score: the interpreter's Node::Eval passes its own scratch buffer, and this
+    // table is supposed to charge what evolved programs actually pay. `score` is the convenience
+    // wrapper that allocates, so measuring it would price a per-call malloc (13.9 ns at width 16)
+    // into a cost model no program pays.
+    let mut eval_scratch = Vec::new();
+    let t_eval = bench(20_000, || {
+        std::hint::black_box(nodes[next()].score_with(&net, &mut eval_scratch));
+    });
     let mut fb = interp::Delta::new();
     let t_apply_inc = bench(20_000, || {
         let n = &nodes[next()];
@@ -94,7 +101,7 @@ fn main() {
     println!("# Relative to one integer arithmetic op = 1. Net width {width}.");
     println!("# Regenerate: cargo run --release --example cost_calibrate -p interp -- <width>");
     println!();
-    let mut row = |name: &str, ns: f64| {
+    let row = |name: &str, ns: f64| {
         println!("{name:<12} = {:>7}    # {:.1} ns", (ns / unit).round().max(1.0) as u64, ns);
     };
     row("arith", t_arith);

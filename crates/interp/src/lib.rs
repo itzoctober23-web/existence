@@ -131,11 +131,33 @@ impl PosAcc {
     }
 
     /// Mover-relative score from the accumulator. Must equal `Net::eval` exactly.
+    ///
+    /// Convenience wrapper that allocates its own scratch. Fine for tests and one-off callers;
+    /// the interpreter's hot path uses `score_with` and passes a buffer it already owns.
     pub fn score(&self, net: &Net) -> i32 {
+        self.score_with(net, &mut Vec::new())
+    }
+
+    /// As `score`, but borrows the caller's scratch buffer.
+    ///
+    /// The narrow path used to call `net.eval(&self.pos, &mut Vec::new())`, justified by "this
+    /// path is only taken below width 64 where the gather is small". The gather being small is
+    /// true and beside the point: a malloc/free pair is a FIXED cost per call and does not shrink
+    /// with the feature count. Since the champion is width 16, that fallback IS the hot path --
+    /// the excuse and the hot path were the same line.
+    ///
+    /// MEASURED at width 16 over 64 random-walk positions, best-of-7, both arms asserted to
+    /// return identical scores (examples/alloc_probe.rs):
+    ///     fresh Vec::new() per call  228.5 ns
+    ///     reused scratch buffer      214.5 ns   -> 13.9 ns, 6.1% of eval
+    /// That is 6% of an EVAL, not of a node -- `apply` clones a position on top of this -- so it
+    /// is a small win, quoted as one. `Interp` already carried a `scratch` field for exactly this
+    /// purpose, marked #[allow(dead_code)] because nothing could reach it: the buffer was kept
+    /// and the parameter to receive it was never added, and the allow silenced the warning that
+    /// would have said so.
+    pub fn score_with(&self, net: &Net, scratch: &mut Vec<f32>) -> i32 {
         if self.acc.is_empty() {
-            // Narrow net: from-scratch is cheaper. `scratch` is allocated per call here, which
-            // is fine because this path is only taken below width 64 where the gather is small.
-            return net.eval(&self.pos, &mut Vec::new());
+            return net.eval(&self.pos, scratch);
         }
         let mut out = 0.0f32;
         for h in 0..net.n_hidden {
@@ -350,8 +372,9 @@ pub struct Interp<'a> {
     /// Learned integer tables. Index 0 = D (depth), 1 = INF, 2.. = whatever a program reads.
     pub tables: Vec<i64>,
     hash: Tt,
-    // Retained for the narrow-width fallback path in PosAcc::score.
-    #[allow(dead_code)]
+    /// Scratch for the narrow-width fallback in `PosAcc::score_with`, so the hot eval path
+    /// allocates nothing per node. This field existed already but nothing could reach it --
+    /// `score` took no buffer -- so it sat behind an #[allow(dead_code)] that hid the gap.
     scratch: Vec<f32>,
     /// Reused active-feature buffers for the incremental accumulator, so `apply` allocates
     /// nothing per node.
@@ -496,7 +519,8 @@ impl<'a> Interp<'a> {
                 self.evals += 1;
                 let p = val!(p);
                 // Output layer only: the hidden sums were carried forward by `apply`.
-                Value::Num(p.posacc().score(self.net) as i64)
+                let net = self.net;
+                Value::Num(p.posacc().score_with(net, &mut self.scratch) as i64)
             }
 
             Node::Arith(op, args) => {
