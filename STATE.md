@@ -608,6 +608,32 @@ catches the early degradation the old code was blind to.
 baked in before their first real gate. Their KEEPs are still real (those were later gates against a
 genuine base), but their *starting point* was already 5 generations of undone drift.
 
+## CLOSED: epochs has no effect once the arms are matched — and the gate fix catches real damage
+
+**Epochs, measured properly** (20 generations both arms, depth 2):
+
+| seed | result |
+|---|---|
+| 20260907 | **0.498 ± 0.021** — no effect |
+| 424242 | **0.473 ± 0.020** — epochs 3 slightly ahead |
+
+The 0.518/0.544 that made epochs look like the surviving candidate was entirely the 2-generation
+confound. **The shipped default of 3 stands.** No candidate remains.
+
+**The `batch_base` fix is verified on live data.** `fg_20`'s first gate:
+
+```
+champ-vs-origin 0.819   base 0.864   increment −0.045   ->  ROLL BACK
+```
+
+Base 0.864 is champion_long's true origin score. The first 5 generations **cost 0.045**, and the
+repaired gate detected and reverted it. Under the old code `base` would have been set to 0.819 — the
+already-degraded net — and that loss would have been permanent and invisible. This is the same
+0.048 that `ga_d4` lost with zero KEEPs to undo it.
+
+**So the one thing that improved the engine today is a bug fix, not a hyperparameter.** Every tuning
+candidate died; the gate now protects generations 1..K that were previously ungated.
+
 ## ⚠ RETRACTED: every epochs claim today used UNEQUAL ARMS
 
 `ep_2` and `ep_3` — the nets behind every epochs number I reported — were run with `gens=1000000`,
