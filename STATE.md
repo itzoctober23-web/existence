@@ -608,6 +608,24 @@ catches the early degradation the old code was blind to.
 baked in before their first real gate. Their KEEPs are still real (those were later gates against a
 genuine base), but their *starting point* was already 5 generations of undone drift.
 
+## The from-scratch learning curve, measured by the gate in 5-generation blocks
+
+`sg_20` (rung 0, gate-every 5) gives the curve directly:
+
+```
+g5   base 0.500 -> champ 0.742   +0.242  KEEP
+g10  base 0.731 -> champ 0.819   +0.088  KEEP
+g15  base 0.825 -> champ 0.811   -0.013  ROLL BACK
+```
+
+**Flat by generation 15.** The loop gains almost everything in its first ~10 generations, then
+stops. `champion_long`, with far more training, sits at **0.864** — the top of the same band.
+
+That reconciles the day's two halves. Training from `champion_long` shows no reliable gain because
+`champion_long` is already at the plateau this procedure reaches; and a from-scratch run reaches
+that plateau in about ten generations. The gate is measuring a real ceiling, not failing to see
+progress.
+
 ## The gate is not over-conservative: from scratch it KEEPs everything
 
 `sg_20` — identical to `bn_075` (rung 0, 20 generations, blend 0.75, seed 20260907) except
