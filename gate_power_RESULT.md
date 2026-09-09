@@ -210,3 +210,59 @@ structure is not this one. The A/A remains valid for what it was primarily for: 
 curve**, and the sizing question stays open exactly as this file has said throughout. The headline
 finding is untouched — it rests on 202 real gate decisions, 0 accepts, and a max rate of 0.542, none
 of which involve the A/A.
+
+---
+
+## ⚠ CORRECTION TO MY OWN HEADLINE: 47% of gate decisions measured NOTHING AT ALL
+
+The `1/n` anomaly flagged above has an exact mechanism, and it is in the source, not in statistics.
+`gate.rs:65-74`:
+
+```rust
+if var <= 0.0 {
+    // ZERO OBSERVED VARIANCE IS NOT ZERO UNCERTAINTY. ...
+    // Rule of three: ... So the interval is 1.5/n, and it correctly says "no idea"
+    // at small n instead of "certain".
+    return 1.5 / n;
+}
+```
+
+**When every pair lands in the same bucket, `ci95` is not a measured half-width — it is the constant
+`1.5/n`.** That is why the A/A curve halved for a doubling: 1.5/6 = 0.250, 1.5/12 = 0.125, matching
+both observed rows to four decimals. `ci95_curve` was therefore measuring the fallback formula, not the
+instrument, and it has been stopped; every remaining row was predictable (24 → 0.0625, 48 → 0.0312,
+96 → 0.0156).
+
+### The same fallback fires in HALF of all real gate decisions
+
+Counting the 203 logged decisions by whether `ci95` equals the placeholder exactly:
+
+| | count | share | mean ci95 |
+|---|---|---|---|
+| `ci95 == 0.250` (= 1.5/6, **zero observed variance**) | **95** | **46.8%** | — (placeholder) |
+| genuine measured intervals | 108 | 53.2% | **0.1122** |
+
+**Every one of the 95 placeholder rows has `pent_rate` exactly 0.500.** So in nearly half of all gate
+decisions, every pair scored identically and the gate observed *no signal whatsoever*. The code's own
+comment names the likely cause: *"what a match between two near-random nets looks like, 24 games all
+drawn"*.
+
+### This splits P2 into two different problems, and I had merged them
+
+My earlier section here reported "mean ci95 0.177" over all 203 decisions. That number **averages a
+measurement with a placeholder** and should not have been used as one quantity. Corrected:
+
+* **~47% of decisions: no signal.** Zero variance, rate exactly 0.500. **More pairs cannot fix this** —
+  if the games are all drawn, a larger sample of drawn games is still drawn. The problem is upstream of
+  the gate: the match setup is not producing decisive games at these settings.
+* **~53% of decisions: genuinely underpowered.** Mean ci95 0.1122 puts the strict bar at **0.612**,
+  still above the **0.542** maximum rate ever observed. **For this half the original finding stands**,
+  and raising `gate_pairs` is the right lever.
+
+**What does NOT change:** 0 accepts in 203 decisions, and a max rate of 0.542 against a bar that has
+never been reachable. Those are counts of real outcomes and do not depend on which interval formula
+produced them.
+
+**What this costs me:** the fix is not the single knob I implied. Half the decisions need a gate that
+can produce decisive games at all; only the other half needs more pairs. Sizing `gate_pairs` on the
+mixed average would have been sizing against a number that is half placeholder.
