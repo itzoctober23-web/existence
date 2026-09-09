@@ -3185,3 +3185,42 @@ Same seed, same mate count, floor moved 19 → 16. The knob binds.
 
 `EXISTENCE_EPS` remains untested and is the next knob in line; it is not run now because two levers at
 once on one seed cannot be separated.
+
+## 🔑 FIRST W-D-L ON A REAL GATE DECISION: the games are DRAWISH, not mirrored
+
+The instrumentation added today paid out on the first gate call of the restarted arms:
+
+```
+gen 3 MAIN  gate REJECT 0.333+/-0.163 (12 games W-D-L 0-8-4)  surrogate 0.002924  ABOVE:2  needed >0.337
+gen 3 MAIN  VERIFY 0.422+/-0.027 (96 pairs, independent seed)
+```
+
+**8 of 12 games were DRAWS.** The rate checks out — (0 wins + 8 halves)/12 = 0.333 — and the
+independent 96-pair observer puts the candidate's true strength at 0.422, so the reject is correct.
+
+### This discriminates the two causes, and it favours ALL-DRAWN
+
+`gate.rs` returns its zero-variance placeholder `1.5/n` when every pair lands in the same bucket, and
+46.8% of the 203 logged decisions carry it with `pent_rate` exactly 0.500. Two causes needed opposite
+fixes:
+
+* **MIRRORED** (`draws == 0`, each pair one win and one mirrored loss) — the candidate plays like the
+  champion, the operator produced an inert program, and **no pair count can ever help**.
+* **ALL-DRAWN** (`wins == losses == 0`) — the match is not producing decisive games, and **sample size
+  was never the issue**.
+
+This decision is neither extreme, but at **67% draws** it sits far toward the ALL-DRAWN end. A match
+that draws two games in three will frequently draw *all* of a 6-pair sample by chance alone — which is
+exactly what a `pent` of all-middle looks like. **That points the fix at making the gate's games
+decisive, not at raising `gate_pairs`.**
+
+**n = 1, and it is stated as such.** This is a single gate decision. It is the first direct evidence on
+a question that has been argued from indirect signals all day, and it is consistent with the earlier
+finding that `bare_alpha_beta` against itself produced `[0,0,24,0,0]` — 100% middle bucket — but one
+decision cannot settle the split. Four arms are now logging W-D-L on every gate call; the honest
+reading arrives when there are enough of them.
+
+**If it holds, the sizing question changes shape.** `gate_power_RESULT.md` frames the fix as raising
+`gate_pairs`, and for the ~53% of decisions that measure something that is still right. For the
+drawish half, more pairs buys more draws. The lever there is the match setup — deeper search, sharper
+openings, a net that separates — none of which is a sample-size change.
