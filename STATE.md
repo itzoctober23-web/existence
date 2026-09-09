@@ -1,18 +1,22 @@
 # Existence — current state, 2026-09-08
 
-> ## ⚠ READ FIRST: the frozen-origin metric SATURATES and has reversed two signs
+> ## ⚠ READ FIRST: the frozen-origin metric SATURATES — one sign reversal, one gap that vanishes
 >
-> Direct matches (`examples/netmatch.rs`) contradict the origin metric on two arms, both with
-> intervals clear of 0.5:
+> Direct matches (`examples/netmatch.rs`), all at **960 pairs** after 448-pair readings proved
+> underpowered:
 >
-> | | vs origin | head-to-head |
+> | | vs origin | head-to-head (960 pairs) |
 > |---|---|---|
-> | blend 0.75 vs 1.00 | 0.75 better +0.015 | **1.00 better, 0.459 ± 0.030** |
-> | capacity w16 vs w64 | w64 far better, 0.967 vs 0.838 | **w16 better, 0.522 ± 0.022** |
+> | blend 0.75 vs 1.00 | 0.75 better, +0.015 | **1.00 better, 0.450 ± 0.016 — REVERSED** |
+> | capacity w16 vs w64 | w64 far better, 0.967 vs 0.838 | **0.511 ± 0.014 — a precise NULL** |
 >
-> The cause is **saturation, not effect size** — w64's origin gap was the largest in the table.
-> Beating a random opponent stops discriminating near the top of its range, and that is exactly
-> where the strong arms live. Large mid-range gaps still agree (blend 0.75/0.25, horizon).
+> **Corrected:** capacity is *not* a sign reversal. At 448 pairs it read 0.522 ± 0.022 (barely clear
+> of 0.5) and I recorded it as w16 winning; at 960 pairs it is a precise null. The disagreement is
+> still severe — a **0.129** origin gap corresponds to **no measurable difference** — but the honest
+> description is compression, not inversion. Only blend is a confirmed sign reversal.
+>
+> The cause is **saturation, not effect size**: w64 scores 0.967 against a random opponent, leaving
+> no room to express a difference. Large mid-range gaps still agree (blend 0.75/0.25, horizon).
 >
 > **Consequence:** every ceiling arm below was scored against the origin. Any gap **under ~0.05**, or
 > any arm scoring **above ~0.95**, is provisional until re-measured directly. Detail in
