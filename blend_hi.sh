@@ -64,7 +64,7 @@ for B in $ARMS; do
   tag=$(echo "$B" | tr -d '.')          # 1.00 -> 100, 0.75c -> 075c
   val=${B%c}                            # strip the control marker for the actual flag
   echo "--- arm: blend $val ${B##*[0-9]} ---"
-  timeout 4200 taskset -c 15 nice -n 19 ionice -c 3 "$LEARN" \
+  timeout 4200 taskset -c "${CORE:-15}" nice -n 19 ionice -c 3 "$LEARN" \
     --rung 0 --gens "$GENS" --games 2400 --threads 1 --depth 2 --epochs 3 \
     --blend "$val" --gate-every 100 --gate-pairs 224 --arch-every 0 --control-every 0 \
     --seed "$SEED" --out "bh_${tag}.net" --ledger "bh_${tag}.jsonl" > "bh_${tag}.log" 2>&1
