@@ -1842,13 +1842,56 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                 // to a malformed candidate as the fitness call is, and it was NOT wrapped. A
                 // candidate that survives fitness can still violate an invariant once it is asked
                 // to play 200 plies against another program.
-                let gsc = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    gate::match_progs(&c, &lineages[li].champ, &net,
-                                      vec![depth, 32_000, interp::uct_exploration()], bud, gate_pairs,
-                                      0xC0FFEE ^ g as u64 ^ (li as u64) << 8, 4,
-                                      COST_PER_MOVE)
-                })) {
-                    Ok(sc) => sc,
+                  // SEQUENTIAL, as FITNESS 7 specifies. `EXISTENCE_GATE_SPRT` selects it; unset is
+                  // byte-identical to the fixed-pair gate every prior measurement used.
+                  //
+                  // FITNESS 7.2: "a candidate near a bound gets thousands of pairs, an obvious dud a
+                  // few hundred; nobody picks the count, the evidence does." This loop picked 6.
+                  // Measured over every log here: 0 accepts in 203 decisions, 46.8% with ZERO
+                  // observed variance -- at a ~2/3 draw rate six pairs frequently tie every one, and
+                  // no fixed count can spend more games on the close cases.
+                  //
+                  // BOUNDS FROM THE SPEC: alpha = beta = 0.05 (LLR_BOUND 2.944), width e1-e0 = 2,
+                  // bootstrap e1 = 5 until 20 acceptances exist -> [3, 5]. Env-overridable for
+                  // experiments; the DEFAULT is what FITNESS declares.
+                  let sprt_gate = std::env::var("EXISTENCE_GATE_SPRT").is_ok();
+                  let elo1: f64 = std::env::var("EXISTENCE_GATE_ELO1").ok()
+                      .and_then(|s| s.parse().ok()).unwrap_or(5.0);
+                  let elo0: f64 = std::env::var("EXISTENCE_GATE_ELO0").ok()
+                      .and_then(|s| s.parse().ok()).unwrap_or(elo1 - 2.0);
+                  let sprt_max: usize = std::env::var("EXISTENCE_GATE_MAXPAIRS").ok()
+                      .and_then(|s| s.parse().ok()).unwrap_or(100);
+                  let (gsc, sprt_verdict, sprt_llr) = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                      if sprt_gate {
+                          // FITNESS 7.3: random-ply openings until the unbalanced book exists. Same
+                          // policy the fixed gate used, so ONLY the stopping rule changes here.
+                          let mut orng = grammar::mutate::Rng::new(
+                              (0xC0FFEE ^ g as u64 ^ (li as u64) << 8) | 1);
+                          let openings: Vec<board::Position> = (0..sprt_max).map(|_| {
+                              let mut o = board::Position::startpos();
+                              for _ in 0..4 {
+                                  let l = o.legal_moves();
+                                  if l.is_empty() { break }
+                                  let m = l.as_slice()[(orng.next() as usize) % l.as_slice().len()];
+                                  let _ = o.make_move(m);
+                              }
+                              o
+                          }).collect();
+                          let (v, sc, llr) = gate::match_progs_sprt(
+                              &c, &lineages[li].champ, &net,
+                              vec![depth, 32_000, interp::uct_exploration()], bud,
+                              0xC0FFEE ^ g as u64 ^ (li as u64) << 8, &openings,
+                              COST_PER_MOVE, elo0, elo1, sprt_max);
+                          (sc, Some(v), llr)
+                      } else {
+                          (gate::match_progs(&c, &lineages[li].champ, &net,
+                                             vec![depth, 32_000, interp::uct_exploration()], bud,
+                                             gate_pairs,
+                                             0xC0FFEE ^ g as u64 ^ (li as u64) << 8, 4,
+                                             COST_PER_MOVE), None, 0.0)
+                      }
+                  })) {
+                    Ok(t) => t,
                     Err(_) => {
                         // Cannot finish a game => cannot be promoted. Same rule as fitness: the
                         // candidate scores as the worst possible program and the run continues.
@@ -1918,11 +1961,16 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                 // Default is UNCHANGED. This is the experimental apparatus, and it is switched, not
                 // replaced, so the two rules can be run as an A/B on the same seed.
                 let veto_only = std::env::var("EXISTENCE_GATE_VETO").as_deref() == Ok("1");
-                let resolved_up = if veto_only {
-                    gsc.pent_rate() + gsc.ci95() >= 0.5      // reject only what is resolved WORSE
-                } else {
-                    gsc.pent_rate() - gsc.ci95() > 0.5
-                };
+                  // THE SPRT VERDICT IS THE DECISION when the sequential gate ran. Accept only on
+                  // Accept: Inconclusive means the cost ceiling was hit before the evidence decided,
+                  // which is NOT a rejection and is logged as itself -- "the evidence never ruled it
+                  // out" recorded as "the evidence ruled it out" is how a real candidate disappears.
+                  let resolved_up = match sprt_verdict {
+                      Some(gate::Sprt::Accept) => true,
+                      Some(_) => false,
+                      None if veto_only => gsc.pent_rate() + gsc.ci95() >= 0.5,
+                      None => gsc.pent_rate() - gsc.ci95() > 0.5,
+                  };
                 if !resolved_up {
                     // ABOVE and the ACCEPTANCE BAR both belong here. `resolved_up` demands
                     // pent_rate - ci95 > 0.5, so at these pair counts the candidate must score
@@ -1937,9 +1985,16 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                     // means the match is not producing decisive games and sample size was never the
                     // issue. Logging draws makes the REAL gate population self-reporting, rather
                     // than needing a probe whose mutants are not the ones that reach the gate.
-                    println!("  gen {g:>3} {:<5} gate REJECT {:.3}+/-{:.3} ({} games W-D-L {}-{}-{})  surrogate \
+                    println!("  gen {g:>3} {:<5} gate {} {:.3}+/-{:.3} ({} games W-D-L {}-{}-{})  surrogate \
 {rate:.6}  ABOVE:{above}  needed >{:.3}",
-                             lineages[li].name, gsc.pent_rate(), gsc.ci95(), gsc.games(),
+                             lineages[li].name,
+                               match sprt_verdict {
+                                   Some(gate::Sprt::Inconclusive) => format!("INCONCLUSIVE llr {sprt_llr:+.2}"),
+                                   Some(gate::Sprt::Reject) => format!("REJECT llr {sprt_llr:+.2}"),
+                                   Some(gate::Sprt::Accept) => format!("ACCEPT llr {sprt_llr:+.2}"),
+                                   None => "REJECT".to_string(),
+                               },
+                               gsc.pent_rate(), gsc.ci95(), gsc.games(),
                                gsc.wins, gsc.draws, gsc.losses,
                              // THE PRINTED BAR MUST MATCH THE ACTIVE RULE. This hardcoded `0.5 + ci95`, the
                              // resolved_up threshold; under EXISTENCE_GATE_VETO the criterion is

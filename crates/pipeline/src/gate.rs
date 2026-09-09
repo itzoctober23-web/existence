@@ -172,6 +172,47 @@ pub fn match_progs(
     sc
 }
 
+/// SEQUENTIAL gate for PROGRAMS, as FITNESS 7 specifies. Reuses the net track's machinery.
+///
+/// WHY. FITNESS 7.2: *"SPRT is exactly that decision: a candidate near a bound gets thousands of
+/// pairs, an obvious dud a few hundred; nobody picks the count, the evidence does."* The net track
+/// has had this since `sprt_match_capped`; the SEARCH track never got it and runs a FIXED 6 pairs.
+/// Measured across every log in this repo, that produced **0 accepts in 203 decisions**, with 46.8%
+/// carrying zero observed variance -- at a ~2/3 draw rate, six pairs frequently tie every one, and a
+/// fixed count cannot spend more games on the cases that are actually close.
+///
+/// It deliberately shares `Score::llr` and `LLR_BOUND` with the net gate rather than restating them:
+/// two SPRT implementations in one file is how the two tracks' numbers stop meaning the same thing.
+///
+/// `max_pairs` is a COST CEILING, not a statistical parameter. Hitting it returns `Inconclusive`,
+/// which is a different answer from `Reject` -- "the evidence never ruled it out" must not be
+/// recorded as "the evidence ruled it out".
+pub fn match_progs_sprt(
+    a: &Program, b: &Program, net: &Net, tables: Vec<i64>, budget: i64, seed: u64,
+    openings: &[Position], cost_per_move: u64, elo0: f64, elo1: f64, max_pairs: usize,
+) -> (Sprt, Score, f64) {
+    assert!(!openings.is_empty(), "match_progs_sprt needs at least one opening");
+    let mut sc = Score::default();
+    for p in 0..max_pairs {
+        let opening = &openings[p % openings.len()];
+        let mut pair_half = 0usize;
+        for a_is_white in [true, false] {
+            match play_progs(a, b, net, &tables, budget, a_is_white, opening,
+                             seed ^ (p as u64) << 16, cost_per_move) {
+                Some(true) => { sc.wins += 1; pair_half += 2; }
+                Some(false) => { sc.losses += 1; }
+                None => { sc.draws += 1; pair_half += 1; }
+            }
+        }
+        sc.pent[pair_half.min(4)] += 1;
+        let llr = sc.llr(elo0, elo1);
+        if llr >= LLR_BOUND { return (Sprt::Accept, sc, llr); }
+        if llr <= -LLR_BOUND { return (Sprt::Reject, sc, llr); }
+    }
+    let llr = sc.llr(elo0, elo1);
+    (Sprt::Inconclusive, sc, llr)
+}
+
 /// As `match_progs`, but the openings are SUPPLIED rather than walked from the start position.
 ///
 /// WHY THIS EXISTS. `match_progs` walks `open_plies` random moves from `startpos`, which is
