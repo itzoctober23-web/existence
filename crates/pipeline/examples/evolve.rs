@@ -1455,7 +1455,50 @@ fn main() {
             let tt: Vec<usize> = popn.iter().map(|(p, _, _)| tt_prims(p)).collect();
             if popn[0].2 > best_rate {
                 let (c, f, rate) = popn[0].clone();
-                // THE GAME GATE RUNS EVOLVED PROGRAMS ON A BOARD, so it is exactly as exposed
+                // ---- TWO ACCEPTANCE PATHS, because one gate cannot judge both kinds of change.
+                //
+                // MEASURED: the game gate accepts only when `rate - ci95 > 0.5`, and at 6 pairs
+                // that needs a 0.689 win rate -- roughly +138 Elo. A rout.
+                //
+                // Worse, it can NEVER confirm the one rung ever measured as fitter. Hash reuse is
+                // exact alpha-beta: it agrees with the seed on 40/40 positions at depth 3 and 12/12
+                // at depth 4, so its game rate is exactly 0.5 and the gate rejects it permanently.
+                // The surrogate SEES it (1.024x) and cannot tell it from an exploit; the games can
+                // tell exploits apart and are blind to it. Requiring games for every promotion
+                // therefore blocks the only improvement anyone has found.
+                //
+                // PATH 1 -- BEHAVIOUR-PRESERVING SPEEDUP. If the candidate returns the SAME move as
+                // the champion on every guard position and costs less, it is a pure speedup:
+                // identical play, fewer resources. No game is needed because there is nothing to
+                // decide -- the two would play the same games.
+                //
+                // NO EXPLOIT CAN TAKE THIS PATH, which is what makes it safe. Both known exploits
+                // change play, by construction and by measurement: the depth exploit loses 8 guard
+                // positions and the alpha exploit 5. A program that changes no move on any guard
+                // position has not searched less; it has done the same search for less.
+                let same_play = {
+                    let mut ic = Interp::new(&net, vec![depth, 32_000, 8]);
+                    let mut ih = Interp::new(&net, vec![depth, 32_000, 8]);
+                    set.iter().all(|(p, _)| {
+                        ic.run(&c, p, bud) == ih.run(&lineages[li].champ, p, bud)
+                    })
+                };
+                if same_play {
+                    println!("  gen {g:>3} {:<5} ACCEPT speedup: play IDENTICAL on all {} guard \
+positions, {rate:.6} was {:.6}", lineages[li].name, set.len(), best_rate);
+                    lineages[li].champ = c.clone();
+                    lineages[li].best_found = f;
+                    lineages[li].best_rate = rate;
+                    lineages[li].accepted += 1;
+                    let _ = std::fs::write(
+                        format!("evolved_{}_gen{g}.prog", lineages[li].name),
+                        format!("// SPEEDUP {f} mates, {rate:.6} mates/Mcost, {} nodes, gen {g}\n{:#?}\n",
+                                c.size(), c));
+                    continue;
+                }
+
+                // ---- PATH 2: THE GAME GATE, for candidates that change play.
+                // It RUNS EVOLVED PROGRAMS ON A BOARD, so it is exactly as exposed
                 // to a malformed candidate as the fitness call is, and it was NOT wrapped. A
                 // candidate that survives fitness can still violate an invariant once it is asked
                 // to play 200 plies against another program.
