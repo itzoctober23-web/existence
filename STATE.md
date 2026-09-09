@@ -1,37 +1,32 @@
 # Existence — current state, 2026-09-08
 
-> ## ⚠ READ FIRST: the frozen-origin metric SATURATES — one sign reversal, one gap that vanishes
+> ## ⚠ READ FIRST: the origin metric does NOT invert — it is imprecise, and depth was the confound
 >
-> Direct matches (`examples/netmatch.rs`), all at **960 pairs** after 448-pair readings proved
-> underpowered:
+> **This block previously claimed sign reversals. That claim is WITHDRAWN.** Measured at a MATCHED
+> depth with equal total games (896 pairs, depth 2):
 >
-> | | vs origin | head-to-head (960 pairs) |
-> |---|---|---|
-> | blend 0.75 vs 1.00 | 0.75 better, +0.015 | **1.00 better, 0.450 ± 0.016 — REVERSED** |
-> | capacity w16 vs w64 | w64 far better, 0.967 vs 0.838 | **0.511 ± 0.014 — a precise NULL** |
+> | | value |
+> |---|---|
+> | bn_075 vs origin | 0.846 ± 0.015 |
+> | bh_100 vs origin | 0.864 ± 0.014 |
+> | **origin-increment** | **+0.018 ± 0.021** — unresolved, **sign CORRECT** |
+> | **direct match** | **+0.050 ± 0.016** — resolved |
 >
-> **Corrected:** capacity is *not* a sign reversal. At 448 pairs it read 0.522 ± 0.022 (barely clear
-> of 0.5) and I recorded it as w16 winning; at 960 pairs it is a precise null. The disagreement is
-> still severe — a **0.129** origin gap corresponds to **no measurable difference** — but the honest
-> description is compression, not inversion. Only blend is a confirmed sign reversal.
+> At matched depth the increment **agrees in sign** with the direct match. The earlier "inversions"
+> came from comparing a **depth-4 equal-time control** against a **depth-2 direct match**:
 >
-> The cause is **saturation, not effect size**: w64 scores 0.967 against a random opponent, leaving
-> no room to express a difference. Large mid-range gaps still agree (blend 0.75/0.25, horizon).
+> ```
+> bn_075 vs origin:  0.847 (d4 control)  0.846 (d2)   unchanged
+> bh_100 vs origin:  0.832 (d4 control)  0.864 (d2)   0.032 WORSE at depth 4
+> ```
 >
-> **⚠ THE STRONGEST CASE IS UNDER REVIEW — it may be a PROTOCOL MISMATCH, not saturation.**
-> The ratchet's control trajectory reads 0.802 → 0.811 → 0.811 → 0.805, flat and below
-> champion_long's 0.861, while a direct match says b2_5 **beats** champion_long 0.529 ± 0.015. I
-> recorded that as an inversion. But:
+> **bh_100 is stronger at depth 2 and not at depth 4.** That is a real depth-dependent difference in
+> the nets, not an instrument failing — and it directly threatens the blend candidate, whose whole
+> case was built at depth 2.
 >
-> * the **CONTROL** uses `match_nets_capped` with `equal_time_caps` at `gate_depth_cap` — **depth 4**;
-> * the **batch gate** and every `netmatch` run above used **depth 2, uncapped**.
->
-> A net can be better at depth 2 and worse at depth 4 with **no instrument broken at all**. Until the
-> depth-4 cross-check lands, treat both claimed reversals as unconfirmed. This is the
-> equal-depth-vs-equal-time confound already named below, reappearing as equal-depth-vs-equal-*protocol*.
->
-> The **2 KEEPs in 5** result is unaffected — it is internal to the batch gate — and so is the
-> independent finding that b2_5 beats champion_long *at depth 2*.
+> **What survives: the origin-increment is 3.6× worse signal-to-noise than a direct match** at equal
+> games (SNR 1.72 vs 6.12), because it adds two independent estimates in quadrature. The batch gate
+> uses the increment. That is the measurement-rate bottleneck, stated precisely.
 
 ### The "frozen origin" is NOT frozen across runs
 
