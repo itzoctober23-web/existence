@@ -1285,6 +1285,26 @@ fn main() {
     let n_deep = deep.len();
     set.extend(deep);
     set.extend(win);
+    // EXISTENCE_MATE2: add the MATE-2 rung FITNESS 3 asks for and this loop has never had.
+    //
+    // THE EXPERIMENT THIS ENABLES. `EXISTENCE_GUARD_TOL=7` reproduces an exploit reliably -- two
+    // specimens from two independent seeds, both landing on exactly 18 mates and 0.208 games -- so
+    // it is an instrument rather than an anecdote. Running that same configuration WITH MATE-2 in
+    // the set asks whether the spec's per-N design is what stops the exploit class. If exploits
+    // keep appearing, the per-N story is wrong and the defence is somewhere else.
+    //
+    // `matesplit` already showed MATE-2 discriminates: UCT scores 11/20 on MATE-1 and 2/20 on
+    // MATE-2, while every alpha-beta variant holds 20/20. A program that finds mates one ply away
+    // cannot find mates two plies away without searching, and the current set never asks it to.
+    //
+    // Off by default: this changes the guard floor, the surrogate scale and every banked number, so
+    // it is an A/B arm and not a silent redefinition of the fitness.
+    if std::env::var("EXISTENCE_MATE2").is_ok() {
+        let n_before = set.len();
+        set.extend(m2_probe.iter().cloned());
+        println!("  EXISTENCE_MATE2: set {} -> {} positions ({} MATE-2 added)",
+                 n_before, set.len(), m2_probe.len());
+    }
 
     // ---- REFUSE TO RUN ON A SHORT GUARD SET. RESTORED after the lineage rewrite silently dropped
     // these, which a `unused variable: n_win` warning revealed. Reading the warning was the only
