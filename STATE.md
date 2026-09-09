@@ -2582,17 +2582,17 @@ dense reference.
 
 ## Running now (one job per core, no chains)
 
+**Corrected 2026-09-09 against the actual process list** — the previous version of this table named
+four jobs (`fg_60`, `dv_4800`, `sg_20 vs bn_075`, `ep2_10 vs ep2_3`) that had all finished. A stale
+"currently running" table is the same defect as a stale results table: it is what a reader plans
+around. Verified by `readlink /proc/PID/exe`, which cannot self-match the way a cmdline pattern can.
+
 | core | job | question |
 |---|---|---|
-| 13 | `fg_60` | do block increments keep rising as the pool grows past 432k? |
-| 14 | `dv_4800` | is the plateau DATA-limited? (2× games/generation, same 20 generations) |
-| 12 | `sg_20 vs bn_075` @ d4 | does gating help from scratch? |
-| 15 | `ep2_10 vs ep2_3` @ d4 | is the shipped epochs default too **low**? |
-
-The old PID-chained queue is gone — every arm in it either completed or was killed for a measured
-defect (`depth_parity` for unequal arms, `pd_d4` for an expired premise, two verdict matches for
-being tautological). Chains are not being rebuilt: they made reordering impossible while running,
-which repeatedly left the highest-value item last.
+| 15 | `evolve` (veto arm + VERIFY observer) | are the veto rule's ACCEPTs correct? 2 VERIFY lines so far, both confirming a REJECT |
+| 13 | `ci95_curve` | A/A: how does the gate's half-width fall with pair count? Row 1 in, harness validated at 0.500 |
+| 14 | `progmatch` control | does a champion loaded through the FILE path behave identically to the in-memory original? |
+| 12 | `netmatch bs31337_075 vs bs31337_085` @ d4 | blend 0.85, training seed 4 of the power campaign |
 
 ## Open, partially answered
 
