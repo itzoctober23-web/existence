@@ -388,3 +388,10 @@ a live search-track run to strengthen a path bounded below 10% would cost real g
 * Rung 7 needs its table contents DECLARED before it can be measured.
 * Register bytecode (CRATE 4) — a perf task; the interpreter is at 1.003× hand-written speed, so
   it is not urgent.
+
+<!-- Commit 82d7f6a's message body was mangled: it was written with `git commit -m "..."` in double
+     quotes, so the backticked spans inside it were executed as command substitution and vanished.
+     The line that disappeared was the fix itself, `b=$(basename "${e% (deleted)}")`, leaving the
+     message reading `b=` with nothing after it. Every other commit today used a heredoc (-F -) for
+     exactly this reason. Not force-pushed: the commit is public and the substantive record above
+     is correct, so a rewrite of shared history buys nothing a follow-up note cannot. -->
