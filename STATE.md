@@ -220,16 +220,26 @@ killed it. That — not another hyperparameter — is where the remaining streng
 
 ## ✅ SETTLED (read this before anything below)
 
-**Every tuning candidate is closed. None moved the plateau. The shipped defaults are correct.**
+**Most tuning candidates are closed. TWO ARE NOT, as of 2026-09-09:** datagen depth (reversed — see the row below) and **blend 0.85**, which was never tested because the axis was closed on blend 1.00, the wrong end. At depth 4 on one seed, 0.85 beats both 0.75 (0.460 ± 0.022) and 1.00 (0.567 ± 0.022), transitively consistent; replication on a second seed is running. The other shipped defaults are correct.
 
 | candidate | verdict |
 |---|---|
 | capacity / width | closed — w64 does not beat w16 |
 | draw filter, horizon | closed |
-| datagen depth | closed — the effect was search PARITY (odd vs even), not depth |
+| datagen depth | **REOPENED and REVERSED 2026-09-09.** At EQUAL GENERATIONS with parity held fixed, PARITY is a precise null (d1-vs-d2 0.512 ± 0.014, d3-vs-d4 0.506 ± 0.014, one seed) while DEPTH resolves in both classes (d1-vs-d3 0.450 ± 0.015, d2-vs-d4 0.379 ± 0.016). The odd-class cell replicates in direction on a second seed (0.474 ± 0.017). The parity claim was measured on the TARGET distribution (distill_gap) and does not reach trained strength. `depth2x2_RESULT.md` |
 | blend 1.00 | **dead** as a candidate (no cross-seed win) — but the *mechanism* "depth-2 only, z = 4.4" is **WITHDRAWN**: it reverses on seed 424242, where 1.00 wins at depth 4 (0.456 ± 0.024) and depth 2 is unresolved. See `blend_RESULT.md`. |
 | epochs | **3 is the OPTIMUM, tested both sides** — 2 loses (0.448 ± 0.022 @ d4), 10 does not win (0.485 ± 0.022 @ d4) |
 | `--gate-every 5` | no depth-4 gain (0.502 ± 0.022) |
+
+**Standing caution on this whole table, added 2026-09-09.** Most of these verdicts are ONE training
+seed. The between-seed movement of a paired difference is measured at **sd ≈ 0.039** (three
+independent estimates: 0.055, 0.052, 0.024), so an effect under ~0.08 on one seed is not settled
+however tight its within-run interval looks. Applying that here: `capacity` at equal TIME (0.179) is
+robust, and so are `horizon` and the blend RANGE (0.278, 0.268) — but `epochs 2-vs-3` (0.052),
+`epochs 10-vs-3` (0.015) and `--gate-every 5` (0.002) are all inside the band and are one-seed
+readings. They are not wrong; they are **unreplicated**, and the two entries that were reversed today
+were reversed for exactly this reason. `netmatch` now prints the seeds-needed figure on every match
+so this cannot be forgotten again.
 
 **What the loop actually does:** from scratch it reaches ~0.82 in **10 generations** and is flat by
 15. `champion_long` sits at **0.864**, the top of that band. Training from `champion_long` produces
