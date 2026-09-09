@@ -84,6 +84,7 @@ the training signal, it **is** the training signal. Across two odd/even pairs:
 | origin(random) | 0.0244 | 0.0137 | 0.0235 | 0.0167 |
 | bn_000 | 0.3518 | 0.1524 | 0.3567 | 0.1842 |
 | bn_075 (20 gen) | **0.5715** | 0.1976 | **0.5861** | 0.2365 |
+| champion_long | **0.6086** | 0.2176 | **0.6220** | 0.2481 |
 
 **Odd depths cluster high, even depths cluster low, and depth barely matters within a class.** For
 bn_075, two extra plies inside a parity class moves the gap +2.5% (d3→d5) and +20% (d4→d6); crossing
@@ -318,6 +319,12 @@ came from a different regime and the compressed metric — so this is evidence, 
 ## Shipping candidates, with evidence strength stated per item
 
 All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an Elo number.
+
+> **⚠ ALL OF THESE WERE MEASURED AT DEPTH 2.** This project's own standard for strength is **depth
+> 4** — the gate derives its node budget as "7061 nodes = 100% coverage of a full depth-4 search"
+> (`gate_depth_cap` default 4), and the built-in control plays at that cap with equal-time budgets.
+> A depth-2 result is not automatically a depth-4 result. The depth-4 cross-check is running; until
+> it lands, every row below is a claim about depth-2 play.
 
 | candidate | shipped | measured | strength |
 |---|---|---|---|
