@@ -1417,6 +1417,36 @@ denominators can differ no other way). The BEHAVIOURAL difference the filter was
 line whose surrogate is BELOW the incumbent's, which the strict rule cannot produce — has NOT yet
 appeared in four generations. The filter binds; whether it changes outcomes is still open.
 
+## RUNNING: rung 6 at proper power — the documented UNRESOLVED question
+
+Applying the lesson above rather than restating it: reading all 20 result headlines identified the
+genuinely OPEN items, and `rung6_RESULT.md` is the one my whole MATE-2 line has been circling.
+
+> "Rung 6 was dead code. Now it plays differently — **whether it plays better is UNRESOLVED**."
+
+Its match was **3W-9D-4L, 0.469 +/- 0.172 over 8 pairs**, with the doc's own verdict: "nothing
+smaller than a rout is visible". That is the same under-powered arithmetic as the 12-game loop gate,
+and the fix is pairs:
+
+```
+  8 pairs -> ci95 0.164      100 pairs -> ci95 0.046
+ 24 pairs -> ci95 0.094      300 pairs -> ci95 0.027
+```
+
+300 pairs is running. It resolves ~0.027, so a true 0.53 edge becomes visible and a true 0.50 becomes
+a tight null — an answer either way, which is what "unresolved" needs.
+
+**Why this matters beyond the rung.** Capture extension is the only reference program that scores on
+the hard set, the only alpha-beta-family program measured to play DIFFERENT chess from the seed, and
+the program the whole MATE-2/tolerance-window line exists to admit. Every argument I have made today
+for admitting it assumes it is worth admitting, and that assumption has never been measured. If it
+plays at 0.50, the window is a mechanism for admitting a neutral program and the case for it
+collapses to "the guard should not be arbitrary" — still true, but much smaller.
+
+**Validity check, taken from the doc rather than invented:** forfeits must be ZERO. Capture extension
+costs 1.679x, so a forfeit falls on the expensive side systematically and a score built on them
+measures cost rather than play. A non-zero count voids the verdict.
+
 ## ⚠ PROCESS FAILURE: I re-derived three results that were already in the tree
 
 There are 23 analysis documents at the repo root. I did not read them before starting, and three of
