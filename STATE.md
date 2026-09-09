@@ -615,6 +615,25 @@ catches the early degradation the old code was blind to.
 baked in before their first real gate. Their KEEPs are still real (those were later gates against a
 genuine base), but their *starting point* was already 5 generations of undone drift.
 
+## Invariants held, and a mirror-image test the day's data implies
+
+`sg_20` finished 2 KEEP / 1 ROLL BACK, and the md5 check agrees: **it differs from `bn_075`**, as a
+rollback requires. Both rollback invariants now pass —
+
+* `fg_20` (4 gates, 0 KEEP) → **identical** to `champion_long`
+* `sg_20` (3 gates, 1 rollback) → **differs** from `bn_075`
+
+— so the gate restores exactly when it should and only when it should.
+
+**The mirror test.** At depth 4, `ep2_2 vs ep2_3` = 0.448: *fewer* epochs **loses**. The gradient
+therefore points toward **more**, not fewer — the opposite of what I chased all day. `ep2_10` exists
+from the same sweep at matched 20 generations, so `ep2_10 vs ep2_3` at depth 4 costs one match and
+asks whether the shipped default of 3 is too **low**.
+
+This matters because the distillation gap **grows** with net strength (0.186 at `champion_long`):
+the search keeps finding things the eval does not know, so "the net is not being fitted hard enough
+to close it" is a live explanation for the plateau that nothing has yet tested.
+
 ## The from-scratch learning curve, measured by the gate in 5-generation blocks
 
 `sg_20` (rung 0, gate-every 5) gives the curve directly:
