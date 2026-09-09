@@ -244,6 +244,31 @@ no reliable gain because it is *already at the plateau this procedure reaches*.
 3. **`netmatch` prints arm sizes with the bias quantified** — three results today were confounded
    by unequal training (11v5, 96v1, 28v26).
 
+**THE BAND ONLY APPLIES TO DIRECT-MATCH EFFECTS, and mixing instruments is a live error — I made
+it before catching it.** The sd above is derived from direct 448-pair matches, so it may only be
+compared against direct-match effect sizes. Applying it to origin-increment figures is meaningless:
+`instrument_saturation_RESULT.md:12-17` shows the two instruments disagreeing by up to **5×** and
+**reversing sign** on two comparisons. My first pass at this audit used the origin figure for
+horizon (+0.064) and wrongly flagged it provisional; its DIRECT match is 0.222 ± 0.018, an effect of
+0.278 — nearly six sd, and robust.
+
+Corrected, direct-match effects only:
+
+| comparison | effect | × sd | status |
+|---|---|---|---|
+| horizon cap10 vs cap1000 | 0.278 | 5.9 | **ROBUST** |
+| blend 0.75 vs 0.25 | 0.268 | 5.7 | **ROBUST** |
+| capacity w16 vs w64 (equal TIME) | 0.179 | 3.8 | **ROBUST** |
+| champion_long vs bn_075 | 0.079 | 1.7 | needs ~3 seeds |
+| blend 0.75 vs 1.00 | 0.041 | 0.9 | needs ~10 seeds |
+| **blend 0.75 vs 0.85 (new today)** | 0.040 | 0.9 | needs ~11 seeds |
+| capacity w16 vs w64 (equal GENERATIONS) | 0.022 | 0.5 | needs ~36 seeds |
+
+**Two things this surfaces.** The big structural findings — horizon, the blend range, capacity at
+equal time — are far outside the seed band and are safe. And the settled table quotes capacity only
+at equal TIME (0.179, robust); at equal GENERATIONS the same comparison is 0.522 ± 0.022, an effect
+of 0.022 that would need ~36 seeds. Those are different questions and only one of them is closed.
+
 **GROUNDED 2026-09-09 — the band was measured on the wrong quantity, and now it is measured on the
 right one.** Two figures were in circulation: "~0.045" (unsourced, below) and "~0.07" from
 `ceiling_ANALYSIS.md`. The 0.07 is 44 **control-vs-origin** readings across 17 runs — but line 297 of
