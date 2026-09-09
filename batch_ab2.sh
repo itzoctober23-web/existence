@@ -62,12 +62,20 @@ cd "$(dirname "$0")"
 GENS=${GENS:-20}
 SEED=${SEED:-20260907}
 INIT=${INIT:-champion_long.net}
+# Core is a VARIABLE so this can run beside the core-15 chain instead of queueing behind it. The
+# whole chain is serial on one core while cores 12-14 hold only the search track; that is why this
+# -- the item that decides whether the loop can accept anything at all -- was six hours out.
+CORE=${CORE:-15}
 # xt3: the ONLY scratch build containing the anchor-increment batch gate. Verified by content.
 LEARN=${LEARN:-/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad/xt3/release/learn}
 
 [ -f "$INIT" ]  || { echo "no champion at $INIT"; exit 1; }
 [ -x "$LEARN" ] || { echo "no learn at $LEARN"; exit 1; }
-strings -a "$LEARN" 2>/dev/null | grep -q 'champ-vs-origin' || {
+# grep -qa on the FILE, never `strings | grep -q`: under `set -o pipefail` the grep exits on its
+# first match, closes the pipe, strings dies of SIGPIPE (141), and pipefail reports the pipeline as
+# FAILED -- so the guard refused a binary that passes. It cost this experiment one launch. The
+# behaviour test I ran only proved the guard could say NO; the yes-case was never exercised.
+grep -qa 'champ-vs-origin' "$LEARN" 2>/dev/null || {
   echo "REFUSING TO RUN: $LEARN predates the anchor-increment batch gate (bae8c7b)."
   echo "Running the old head-to-head gate again would reproduce the withdrawn result."
   exit 1; }
@@ -78,7 +86,7 @@ echo "=== batch-gate A/B v2: gate-every 5 vs 1, $GENS generations each, init $IN
 echo "=== instrument: anchor-increment batch gate (verified present in the binary) ==="
 for K in 5 1; do
   echo "--- arm: gate-every $K ---"
-  timeout 9000 taskset -c 15 nice -n 19 ionice -c 3 "$LEARN" \
+  timeout 9000 taskset -c "$CORE" nice -n 19 ionice -c 3 "$LEARN" \
     --init "$INIT" --gens "$GENS" --games 2400 --threads 1 --depth 2 --epochs 3 \
     --gate-every "$K" --gate-pairs 224 --arch-every 0 --control-every 0 \
     --seed "$SEED" --out "b2_${K}.net" --ledger "b2_${K}.jsonl" > "b2_${K}.log" 2>&1
