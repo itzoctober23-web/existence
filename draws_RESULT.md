@@ -61,3 +61,26 @@ The decisive-game rate rises from **389/2400 (16%) at generation 1 to 1039/2400 
 20**. The engine plays more decisively as it trains. That is independent evidence that training
 does something real, even while the strength ceiling holds — and it is the sort of thing that would
 have been invisible without reading the per-generation lines.
+
+
+---
+
+## CONFIRMED on an independent, tighter protocol
+
+The verdict above used each arm's built-in 448-pair capped control. The driver also ran a separate
+**1000-pair fixed-depth-2 uncapped** match per arm — a different protocol, more than twice the
+games:
+
+| arm | W-D-L | rate |
+|---|---|---|
+| exclude (shipped) | 1375W-617D-8L | **0.842 ± 0.010** |
+| include (draws) | 1036W-954D-10L | **0.756 ± 0.011** |
+
+**Difference +0.086 ± 0.015 — resolved with a large margin**, and in the same direction as the
+built-in control's +0.054 ± 0.034. Two protocols, two independent measurements, one conclusion:
+excluding draws is better.
+
+**A mechanistic tell worth keeping.** The include-trained net draws **954** games against the
+origin where the exclude-trained net draws **617**. Training on drawn positions taught it to value
+them, and it now plays more drawishly — which is exactly the causal story the filter was there to
+prevent, showing up in the game record rather than being inferred from the loss.
