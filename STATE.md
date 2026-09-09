@@ -48,10 +48,10 @@ the depth replication (424242, 987654) and `blend_seed2` (424242) each face thei
 * **Across seeds, origin rates are not comparable.** This is the real explanation for `s2_100`
   reading 0.945 where `bh_100` read 0.832; I attributed that 0.113 swing to seed variance in the
   nets, and it is at least partly a different opponent.
->
-> **Consequence:** every ceiling arm below was scored against the origin. Any gap **under ~0.05**, or
-> any arm scoring **above ~0.95**, is provisional until re-measured directly. Detail in
-> `instrument_saturation_RESULT.md`.
+
+**Consequence of both:** every ceiling arm was scored against the origin. Any gap **under ~0.05**,
+any arm scoring **above ~0.95**, and any cross-seed comparison is provisional until re-measured
+directly. Detail in `instrument_saturation_RESULT.md`.
 
 Single source of current truth. The `*_RESULT.md` files are the working records and several contain
 claims later retracted; **this file supersedes them where they disagree.**
@@ -68,11 +68,11 @@ claims later retracted; **this file supersedes them where they disagree.**
 | **datagen depth (d2 vs d3)** | **CONFOUNDED WITH PARITY** | see below — the effect is even-vs-odd, not shallow-vs-deep |
 | draw filter | **REFUTED** | excluding draws better by **+0.086 ± 0.015**, two independent protocols |
 | horizon schedule | **REFUTED** | widening beats narrow-fixed by **+0.064 ± 0.034** |
-| datagen depth | **survives, unreplicated** | 8 deep generations beat 92 shallow, **+0.025 ± 0.013** |
 
-Depth is the only surviving lever *among the four named candidates*. Its effect is smaller than the
-~0.07 between-run band, so a 2-seed replication with `--horizon-cap 45` on both arms is queued.
-Epochs is a fifth candidate, never tested on a working metric, also queued.
+The original depth claim was **+0.025 ± 0.013** (8 deep generations beating 92 shallow at equal wall
+clock). It is smaller than the ~0.07 between-run band, and it is now also known to be an even-vs-odd
+comparison — see the parity section. A 2-seed replication with `--horizon-cap 45` is running, and
+`depth_parity.sh` (d2 vs d4) is what actually decides it. Epochs is a fifth candidate.
 
 ### The depth lever is SEARCH PARITY, not depth
 
