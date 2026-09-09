@@ -1355,9 +1355,40 @@ sites allocate per call (`eval`, `Accum::refresh`, and line 147), and `active()`
 reusable `&mut Vec<u16>` that no caller reuses. That is the width-16 optimisation, and it is the
 opposite of the one the brief names.
 
-**Not yet measured.** The above is an arithmetic argument, not a measurement, and this file has
-retracted enough unmeasured performance claims today. It gets a before/after with equal work proven
-on both arms before any number is quoted.
+**MEASURED — the allocation fix is worth ~3.3% at the shipped width.** `search_bench`, depth 4, one
+quiet core (the arm on it SIGSTOPped for the duration), node counts identical on every arm so the
+work is provably equal:
+
+```
+width   refresh          incr             incr vs refresh
+ 16     1.034x  (+3.4%)  1.032x  (+3.2%)  0.995x   <- incremental buys NOTHING here
+ 32     1.009x           1.006x           1.004x
+128     1.017x           1.005x           1.10x    <- incremental is real, at width 128
+```
+
+Three interleaved runs at width 16 gave OLD 1920868/1914636/1923943 against NEW
+1970496/1980629/1981025 — non-overlapping ranges, so the 3% is not noise.
+
+**My own estimate was wrong and the measurement is what counts.** The arithmetic argument above
+predicted 20-30%; the truth is 3%. glibc's malloc fast path is far cheaper than I assumed and the
+row-adds dominate more than I credited. The direction was right, the magnitude was invented.
+
+**The last column settles brief task 1 by measurement rather than extrapolation.** At the shipped
+width of 16, incremental is 0.995x — a fraction slower than rebuilding from scratch. At 128 it is
+1.10x. So wiring the accumulator into `crates/engine` would buy nothing at the width the loop
+actually trains, which is what the width census predicted, and is now demonstrated directly instead
+of argued from a table.
+
+**One number in that table does NOT replicate.** `pipeline/src/search.rs` records `hidden 32 ...
+0.91x LOSS` for incremental. On the current code I measure 1.004x at width 32 — no loss. The
+crossover story still holds at the ends (nothing at 16, clear win at 128), but the specific 0.91x is
+not reproducible today and should not be quoted. Not chased further: it does not change any decision
+here.
+
+**Correctness before the number.** All 6 nnue tests pass, including the two that gate this change:
+`incremental_matches_full_refresh` covers the `Accum::refresh` edit, and
+`sparse_matches_dense_over_random_games` covers the `active`-to-`active_with` refactor against the
+dense reference.
 
 ## Task list (docs/MASTER_PLAN items 1-6) — verified stale
 

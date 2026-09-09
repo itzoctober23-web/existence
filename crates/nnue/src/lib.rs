@@ -20,6 +20,11 @@ pub const IDX_STM: usize = N_PIECE_PLANES;
 pub const IDX_CASTLE: usize = IDX_STM + 1;
 pub const IDX_EP: usize = IDX_CASTLE + 4;
 pub const N_INPUTS: usize = IDX_EP + 8;
+/// Most features that can be active at once: at most 32 men on the board, plus side-to-move,
+/// four castling rights and one en-passant file -- 38. Sized to 64 so the hot-path stack buffer
+/// has headroom, and so an illegal position with more men than chess allows hits a bounds panic
+/// rather than silently evaluating a truncated feature set.
+pub const MAX_ACTIVE: usize = 64;
 
 /// A score in centipawn-like units. The UNIT is arbitrary and learned; nothing here fixes a
 /// scale, and mapping a terminal Outcome to a score is `score_of`'s job, not this crate's.
@@ -120,24 +125,32 @@ impl Net {
     /// architecture search may DISCOVER; it is not given.
     pub fn active(pos: &Position, out: &mut Vec<u16>) {
         out.clear();
+        Self::active_with(pos, |i| out.push(i));
+    }
+
+    /// Shared body for `active` and the hot-path stack variant below. It exists so the two
+    /// cannot drift: a second hand-copied feature enumeration would be a silent eval divergence,
+    /// and the dense reference in `features_dense` only checks the Vec path.
+    #[inline]
+    fn active_with(pos: &Position, mut push: impl FnMut(u16)) {
         for c in [Color::White, Color::Black] {
             for k in PieceKind::ALL {
                 let base = ((c.idx() * N_PIECE_KINDS + k.idx()) * 64) as u16;
                 for sq in bb::squares(pos.pieces[c.idx()][k.idx()]) {
-                    out.push(base + sq as u16);
+                    push(base + sq as u16);
                 }
             }
         }
         if pos.stm == Color::White {
-            out.push(IDX_STM as u16);
+            push(IDX_STM as u16);
         }
         for i in 0..4 {
             if pos.castling & (1 << i) != 0 {
-                out.push((IDX_CASTLE + i) as u16);
+                push((IDX_CASTLE + i) as u16);
             }
         }
         if let Some(ep) = pos.ep {
-            out.push(IDX_EP as u16 + ep.file() as u16);
+            push(IDX_EP as u16 + ep.file() as u16);
         }
     }
 
@@ -154,11 +167,22 @@ impl Net {
     /// Evaluate from WHITE's point of view, then flip for the mover. The flip is a convention
     /// of the search interface (negamax wants mover-relative), not a claim about the position.
     pub fn eval(&self, pos: &Position, scratch: &mut Vec<f32>) -> Score {
-        let mut idx: Vec<u16> = Vec::with_capacity(40);
-        Self::active(pos, &mut idx);
+        // STACK BUFFER, NOT A Vec. This function is the hottest in the program and the previous
+        // `Vec::with_capacity(40)` was a malloc and a free on EVERY eval. That cost is fixed
+        // while the arithmetic is not: at the shipped width of 16 an eval is only ~38x16 row-adds
+        // plus a 16-wide head, so the allocation is a large fraction of it. At width 512 it would
+        // be noise -- which is why this was easy to leave in and easy to miss.
+        //
+        // Sized to MAX_ACTIVE (64) against a true maximum of 38: at most 32 men, plus side to
+        // move, four castling rights and one ep file. Writing through `buf[n]` means an
+        // impossible position panics on the bounds check instead of silently truncating its
+        // feature set, which would be a wrong eval rather than a crash.
+        let mut buf = [0u16; MAX_ACTIVE];
+        let mut n = 0usize;
+        Self::active_with(pos, |i| { buf[n] = i; n += 1; });
         scratch.clear();
         scratch.extend_from_slice(&self.b1);
-        for i in idx {
+        for &i in &buf[..n] {
             let row = &self.w1[i as usize * self.n_hidden..(i as usize + 1) * self.n_hidden];
             for (a, w) in scratch.iter_mut().zip(row.iter()) {
                 *a += *w;
@@ -197,9 +221,12 @@ impl Acc {
     pub fn refresh(&mut self, net: &Net, pos: &Position) {
         self.vals.clear();
         self.vals.extend_from_slice(&net.b1);
-        let mut idx = Vec::with_capacity(40);
-        Net::active(pos, &mut idx);
-        for i in idx {
+        // Same per-call allocation the eval path had; same stack fix. refresh() runs at every
+        // root and on every accumulator reset, so it is hot too.
+        let mut buf = [0u16; MAX_ACTIVE];
+        let mut n = 0usize;
+        Net::active_with(pos, |i| { buf[n] = i; n += 1; });
+        for &i in &buf[..n] {
             self.add(net, i, 1.0);
         }
     }
