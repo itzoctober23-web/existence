@@ -608,6 +608,36 @@ catches the early degradation the old code was blind to.
 baked in before their first real gate. Their KEEPs are still real (those were later gates against a
 genuine base), but their *starting point* was already 5 generations of undone drift.
 
+## ⚠ RETRACTED: every epochs claim today used UNEQUAL ARMS
+
+`ep_2` and `ep_3` — the nets behind every epochs number I reported — were run with `gens=1000000`,
+i.e. **time-boxed, not generation-matched**. Epochs 2 trains faster per generation, so it got more:
+
+```
+ep_2   28 generations
+ep_3   26 generations
+```
+
+Two extra generations at the measured ~0.0114 per generation is **~0.023 of advantage from training
+amount alone** — the same size as the entire observed effect (0.018 at depth 2). The epochs effect
+cannot be separated from the generation count.
+
+**What this retracts:**
+* `ep_2 vs ep_3` = 0.518 ± 0.014 (d2) and **0.544 ± 0.023 (d4)** — the "strengthens with depth"
+  result, and the reason I called epochs the surviving candidate.
+* **Both pool rankings**, where `ep_2`/`ep_3` are two of the eight nets — including "ep_2 tops the
+  depth-4 pool". The other six rows are unaffected; those arms were generation-matched.
+
+**The clean comparisons** are `ep2_*` (20 generations each, seed 20260907) and `es2_*` (20 each,
+seed 424242). Only `es2` has reported: **0.473 ± 0.020 — epochs 3 ahead.** `ep2_2 vs ep2_3` is
+running.
+
+**This is the third time today the same defect has appeared**: `batch_ab` (11 vs 5 generations),
+`depth_parity` (96 vs 1), and now the epochs sweep (28 vs 26). Time-boxed arms and a per-generation
+cost that varies with the setting under test produce unequal training every time. The rule that
+would have caught all three: **when the knob changes per-generation cost, match on generations, never
+on wall clock.**
+
 ## ⚠ THE CAMPAIGN'S REAL LIMIT: seed variance swamps every effect being chased
 
 **Both** candidates fail seed replication, the same way, with the heterogeneity itself resolved:
