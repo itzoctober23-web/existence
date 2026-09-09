@@ -604,6 +604,11 @@ fn main() {
         }
     }));
 
+    // Per-move COST ceiling for the game gate. 4e8 is the seed's measured cost for ONE position at
+    // the fitness depth, so a move in the gate is budgeted like a position in the surrogate and the
+    // two are asking the same question of the same resources.
+    const COST_PER_MOVE: u64 = 400_000_000;
+
     let mut rng = Rng::new(0xE0FFEE);
     for g in 1..=gens {
         // Snapshot every lineage's programs BEFORE this generation, so crossover donors are drawn
@@ -727,7 +732,8 @@ fn main() {
                 let gsc = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     gate::match_progs(&c, &lineages[li].champ, &net,
                                       vec![depth, 32_000, 8], bud, gate_pairs,
-                                      0xC0FFEE ^ g as u64 ^ (li as u64) << 8, 4)
+                                      0xC0FFEE ^ g as u64 ^ (li as u64) << 8, 4,
+                                      COST_PER_MOVE)
                 })) {
                     Ok(sc) => sc,
                     Err(_) => {

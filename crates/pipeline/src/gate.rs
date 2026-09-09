@@ -138,7 +138,7 @@ pub fn match_nets_open(a: &Net, b: &Net, depth: u32, pairs: usize, seed: u64, op
 /// else -- the search-track analogue of the equal-cost gate the net track uses.
 pub fn match_progs(
     a: &Program, b: &Program, net: &Net, tables: Vec<i64>, budget: i64, pairs: usize, seed: u64,
-    open_plies: usize,
+    open_plies: usize, cost_per_move: u64,
 ) -> Score {
     let mut sc = Score::default();
     let mut rng = Rng(seed | 1);
@@ -155,7 +155,7 @@ pub fn match_progs(
         let mut pair_half = 0usize;
         for a_is_white in [true, false] {
             let r = play_progs(a, b, net, &tables, budget, a_is_white, &opening,
-                               seed ^ (p as u64) << 16);
+                               seed ^ (p as u64) << 16, cost_per_move);
             match r {
                 Some(true) => { sc.wins += 1; pair_half += 2; }
                 Some(false) => { sc.losses += 1; }
@@ -169,13 +169,31 @@ pub fn match_progs(
 
 fn play_progs(
     a: &Program, b: &Program, net: &Net, tables: &[i64], budget: i64, a_is_white: bool,
-    start: &Position, _seed: u64,
+    start: &Position, _seed: u64, cost_per_move: u64,
 ) -> Option<bool> {
     let mut pos = start.clone();
     // One interpreter per side, reused across the game. `run` clears the hash table itself, so
     // reuse carries no state between moves and costs one allocation instead of 200.
+    // EQUAL COST PER MOVE, not equal budget -- and this is the whole point of the gate.
+    //
+    // Both sides used to get the same `budget` and no cost ceiling, so a program that was CHEAPER
+    // per move got no credit for it: it simply did less work and returned sooner. The surrogate
+    // meanwhile scores mates-per-COST. The two metrics were therefore measuring different things,
+    // and a candidate could max the surrogate while the games registered nothing.
+    //
+    // MEASURED, which is what exposed it: the MCTS lineage drove its surrogate from 0.001145 to
+    // 0.005034 -- 4.4x -- while five consecutive game gates returned EXACTLY 0.500 +/- 0.250. The
+    // candidate was much cheaper and played the identical games, because being cheap bought it
+    // nothing at a fixed budget.
+    //
+    // A cost ceiling makes efficiency convertible into strength: a program that costs half as much
+    // per node searches twice as much before the ceiling, which is precisely the claim the
+    // surrogate is making on its behalf and which the gate exists to check. Same principle as the
+    // equal-TIME net gate and the per-lineage MCTS budget.
     let mut ia = Interp::new(net, tables.to_vec());
     let mut ib = Interp::new(net, tables.to_vec());
+    ia.cost_cap = cost_per_move;
+    ib.cost_cap = cost_per_move;
     for _ in 0..200 {
         let l = pos.legal_moves();
         if l.is_empty() {
