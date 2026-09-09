@@ -181,7 +181,33 @@ the champion gate rejected. **Even at face value with zero compression, the 0.03
 datagen depth (+0.025) — the only surviving ceiling candidate.** Detail in
 `acceptance_floor_RESULT.md`.
 
-### First reading on the FIXED batch gate — and it argues AGAINST the acceptance-floor story
+### RESOLVED: it is a LEARNING failure at the plateau, not a measurement failure
+
+`batch_ab2` finished both arms from `champion_long`, 20 generations each, on the fixed
+anchor-increment gate. **Neither arm produced any change:**
+
+* **gate-every 1** — **0 accepts in 20 generations.** The champion never moved, so the program
+  printed *"no candidate was accepted; nothing to control against"* and wrote no net. Its output is
+  `champion_long` by construction.
+* **gate-every 5** — 4 batch gates, **1 KEEP and 3 ROLL BACK**. Final net vs `champion_long`
+  head-to-head: **0.513 ± 0.022, INDISTINGUISHABLE.**
+
+The origin metric read that batch arm as a *decline* (0.824 against the 0.861 baseline). The direct
+match says no change — **saturation again**, now caught a third time.
+
+**So `batch_ab.sh`'s original conclusion — "learning failure, the gate is not the lever" — was
+RIGHT.** Its evidence was not: a broken instrument, arms of 11 vs 5 generations, and a negative
+pre-registered as expected. Withdrawing it was still correct; a right answer reached through a
+broken ruler is not a result, and it would have blocked exactly this re-run.
+
+The acceptance floor is real arithmetic but it is **not the binding constraint**: with the floor
+removed and the compressing opponent replaced, there is still nothing to keep.
+
+**The loop learns from RANDOM and not from a trained champion.** From `--rung 0` it reaches 0.847
+in 20 generations; from `champion_long` it moves nothing in 20. The ceiling is real and it is in the
+training signal.
+
+### Earlier partial reading on the fixed batch gate (superseded by the above)
 
 The ratchet test runs `--gate-every 5` on a binary that has the anchor-increment gate, so it is
 already producing the measurement `batch_ab2` was queued for:
