@@ -1351,7 +1351,23 @@ fn main() {
     // because it is correct for a budget-aware seed; the value is off so nothing pretends to work.
     const COST_PER_MOVE: u64 = u64::MAX;
 
-    let mut rng = Rng::new(0xE0FFEE);
+    // SEED IS SETTABLE (EXISTENCE_EVOLVE_SEED), defaulting to the original constant so an
+    // unset environment reproduces every prior run bit-for-bit.
+    //
+    // WHY: this was hardcoded, so every invocation of this track was the SAME RUN. I aggregated
+    // search_track.log (34 lineage-generations) and hist_probe.log (5) as 39 independent
+    // observations; gen-3 MAIN is field-for-field identical between them, so the true n was 34 and
+    // the probe contributed no new trajectory at all.
+    //
+    // That matters more here than it would elsewhere. Today's central statistical result is that
+    // single-seed conclusions FLIP SIGN on a second seed -- blend at z = 3.3, epochs at z = 3.6 --
+    // so a track that cannot produce a second trajectory cannot distinguish a finding from its own
+    // one run. Every claim this file has emitted is single-trajectory by construction.
+    let mut rng = Rng::new(
+        std::env::var("EXISTENCE_EVOLVE_SEED").ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(0xE0FFEE),
+    );
     for g in 1..=gens {
         // Snapshot every lineage's programs BEFORE this generation, so crossover donors are drawn
         // from a fixed set rather than from populations mutating underneath the loop -- otherwise
