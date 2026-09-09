@@ -52,10 +52,10 @@ Two fixes were on the table for P2. The measurement retires the framing of both.
   landed right. That is a statement about the *measurement*, not about the rule, which is the point of
   this document.
 
-* **"Make `COST_PER_MOVE` finite"** (`cost_blind.rs`, still running). Whatever it returns, it cannot
-  explain 0/202: a cost ceiling changes *which* program scores higher, not whether a ±0.177 instrument
-  can resolve the difference. The probe stays useful — it answers whether efficiency is visible to the
-  gate at all — but it was never the cause of the symptom it was written to explain.
+* **"Make `COST_PER_MOVE` finite"** (`cost_blind.rs`). **It has now run and returned INCONCLUSIVE —
+  see the section at the bottom of this file.** It could not have explained 0/202 in any case: a cost
+  ceiling changes *which* program scores higher, not whether a ±0.177 instrument can resolve the
+  difference. Cost-blindness remains a live, untested hypothesis and is not a cause.
 
 The binding constraint is that **the gate decides on six pairs.**
 
