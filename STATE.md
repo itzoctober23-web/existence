@@ -619,6 +619,18 @@ g10  champ 0.830  base 0.864  increment -0.033  ROLL BACK
 g15  champ 0.867  base 0.864  increment +0.003  ROLL BACK
 ```
 
+**These are three INDEPENDENT 5-generation runs, not a trajectory.** Each block rolls back, so the
+champion resets to `champion_long` before the next begins. Read that way:
+
+```
+mean -0.025 +/- 0.028   ->  no reliable change
+spread 0.048            ->  dwarfs the mean
+```
+
+So 5 generations from `champion_long` neither reliably helps nor hurts — and the run-to-run spread
+is the **same seed-noise wall** that killed every hyperparameter comparison today, showing up now
+inside a single run.
+
 Every block negative or neutral. **This also explains `b2_5`'s apparent gain.** Its "+0.033 KEEP" at
 g10 was measured against a base that was already the *degraded* 5-generation net (0.819) — so it was
 **recovering toward champion_long's 0.864, not improving past it.** The broken gate turned a
