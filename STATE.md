@@ -1500,6 +1500,49 @@ nothing between 0.25 and 0.75 can resolve there.
 incumbent), together with the acceptance bar `needed >{0.5+ci95}` so that threshold is never again
 recalled from memory instead of read.
 
+### POOLED: the surrogate's proposals average BELOW parity, and the gate is 40x too small
+
+The 14 gate calls are 168 games of evidence about what the surrogate actually proposes. Pooling them
+(pair sd 0.2362, the project's measured value):
+
+```
+14 gate calls = 168 games = 84 pairs
+pooled pair rate  0.4554 +/- 0.0505   ->  [0.405, 0.506]
+  6/14 land on exactly 0.500  (candidate plays identically to the champion)
+  8/14 land strictly below 0.500
+```
+
+**The average proposal is worse than the champion it was proposed against.** The interval only just
+touches 0.5, so this is not merely "the surrogate finds neutral candidates" — it is evidence that
+surrogate rate-improvements are mildly ANTI-correlated with strength. Which is precisely what the
+ladder predicts: a saturated numerator makes the rate a measure of cheapness, and the cheapest way to
+keep 25/25 mates is to search less in places that did not happen to matter on those 25 positions.
+
+The six exact 0.500s are their own signal: a candidate that plays identically to the champion scores
+exactly 0.500 by construction. Those are pure speedups that missed the behaviour-identical fast path
+by differing on at least one guard position.
+
+**And the gate could not see a real improvement even if one arrived.** Acceptance needs
+`pent_rate - ci95 > 0.5`; at 6 pairs that is a bar of 0.58-0.75. Solving for the pairs required to
+resolve a given true edge:
+
+```
+true 0.53 candidate  ->  238 pairs (476 games)     gate has 6
+true 0.55 candidate  ->   86 pairs (171 games)     gate has 6
+true 0.60 candidate  ->   21 pairs ( 43 games)     gate has 6
+```
+
+A genuine engine improvement is 0.51-0.55. The gate is roughly **40x too small** to resolve one, so
+its rejections carry almost no information — six of the fourteen are literally `0.500+/-0.250`, an
+interval spanning 0.25 to 0.75.
+
+**Both ends of the loop are therefore broken, and independently.** The surrogate selects for
+cheapness (measured: 6 of 7 ladder rungs rank below the seed), and the gate cannot resolve what the
+surrogate hands it (measured: 40x short). Fixing either one alone changes nothing — a better
+surrogate still meets a gate that rejects everything, and a bigger gate still receives proposals that
+average 0.4554. That is the single most useful consequence of today's work, and it is why no further
+loop time is worth spending on this track until at least one of the two is repaired.
+
 ### Superseded text follows
 
 ## ANSWERED: no candidate has EVER strictly beaten the incumbent, in either arm
