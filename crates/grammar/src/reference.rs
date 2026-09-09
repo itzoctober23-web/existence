@@ -145,9 +145,26 @@ fn ab_program(cap_ext: bool, reduce: bool) -> Program {
         vec![
             Node::Let("nd".into(),
                 b(Node::Arith(ArithOp::Sub, vec![v("d"), Node::Const(1)])), b(Node::Nop)),
+            // AT THE HORIZON ONLY. GRAMMAR 9 rung 6 says "capture extension AT HORIZON", and this
+            // applied the extension inside the move loop at EVERY depth, so captures were free
+            // throughout the tree -- not quiescence, but full-width search with captures
+            // unbounded.
+            //
+            // That was invisible for as long as `pred` was a stub returning false: the branch
+            // never fired, so nobody could see it was in the wrong place. The moment the predicate
+            // was implemented it showed up as a 73x cost blowup that truncated 2 of 3 searches
+            // even at a raised cost cap (24,440,705 evals against the seed's 441,471).
+            //
+            // Guarding on `d == 1` means the extension fires only when the child would otherwise
+            // hit the horizon. A capture there keeps depth 1, so a capture CHAIN extends until the
+            // captures run out -- which is quiescence, and is what the rung is supposed to be.
             Node::If(
-                b(Node::Pred(b(v("m")), b(v("p")), PredId::IsCapture)),
-                b(Node::Set("nd".into(), b(v("d")))),
+                b(Node::Cmp(b(v("d")), b(Node::Const(1)), Rel::Eq)),
+                b(Node::If(
+                    b(Node::Pred(b(v("m")), b(v("p")), PredId::IsCapture)),
+                    b(Node::Set("nd".into(), b(v("d")))),
+                    None,
+                )),
                 None,
             ),
         ]

@@ -220,3 +220,46 @@ Limit: 12 positions at depth 4 and 40 at depth 3, and only those two depths. Thi
 at every depth forever" — a capture extension must eventually change a move somewhere. It is that
 at the depths this fitness can afford to run, the family is behaviourally uniform, which is what
 the argument needs and all it claims.
+
+
+---
+
+## 2026-09-08, LATER: the uniformity had a cause, and fixing it makes rung 6 play differently
+
+The sections above conclude that the entire alpha-beta family plays identically and that the only
+class which could improve — the inexact variants — is empty. **The measurements were right and the
+explanation was wrong.** Two of the seven were no-ops:
+
+* `pred` (GRAMMAR primitive #5) was a stub returning false, so capture extension's condition never
+  fired. It was the seed plus a dead branch.
+* `capture_extension` also applied the extension at EVERY depth rather than "at horizon" as
+  GRAMMAR 9 rung 6 specifies — invisible while the predicate was dead.
+
+With the predicate implemented and the extension moved to the horizon (`d == 1`), measured on 10
+positions at depth 3:
+
+| program | evals | cost | agrees with seed |
+|---|---|---|---|
+| bare alpha-beta | 1,413,909 | 1.000x | 10/10 |
+| alpha-beta + hash reuse | 1,368,508 | 0.980x | 10/10 |
+| **capture extension (rung 6)** | **1,971,912** | **1.679x** | **8/10 — DIFFERS** |
+| table reduction (rung 7) | 1,413,909 | 1.007x | 10/10 (still a no-op) |
+
+**Cost 73x -> 1.679x, and it plays differently on 2 of 10 positions.** This is the first program in
+the alpha-beta family measured to play different chess from the seed. The class is not empty.
+
+### What this does and does not establish
+
+**Does:** a correctness gradient is now POSSIBLE. A candidate can differ from its parent in what it
+plays, which is the precondition for any fitness that scores play rather than cost. The
+`search_track_WHY_NOTHING` argument — mates saturated, cost unconvertible, therefore no gradient —
+loses its second leg.
+
+**Does not:** it says nothing about whether the different moves are BETTER. Playing differently is
+necessary, not sufficient. That needs the value oracle (`evolve ttvalue` does exactly this for a
+pair of programs) or games against a fixed anchor, and until one of those is run, "rung 6 differs"
+is all that is claimed.
+
+`table_reduction` remains a no-op for an unrelated reason the predicate fix does not touch: `tread`
+discards its index arguments, so `TRead(3, [d, i])` cannot vary by depth or move index, and the
+harness passes only three tables so index 3 is out of range anyway.
