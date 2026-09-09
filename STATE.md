@@ -215,6 +215,13 @@ contributes nothing measurable".
   reduction. **Measured: ratio 1.12×, F(9,9) interval ~[0.28, 4.5] — does not clear 1**, while
   costing 2× games. Cause: openings walk only 4 random plies, so opening difficulty is a small part
   of the variance; it is in the games. `EXISTENCE_PAIRED_BATCH` stays off.
+* **`readlink /proc/PID/exe` goes stale the moment you rebuild.** Rebuilding a binary while an
+  instance is running makes its exe link read `<path> (deleted)` — the inode survives, so the JOB is
+  fine, but any monitor globbing on the exe path silently stops seeing it. I rebuilt `netmatch`
+  mid-run, my scan reported the process "GONE", and I was one step from relaunching a job that was
+  7 minutes into a depth-4 match. **The brief recommends exe-matching as the safe alternative to
+  `pgrep -f`; this is that alternative's own blind spot.** Match on the BASENAME with the suffix
+  stripped: `b=$(basename "${e% (deleted)}")`.
 * **State outliving its run.** A 5-hour-stale `hz_1000.log` about to be read as a current arm; a
   mid-run script edit that killed a verdict block, where **reverting within a minute did not undo
   it**.
