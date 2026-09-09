@@ -1,5 +1,28 @@
 # Existence — current state, 2026-09-09
 
+## Gating does not help from scratch — and the gate rolls back on noise
+
+```
+sg_20 (gate-every 5) vs bn_075 (no gating) @ depth 4:  0.479 ± 0.023  [0.457, 0.502]
+```
+
+Unresolved, but the point estimate favours the **ungated** arm. The mechanism is visible in
+`sg_20`'s own log: it rolled back block g15 on an increment of **−0.013 ± 0.030** — an interval
+**three times wider than the effect it acted on**. It discarded five generations of champion
+progress on a reading it could not resolve.
+
+That is the acceptance-floor arithmetic biting from the other side. The gate needs an edge larger
+than its own ci95 to KEEP, so near-zero blocks always roll back — and when the true block value is
+slightly positive, the rollback is a loss. From scratch, where most blocks are genuinely positive,
+this costs more than it saves.
+
+**`fg_60`: 8 gates, 0 KEEP.** The pool-growth prediction is dead eight times over, not just at
+block 5.
+
+**Net on `--gate-every 5`:** no depth-4 gain from `champion_long` (0.502 ± 0.022), no gain from
+scratch (0.479 ± 0.023), and 0 KEEPs in 8 blocks once `batch_base` was fixed. The batch gate is
+**correct now but not useful** — its resolution is coarser than the effects it is asked to judge.
+
 ## 🔑 WHY THE DISCOVERY TRACK FINDS NOTHING — diagnosed in the selection code
 
 The track that is supposed to discover qsearch runs 25 generations with **0 accepts** and a

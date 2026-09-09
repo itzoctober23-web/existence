@@ -1448,6 +1448,26 @@ fn main() {
                 .map(|(_, _, r)| r / best_rate.max(1e-12))
                 .collect();
             let (rlo, rhi) = rel.iter().fold((f64::MAX, 0.0f64), |(a, b), x| (a.min(*x), b.max(*x)));
+            // RATE HISTOGRAM over guard-passing candidates. min-max cannot answer the question that
+            // matters: the MAX is always a neutral twin scoring 1.000x, so "best >= 0.98" is true
+            // every generation and says nothing about whether informative candidates exist in the
+            // band EPS discards. I ran exactly that wrong statistic and nearly reported it as a
+            // refutation. Buckets, in units of best_rate:
+            //   >=0.98  survives EPS (eps = 0.02)   -- in practice the neutral twins
+            //   .90-.98 CUT by EPS                  -- the band the diagnosis is about
+            //   .50-.90 / <.50                      -- damaged and correctly cut
+            let hist = {
+                let (mut a, mut b, mut c, mut d) = (0usize, 0usize, 0usize, 0usize);
+                for x in &rel {
+                    if *x >= 0.98 { a += 1 } else if *x >= 0.90 { b += 1 }
+                    else if *x >= 0.50 { c += 1 } else { d += 1 }
+                }
+                (a, b, c, d)
+            };
+            // Also count how many guard-passers are rate-DISTINCT from the incumbent best. If this
+            // is 0 while `mate_ok` is large, the operators are producing only neutral rewrites and
+            // no selection policy can help -- which is a different problem from EPS cutting them.
+            let distinct = rel.iter().filter(|x| (**x - 1.0).abs() > 1e-9).count();
             let offspring: Vec<(Program, u32, f64)> =
                 // guard_floor, NOT best_found. This line is the ACTUAL selection filter; the
                 // three above it are diagnostics. When I reverted a misplaced floor definition I
@@ -1570,8 +1590,9 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                 let span = if rel.is_empty() { "none".to_string() }
                            else { format!("{rlo:.3}-{rhi:.3}x") };
                 println!("  gen {g:>3} {:<5} ..none ({n_scored} cand, {ill} ill, mate-ok {mate_ok}, \
-rates {span}, hard {hlo}-{hhi})  pop {} spread {:.6}-{:.6} tt{:?}",
-                         lineages[li].name, popn.len(), spread_lo, spread_hi, tt);
+rates {span} [>=.98:{} .90-.98:{} .50-.90:{} <.50:{} distinct:{}], hard {hlo}-{hhi})  pop {} spread {:.6}-{:.6} tt{:?}",
+                         lineages[li].name, hist.0, hist.1, hist.2, hist.3, distinct,
+                         popn.len(), spread_lo, spread_hi, tt);
             }
         }
     }
