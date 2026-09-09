@@ -1494,6 +1494,31 @@ viability criterion — "approaching 25/25 at cost ~1.0x AB" — against the sum
 The last row is the sharpest: the sum form reaches 14/25 for **5%** of alpha-beta's cost, where the
 blend form needs 2.17x the cost to reach 13. Best mates/Mcost is 0.0281 against 0.0163.
 
+**MEASURED IN THE LOOP ITSELF, 2026-09-09.** Two arms of `evolve 25 8 12 6 3`, same
+`EXISTENCE_EVOLVE_SEED`, same budget, differing only in the MCTS lineage seed. The MAIN lineage is
+BYTE-IDENTICAL in both (23/23 mates, cost 9235450584), which is what proves the seed is the only
+difference:
+
+| MCTS seed @ budget 1024 | mates | guard floor | cost | mates/Mcost |
+|---|---|---|---|---|
+| blend @ K=8 (historical) | 11/23 | 7 | 2.00e10 | 0.000549 |
+| **sum @ K=600 (declared)** | **15/23** | **11** | **1.07e10** | **0.001406** |
+| blend @ K=600 | 1/23 | **0** | 4.43e10 | 0.000023 |
+
+Better on every axis at the same budget: four more mates, guard floor 7 -> 11, and HALF the cost,
+so 2.56x the mates per unit of cost.
+
+**The third row is a configuration that never existed, and it was my first attempt at this A/B.**
+Running the blend form at the sum encoding's weight collapses it to 1/23 with a guard floor of
+**ZERO** — which is precisely the degenerate regime `mcts_budget`'s own docstring was written to
+detect: *"if it stays near 1 even at matched cost, then seeding a lineage with it creates a
+population whose mate guard is `f >= 1` — vacuous."* It is kept here as evidence that the blend form
+must never read the global weight, and as a reminder that the comparison had to be redone: an A/B
+where one arm runs in a configuration nobody ever shipped is rigged, however bad the arm looks.
+
+Still NOT established: whether the seed is why every MCTS gate reads 0.500. The 25-generation arms
+are running; a guard floor of 7 was never vacuous, so the 0.500 gates need their own explanation.
+
 The lineage seed is now `uct_mcts()` (sum selection) and `budget_mcts` is 1024, the measured
 cost-parity point. Whether the 0.500 gates were caused by the seed is NOT established — that is the
 next measurement, not a claim.

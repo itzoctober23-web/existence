@@ -1413,7 +1413,17 @@ fn main() {
         // mate-in-one, Mix tops out at 20/23 at ANY weight while sum reaches 23/23 from K=600.
         // The lineage was seeded with a program whose exploration term is partly cancelled by its
         // own blend weight, and every one of its gates reads exactly 0.500 (STATE.md:1483).
-        ("MCTS", reference::uct_mcts(), budget_mcts),
+        // EXISTENCE_MCTS_SEED=mix restores the historical blend encoding, so the reseed can be
+        // measured as an A/B instead of asserted. Without a switch the claim "the seed is why every
+        // MCTS gate reads 0.500" would be untestable: the old behaviour would no longer exist to
+        // compare against. Defaults to the declared (sum) program.
+        ("MCTS",
+         if std::env::var("EXISTENCE_MCTS_SEED").as_deref() == Ok("mix") {
+             reference::uct_mcts_mix()
+         } else {
+             reference::uct_mcts()
+         },
+         budget_mcts),
     ] {
         let (f, c, r) = fitness(&seed_prog, &set, &net, depth, bud);
         // THE INCUMBENT MUST USE THE SAME FORMULA AS THE CANDIDATES. With
