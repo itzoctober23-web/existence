@@ -241,6 +241,13 @@ contributes nothing measurable".
   `-j` limit and verify the CHILDREN's affinity, not the parent's** — or do not run a parallel build
   while other work is on the box. Killed the run rather than keep racing it; the test suite is worth
   having but not worth taking his cores.
+* **A verdict block can spend real compute on a tautology.** `fixed_gate.sh` was 11 minutes into
+  `fg_20.net vs champion_long.net` at depth 4 — but I had already md5-verified those files are
+  **byte-identical** (4 gates, 0 KEEP, so every rollback restored exactly). It was matching a net
+  against itself for an answer that is 0.500 by construction. Meanwhile `gate_align.sh`, relaunched
+  after its arms were already complete, was re-running a verdict I had. **Before spending a match,
+  check whether the two nets can differ at all** — the md5 that proves a rollback worked also proves
+  the comparison is empty.
 * **State outliving its run.** A 5-hour-stale `hz_1000.log` about to be read as a current arm; a
   mid-run script edit that killed a verdict block, where **reverting within a minute did not undo
   it**.
