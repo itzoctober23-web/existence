@@ -22,7 +22,9 @@ training amount. Equal generations removes that and leaves depth and parity as t
 | d1 vs d2 | depth (both shallow) | **0.512 ± 0.014** | **INDISTINGUISHABLE, and precisely so** |
 | d3 vs d4 | depth (both deep) | **0.506 ± 0.014** | **INDISTINGUISHABLE, and precisely so** |
 
-**Both depth rows resolve in favour of the deeper arm. BOTH parity rows are precise nulls** — narrow
+**Both depth rows resolve in favour of the deeper arm. Both parity rows are precise nulls ON THIS
+SEED — and that phrasing is CORRECTED below: the shallow parity cell reads 0.554 ± 0.014 on seed
+987654, so parity is small and unresolved cross-seed, not an absence** — narrow
 intervals containing 0.5, which `netmatch` distinguishes from an underpowered "unresolved" by its own
 0.015 criterion (ci95 0.014 in each, so both qualify). The 2x2 is complete and it separates cleanly:
 **depth moves strength at both parities; parity moves nothing at either depth.**
@@ -103,7 +105,7 @@ depth 4 — the strength standard — not the frozen-origin metric that is docum
 * **n = 4.** Perfect concordance has p = 1/24 ≈ 0.042 under a random-ordering null one-tailed, 0.083
   two-tailed. Suggestive, not established.
 * The **within-group** orderings (d4 over d3, d1 over d2) rest on margins smaller than their own
-  intervals — both of those matches are precise nulls. The load-bearing part is the **between-group**
+  intervals — both of those matches are precise nulls on seed 424242 (the shallow one does not replicate). The load-bearing part is the **between-group**
   split, {d3, d4} stronger than {d1, d2}, which is resolved in both cross-group matches and matches
   the decisive-rate split exactly.
 * The counterexample on record still stands: `wd_r2` is the strongest arm on the board with FEWER
@@ -221,7 +223,7 @@ assumption is testable and is being tested every time another replication lands;
 method puts at [−0.021, +0.097] — contains zero. Two cells, same experiment, and only the larger one
 survives. That is what an honest power boundary looks like rather than a uniform verdict.
 
-Remaining: both parity cells on seed 987654, which test whether the precise nulls replicate.
+Remaining when this was written: the seed-987654 parity cells. The shallow one has since landed and did NOT replicate — see the correction below.
 
 ## ⚠ CORRECTED — "parity is a precise null" does NOT replicate
 
@@ -249,7 +251,9 @@ should not have written it as one on a single seed however tight ±0.014 looked.
 * What is withdrawn is the sharper phrasing "parity is a precise null", and with it the neatness of
   the original 2×2 story. The measured picture is messier: depth is real and large, parity is real
   and small, and one seed could not tell the second from zero.
-* `STATE.md`'s settled row and session summary both said "PARITY is a precise null". Both corrected.
+* `STATE.md`'s settled row and session summary both said "PARITY is a precise null". Both corrected,
+  as is this file's own headline at the top — the correction must sit where the reader lands, not
+  200 lines below it. That failure mode cost a turn earlier today.
 
 **The tightness of ±0.014 is what made this seductive**, and it is worth naming: a narrow interval
 bounds the effect AT THAT SEED and says nothing about the next one. `netmatch` now prints the
