@@ -680,6 +680,92 @@ fn ref_match() {
     println!("  not per unit of time. Both readings matter and they are different questions.");
 }
 
+
+/// CAN A SINGLE MUTATION CHANGE HOW THE PROGRAM PLAYS, WITHOUT BREAKING IT? `evolve stepdiff [n]`
+///
+/// This is the question the whole search track rests on and it has never been measured directly.
+/// Everything so far measured OUTCOMES -- 93 generations with no survivor cheaper than the
+/// champion, mates saturated at 25/25, the whole alpha-beta family playing identically. None of it
+/// asked the prior question: does the operator set contain a step that is BOTH correctness-
+/// preserving AND behaviour-changing?
+///
+/// If the answer is zero, no fitness can help. Selection needs candidates that differ in PLAY, and
+/// a fitness cannot reward a difference that the mutation operators never produce. That would move
+/// the blocker from FITNESS (where I have been putting it) to the OPERATOR SET.
+///
+/// Three buckets, and the middle one is the search's actual working material:
+///   * BROKEN     -- loses at least one of the 25 guard answers. Correctly rejected.
+///   * IDENTICAL  -- keeps all 25 and returns the SAME move everywhere. Passes the guard and is
+///                   invisible to any play-based measure; only cost distinguishes it, and cost is
+///                   unconvertible for a depth-limited program (docs/FITNESS.md).
+///   * DIFFERENT  -- keeps all 25 and plays differently somewhere. THE ONLY USEFUL KIND.
+fn step_diff() {
+    let n: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(200);
+    let depth: i64 = std::env::args().nth(3).and_then(|s| s.parse().ok()).unwrap_or(3);
+    let net = Net::random(32, 20260907);
+    let seed = reference::bare_alpha_beta();
+
+    // Small position set: this runs hundreds of candidates, so it is deliberately cheap. It only
+    // has to detect "plays differently ANYWHERE", not measure strength.
+    let mut rng: u64 = 0x5D1F_F00D;
+    let mut set = Vec::new();
+    while set.len() < 8 {
+        let mut p = Position::startpos();
+        for _ in 0..(10 + rng % 24) {
+            let l = p.legal_moves();
+            if l.is_empty() { break; }
+            rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
+            p.make_move(l.as_slice()[(rng % l.len() as u64) as usize]);
+        }
+        if !p.legal_moves().is_empty() { set.push(p); }
+    }
+    let base: Vec<board::Move> = set.iter().map(|p| {
+        let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+        it.cost_cap = 20_000_000_000;
+        it.run(&seed, p, 16)
+    }).collect();
+
+    let (mut ill, mut broken, mut identical, mut different) = (0usize, 0usize, 0usize, 0usize);
+    let mut diff_ops: std::collections::BTreeMap<String, usize> = Default::default();
+    for k in 0..n {
+        let mut r = Rng::new((k as u64) << 12 ^ 0xA5A5);
+        // ONE edit, not the loop's usual 1-3: the question is what a SINGLE step can do.
+        let (cand, ops) = match mutate::mutate_program_n(&seed, &mut r, 1) {
+            Some(x) => x,
+            None => { ill += 1; continue }
+        };
+        let mut same = true;
+        let mut ok = true;
+        for (p, b) in set.iter().zip(&base) {
+            let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+            it.cost_cap = 20_000_000_000;
+            let mv = it.run(&cand, p, 16);
+            if mv == board::types::MOVE_NONE { ok = false; break; }
+            if mv != *b { same = false; }
+        }
+        if !ok { broken += 1; }
+        else if same { identical += 1; }
+        else {
+            different += 1;
+            *diff_ops.entry(format!("{:?}", ops)).or_default() += 1;
+        }
+    }
+    println!("=== single-edit mutants of the seed, {n} attempts, {} positions at depth {depth} ===",
+             set.len());
+    println!("  ill-typed / inapplicable : {ill}");
+    println!("  BROKEN    (no move)      : {broken}");
+    println!("  IDENTICAL (same play)    : {identical}");
+    println!("  DIFFERENT (plays differently, THE USEFUL KIND) : {different}");
+    if different > 0 {
+        println!("\n  operators that produced a behaviour change:");
+        for (o, c) in &diff_ops { println!("    {o:<28} {c}"); }
+    } else {
+        println!("\n  ZERO behaviour-changing single edits. If this holds at larger n, the blocker");
+        println!("  is the OPERATOR SET, not the fitness -- no fitness can reward a difference the");
+        println!("  operators never produce.");
+    }
+}
+
 fn read_declared(path: &str) -> (usize, f64, i64, i64) {
     let txt = std::fs::read_to_string(path).unwrap_or_else(|e| {
         panic!("declared parameters missing at {path}: {e}. This file is part of the Given \
@@ -838,6 +924,9 @@ fn main() {
     }
     if std::env::args().nth(1).as_deref() == Some("refmatch") {
         return ref_match();
+    }
+    if std::env::args().nth(1).as_deref() == Some("stepdiff") {
+        return step_diff();
     }
     let gens: usize = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(30);
     let pop: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(24);
