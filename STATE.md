@@ -2561,3 +2561,40 @@ a live search-track run to strengthen a path bounded below 10% would cost real g
      message reading `b=` with nothing after it. Every other commit today used a heredoc (-F -) for
      exactly this reason. Not force-pushed: the commit is public and the substantive record above
      is correct, so a rewrite of shared history buys nothing a follow-up note cannot. -->
+
+## 🔑 DEMONSTRATED: the acceptance rule, not candidate quality, is what blocks the search track
+
+The contradiction recorded above — the gate documented as "a veto on unplayable programs" but
+implemented as `pent_rate - ci95 > 0.5`, which demands the candidate be resolved BETTER — is now
+demonstrated live, not just argued.
+
+Two arms of `evolve 25 8 12 6 3`, same `EXISTENCE_EVOLVE_SEED`, same binary, differing only in
+`EXISTENCE_GATE_VETO`. Their logs are byte-identical up to the divergence, including the two earlier
+REJECTs (0.333 ± 0.163 and 0.375 ± 0.110 — both have rate + ci95 < 0.5, i.e. **resolved worse**, so
+both rules correctly reject them; the veto is not a rubber stamp).
+
+At generation 4 they diverge on the same candidate, with the same surrogate and the same gate score:
+
+```
+control:  gen 4 MCTS  gate REJECT 0.500+/-0.250 (12 games)  surrogate 0.001848  needed >0.750
+veto:     gen 4 MCTS  ACCEPT  15 mates  0.001848 (133 nodes, was 0.001406)  gate 0.500
+```
+
+**That is the first promotion in either arm.** The control ran 38 generations and 9 gate calls with
+zero. The promoted program is not degenerate: it holds the seed's mate count (15), improves the
+surrogate by 31% (0.001848 against 0.001406), and ties on games rather than losing.
+
+Combined with the count over the completed arms — implemented rule **0/17** promotions, documented
+veto **8/17**, with all 8 flips being ties and every resolved-worse candidate rejected under both —
+this satisfies what STATE.md set as the precondition for touching the apparatus: *"measuring how
+many promotions the rule costs."*
+
+### What is NOT yet shown
+
+Promoting ties is not the same as improving. `guard_floor` is anchored to the SEED's score, so drift
+is bounded, but bounded drift is not progress. **The decisive test is whether the veto arm's final
+champion beats the control's**, head to head, after both complete 25 generations — and that is one
+match, on nets that will exist for free. Until then this shows the rule is the binding constraint,
+not that relaxing it produces a stronger engine.
+
+The default remains unchanged.
