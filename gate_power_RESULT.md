@@ -178,3 +178,35 @@ half-width. The correct near-parity figure is worse than both.
 
 The remaining rows (12, 24, 48, 96 pairs) are still running, and **the fix is still not sized**: the
 whole point of the curve is to measure the exponent rather than assume it.
+
+### ⚠ CAVEAT ON THE A/A, against my own claim above: its scaling is ANOMALOUS
+
+Row 2 landed and the curve is not behaving like a confidence interval:
+
+```
+  pairs  reps  mean_rate  mean_ci95     bar
+      6     8      0.500      0.250   0.750
+     12     4      0.500      0.125   0.625
+```
+
+Doubling the pairs **halved** ci95. A confidence interval scales as `1/sqrt(n)`, which predicts
+0.177 at 12 pairs, not 0.125. Observed is `1/n`. The values are also exact dyadics (1/4, then 1/8)
+with `mean_rate` exactly 0.500 both times.
+
+**The most likely explanation is that the A/A distribution is degenerate.** Two *identical*
+deterministic programs playing a colour-swapped pair should split it exactly, so nearly every pair
+scores a dead tie and the variance comes from a small, roughly fixed number of pairs that differ. If
+the number of differing pairs does not grow with `n`, the sample variance falls as `1/n`, the sd as
+`1/sqrt(n)`, and ci95 as `1/n` — which is exactly the shape observed.
+
+**If that is right, the A/A does NOT model the near-parity variance of two DIFFERENT programs**, and
+the claim I made in the section above — *"0.250 is the number that matters for sizing"* — is not
+supported. Two similar-but-distinct programs disagree on many pairs, not a handful, so their variance
+structure is not this one. The A/A remains valid for what it was primarily for: the **bias** check,
+`mean_rate = 0.500`, which is unaffected by the variance anomaly.
+
+**Not resolved either way yet.** Row 3 (24 pairs) discriminates: `1/n` continuing predicts 0.0625,
+`1/sqrt(n)` from row 2 predicts 0.088. Until it lands, **no pair count should be chosen from this
+curve**, and the sizing question stays open exactly as this file has said throughout. The headline
+finding is untouched — it rests on 202 real gate decisions, 0 accepts, and a max rate of 0.542, none
+of which involve the A/A.
