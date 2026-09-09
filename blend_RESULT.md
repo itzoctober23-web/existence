@@ -191,3 +191,35 @@ correct and does not generalise, because the optimum is not at either end tested
 * `bh_085` vs `bh_100` — is 0.85 better than 1.00 head to head? (blend_h2h's third match, now running)
 * a second-seed 0.85 arm — `blend_seed2.sh` produced 0.75 and 1.00 only, so 0.85 needs one 20-generation
   run (~8 min at the measured 24 s/generation) plus one match. That is the replication that matters.
+
+## ⚠ The "depth-2 only" mechanism does NOT replicate — it reverses on the second seed
+
+`STATE.md:230` kills blend 1.00 with a specific mechanism: *"dead — advantage is depth-2 only (depth
+shift z = 4.4)"*. Direct 448-pair matches on the SECOND training seed give the opposite pattern:
+
+| seed | depth 2 | depth 4 (strength standard) |
+|---|---|---|
+| 20260907 (`bn_075` vs `bh_100`) | 1.00 wins — 0.450 ± 0.016, reproduced here at 0.461 ± 0.022 | **no advantage** — 0.511 ± 0.022 |
+| 424242 (`s2_075` vs `s2_100`) | **unresolved** — 0.502 ± 0.022 | **1.00 WINS** — 0.456 ± 0.024, clear of 0.5 |
+
+On seed 20260907 the advantage is depth-2-only. On seed 424242 it is depth-4-only. **The interaction
+that justified closing the candidate does not survive a second training seed.**
+
+### What this does and does not establish
+
+* It does **not** revive blend 1.00. One seed says it wins at depth 4, one says it does not; that is
+  a null across seeds, not a win.
+* It **does** refute the stated MECHANISM. "Advantage is depth-2 only, z = 4.4" was measured on one
+  training seed and reads as a property of the setting. It is not — it flips.
+* It is exactly what `STATE.md:247` predicts: effects of 0.02–0.05 need **~19 seeds** against a seed
+  spread of ~0.045. Every direct blend reading so far (+0.050, +0.039, +0.040, −0.044) sits inside
+  that band, and the signs have now pointed both ways on both depths.
+
+**The honest state of the blend axis: nothing about it is established at the strength standard.** Not
+that 1.00 is dead, not that 0.85 is better, not that the effect is depth-dependent. Four one-seed
+readings disagreeing is what a null with a wide seed band looks like. The z = 4.4 depth-shift figure
+should be read as within-seed only, and `STATE.md:230`'s parenthetical dropped or qualified.
+
+This also puts the new 0.85 finding in its place: **it is one seed, in the same band, and it should
+be believed exactly as much as the "depth-2 only" claim it sits beside** — which is to say, pending
+its replication, now running.

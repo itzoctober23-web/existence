@@ -227,7 +227,7 @@ killed it. That — not another hyperparameter — is where the remaining streng
 | capacity / width | closed — w64 does not beat w16 |
 | draw filter, horizon | closed |
 | datagen depth | closed — the effect was search PARITY (odd vs even), not depth |
-| blend 1.00 | **dead** — advantage is depth-2 only (depth shift z = 4.4) |
+| blend 1.00 | **dead** as a candidate (no cross-seed win) — but the *mechanism* "depth-2 only, z = 4.4" is **WITHDRAWN**: it reverses on seed 424242, where 1.00 wins at depth 4 (0.456 ± 0.024) and depth 2 is unresolved. See `blend_RESULT.md`. |
 | epochs | **3 is the OPTIMUM, tested both sides** — 2 loses (0.448 ± 0.022 @ d4), 10 does not win (0.485 ± 0.022 @ d4) |
 | `--gate-every 5` | no depth-4 gain (0.502 ± 0.022) |
 
