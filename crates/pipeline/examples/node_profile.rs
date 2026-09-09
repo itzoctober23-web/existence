@@ -126,11 +126,38 @@ fn main() {
         n
     });
 
+    // 5. THE SAME SHUFFLE WITHOUT THE DIVISION. Measurement only -- nothing in the engine changes.
+    //    Fisher-Yates needs a uniform index in [0, i]; the current code gets it with `rng % (i+1)`,
+    //    an integer division executed ~30 times per node. Lemire's multiply-shift computes the same
+    //    range reduction with a 64-bit multiply and a shift. It is still a uniform shuffle and still
+    //    denies the move-ordering prior; it simply draws a DIFFERENT permutation from a given seed,
+    //    which is why adopting it is a deliberate change with a determinism cost (FITNESS 10), not a
+    //    free win. This measures what that win would be worth before anyone spends it.
+    let sh_nodiv = best_of(reps, || {
+        let mut rng = 0x9E3779B97F4A7C15u64;
+        let mut buf: Vec<board::Move> = Vec::new();
+        let mut n = 0usize;
+        for l in &lists {
+            buf.clear();
+            buf.extend_from_slice(l);
+            for i in (1..buf.len()).rev() {
+                rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
+                let j = (((rng as u128) * (i as u128 + 1)) >> 64) as usize;
+                buf.swap(i, j);
+            }
+            std::hint::black_box(&buf);
+            n += 1;
+        }
+        n
+    });
+
     println!("  {:<26} {:>10}", "primitive", "ns/op");
     println!("  {:<26} {:>10.1}", "legal_moves()", mg);
     println!("  {:<26} {:>10.1}", "make + unmake (pair)", mu);
     println!("  {:<26} {:>10.1}", "eval", ev);
     println!("  {:<26} {:>10.1}", "shuffle + buffer copy", sh);
+    println!("  {:<26} {:>10.1}   <- measurement only, engine unchanged", "  same, modulo-free", sh_nodiv);
+    println!("  {:<26} {:>10.1} ns/node available", "  division cost", sh - sh_nodiv);
 
     // A node costs one legal_moves, one make/unmake as its parent's child, and -- at a leaf -- one
     // eval. Interior nodes skip the eval, so this brackets rather than pinpoints.

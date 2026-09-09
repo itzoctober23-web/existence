@@ -128,3 +128,31 @@ seeds would need re-baselining.
   for a Fisher-Yates over ~30 elements. The move lists are now hoisted out of the timed region. Same
   class as the eval-count equivalence check: an arm doing extra work reports a cost that is not its
   own, and the tell was a number that could not physically be right.
+
+### Quantified: the division in the shuffle is worth ~12% of node throughput
+
+Measured side by side in the same run, **engine unchanged**:
+
+| shuffle variant | ns/op |
+|---|---|
+| current, `rng % (i + 1)` | 247.0 |
+| modulo-free (Lemire multiply-shift) | **93.7** |
+| **difference** | **153.3 ns/node** |
+
+Against the 1256 ns/node `search_bench` measures at width 16, that is **~12.2% of all node time**,
+available from the cheapest change on the board. For scale, it is more than make/unmake costs in
+total (46 ns) and 59% of the entire eval.
+
+**Why it is not free, stated before anyone spends it.** Fisher-Yates needs a uniform index in
+`[0, i]`. Both forms give one; the multiply-shift simply draws a DIFFERENT permutation from the same
+seed. So it:
+* preserves the scientific point completely — it is still a uniform shuffle, so alpha-beta still gets
+  no undeclared move-ordering prior, which is what MASTER_PLAN's DISCOVERY list requires;
+* **breaks exact reproducibility from existing seeds.** FITNESS 10 requires a determinism check, and
+  every seed-baselined number in this tree would shift. That is a re-baselining cost, not a
+  correctness cost.
+
+So this is a real 12% with a known, bounded price — recorded here so the trade is made deliberately
+rather than discovered later. **Not adopted in this commit:** four time-boxed experiments are running
+against current seeds, and changing search semantics underneath them would invalidate results that
+are mid-flight.
