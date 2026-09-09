@@ -1314,7 +1314,43 @@ pairs the lower bound is 0.503. The direction is consistent across both readings
 Every one of these needs a **second training seed** before a default moves — a match seed re-rolls
 openings and nothing else. `blend_seed2` (running), then `ship_candidate` for the combination.
 
-## ⚠ UCT EXPLORATION: my hypothesis is REFUTED TWICE and the declared value 8 is the best tested
+## ✅ RESOLVED 2026-09-09 — the exploration term was INVERTED, and that explains the cost anomaly too
+
+The section below is kept as written because its reasoning was sound and its conclusion was wrong for
+a reason it could not see. Both refutations, and the anomaly it stopped on, have one cause.
+
+`uct_mcts` reads table slot 2 **twice**: as the scale inside the sqrt, and as the weight of
+`Mix(q, u, c) = (q*c + u*(16-c))/16` (interp/src/lib.rs:696). So raising K enlarges `u` while driving
+`u`'s coefficient `(16 - c)` to zero and then **negative**. Swept at budget 256 over 23 mate-in-one
+positions: 20/23 at c=1, 14/23 at c=16 where the coefficient is exactly 0 (pure greed), then 12/23,
+9/23 and **0/23** at c=24, 64 and 360000. Monotone, crossing the greedy baseline precisely where the
+coefficient vanishes.
+
+So "K = 2000 and K = 360000 are worse" was never a fact about exploration magnitude. At those values
+the program is **penalised for exploring**. Proof by substitution: selecting on `q + u` instead of
+`Mix`, at the SAME K = 360000, scores **23/23** instead of 0/23. `uct_mcts_sum` reaches 23/23 from
+K = 600 upward — and 600 is the net's declared eval scale, i.e. the "C = one eval unit" derivation
+this section records as REFUTED was right in form *and* magnitude, and was defeated by the blend it
+was fed through.
+
+**The cost anomaly resolves with the correct sign.** This section stops on: raising K costs 50x for
+the same playout count, when broader-and-shallower should be CHEAPER. But raising K did not broaden
+the tree — it inverted the term, so selection *avoids* unvisited children. A playout ends at the
+first unvisited node, so preferring visited children makes each descent go DEEPER before terminating.
+Deep narrow descents, not broad shallow ones. That predicts higher cost, which is what was measured.
+
+PRE-REGISTERED so the explanation is falsifiable rather than merely consistent: at K = 360000 the Mix
+encoding should cost substantially MORE than the sum encoding at the same K and the same playout
+count, since only the Mix form inverts. If their costs match, this explanation is wrong and the
+anomaly is still open.
+
+**Status:** MCTS is no longer PARTIAL. A faithful, solving UCT is +60 nodes from the 71-node seed
+(131 vs the Mix form's 132 — `Add` takes two children, `Mix` takes three), against PN's +104.
+`EXISTENCE_UCT_K` still defaults to 8, which remains correct for the Mix-form lineage seed.
+
+---
+
+## ⚠ SUPERSEDED — UCT EXPLORATION: my hypothesis is REFUTED TWICE and the declared value 8 is the best tested
 
 GRAMMAR 6 records MCTS as PARTIAL (20/23 forced mates) and attributes it to an exploration term that
 saturates. The arithmetic is real: at K = 8, `Div` truncates to 0 once a child passes ~40 visits, so
