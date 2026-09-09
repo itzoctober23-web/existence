@@ -2582,31 +2582,43 @@ dense reference.
 
 ## Running now (one job per core, no chains)
 
-**Kept current against `readlink /proc/PID/exe`**, which cannot self-match the way a cmdline pattern
-can. A stale "currently running" table is the same defect as a stale results table: it is what a
-reader plans around.
+**Kept current against `readlink /proc/PID/exe`**, and flag presence read from each process's own
+`environ` rather than assumed. A stale "currently running" table is the same defect as a stale results
+table: it is what a reader plans around.
 
-Three `evolve` arms now share **seed 1**, which isolates the two candidate P2 levers independently
-rather than confounding them:
+Three `evolve` arms share **seed 1**, isolating the two candidate P2 levers independently:
 
-| core | arm | surrogate filter | gate rule | isolates |
-|---|---|---|---|---|
-| 12 | STRICT control | strict (`> best_rate`) | strict | the baseline both others are read against |
-| 15 | VETO | strict (`> best_rate`) | `rate + ci95 >= 0.5` | the GATE's acceptance rule |
-| 14 | **SPEC_FILTER** | FITNESS 3 (`>= 0.9x`) | strict | the SURROGATE pre-filter, upstream of the gate |
+| core | arm | surrogate filter | gate rule | build | isolates |
+|---|---|---|---|---|---|
+| 12 | STRICT control | strict (`> best_rate`) | strict | `xt_sx` | the baseline the others are read against |
+| 15 | VETO | strict | `rate + ci95 >= 0.5` | `xt_wdl` | the GATE's acceptance rule |
+| 14 | **SPEC_FILTER** | FITNESS 3 (`>= 0.9x`) | strict | `xt_wdl` | the SURROGATE pre-filter, upstream of the gate |
 
 | core | job | question |
 |---|---|---|
-| 13 | `signal_rate` | of real mutants, what share give the gate NO signal — and is it MIRRORED (inert candidate) or ALL-DRAWN (indecisive match)? Cross-checks the 46.8% from the logs |
+| 13 | `signal_rate` | no-signal share on RAW mutants. **Mis-populated by design** — see caveat below |
 
-All three arms carry `EXISTENCE_GATE_VERIFY=96`, the only instrument here that measures a candidate's
-true strength rather than the 6-pair gate's view of it. Flag presence verified in each process's
-environment, not assumed: `SPEC_FILTER=1` on core 14, `0` on 12 and 15.
+All three carry `EXISTENCE_GATE_VERIFY=96`, the only instrument that measures a candidate's true
+strength rather than the 6-pair gate's view of it.
 
-**Stopped deliberately this turn.** `ci95_curve` — it was measuring `gate.rs`'s zero-variance fallback
-`1.5/n`, not the instrument, once the A/A proved degenerate. `pent_shape` after its decisive A/A row
-(`[0,0,24,0,0]`, 100% middle bucket): its remaining A/B arm asked whether a *different* program
-spreads, which `signal_rate` answers on the more relevant population of real mutants.
+**Why two arms were restarted.** Both were on builds predating `sexp.rs`, so their champions would
+have been unrecoverable the moment they exited — precisely the gap `sexp.rs` closed, and precisely what
+would have made the decisive champion-vs-champion match impossible again. The veto arm was restarted at
+11 of 25 generation-lines (2.4 h): expensive, but far cheaper than discovering it at 80%. Its partial
+log is preserved as `gate_veto_arm_xtvfy_partial.log`, including both VERIFY anchors (0.422, 0.430).
+
+**The control was deliberately NOT restarted.** It already writes `.sexp`; only W-D-L logging is
+missing, and it does not need it: the control and veto arms make the SAME gate calls until a divergent
+ACCEPT, because the rule changes what is accepted, not which games are played. So the veto arm's W-D-L
+lines describe the control's decisions too.
+
+**`signal_rate`'s caveat, recorded against my own probe.** It matches RAW mutants, while the 46.8%
+no-signal figure comes from candidates that passed evolve's type check AND its surrogate filter.
+Different populations, so it cannot cleanly confirm or refute that figure — it bounds the phenomenon on
+an unfiltered population and nothing more. The correct measurement is now built into `evolve` itself:
+the gate line logs W-D-L, so the REAL population self-reports MIRRORED (`draws == 0`, inert candidate,
+no pair count helps) versus ALL-DRAWN (`wins == losses == 0`, indecisive match, sample size never the
+issue).
 
 ## Open, partially answered
 
