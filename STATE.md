@@ -1404,6 +1404,45 @@ extension and table reduction ABOVE the seed, and depth-one and proof-number sea
 current one gets 1 of 6 right. A design is worth putting in the loop only after it passes that
 ordering test, and no loop time gets spent before it does.
 
+**Fixed-cost scoring was considered and RULED OUT on the mate set, with the reason.** The
+interpreter can enforce it — `cost_cap` is a real ceiling and exceeding it unwinds to `MOVE_NONE`,
+"which callers already treat as a forfeit" (`interp/src/lib.rs:514-518`) — so this was implementable.
+It still cannot work here. At a generous cap every rung finishes (they are only 1.1x-2.1x the seed's
+cost) and everything scores 25/25, so there is no discrimination at all; at a tight cap the expensive
+rungs simply forfeit and score LOWER. Either way the answer is the same, because **you cannot measure
+an improvement on a test the incumbent already aces**. The binding constraint is the SET, not the
+normalisation. Recorded so this is not re-derived as a fresh idea later.
+
+**Which leaves the tolerance, and the ladder sizes it precisely.** If the surrogate cannot rank the
+rungs, it should not be the thing that decides them — it should be a cheap pre-screen that rejects
+only clearly damaged candidates and lets the GAME GATE select, which is the half of GRAMMAR 9's
+criterion the ladder actually passes. The numbers give an exact requirement rather than a guess:
+
+```
+rung                          rate     tolerance needed to admit it
+table reduction (rung 7)     0.992x    0.008     (inside the current 0.020)
+hash reuse halves       0.991/0.997x    0.009     (inside)
+iterative deepening          0.914x    0.086     OUTSIDE -- needs ~4.3x the current EPS
+capture extension (rung 6)   0.340x    0.660     unreachable by tolerance
+```
+
+So EPS = 0.020 admits the conjunctive hash path and rung 7 and excludes iterative deepening, which is
+a genuine rung, by a factor of about four. Widening EPS to ~0.10 would admit ID.
+
+**Capture extension cannot be fixed by EPS and that is a separate finding.** At 0.340x no plausible
+rate tolerance reaches it, and the GUARD would exclude it anyway: it answers 18 of 25 against a guard
+tolerance of 4. Admitting the one program that scores on the hard set therefore requires changing the
+GUARD — the mates floor — not the rate band. Those are two different mechanisms and conflating them
+would produce a change that looks correct and does nothing, which is the failure mode that has
+already cost three inert features in this file.
+
+**PROPOSAL, not a claim, and not yet run.** Two independent knobs, each with a pre-registered check
+against the `valleyall` oracle before any loop time: (1) EPS 0.020 -> 0.10 should bring iterative
+deepening inside the band while leaving depth-one and PNS excluded by the guard; (2) a guard
+tolerance that admits capture extension must be justified separately, because loosening a mates floor
+is exactly how a cheap-and-wrong program gets in — `depth-one` sits at 992.711x and only the guard
+keeps it out.
+
 **Where EPS lands, for completeness.** With `EPS = 0.020` the tolerance band reaches 0.98, which
 covers the conjunctive path (0.991x, 0.997x) and table reduction (0.992x), but not iterative
 deepening (0.914x) and not capture extension (0.340x). So the plateau tolerance makes hash reuse
