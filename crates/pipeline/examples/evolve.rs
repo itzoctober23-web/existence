@@ -1692,6 +1692,34 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
 {rate:.6}  ABOVE:{above}  needed >{:.3}",
                              lineages[li].name, gsc.pent_rate(), gsc.ci95(), gsc.games(),
                              0.5 + gsc.ci95());
+                    // EXPLOIT CAPTURE. A candidate whose surrogate is orders above the incumbent
+                    // while its GAMES are far below parity is, by definition, a program that beats
+                    // the fitness function without playing better. Those are the only examples that
+                    // can test whether a REPLACEMENT surrogate is exploit-resistant.
+                    //
+                    // WHY THIS IS NEEDED, from a failure this file already recorded: the
+                    // `valleyall` oracle ranks nine HAND-WRITTEN reference programs, and a
+                    // guard-tolerance change that scored 4/6 on it produced a 1314x-rate exploit in
+                    // the loop within three generations. An offline ranking test over known-good
+                    // programs cannot validate a filter whose job is rejecting unknown-BAD ones,
+                    // and the reference set does not span the space mutation actually reaches.
+                    // Hand-written exploits are the ones we already thought of.
+                    //
+                    // Thresholds are deliberately loose (10x surrogate, sub-0.4 games) because the
+                    // cost of a false capture is one small file and the cost of a miss is losing a
+                    // machine-found counterexample that cannot be reconstructed.
+                    let ratio = rate / best_rate.max(1e-12);
+                    if ratio > 10.0 && gsc.pent_rate() < 0.4 {
+                        let _ = std::fs::write(
+                            format!("exploit_{}_gen{g}_{:.0}x.prog", lineages[li].name, ratio),
+                            format!("// CAPTURED EXPLOIT\n// surrogate {rate:.6} vs incumbent \
+{best_rate:.6} = {ratio:.1}x\n// games {:.3} +/- {:.3} over {} -- far below parity\n// {f} mates, \
+{} nodes, generation {g}, lineage {}\n{:#?}\n",
+                                    gsc.pent_rate(), gsc.ci95(), gsc.games(), c.size(),
+                                    lineages[li].name, c));
+                        println!("         ^ captured as an exploit: {ratio:.0}x surrogate, \
+{:.3} games", gsc.pent_rate());
+                    }
                     lineages[li].best_rate = rate;
                     continue;
                 }
