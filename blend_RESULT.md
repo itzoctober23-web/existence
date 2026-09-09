@@ -103,3 +103,31 @@ That has a second consequence, which is what makes the question answerable at ze
 the identical trajectory. It stands in for the arm that died. `blend_h2h.sh` now runs
 0.75 / 0.85 / 1.00 head-to-head at depth 4 — matched at 20 generations, judged on the strength
 standard rather than the saturating origin metric.
+
+### Depth 2 REPRODUCES on the same nets — so the depth-dependence is now testable, not inherited
+
+`bn_075.net` vs `bh_100.net`, 448 pairs, **depth 2**, fresh opening seed 777:
+
+```
+bn_075.net scores 0.461 +/- 0.022  (interval [0.439, 0.483])
+=> B is stronger, interval clear of 0.5
+```
+
+That is **+0.039 for blend 1.00**, against the **+0.050 ± 0.016** on record at depth 2 — consistent,
+and now confirmed on a different opening draw. The depth-2 half of the blend case is real and
+replicates.
+
+The whole question is therefore the one `STATE.md:277` raises: *"bh_100 is stronger at depth 2 and
+not at depth 4."* That claim was based on the depth-4 equal-time **origin control**, not a direct
+match, and the origin metric is 3.6× worse signal-to-noise than a direct match at equal games. So it
+has never been tested properly. Four cells now settle it, all direct matches, all 448 pairs:
+
+| | depth 2 | depth 4 (strength standard) |
+|---|---|---|
+| seed 20260907 (`bn_075` vs `bh_100`) | **0.461 ± 0.022 → 1.00 wins** | running |
+| seed 424242 (`s2_075` vs `s2_100`) | running | running |
+
+If 1.00 wins at depth 2 and loses at depth 4 **on both seeds**, the depth-dependence is reproduced
+and the blend candidate is a depth-2 artifact — the largest lever on the board would be closed by its
+own evidence. If it wins at depth 4 too, the shipped default of 0.75 is standing on a risk argument
+that the measurements contradict.
