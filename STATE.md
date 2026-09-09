@@ -226,7 +226,7 @@ killed it. That — not another hyperparameter — is where the remaining streng
 |---|---|
 | capacity / width | closed — w64 does not beat w16 |
 | draw filter, horizon | closed |
-| datagen depth | **REOPENED and REVERSED 2026-09-09.** At EQUAL GENERATIONS with parity held fixed, PARITY is a precise null (d1-vs-d2 0.512 ± 0.014, d3-vs-d4 0.506 ± 0.014, one seed) while DEPTH resolves in both classes (d1-vs-d3 0.450 ± 0.015, d2-vs-d4 0.379 ± 0.016). The odd-class cell replicates in direction on a second seed (0.474 ± 0.017). The parity claim was measured on the TARGET distribution (distill_gap) and does not reach trained strength. `depth2x2_RESULT.md` |
+| datagen depth | **REOPENED, REVERSED, and CROSS-SEED RESOLVED 2026-09-09.** At equal generations with parity held fixed: PARITY is a precise null (0.512 ± 0.014, 0.506 ± 0.014) while DEPTH resolves in both classes. The EVEN-class cell replicates on a second seed (0.379 ± 0.016 and 0.441 ± 0.015) and is resolved ACROSS seeds — mean effect 0.090, 95% CI [+0.031, +0.149] using the pooled between-seed sd. The odd-class cell replicates in direction only and remains unresolved. The old parity claim was measured on the TARGET distribution and does not reach trained strength. `depth2x2_RESULT.md` |
 | blend 1.00 | **dead** as a candidate (no cross-seed win) — but the *mechanism* "depth-2 only, z = 4.4" is **WITHDRAWN**: it reverses on seed 424242, where 1.00 wins at depth 4 (0.456 ± 0.024) and depth 2 is unresolved. See `blend_RESULT.md`. |
 | epochs | **3 is the OPTIMUM, tested both sides** — 2 loses (0.448 ± 0.022 @ d4), 10 does not win (0.485 ± 0.022 @ d4) |
 | `--gate-every 5` | no depth-4 gain (0.502 ± 0.022) |
