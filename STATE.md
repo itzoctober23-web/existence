@@ -2586,22 +2586,27 @@ dense reference.
 can. A stale "currently running" table is the same defect as a stale results table: it is what a
 reader plans around.
 
+Three `evolve` arms now share **seed 1**, which isolates the two candidate P2 levers independently
+rather than confounding them:
+
+| core | arm | surrogate filter | gate rule | isolates |
+|---|---|---|---|---|
+| 12 | STRICT control | strict (`> best_rate`) | strict | the baseline both others are read against |
+| 15 | VETO | strict (`> best_rate`) | `rate + ci95 >= 0.5` | the GATE's acceptance rule |
+| 14 | **SPEC_FILTER** | FITNESS 3 (`>= 0.9x`) | strict | the SURROGATE pre-filter, upstream of the gate |
+
 | core | job | question |
 |---|---|---|
-| 15 | `evolve` VETO arm (+VERIFY 96) | are the veto rule's ACCEPTs correct? 2 VERIFY lines, both confirming a REJECT (0.422, 0.430) |
-| 12 | `evolve` STRICT control (+VERIFY 96) | the paired control for the above — same seed 1, `EXISTENCE_GATE_VETO` unset |
-| 13 | `ci95_curve` | A/A half-width vs pair count. Rows 1-2 in; row 3 discriminates 1/n from 1/sqrt(n) |
-| 14 | `pent_shape` | is the A/A distribution DEGENERATE? Reads the raw pentanomial instead of curve-fitting |
+| 13 | `signal_rate` | of real mutants, what share give the gate NO signal — and is it MIRRORED (inert candidate) or ALL-DRAWN (indecisive match)? Cross-checks the 46.8% from the logs |
 
-**Why the control arm runs the NEWER binary than the veto arm.** The veto arm started before `sexp.rs`
-existed, so it will not write a `.sexp` champion and its champion is unrecoverable once it exits —
-exactly the gap `sexp.rs` was written to close. The control runs the post-`sexp` build so its champion
-survives. The two are still comparable: the only differences in that build are `PartialEq` derives, a
-new module, and three `fs::write` calls on the accept path. None touch the search or consume RNG, so
-the runs remain byte-comparable up to the divergence the pairing is meant to expose.
+All three arms carry `EXISTENCE_GATE_VERIFY=96`, the only instrument here that measures a candidate's
+true strength rather than the 6-pair gate's view of it. Flag presence verified in each process's
+environment, not assumed: `SPEC_FILTER=1` on core 14, `0` on 12 and 15.
 
-**The decisive champion-vs-champion match still needs one more veto run on the new binary.** That is
-the honest position: this control makes half of it recoverable, not all of it.
+**Stopped deliberately this turn.** `ci95_curve` — it was measuring `gate.rs`'s zero-variance fallback
+`1.5/n`, not the instrument, once the A/A proved degenerate. `pent_shape` after its decisive A/A row
+(`[0,0,24,0,0]`, 100% middle bucket): its remaining A/B arm asked whether a *different* program
+spreads, which `signal_rate` answers on the more relevant population of real mutants.
 
 ## Open, partially answered
 
