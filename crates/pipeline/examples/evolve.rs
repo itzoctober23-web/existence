@@ -1417,8 +1417,34 @@ fn main() {
                                         std::panic::AssertUnwindSafe(|| fitness(c, set, net, depth, bud)),
                                     );
                                     match r {
-                                        Ok((f, _cst, rate)) => {
+                                        Ok((f, cst, rate)) => {
                                             let (hf, _, _) = fitness(c, hard, net, depth, bud);
+                                            // EXISTENCE_HARD_FITNESS=1 folds the hard set into the
+                                            // surrogate. Default OFF, so nothing changes unless set.
+                                            //
+                                            // WHY THIS IS NOW JUSTIFIED. evolve.rs deferred it
+                                            // explicitly: "acceptance is NOT changed yet, because
+                                            // the claim 'a better-searching candidate can win
+                                            // these' is exactly the sort of thing that should be
+                                            // measured before a fitness is restructured around
+                                            // it", and the range check below says "if this never
+                                            // varies, the gradient does not exist".
+                                            //
+                                            // MEASURED across 39 lineage-generations in two runs:
+                                            // 20 of 39 (51%) contain a member scoring above zero,
+                                            // best 2/8, where the seed is 0/8 by construction. It
+                                            // varies. The precondition the code set is met.
+                                            //
+                                            // WHY IT MATTERS: mates are SATURATED at 25/25, so the
+                                            // surrogate can only improve via cost -- and 0 of 30
+                                            // identical-playing mutants are cheaper. Hence the max
+                                            // candidate rate is exactly 1.000x in all 39
+                                            // lineage-generations and never above. Folding in a
+                                            // dimension where the seed scores ZERO is the only way
+                                            // the surrogate can rise at all.
+                                            let rate = if std::env::var("EXISTENCE_HARD_FITNESS").is_ok() {
+                                                (f + hf) as f64 * 1e6 / cst.max(1) as f64
+                                            } else { rate };
                                             (c.clone(), f, rate, hf)
                                         }
                                         Err(_) => (c.clone(), 0, 0.0, 0),

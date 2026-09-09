@@ -42,6 +42,28 @@ block 5.
 scratch (0.479 ± 0.023), and 0 KEEPs in 8 blocks once `batch_base` was fixed. The batch gate is
 **correct now but not useful** — its resolution is coarser than the effects it is asked to judge.
 
+## IMPLEMENTED (default OFF): `EXISTENCE_HARD_FITNESS` folds the hard set into the surrogate
+
+The candidate loop already computes a hard-set score per candidate — `let (hf, _, _) = fitness(c,
+hard, net, depth, bud)` — and then discards it into a diagnostic. With the flag set, the surrogate
+becomes `(f + hf) * 1e6 / cost` instead of `f * 1e6 / cost`.
+
+**Why this is justified by the code's own criterion, not my judgement.** `evolve.rs:1207` deferred
+it — *"acceptance is NOT changed yet, because the claim 'a better-searching candidate can win these'
+is exactly the sort of thing that should be measured before a fitness is restructured around it"* —
+and line 1434 gives the test: *"If this never varies, the gradient does not exist."* Measured across
+39 lineage-generations: **it varies, 51% non-zero, best 2/8, seed 0/8.**
+
+**Why it should work mechanically:** mates are saturated at 25/25, so the surrogate can only rise
+via cost, and 0 of 30 mutants are cheaper — hence the max rate is exactly 1.000× in all 39
+lineage-generations and never above. A candidate solving one hard position scores 26/25 = **1.04×**,
+which clears both the tie and EPS.
+
+**UNVERIFIED.** The flagged run is going; the check is whether any generation reports a rate above
+1.000×, which has never once happened. If it does not, the change is inert and gets recorded as the
+fourth such today. If it does, the **game gate becomes the next binding constraint** — 6 pairs
+demanding ~60–69% — and that is a separate change needing separate evidence.
+
 ## 🔑 THE COMPLETE MECHANISM — and the precondition the code set is now MET
 
 **Why nothing is ever promoted, end to end:**
