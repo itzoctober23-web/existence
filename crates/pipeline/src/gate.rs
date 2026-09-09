@@ -172,6 +172,44 @@ pub fn match_progs(
     sc
 }
 
+/// As `match_progs`, but the openings are SUPPLIED rather than walked from the start position.
+///
+/// WHY THIS EXISTS. `match_progs` walks `open_plies` random moves from `startpos`, which is
+/// `docs/MASTER_PLAN.md:154`'s opening source #1. Measured on the real gate population, that produces
+/// **80.6% draws and zero wins in 36 games**: both sides evaluate with a random net, so neither can
+/// convert, and a balanced start gives them nothing to convert. MASTER_PLAN's remedy #2 is a
+/// self-generated unbalanced book -- start from positions that are ALREADY decided-ish, so a better
+/// program has an outcome to find without the evaluation having to supply one.
+///
+/// It is a SEPARATE function on purpose: `match_progs` is what every existing measurement in this
+/// tree was taken with, and changing its opening policy would silently invalidate all of them.
+///
+/// `openings` is cycled if it is shorter than `pairs`, so a small book still fills a long match --
+/// but pentanomial pairing then repeats positions, which inflates confidence. Supply at least
+/// `pairs` distinct openings for a real gate.
+pub fn match_progs_from(
+    a: &Program, b: &Program, net: &Net, tables: Vec<i64>, budget: i64, pairs: usize, seed: u64,
+    openings: &[Position], cost_per_move: u64,
+) -> Score {
+    let mut sc = Score::default();
+    assert!(!openings.is_empty(), "match_progs_from needs at least one opening");
+    for p in 0..pairs {
+        let opening = &openings[p % openings.len()];
+        let mut pair_half = 0usize;
+        for a_is_white in [true, false] {
+            let r = play_progs(a, b, net, &tables, budget, a_is_white, opening,
+                               seed ^ (p as u64) << 16, cost_per_move);
+            match r {
+                Some(true) => { sc.wins += 1; pair_half += 2; }
+                Some(false) => { sc.losses += 1; }
+                None => { sc.draws += 1; pair_half += 1; }
+            }
+        }
+        sc.pent[pair_half.min(4)] += 1;
+    }
+    sc
+}
+
 fn play_progs(
     a: &Program, b: &Program, net: &Net, tables: &[i64], budget: i64, a_is_white: bool,
     start: &Position, _seed: u64, cost_per_move: u64,
