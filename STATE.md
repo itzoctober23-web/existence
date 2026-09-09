@@ -350,6 +350,22 @@ gating accepted **nothing in twenty**. The loop is not blocked from learning; it
 *recognising* what it learned. `compound.sh` tests whether that banking compounds over 40
 generations, and larger `--gate-every` is the obvious next dial if it does.
 
+## Killed: `pd_d4` (depth-4 datagen from champion_long)
+
+**Its premise expired and I did not re-price it.** `plateau_depth.sh` asked whether a deeper teacher
+could move a champion that depth 2 could not. Depth 2 **can** move it — `b2_5` beat `champion_long`
+0.529 ± 0.015 at 960 pairs. I retracted the "learning failure" reading and left the experiment built
+on it running.
+
+The cost made that expensive: 30 minutes elapsed, still on **generation 1**. Depth-4 datagen at 2400
+games/gen is ~30 min per generation, so 20 generations is **~10 hours of a core** — spent on "is
+depth 4 better by enough to matter" while the two matches that decide whether anything ships were
+queued behind slower work.
+
+A marker was written into `pd_d4.log` before killing it, because `plateau_depth.sh`'s verdict block
+says a missing `pd_d4.net` **is** the tie branch. That reading does not apply: there is no result,
+only a stopped run. Logs are gitignored, so this note is the tracked record.
+
 ## Shipping candidates, with evidence strength stated per item
 
 All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an Elo number.
