@@ -2616,3 +2616,36 @@ match, on nets that will exist for free. Until then this shows the rule is the b
 not that relaxing it produces a stronger engine.
 
 The default remains unchanged.
+
+## 🔑 MASTER_PLAN's P2 KILL HAS FIRED — and the cause is not on its list
+
+MASTER_PLAN.md:277-282 sets P2's kill condition and prescribes the response:
+
+> "Kill: **no program improves on the seed** by eval ~1800 -> **grammar or fitness is wrong; fix
+> those**; invoke the declared fallback only after that."
+
+**The condition is met.** Across the two completed `mcts_ab` arms plus the control: **0 promotions in
+17 game-gate calls**, 0 accepts in 21 and 36 generations, and `search_track_WHY_NOTHING.md` records
+the same on a longer run. No program has improved on the seed.
+
+**But both prescribed causes measure HEALTHY, and the blocker is a third thing the clause does not
+name.**
+
+| plan's candidate cause | measured |
+|---|---|
+| **grammar is wrong** (cannot express improvements) | Healthy. Candidates are generated and behaviourally diverse — `distinct` runs 0 to **7** of 8 across the completed arms. The grammar expresses variety. |
+| **fitness is wrong** (no gradient to climb) | Healthy. The surrogate improves — the one promoted candidate scored 0.001848 against the incumbent's 0.001406, **+31%** — and the HARD set moves (`hard 0-1`, `hard 1-1`) where the seed scores 0/8 by construction. |
+| **the ACCEPTANCE RULE** (not on the plan's list) | **This is the blocker.** `evolve.rs` documents the gate as "a veto on unplayable programs" that "CANNOT resolve a 2% edge"; it implements `pent_rate - ci95 > 0.5`, which demands the candidate be resolved BETTER. At 6 pairs ci95 reaches 0.250, so promotion needs ~60-69% of pairs. Measured: **0/17 promotions under the implemented rule, 8/17 under the documented one**, with every genuinely-worse candidate rejected by both. |
+
+So the plan's remedy — fix the grammar or the fitness — would be work aimed at two things that are
+not broken. **The third cause is a one-line disagreement between a comment and the code**, and it is
+now demonstrated live: two arms identical up to generation 4, then the same candidate with the same
+surrogate and the same gate score is REJECTED by one rule and ACCEPTED by the other.
+
+**What is still not shown, and is running:** whether promoting ties produces a STRONGER engine or just
+a busier one. `EXISTENCE_GATE_VERIFY=96` re-matches every gate call at 16× the pairs so each decision
+can be judged after the fact. Until that lands, this establishes the constraint is the rule — not that
+relaxing it is an improvement. The default is unchanged.
+
+**Suggested amendment to the P2 kill clause:** add the promotion rule as a third named cause, ahead
+of grammar and fitness, because it is the cheapest to check and — measured here — the one that fired.
