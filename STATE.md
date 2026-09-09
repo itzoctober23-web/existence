@@ -323,7 +323,26 @@ clock). It is smaller than the ~0.07 between-run band, and it is now also known 
 comparison — see the parity section. A 2-seed replication with `--horizon-cap 45` is running, and
 `depth_parity.sh` (d2 vs d4) is what actually decides it. Epochs is a fifth candidate.
 
-### The depth lever is SEARCH PARITY, not depth
+### ⚠ AMENDED 2026-09-09 — parity is real in the TARGET, and does NOT reach trained strength
+
+`depth_2x2.sh` ran the 2x2 at EQUAL GENERATIONS (4 per arm, asserted) with `--horizon-cap 45`, judged
+head-to-head at depth 4:
+
+| contrast | holds fixed | result |
+|---|---|---|
+| d1 vs d3 | parity (ODD) | **0.450 ± 0.015** — d3 stronger, clear of 0.5 |
+| d2 vs d4 | parity (EVEN) | **0.379 ± 0.016** — d4 stronger, clear of 0.5 |
+| d1 vs d2 | depth (shallow) | **0.512 ± 0.014** — INDISTINGUISHABLE, and precisely so |
+
+The `distill_gap` measurement below is NOT refuted: crossing parity really does move the training
+target 2.6x. What is refuted is the inference from it to strength. **A 2.6x difference in the
+training signal produced 0.512 ± 0.014 in the trained net — nothing.** Depth, which barely moves the
+target within a parity class, is what moves strength, in both classes, both intervals clear of 0.5.
+
+So the heading below is wrong as a claim about STRENGTH and right as a claim about the TARGET. See
+`depth2x2_RESULT.md`. One seed so far; the deep parity cell is still running.
+
+### The depth lever is SEARCH PARITY, not depth (measured on the TARGET distribution)
 
 `distill_gap` measures `|tanh(root/scale) − tanh(eval/scale)|` — at blend 1 that is not a proxy for
 the training signal, it **is** the training signal. Across two odd/even pairs:
