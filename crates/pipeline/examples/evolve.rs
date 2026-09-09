@@ -915,7 +915,7 @@ fn exploit_check() {
     println!("  and the idea is dead.");
 }
 
-fn read_declared(path: &str) -> (usize, f64, i64, i64) {
+fn read_declared(path: &str) -> (usize, f64, i64, i64, u32) {
     let txt = std::fs::read_to_string(path).unwrap_or_else(|e| {
         panic!("declared parameters missing at {path}: {e}. This file is part of the Given \
                 column; running without it would silently substitute a default for a choice that \
@@ -925,6 +925,7 @@ fn read_declared(path: &str) -> (usize, f64, i64, i64) {
     let mut eps = None;
     let mut bmain = None;
     let mut bmcts = None;
+    let mut gtol = None;
     for line in txt.lines() {
         let line = line.split('#').next().unwrap_or("").trim();
         if line.is_empty() { continue; }
@@ -934,13 +935,15 @@ fn read_declared(path: &str) -> (usize, f64, i64, i64) {
             "eps" => eps = Some(v.trim().parse().unwrap_or_else(|e| panic!("eps does not parse: {e}"))),
             "budget_main" => bmain = Some(v.trim().parse().unwrap_or_else(|e| panic!("budget_main does not parse: {e}"))),
             "budget_mcts" => bmcts = Some(v.trim().parse().unwrap_or_else(|e| panic!("budget_mcts does not parse: {e}"))),
+            "guard_tolerance" => gtol = Some(v.trim().parse().unwrap_or_else(|e| panic!("guard_tolerance does not parse: {e}"))),
             _ => {}
         }
     }
     (mu.expect("configs/search_track.conf declares no `mu`"),
      eps.expect("configs/search_track.conf declares no `eps`"),
      bmain.expect("configs/search_track.conf declares no `budget_main`"),
-     bmcts.expect("configs/search_track.conf declares no `budget_mcts`"))
+     bmcts.expect("configs/search_track.conf declares no `budget_mcts`"),
+     gtol.expect("configs/search_track.conf declares no `guard_tolerance`"))
 }
 
 
@@ -1179,7 +1182,11 @@ fn main() {
     // 6 pairs = 12 games resolves a large effect, which is the only kind worth promoting here;
     // it CANNOT resolve a 2% edge and is not asked to. It is a veto on unplayable programs.
     let gate_pairs: usize = std::env::args().nth(7).and_then(|s| s.parse().ok()).unwrap_or(6);
-    let win = window_sensitive_set(n3, depth, &net, 8, 4_000);
+    // ALPHA-SENSITIVE, not window-sensitive. The window set varies INF (a symmetric window) while
+    // the exploit raises the initial ALPHA (asymmetric), so it caught that exploit only
+    // incidentally -- measured at 2 of 25 lost. The alpha-sensitive set is built from the
+    // transformation itself, moving it to 5, which is what makes a tolerance possible at all.
+    let win = alpha_sensitive_set(n3, depth, &net, 8, 4_000);
     // THE UNSATURATED DIMENSION, measured before anything is built on it. The seed is WRONG on
     // these by construction (the recorded answer is its own at depth+1), so unlike the 25/25 guard
     // set they can DISCRIMINATE. Scored and reported per generation; acceptance is NOT changed
@@ -1211,7 +1218,8 @@ fn main() {
     }
 
     // ---- DECLARED PARAMETERS FIRST: everything below depends on them.
-    let (mu, eps, budget_main, budget_mcts) = read_declared("configs/search_track.conf");
+    let (mu, eps, budget_main, budget_mcts, guard_tolerance) =
+        read_declared("configs/search_track.conf");
     let (MU, EPS) = (mu, eps);
 
     // ---- TWO LINEAGES, each with its own seed, budget and population.
@@ -1237,6 +1245,12 @@ fn main() {
         popn: Vec<(Program, u32, f64)>,
         champ: Program,
         best_found: u32,
+        /// ABSOLUTE guard floor for this lineage, anchored to its SEED's score. Not relative to
+        /// the current best: `f >= best_found - tolerance` lets the champion ratchet DOWN, since
+        /// every accept could lose another `tolerance` positions and after k accepts it would sit
+        /// k*tolerance below the seed with the guard decayed to nothing. Anchoring to the seed
+        /// caps total drift at `tolerance`, permanently.
+        guard_floor: u32,
         best_rate: f64,
         accepted: usize,
     }
@@ -1246,14 +1260,15 @@ fn main() {
         ("MCTS", reference::uct_mcts(), budget_mcts),
     ] {
         let (f, c, r) = fitness(&seed_prog, &set, &net, depth, bud);
-        println!("  lineage {name:<5} seed {:>3} nodes, budget {bud:<5} -> {f}/{} mates, {c} cost, \
-{r:.6} mates/Mcost", seed_prog.size(), set.len());
+        println!("  lineage {name:<5} seed {:>3} nodes, budget {bud:<5} -> {f}/{} mates (floor {}), {c} cost, \
+{r:.6} mates/Mcost", seed_prog.size(), set.len(), f.saturating_sub(guard_tolerance));
         lineages.push(Lineage {
             name,
             budget: bud,
             popn: vec![(seed_prog.clone(), f, r); MU],
             champ: seed_prog,
             best_found: f,
+            guard_floor: f.saturating_sub(guard_tolerance),
             best_rate: r,
             accepted: 0,
         });
@@ -1261,7 +1276,7 @@ fn main() {
     let (seed_hard, _, _) = fitness(&reference::bare_alpha_beta(), &hard, &net, depth, budget_main);
     println!("  HARD set: {} positions the seed FAILS by construction; seed scores {seed_hard}/{} \
 (a real gradient, unlike the saturated 25/25 guard set)", hard.len(), hard.len());
-    println!("  population MU={MU}, lambda={pop}, plateau tolerance EPS={EPS:.3} \
+    println!("  population MU={MU}, lambda={pop}, EPS={EPS:.3}, guard tolerance {guard_tolerance} \
 (deepest measured valley half is 0.009)");
 
     // RECORD panics, do not silence them. The first version of this hook discarded the message
@@ -1316,8 +1331,10 @@ fn main() {
             .collect();
 
         for li in 0..lineages.len() {
-            let (bud, best_found, best_rate) =
-                (lineages[li].budget, lineages[li].best_found, lineages[li].best_rate);
+            let (bud, best_found, best_rate, guard_floor) =
+                (lineages[li].budget, lineages[li].best_found, lineages[li].best_rate,
+                 lineages[li].guard_floor);
+            let _ = best_found;
             let popsnap = lineages[li].popn.clone();
 
             // MUTATE OR CROSS, then evaluate in parallel. One in four proposals is a crossover:
@@ -1402,15 +1419,15 @@ fn main() {
             // varies, the gradient does not exist and restructuring acceptance around it would
             // have achieved nothing -- which is why it is measured first.
             let hard_scores: Vec<u32> =
-                scored.iter().filter(|(_, f, _, _)| *f >= best_found).map(|(_, _, _, h)| *h).collect();
+                scored.iter().filter(|(_, f, _, _)| *f >= guard_floor).map(|(_, _, _, h)| *h).collect();
             let (hlo, hhi) = (hard_scores.iter().min().copied().unwrap_or(0),
                               hard_scores.iter().max().copied().unwrap_or(0));
             let scored: Vec<(Program, u32, f64)> =
                 scored.into_iter().map(|(p, f, r, _)| (p, f, r)).collect();
-            let mate_ok = scored.iter().filter(|(_, f, _)| *f >= best_found).count();
+            let mate_ok = scored.iter().filter(|(_, f, _)| *f >= guard_floor).count();
             let rel: Vec<f64> = scored
                 .iter()
-                .filter(|(_, f, _)| *f >= best_found)
+                .filter(|(_, f, _)| *f >= guard_floor)
                 .map(|(_, _, r)| r / best_rate.max(1e-12))
                 .collect();
             let (rlo, rhi) = rel.iter().fold((f64::MAX, 0.0f64), |(a, b), x| (a.min(*x), b.max(*x)));
