@@ -222,3 +222,35 @@ method puts at [−0.021, +0.097] — contains zero. Two cells, same experiment,
 survives. That is what an honest power boundary looks like rather than a uniform verdict.
 
 Remaining: both parity cells on seed 987654, which test whether the precise nulls replicate.
+
+## ⚠ CORRECTED — "parity is a precise null" does NOT replicate
+
+Seed 987654's parity-at-shallow cell resolves where seed 424242's did not:
+
+| seed | d1 (odd) vs d2 (even) | reading |
+|---|---|---|
+| 424242 | 0.512 ± 0.014 | odd ahead by +0.012 — called a PRECISE NULL |
+| **987654** | **0.554 ± 0.014** | **odd ahead by +0.054 — RESOLVED, clear of 0.5** |
+
+The between-seed movement is **0.042 against a pooled sd of 0.042** — entirely ordinary seed noise.
+And this file's own caveat, written when the first cell landed, said exactly this would happen:
+*"between-seed movement of ~0.047 means a second seed could read 0.46 or 0.55 without contradicting
+anything. A precise null on one seed is not a demonstrated absence."* It read 0.554.
+
+**The corrected statement.** Cross-seed, parity is mean +0.033 with 95% CI **[−0.025, +0.091]** —
+contains zero, ~13 seeds needed. But **both seeds point the same way** (odd ahead). So parity is
+**small, unresolved, and directionally favouring odd** — it is NOT a demonstrated absence, and I
+should not have written it as one on a single seed however tight ±0.014 looked.
+
+**What this does and does not disturb.**
+* The DEPTH result is untouched and is the stronger claim: d2-vs-d4 replicates and is cross-seed
+  resolved at [+0.031, +0.149], and d1-vs-d3 replicates in direction. Depth ≫ parity remains the
+  finding — the even-class depth effect (0.090) is nearly 3× the parity effect (0.033).
+* What is withdrawn is the sharper phrasing "parity is a precise null", and with it the neatness of
+  the original 2×2 story. The measured picture is messier: depth is real and large, parity is real
+  and small, and one seed could not tell the second from zero.
+* `STATE.md`'s settled row and session summary both said "PARITY is a precise null". Both corrected.
+
+**The tightness of ±0.014 is what made this seductive**, and it is worth naming: a narrow interval
+bounds the effect AT THAT SEED and says nothing about the next one. `netmatch` now prints the
+seeds-needed figure precisely so this stops being a judgement call.

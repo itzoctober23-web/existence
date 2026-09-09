@@ -6,8 +6,8 @@ Six things moved. Two REVERSE entries that were in the settled block, so read th
 anything below.
 
 1. **Datagen depth: REVERSED and cross-seed resolved.** The settled row said "closed — the effect was
-   search PARITY, not depth". At EQUAL GENERATIONS with parity held fixed, parity is a precise null
-   (0.512 ± 0.014, 0.506 ± 0.014) and DEPTH resolves in both classes. The even-class cell replicates
+   search PARITY, not depth". At EQUAL GENERATIONS with parity held fixed, parity is SMALL and UNRESOLVED
+   cross-seed (0.512 then 0.554, mean +0.033, CI [−0.025, +0.091]) and DEPTH resolves in both classes. The even-class cell replicates
    on a second seed and is resolved ACROSS seeds: mean effect 0.090, 95% CI **[+0.031, +0.149]**. The
    old parity claim was measured on the TARGET distribution (`distill_gap`) and does not reach
    trained strength. → `depth2x2_RESULT.md`
@@ -266,7 +266,7 @@ killed it. That — not another hyperparameter — is where the remaining streng
 |---|---|
 | capacity / width | closed — w64 does not beat w16 |
 | draw filter, horizon | closed |
-| datagen depth | **REOPENED, REVERSED, and CROSS-SEED RESOLVED 2026-09-09.** At equal generations with parity held fixed: PARITY is a precise null (0.512 ± 0.014, 0.506 ± 0.014) while DEPTH resolves in both classes. The EVEN-class cell replicates on a second seed (0.379 ± 0.016 and 0.441 ± 0.015) and is resolved ACROSS seeds — mean effect 0.090, 95% CI [+0.031, +0.149] using the pooled between-seed sd. The odd-class cell replicates in direction only and remains unresolved. The old parity claim was measured on the TARGET distribution and does not reach trained strength. `depth2x2_RESULT.md` |
+| datagen depth | **REOPENED, REVERSED, and CROSS-SEED RESOLVED 2026-09-09.** At equal generations with parity held fixed: PARITY is SMALL and UNRESOLVED cross-seed (0.512 ± 0.014 then 0.554 ± 0.014 on a second seed; mean +0.033, CI [−0.025, +0.091], both favouring odd) while DEPTH resolves in both classes. The EVEN-class cell replicates on a second seed (0.379 ± 0.016 and 0.441 ± 0.015) and is resolved ACROSS seeds — mean effect 0.090, 95% CI [+0.031, +0.149] using the pooled between-seed sd. The odd-class cell replicates in direction only and remains unresolved. The old parity claim was measured on the TARGET distribution and does not reach trained strength. `depth2x2_RESULT.md` |
 | blend 1.00 | **dead** as a candidate (no cross-seed win) — but the *mechanism* "depth-2 only, z = 4.4" is **WITHDRAWN**: it reverses on seed 424242, where 1.00 wins at depth 4 (0.456 ± 0.024) and depth 2 is unresolved. See `blend_RESULT.md`. |
 | epochs | **3 is the OPTIMUM, tested both sides** — 2 loses (0.448 ± 0.022 @ d4), 10 does not win (0.485 ± 0.022 @ d4) |
 | `--gate-every 5` | no depth-4 gain (0.502 ± 0.022) |
@@ -520,7 +520,7 @@ by strength: d4, d3, d1, d2. **Spearman ρ = +1.000, 6/6 pairs concordant.**
 Deliberately NOT pooled into the n=6 above: different arm length, different instrument, and pooling
 incomparable arms manufactures verdicts. And n=4 makes perfect concordance p=1/24 one-tailed — the
 between-group split {d3,d4} > {d1,d2} is the load-bearing part, since both within-group matches are
-precise nulls. See `depth2x2_RESULT.md`.
+precise nulls **on seed 424242 only — CORRECTED: the shallow parity cell reads 0.554 ± 0.014 on seed 987654, so parity is small and UNRESOLVED cross-seed (mean +0.033, CI [−0.025, +0.091]), not a demonstrated absence**. See `depth2x2_RESULT.md`.
 
 The CI still includes zero, so it is NOT established, and there is a visible counterexample: the
 strongest arm on the board (`wd_r2`, 0.967) has FEWER decisive games than a weaker one (1124 vs
