@@ -2763,3 +2763,26 @@ where 24% is larger than any single optimisation measured today.
 
 **Still not shown:** whether the veto rule's other promotions are also speedups, or whether some
 change play. The 96-pair verification observer answers that per decision and is running.
+
+### First VERIFIED gate decision: the reject was correct, and the observer is more precise than designed
+
+```
+gen 3 MAIN  VERIFY 0.422+/-0.027 (96 pairs, independent seed)
+gen 3 MAIN  gate REJECT 0.333+/-0.163 (12 games)  surrogate 0.002924  ABOVE:2  needed >0.337
+```
+
+* **The rejection was right.** The 6-pair gate could not resolve it (0.333 ± 0.163, interval reaching
+  0.496), but the 96-pair verification on an independent seed puts the candidate at 0.422 ± 0.027,
+  interval [0.395, 0.449] — **genuinely worse**, clear of 0.5. Both rules reject it, and the
+  verification says they were correct to. The veto rule is not admitting garbage.
+* **The printed bar reads `needed >0.337`**, which is the VETO threshold (0.5 − ci95). The
+  un-instrumented binary printed the resolved-up bar (0.663) regardless of the active rule. That was
+  the log-versus-code defect fixed earlier today, and this is it working.
+* **The observer is more precise than designed.** At 96 pairs with the 0.2362 pair-sd used for net
+  gates, ci95 would be 0.047; the actual is **0.027**. Program-vs-program matches have lower variance
+  than net-vs-net ones, so 96 pairs buys more resolution than the design assumed — and a cheaper
+  observer would have done. Worth knowing before anyone raises the pair count.
+
+What this does NOT yet answer is the question the observer exists for: whether the veto rule's
+ACCEPTS are correct. This decision was a reject, agreed by both rules. The first divergence is at
+generation 4.
