@@ -1418,7 +1418,7 @@ fn main() {
                                     );
                                     match r {
                                         Ok((f, cst, rate)) => {
-                                            let (hf, _, _) = fitness(c, hard, net, depth, bud);
+                                            let (hf, hcst, _) = fitness(c, hard, net, depth, bud);
                                             // EXISTENCE_HARD_FITNESS=1 folds the hard set into the
                                             // surrogate. Default OFF, so nothing changes unless set.
                                             //
@@ -1442,8 +1442,15 @@ fn main() {
                                             // lineage-generations and never above. Folding in a
                                             // dimension where the seed scores ZERO is the only way
                                             // the surrogate can rise at all.
+                                            // COST INCLUDES BOTH SETS. Pairing (f + hf) with the
+                                            // guard set's cost alone would count the hard-set
+                                            // solves in the numerator while charging nothing for
+                                            // the work that produced them -- and the cost term is
+                                            // the only thing stopping program bloat. A candidate
+                                            // that wins hard positions by searching enormously
+                                            // must pay for it.
                                             let rate = if std::env::var("EXISTENCE_HARD_FITNESS").is_ok() {
-                                                (f + hf) as f64 * 1e6 / cst.max(1) as f64
+                                                (f + hf) as f64 * 1e6 / cst.saturating_add(hcst).max(1) as f64
                                             } else { rate };
                                             (c.clone(), f, rate, hf)
                                         }
