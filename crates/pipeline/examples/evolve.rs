@@ -129,9 +129,9 @@ fn disagreement_set(n: usize, depth: i64, net: &Net, cap: usize)
             p.make_move(l.as_slice()[(rng % l.len() as u64) as usize]);
         }
         if p.legal_moves().is_empty() { continue; }
-        let mut shallow = Interp::new(net, vec![depth - 1, 32_000, 8]);
+        let mut shallow = Interp::new(net, vec![depth - 1, 32_000, interp::UCT_EXPLORATION]);
         let a = shallow.run(&ab, &p, 16);
-        let mut deep = Interp::new(net, vec![depth, 32_000, 8]);
+        let mut deep = Interp::new(net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
         let b = deep.run(&ab, &p, 16);
         // Both must be real answers, and they must differ: that is the whole criterion.
         if a != board::types::MOVE_NONE && b != board::types::MOVE_NONE && a != b {
@@ -178,7 +178,7 @@ fn window_sensitive_set(n: usize, depth: i64, net: &Net, narrow: i64, cap: usize
             p.make_move(l.as_slice()[(rng % l.len() as u64) as usize]);
         }
         if p.legal_moves().is_empty() { continue; }
-        let mut full = Interp::new(net, vec![depth, 32_000, 8]);
+        let mut full = Interp::new(net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
         let a = full.run(&ab, &p, 16);
         let mut tight = Interp::new(net, vec![depth, narrow, 8]);
         let b = tight.run(&ab, &p, 16);
@@ -210,7 +210,7 @@ fn window_sensitive_set(n: usize, depth: i64, net: &Net, narrow: i64, cap: usize
 fn fitness(prog: &Program, set: &[(Position, Option<board::Move>)], net: &Net, depth: i64,
            budget: i64)
     -> (u32, u64, f64) {
-    let mut it = Interp::new(net, vec![depth, 32_000, 8]);
+    let mut it = Interp::new(net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
     let (mut found, mut cost) = (0u32, 0u64);
     for (p, forcing) in set {
         // BUDGET IS PER LINEAGE. Alpha-beta ignores it and recurses on the depth table; UCT
@@ -301,7 +301,7 @@ fn mcts_budget() {
     // budget 256 fell from 0.858x to 0.413x of alpha-beta's cost, so the value that justified
     // budget_mcts = 256 no longer holds and the parity point has to be re-found, not interpolated.
     for b in [16i64, 64, 256, 512, 1024, 2048, 4096] {
-        let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+        let mut it = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
         let (mut found, mut cost) = (0u32, 0u64);
         for (p, forcing) in &set {
             let mv = it.run(&mcts, p, b);
@@ -467,13 +467,13 @@ fn move_agree() {
     let cap: u64 = 50_000_000_000;
     let seed = reference::bare_alpha_beta();
     let seed_moves: Vec<board::Move> = set.iter().map(|p| {
-        let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+        let mut it = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
         it.cost_cap = cap;
         it.run(&seed, p, 16)
     }).collect();
 
     let seed_cost: u64 = set.iter().map(|p| {
-        let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+        let mut it = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
         it.cost_cap = cap;
         it.run(&seed, p, 16);
         it.cost
@@ -492,7 +492,7 @@ fn move_agree() {
         // transposition-table soundness bug that the value check then could not reproduce.
         let (mut agree, mut none) = (0usize, 0usize);
         for (p, sm) in set.iter().zip(&seed_moves) {
-            let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+            let mut it = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
             it.cost_cap = cap;
             let mv = it.run(&prog, p, bud);
             if mv == board::types::MOVE_NONE { none += 1; }
@@ -511,7 +511,7 @@ fn move_agree() {
         // extensions.
         let (mut ev, mut cost) = (0u64, 0u64);
         for p in &set {
-            let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+            let mut it = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
             it.cost_cap = cap;
             it.run(&prog, p, bud);
             ev += it.evals;
@@ -593,9 +593,9 @@ fn tt_value() {
     println!("=== TT value check: {n} positions at depth {depth} ===");
     let (mut diffs, mut value_diffs) = (0usize, 0usize);
     for p in &set {
-        let mut ia = Interp::new(&net, vec![depth, 32_000, 8]);
+        let mut ia = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
         let ma = ia.run(&seed, p, 16);
-        let mut ib = Interp::new(&net, vec![depth, 32_000, 8]);
+        let mut ib = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
         let mb = ib.run(&hash, p, 16);
         if ma == mb || ma == board::types::MOVE_NONE || mb == board::types::MOVE_NONE { continue; }
         diffs += 1;
@@ -659,7 +659,7 @@ fn ref_match() {
     // not play. The count is printed and the verdict is void if it is non-zero.
     let cap: u64 = std::env::args().nth(5).and_then(|s| s.parse().ok()).unwrap_or(5_000_000_000);
     gate::FORFEITS.store(0, std::sync::atomic::Ordering::Relaxed);
-    let sc = gate::match_progs(&chall, &seed, &net, vec![depth, 32_000, 8], 16, pairs,
+    let sc = gate::match_progs(&chall, &seed, &net, vec![depth, 32_000, interp::UCT_EXPLORATION], 16, pairs,
                                0x9E2D_1A77, 4, cap);
     let forfeits = gate::FORFEITS.load(std::sync::atomic::Ordering::Relaxed);
     println!("\n  {}W-{}D-{}L   rate {:.3} +/- {:.3}", sc.wins, sc.draws, sc.losses,
@@ -720,7 +720,7 @@ fn step_diff() {
         if !p.legal_moves().is_empty() { set.push(p); }
     }
     let base: Vec<board::Move> = set.iter().map(|p| {
-        let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+        let mut it = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
         it.cost_cap = 20_000_000_000;
         it.run(&seed, p, 16)
     }).collect();
@@ -759,7 +759,7 @@ fn step_diff() {
         let mut same = true;
         let mut ok = true;
         for (p, b) in set.iter().zip(&base) {
-            let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+            let mut it = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
             it.cost_cap = 20_000_000_000;
             let mv = it.run(&cand, p, 16);
             if mv == board::types::MOVE_NONE { ok = false; break; }
@@ -1019,9 +1019,9 @@ fn harder_set(n: usize, depth: i64, net: &Net, cap: usize)
             p.make_move(l.as_slice()[(rng % l.len() as u64) as usize]);
         }
         if p.legal_moves().is_empty() { continue; }
-        let mut here = Interp::new(net, vec![depth, 32_000, 8]);
+        let mut here = Interp::new(net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
         let a = here.run(&ab, &p, 16);
-        let mut deeper = Interp::new(net, vec![depth + 1, 32_000, 8]);
+        let mut deeper = Interp::new(net, vec![depth + 1, 32_000, interp::UCT_EXPLORATION]);
         let b = deeper.run(&ab, &p, 16);
         // Both real answers, and they must DIFFER: the deeper one is recorded as correct, so the
         // seed at the fitness depth scores zero here.
@@ -1096,9 +1096,9 @@ fn alpha_sensitive_set(n: usize, depth: i64, net: &Net, raised: i8, cap: usize)
             p.make_move(l.as_slice()[(rng % l.len() as u64) as usize]);
         }
         if p.legal_moves().is_empty() { continue; }
-        let mut a_it = Interp::new(net, vec![depth, 32_000, 8]);
+        let mut a_it = Interp::new(net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
         let a = a_it.run(&ab, &p, 16);
-        let mut b_it = Interp::new(net, vec![depth, 32_000, 8]);
+        let mut b_it = Interp::new(net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
         let b = b_it.run(&hi, &p, 16);
         if a != board::types::MOVE_NONE && a != b {
             out.push((p.clone(), Some(a)));
@@ -1642,8 +1642,8 @@ fn main() {
                 // It is still not proof, and the honest bound is: identical on 33 positions chosen
                 // to be maximally sensitive to depth, window and mate behaviour.
                 let same_play = {
-                    let mut ic = Interp::new(&net, vec![depth, 32_000, 8]);
-                    let mut ih = Interp::new(&net, vec![depth, 32_000, 8]);
+                    let mut ic = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
+                    let mut ih = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
                     set.iter().chain(hard.iter()).all(|(p, _)| {
                         ic.run(&c, p, bud) == ih.run(&lineages[li].champ, p, bud)
                     })
@@ -1669,7 +1669,7 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                 // to play 200 plies against another program.
                 let gsc = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     gate::match_progs(&c, &lineages[li].champ, &net,
-                                      vec![depth, 32_000, 8], bud, gate_pairs,
+                                      vec![depth, 32_000, interp::UCT_EXPLORATION], bud, gate_pairs,
                                       0xC0FFEE ^ g as u64 ^ (li as u64) << 8, 4,
                                       COST_PER_MOVE)
                 })) {

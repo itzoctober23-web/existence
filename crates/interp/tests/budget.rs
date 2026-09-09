@@ -55,7 +55,7 @@ fn v_p() -> Node { Node::Var("p".into()) }
 fn a_runaway_program_is_stopped_by_its_budget() {
     let net = Net::random(32, 1);
     let pos = Position::startpos();
-    let mut it = Interp::new(&net, vec![2, 32_000, 8]);
+    let mut it = Interp::new(&net, vec![2, 32_000, interp::UCT_EXPLORATION]);
     let budget = 50_000u64;
     it.cost_cap = budget;
     let mv = it.run(&runaway(), &pos, 1 << 20);
@@ -72,7 +72,7 @@ fn the_seed_finishes_inside_a_reasonable_budget() {
     // candidate look like a runaway and the search would accept nothing.
     let net = Net::random(32, 1);
     let pos = Position::startpos();
-    let mut it = Interp::new(&net, vec![2, 32_000, 8]);
+    let mut it = Interp::new(&net, vec![2, 32_000, interp::UCT_EXPLORATION]);
     it.cost_cap = 2_000_000_000;
     let mv = it.run(&reference::bare_alpha_beta(), &pos, 1 << 20);
     assert!(!it.over_budget, "the seed ran out of budget at 50M units (cost {})", it.cost);

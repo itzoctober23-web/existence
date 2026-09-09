@@ -101,7 +101,7 @@ fn mate_in_two_set(n: usize, cap: usize) -> Vec<(Position, board::Move)> {
 }
 
 fn score(prog: &grammar::Program, set: &[Position], net: &Net, d: i64) -> (u32, u64, f64) {
-    let mut it = Interp::new(net, vec![d, 32_000, 8]);
+    let mut it = Interp::new(net, vec![d, 32_000, interp::UCT_EXPLORATION]);
     let (mut found, mut cost) = (0u32, 0u64);
     for p in set {
         let mv = it.run(prog, p, 16);
@@ -120,7 +120,7 @@ fn score(prog: &grammar::Program, set: &[Position], net: &Net, d: i64) -> (u32, 
 /// Credit the program for playing THE forcing move, not for mating on this ply.
 fn score_forcing(prog: &grammar::Program, set: &[(Position, board::Move)], net: &Net, d: i64)
     -> (u32, u64, f64) {
-    let mut it = Interp::new(net, vec![d, 32_000, 8]);
+    let mut it = Interp::new(net, vec![d, 32_000, interp::UCT_EXPLORATION]);
     let (mut found, mut cost) = (0u32, 0u64);
     for (p, best) in set {
         let mv = it.run(prog, p, 16);

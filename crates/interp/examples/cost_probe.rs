@@ -56,7 +56,7 @@ fn main() {
         println!("\n  --- {name} ---");
         let mut prev: f64 = 0.0;
         for d in 1..=maxd {
-            let mut it = Interp::new(&net, vec![d, 32_000, 8]);
+            let mut it = Interp::new(&net, vec![d, 32_000, interp::UCT_EXPLORATION]);
             let (mut ev, mut cost) = (0u64, 0u64);
             for p in &set {
                 it.run(&prog, p, 16);
@@ -75,7 +75,7 @@ fn main() {
     }
     let mut prev: f64 = 0.0;
     for d in 0..0 {
-        let mut it = Interp::new(&net, vec![d, 32_000, 8]);
+        let mut it = Interp::new(&net, vec![d, 32_000, interp::UCT_EXPLORATION]);
         let (mut ev, mut cost) = (0u64, 0u64);
         for p in &set {
             it.run(&ab, p, 16);

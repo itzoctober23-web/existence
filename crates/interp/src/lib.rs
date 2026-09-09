@@ -443,6 +443,31 @@ pub struct Interp<'a> {
 /// GRAMMAR 8: "Hard runtime ceilings: recursion depth 128."
 pub const MAX_CALL_DEPTH: u32 = 128;
 
+/// UCT exploration weight -- table slot 2, read by `uct_mcts` as `TRead(2)`.
+///
+/// DERIVED FROM THE INTERPRETER'S ARITHMETIC, not tuned. The term is
+/// `u = Sqrt(Div(Mul(Log(visits(parent)), K), visits(child) + 1))`, which is
+/// `sqrt(K) * sqrt(ln N / (n+1))`, so **sqrt(K) IS the UCT exploration constant C**.
+///
+/// Two requirements fix it:
+///  1. `Div` truncates, so `u` collapses to 0 once `n + 1 > Log(N) * K` -- permanently, for that
+///     child. At the previous K = 8 that cliff sits at 40 visits (budget 256, Log = 5) through 64
+///     visits (budget 4096, Log = 8), all far BELOW the reachable visit counts, so exploration
+///     switched off partway through every run. That is measurable and was measured: mates rise to
+///     13 at budget 1024 and then FALL to 12 and 11 at 2048 and 4096. More playouts made UCT worse.
+///  2. `u` must be commensurable with `q`, which is in eval units. The net's declared scale is 600,
+///     so C = 600 -- one eval unit -- gives K = 360_000. Standard UCT uses C ~ 1.4 against values
+///     in [0,1], i.e. exploration EXCEEDS the value range early and decays; this reproduces that
+///     shape in eval units.
+///
+/// At K = 360_000 the collapse point moves to ~1.8M visits, unreachable at any budget here, and the
+/// term decays smoothly: 1341, 948, 404, 209, 133, 42, 21 at 0/1/10/40/100/1000/4000 visits.
+///
+/// It is a CONSTANT AND NOT A LITERAL because the value was previously written out at ~20 call
+/// sites as `8` and at four more in `reference_audit.rs` as `1`. The audit that certified these
+/// reference programs therefore ran UCT with a different exploration weight than the loop does.
+pub const UCT_EXPLORATION: i64 = 360_000;
+
 type Env<'p> = Vec<(&'p str, Value)>;
 
 impl<'a> Interp<'a> {
