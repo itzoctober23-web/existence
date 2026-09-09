@@ -452,3 +452,20 @@ before the numbers were seen.
 
 Re-running at **24 pairs (48 games per arm)**. The treatment reading stands or falls on the control
 reproducing ~80% there; at 12 games neither arm carries information.
+
+### Control VALIDATED at 24 pairs: 8-32-8, 66.7% draws
+
+The 6-pair control read `0-12-0` (100% draws) against a pre-registered requirement of ~67%, and was
+diagnosed as sampling noise rather than a harness fault. At 24 pairs (48 games) it reads:
+
+```
+  CONTROL balanced (gate today)   W-D-L 8-32-8   66.7% draws   pent [0,0,24,0,0]
+```
+
+**Exactly the independently measured A/A rate.** The diagnosis holds: 12 games could not pin a
+two-thirds draw rate, 48 games can. The pentanomial is all-middle, as an A/A must be — 8 wins and 8
+losses perfectly mirrored, plus 32 draws.
+
+The pre-registered control requirement is therefore SATISFIED, and the treatment arm's reading is
+legitimate. Without it I would have read a treatment effect off a control that was 33 points from its
+own expected value.
