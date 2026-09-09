@@ -489,6 +489,26 @@ than the 0.0059 the first 5 gates gave. **The gains are front-loaded and then st
 `compound.sh` was queued to test — and it now has a partial answer before it even starts: within
 this run, batching bought two steps and then stalled.
 
+## HINT (not a finding): the blend ordering may REVERSE at depth 4
+
+Depth-4 pool, via the common opponent `champion_long`:
+
+| | depth 2 | depth 4 |
+|---|---|---|
+| bn_075 (blend 0.75) scores | 0.421 | **0.413** |
+| bh_100 (blend 1.00) scores | **0.458** | 0.382 |
+| ahead | blend 1.00 by 0.037 | blend 0.75 by 0.031 |
+| resolved? | **yes** (448 pairs, diff ci95 0.031) | **no** (112 pairs, diff ci95 0.062) |
+
+**Explicitly not claimed.** The depth-4 rows are underpowered — a 0.031 gap against a 0.062
+difference interval. Reading a reversal off two underpowered matches is the error that produced
+three retractions today. The direct 448-pair `bn_075 vs bh_100` match is running to settle it.
+
+**If it confirms, two things follow:** the shipped default of blend 0.75 is *right* at the depth that
+counts, ending my downgrade-then-partial-rehabilitation of blend 1.00 as a refutation; and `sc_c`,
+which beats the shipped defaults at depth 4, must be winning on **epochs 2** rather than on blend —
+which the depth-4 `sc_c vs s2_100` match now running shows directly.
+
 ## FIRST CANDIDATE TO SURVIVE DEPTH 4: the combination (blend 1.00 + epochs 2)
 
 ```
