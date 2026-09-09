@@ -1417,6 +1417,47 @@ denominators can differ no other way). The BEHAVIOURAL difference the filter was
 line whose surrogate is BELOW the incumbent's, which the strict rule cannot produce — has NOT yet
 appeared in four generations. The filter binds; whether it changes outcomes is still open.
 
+## ⚠ REFUTED: the HARD set measures DIFFERENCE from the seed, not better search
+
+The direction I called "the one that survives every other measurement today" — rank primarily on the
+unsaturated dimension — is dead. Scaling the hard set from 8 positions to 40:
+
+```
+                              hard 8   hard 40
+depth-one (purity seed)          0        6      <- the DEGENERATE program
+capture extension (rung 6)       1        6      <- TIED with it
+UCT-style MCTS                   0        5
+bare alpha-beta (seed)           0        0
+alpha-beta + hash reuse          0        0
+alpha-beta + iterative deepening 0        0
+alpha-beta + hash + ID           0        0
+```
+
+**Capture extension and depth-one score identically.** The hard set cannot tell a genuine capture
+extension from the cheapest, shallowest program in the reference set. Every real alpha-beta variant
+scores ZERO.
+
+**Why, from `harder_set`'s own construction.** It records the seed's answer one ply DEEPER than the
+fitness depth, so the seed is wrong on every position by design. But "wrong at depth D, right at
+D+1" does not mean "a better search gets it" — it means the answer CHANGES with depth, and any
+program that answers DIFFERENTLY has a chance of landing on the deeper answer. depth-one searches
+one ply, maximally unlike depth three, and collects six. The set rewards difference and cannot
+distinguish it from depth.
+
+**The n=8 version was a small-sample lie.** At 8 positions capture extension scored 1 and everything
+else 0, which reads as a clean discriminating signal; it was one position that happened to fall its
+way. My own rule — one sample is a lottery — applies to instrument validation and I nearly built a
+ranking on eight observations.
+
+**This closes the loop with what was already recorded.** `proxies_RESULT.md`: "Every cheap proxy for
+strength has failed. **Only games measure strength here.**" The hard set is one more cheap proxy and
+it fails the same way. Having re-derived three results this morning by not reading, I have now
+re-derived a fourth — but this one at least adds the specific mechanism and the specific number.
+
+**What survives.** Nothing about ranking. The MATE-2 rung still closes the extreme-exploit hole in
+the guard, which is a separate and still-standing result. But "rank on the hard dimension" would rank
+depth-one first, and depth-one is the program the guard exists to keep out.
+
 ## RUNNING: rung 6 at proper power — the documented UNRESOLVED question
 
 Applying the lesson above rather than restating it: reading all 20 result headlines identified the
