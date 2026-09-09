@@ -39,6 +39,10 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 SECS=${SECS:-2400}
+# CORE, so seeds can run in PARALLEL. depth_RESULT.md's own verdict is "two more seeds are the price
+# of calling this a lever" -- the effect is +0.025 against a run-to-run band of ~0.07, so one pair of
+# arms cannot settle it. Serialising the replication on one core would take hours it does not need to.
+CORE=${CORE:-15}
 SEED=${SEED:-20260907}
 PAIRS=${PAIRS:-1000}
 LEARN=${LEARN:-/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad/xt2/release/learn}
@@ -49,7 +53,7 @@ CTRL=${CTRL:-/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e
 
 echo "=== STEP 1: MEASURE the depth-2 vs depth-3 datagen cost ratio on this machine ==="
 for D in 2 3; do
-  timeout 900 taskset -c 15 nice -n 19 ionice -c 3 "$LEARN" \
+  timeout 900 taskset -c "$CORE" nice -n 19 ionice -c 3 "$LEARN" \
     --rung 0 --gens 1 --games 300 --threads 1 --depth "$D" --epochs 3 \
     --gate-every 100 --gate-pairs 224 --arch-every 0 --control-every 0 \
     --seed "$SEED" --out "/dev/null" --ledger "/dev/null" > "dp_probe_d${D}.log" 2>&1
@@ -60,7 +64,7 @@ echo
 echo "=== STEP 2: both arms, EQUAL WALL-CLOCK (${SECS}s each), nothing gated ==="
 for D in 2 3; do
   echo "--- arm: datagen depth $D ---"
-  timeout "$SECS" taskset -c 15 nice -n 19 ionice -c 3 "$LEARN" \
+  timeout "$SECS" taskset -c "$CORE" nice -n 19 ionice -c 3 "$LEARN" \
     --rung 0 --gens 1000000 --games 2400 --threads 1 --depth "$D" --epochs 3 \
     --gate-every 100 --gate-pairs 224 --arch-every 0 --control-every 0 \
     --seed "$SEED" --out "dp_d${D}.net" --ledger "dp_d${D}.jsonl" > "dp_d${D}.log" 2>&1
@@ -71,7 +75,7 @@ echo
 echo "=== VERDICT: each arm vs the FROZEN ORIGIN ==="
 for D in 2 3; do
   if [ -f "dp_d${D}.net" ]; then
-    timeout 1800 taskset -c 15 nice -n 19 ionice -c 3 "$CTRL" \
+    timeout 1800 taskset -c "$CORE" nice -n 19 ionice -c 3 "$CTRL" \
       --champion "dp_d${D}.net" --pairs "$PAIRS" > "dp_d${D}_ctrl.log" 2>&1
     printf "  depth %s  %s\n" "$D" "$(grep -E 'fixed depth 2' "dp_d${D}_ctrl.log" | head -1)"
   else
