@@ -5,6 +5,11 @@
 //! a lucky opening cannot show up as strength.
 
 use board::{Outcome, Position};
+use std::sync::atomic::AtomicU64;
+
+/// Forfeits (MOVE_NONE returned) since the last reset. A capped program that runs out of budget
+/// forfeits, so a match with forfeits is measuring COST, not play, and must say so.
+pub static FORFEITS: AtomicU64 = AtomicU64::new(0);
 use grammar::Program;
 use interp::Interp;
 use nnue::Net;
@@ -214,6 +219,11 @@ fn play_progs(
         // legitimately fail to answer -- that is a defect in the program, and scoring it as a
         // draw would let a candidate that stops choosing moves gate as "equal".
         if m == board::types::MOVE_NONE {
+            // FORFEIT. Under a cost ceiling this is usually "ran out of budget", not "chose
+            // nothing", and it falls on the EXPENSIVE side systematically -- which would hand the
+            // win to whichever program is cheaper regardless of how it plays. The caller has to be
+            // able to see how many of these happened before believing the score.
+            FORFEITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             return Some(!is_a);
         }
         // And it must return a LEGAL move. Trusting the interpreter here would let a malformed

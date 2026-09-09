@@ -649,10 +649,27 @@ fn ref_match() {
     let seed = reference::bare_alpha_beta();
     println!("=== {name} vs bare alpha-beta, {pairs} pairs at depth {depth} ===");
     println!("  Same net and same budget both sides, so this measures the PROGRAM.");
+    // GENEROUS BUT FINITE cost ceiling. u64::MAX let a single move run away: with quiescence, a
+    // capture chain has no depth bound, and the first attempt at this match never finished a game.
+    // 5e9 is ~12x the seed's cost for a whole position, so an ordinary move completes easily and
+    // only a pathological one aborts.
+    //
+    // A capped program that runs out forfeits, and forfeits fall on the EXPENSIVE side
+    // systematically -- capture extension costs 1.679x -- so a score built on them measures cost,
+    // not play. The count is printed and the verdict is void if it is non-zero.
+    let cap: u64 = std::env::args().nth(5).and_then(|s| s.parse().ok()).unwrap_or(5_000_000_000);
+    gate::FORFEITS.store(0, std::sync::atomic::Ordering::Relaxed);
     let sc = gate::match_progs(&chall, &seed, &net, vec![depth, 32_000, 8], 16, pairs,
-                               0x9E2D_1A77, 4, u64::MAX);
+                               0x9E2D_1A77, 4, cap);
+    let forfeits = gate::FORFEITS.load(std::sync::atomic::Ordering::Relaxed);
     println!("\n  {}W-{}D-{}L   rate {:.3} +/- {:.3}", sc.wins, sc.draws, sc.losses,
              sc.pent_rate(), sc.ci95());
+    println!("  forfeits (ran out of budget): {forfeits}");
+    if forfeits > 0 {
+        println!("  => VERDICT VOID. Forfeits fall on the expensive side, so this measured COST.");
+        println!("     Raise the ceiling and re-run before reading anything into the score.");
+        return;
+    }
     let up = sc.pent_rate() - sc.ci95() > 0.5;
     let down = sc.pent_rate() + sc.ci95() < 0.5;
     println!("  => {}", if up { "CHALLENGER STRONGER, resolved" }
