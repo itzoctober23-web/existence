@@ -42,6 +42,23 @@ fn main() {
         eprintln!("usage: pool_rating <pairs> <depth> <seed> <net> <net> [net...]");
         std::process::exit(2);
     }
+    // SHARDING. "s<i>/<n>" as the first argument runs only the matches with index % n == i, so a
+    // pool can be spread across cores instead of played sequentially on one. Depth-4 matches cost
+    // ~25x depth-2, and a 28-match pool takes ~3 hours on a single core; depth 4 is now the
+    // standard, so every future pool pays that unless it can fan out.
+    //
+    // The MATCH LINES are the shareable artefact -- each shard prints "A vs B rate" and a merge
+    // reads them back. Ratings are deliberately NOT computed per shard: a shard sees only part of
+    // the field, and a rating over part of a field is exactly the single-opponent number this tool
+    // exists to replace.
+    let mut args = args;
+    let mut shard = (0usize, 1usize);
+    if args[0].starts_with('s') && args[0].contains('/') {
+        let spec = args.remove(0);
+        let (i, n) = spec[1..].split_once('/').expect("s<i>/<n>");
+        shard = (i.parse().expect("shard index"), n.parse().expect("shard count"));
+        assert!(shard.1 > 0 && shard.0 < shard.1, "shard index must be < count");
+    }
     let pairs: usize = args[0].parse().expect("pairs");
     let depth: u32 = args[1].parse().expect("depth");
     let seed: u64 = args[2].parse().expect("seed");
@@ -52,13 +69,23 @@ fn main() {
 
     let std_note = if depth == 4 { "project standard for strength" } else { "NOT the strength standard (4)" };
     println!("pool_rating: {n} nets, {pairs} pairs/match, depth {depth} ({std_note}), seed {seed}");
-    println!("  {} matches to play\n", n * (n - 1) / 2);
+    let total = n * (n - 1) / 2;
+    if shard.1 > 1 {
+        println!("  SHARD {}/{}: {} of {total} matches\n", shard.0, shard.1,
+                 (0..total).filter(|k| k % shard.1 == shard.0).count());
+    } else {
+        println!("  {total} matches to play\n");
+    }
 
     // score[i][j] = i's pentanomial rate against j. Filled symmetrically so the mean is over the
     // whole field rather than over "the ones that happened to be listed after me".
     let mut score = vec![vec![f64::NAN; n]; n];
+    let mut midx = 0usize;
     for i in 0..n {
         for j in (i + 1)..n {
+            let mine = midx % shard.1 == shard.0;
+            midx += 1;
+            if !mine { continue; }
             // Seed varies per PAIRING so different matchups do not all reuse one opening set; a
             // single shared set would let one lucky opening family bias every rating at once.
             let s = seed ^ ((i as u64) << 32) ^ (j as u64);
@@ -69,6 +96,12 @@ fn main() {
         }
     }
 
+    if shard.1 > 1 {
+        println!("\n  SHARD DONE. No rating printed: this shard saw only part of the field, and a");
+        println!("  rating over part of a field is the single-opponent number this tool replaces.");
+        println!("  Merge the match lines from all {} shards, then rate.", shard.1);
+        return;
+    }
     let mut rated: Vec<(f64, usize)> = (0..n).map(|i| {
         let v: Vec<f64> = (0..n).filter(|&j| j != i).map(|j| score[i][j]).collect();
         (v.iter().sum::<f64>() / v.len() as f64, i)

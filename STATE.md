@@ -548,6 +548,44 @@ it decides whether the change to make is "blend only" or "both".
 Nothing ships until the marginal reading is resolved at higher pair count **and** the depth-4
 `sc_c vs s2_100` lands.
 
+## DEPTH-4 POOL, COMPLETE (28/28, zero cycles) — epochs 2 wins, blend 1.00 is last
+
+| net | depth 2 | depth 4 |
+|---|---|---|
+| **ep_2** | 0.5537 | **0.5999** |
+| ep_3 | 0.5371 | 0.5634 |
+| b2_5 | 0.5544 | 0.5417 |
+| champion_long | 0.5207 | 0.5239 |
+| s2_100 | 0.4789 | 0.4953 |
+| bn_075 | 0.4290 | 0.4521 |
+| bh_100 (blend 1.00) | 0.4909 | **0.4133** |
+| s2_075 | 0.4356 | 0.4104 |
+
+**Epochs 2 rises to the top at depth 4; blend 1.00 falls to last.** The direct match agrees and
+*strengthens* with depth — `ep_2 vs ep_3` is 0.518 ± 0.014 (marginal) at depth 2 and
+**0.544 ± 0.023 (resolved)** at depth 4. That is the opposite of blend, whose advantage vanished.
+
+Blend remains **seed-inconsistent even at depth 4**: seed 1 gives `bn_075 vs bh_100` = 0.511
+(0.75 ahead), seed 2 gives `s2_075 vs s2_100` = 0.456 (1.00 ahead). Dead.
+
+## The gate-alignment fix FAILS — the origin anchor saturates at depth 4
+
+```
+gate-match-depth 2:  base 0.828, champ 0.819–0.862, increments −0.009..+0.033  ->  1 KEEP
+gate-match-depth 4:  base 0.939, champ 0.936–0.948, increments −0.002..+0.009  ->  0 KEEP
+```
+
+Same net, same opponent, different depth: champion-vs-origin goes **0.828 → 0.939**. Deeper search
+lets a good eval convert its advantage more reliably, so both sides crush the random origin and the
+increment compresses to nothing. **The depth-4 gate is blind because its ANCHOR is too weak at depth
+4**, not because selection depth is the wrong idea.
+
+The binary check passed first (`xt6 reproduces b2_5's gate lines`), so this is the arms differing,
+not the builds.
+
+**The fix this implies:** a depth-4 gate needs a *trained* anchor, not `Net::random`. That is a
+different change from `--gate-match-depth` and it is the one worth making.
+
 ## Shipping candidates, with evidence strength stated per item
 
 All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an Elo number.
