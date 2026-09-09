@@ -405,8 +405,19 @@ All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an El
 | candidate | shipped | measured | strength |
 |---|---|---|---|
 | **blend 1.00** | 0.75 | seed1 **0.450 ± 0.016** / seed2 **0.487 ± 0.015** | **DOWNGRADED — 2nd seed unresolved** |
-| **`--gate-every 5`** | 1 | 0.529 ± 0.015 (b2_5 vs champion_long) | **resolved**, one training run |
+| **`--gate-every 5`** | 1 | d2 **0.529 ± 0.015** / **d4 0.502 ± 0.022** | **FAILS AT DEPTH 4** — gain vanishes |
 | epochs 2 | 3 | 0.518 ± 0.014 (ep_2 vs ep_3) | **MARGINAL** — margin 0.004 vs ci95 0.014 |
+
+**Neither candidate survives the depth change, and the pattern is general.** `b2_5` beats
+`champion_long` by +0.029 at depth 2 (resolved) and by +0.002 at depth 4 (unresolved) — the point
+estimate collapses, not merely the interval widening. `bh_100` likewise scores 0.864 against the
+origin at depth 2 and 0.832 at depth 4.
+
+**Why this is expected in hindsight:** datagen runs at `--depth 2`, and the batch gate scores with
+`match_nets(..., depth, ...)` — the *same* depth. So the loop both learns from and selects on
+depth-2 play, while the project judges strength at depth 4. It is optimising the game it measures.
+Aligning the **gate** to depth 4 is far cheaper than moving datagen there (224 pairs vs 2400
+games/generation) and is the obvious next experiment.
 
 **Blend no longer clears the bar either.** Seed 20260907 resolved (0.450, 1.00 stronger); seed
 424242 did not (0.487, interval [0.471, 0.502] contains 0.5). Both point estimates favour 1.00, but
