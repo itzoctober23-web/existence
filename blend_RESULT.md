@@ -289,3 +289,55 @@ averages to +0.017 across seeds, well inside noise). 0.85 was never tried.
 **What it justifies:** a proper multi-seed run on 0.85, which is now the best-evidenced open candidate
 in the tree. **What it does not justify:** changing the shipped default on two seeds, which is exactly
 the error that produced the withdrawn "+0.025 depth lever" and blend 1.00's withdrawn mechanism.
+
+---
+
+# RESOLVED across FIVE training seeds: blend 0.85 beats the shipped 0.75 at depth 4
+
+Every seed is a DIRECT head-to-head at depth 4 — the strength standard (`netmatch.rs:23-29`,
+`blend_h2h.sh:50`) — never the frozen-origin increment, which depends on the run seed and is not
+comparable across seeds. The number shown is **0.75's** score, so **below 0.500 means 0.85 is
+stronger**.
+
+| training seed | 0.75's score | 95% interval | 0.85's edge |
+|---|---|---|---|
+| 20260907 (`bn`) | 0.460 | [0.438, 0.483] | +0.040 |
+| 424242 (`s2`) | 0.403 | [0.381, 0.425] | +0.097 |
+| 987654 (`s3`) | 0.403 | [0.381, 0.425] | +0.097 |
+| 8675309 | 0.394 | [0.373, 0.415] | +0.106 |
+| 31337 | 0.440 | [0.417, 0.462] | +0.060 |
+
+```
+n = 5 seeds    mean +0.0800    between-seed sd 0.0285    SEM 0.0128
+95% CI (t_4 = 2.776): [+0.0446, +0.1154]   — excludes zero
+all five seeds the same sign: yes
+```
+
+**The controls that would have invalidated this all pass.** Every pair is arms-matched at 20 vs 20
+generations with no `UNEQUAL ARMS` warning — the check exists because an unequal pair confounds the
+blend with training amount. Every match is at depth 4. Both arms are trained *within* each seed, so no
+comparison crosses a `Net::random(width, seed)` origin.
+
+**The observed between-seed sd is 0.0285, well below the 0.043 canonical figure** used to size this
+campaign. That is why five seeds over-satisfy a requirement originally estimated at ~2.9: the
+seed-to-seed spread on this contrast is smaller than the pooled estimate assumed.
+
+## This is NOT a default change, by its own pre-registration
+
+`blend_085_seedN.sh` wrote the reading in advance and it is binding: *"0.85 wins again => the
+cross-seed mean moves further from zero and this becomes the best-evidenced open candidate in the
+tree, justifying a real campaign — **NOT a default change**."*
+
+So the claim is exactly this: **blend 0.85 is now the best-evidenced open candidate in the tree**,
+replicated on five independent training seeds at the strength standard. It is not shipped, no Elo is
+claimed, and the shipped default stays 0.75 until something authorised to move it does so.
+
+## One oddity, recorded rather than smoothed over
+
+Seeds 424242 and 987654 both read **0.403 ± 0.022** with identical intervals. The nets are genuinely
+different — distinct md5s, distinct training seeds passed through `--seed`, and
+`blend_085_seed3.sh:26` sets 987654 — and the two matches share a pair count and match seed (777), so
+they run the same openings against different nets. Two different nets landing on an identical
+pentanomial is possible at this quantisation but it is a coincidence worth naming, not hiding. It does
+not change the direction or the cross-seed conclusion: dropping either one still leaves four seeds
+with the same sign and a mean clear of zero.
