@@ -2994,3 +2994,41 @@ just re-verified independently (the two arms' gen-1 lines are md5-identical).
 `pent_shape`). It launches on the first core to free. This is now the highest-value untested Existence
 lever, ahead of raising `gate_pairs`, because it acts upstream of the measurement that raising pairs
 would improve.
+
+## ⛔ SPEC_FILTER IS UNTESTABLE UNTIL PATH 1 RE-CHECKS COST — measured in 4 generations
+
+The SPEC cells were stopped. Not churn: they provably could not answer the question they were launched
+for, and the evidence is unambiguous.
+
+**What the arms did.** Every generation, in BOTH lineages, the SPEC cells accepted via PATH 1 with the
+surrogate rate LITERALLY UNCHANGED:
+
+```
+gen 1 MAIN  ACCEPT speedup: play IDENTICAL on all 31 guard positions, 0.002490 was 0.002490
+gen 2 MAIN  ACCEPT speedup: play IDENTICAL on all 31 guard positions, 0.002490 was 0.002490
+gen 1 MCTS  ACCEPT speedup: play IDENTICAL on all 31 guard positions, 0.001406 was 0.001406
+gen 2 MCTS  ACCEPT speedup: play IDENTICAL on all 31 guard positions, 0.001406 was 0.001406
+```
+
+8 consecutive accepts, rate never moving, and **not one candidate-statistics line or gate call** — the
+control at the same generations prints `..none (8 cand, 0 ill, ... rates 0.497-0.496943x ...)`.
+
+**The mechanism, verified rather than inferred.** PATH 1 accepts on `same_play` ALONE. Its own comment
+defines the path as identical play *"AND COSTS LESS"*, but the cost half was never coded — it was
+guaranteed by the caller, because the strict filter picks only when `rate > best_rate`. SPEC_FILTER
+picks on `r >= 0.9 * best_rate`, so a candidate that is WORSE reaches PATH 1 and is recorded as a
+"speedup". Measured: the control's gen-1 candidate is `rates 0.999x`, i.e. below the incumbent.
+
+So under SPEC the loop replaces its champion every generation with a program that plays identically at
+identical cost, and nothing ever reaches the gate. **The SPEC cells cannot produce gate data at all**,
+which makes 25 generations on two cores worth nothing.
+
+**Not fixed in code, deliberately.** `evolve.rs` is the source of live arms, and patching it mid-run
+was the wrong instinct — the analysis could separate the two cases without touching anything, and
+`factorial_report.sh` now does (real promotions vs PATH-1 no-ops). The code fix — restore
+`rate > best_rate` to PATH 1, which is a no-op under the strict filter and therefore cannot disturb the
+control or veto cells — is a one-line change to make when no arm is running.
+
+**The freed cores now run a SECOND SEED of the comparison that CAN produce data**: control and veto at
+seed 2, alongside seed 1. One seed cannot settle a champion-vs-champion question — the blend campaign
+needed five before its interval cleared zero.

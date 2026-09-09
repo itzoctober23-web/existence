@@ -21,7 +21,7 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 printf "%-11s %-5s %-6s %-6s %-11s %-9s %-8s %s\n" CELL GENS PROMO NO-OP GATE-CALLS NO-SIGNAL VERIFY-N VERIFY-MEAN
-for cell in control:gate_control_arm.log spec:spec_filter_arm.log veto:gate_veto_arm.log spec_veto:gate_spec_veto_arm.log; do
+for cell in s1-control:gate_control_arm.log s1-veto:gate_veto_arm.log s2-control:gate_control_s2.log s2-veto:gate_veto_s2.log; do
   name=${cell%%:*}; f=${cell#*:}
   [ -f "$f" ] || { printf "%-12s (no log yet)\n" "$name"; continue; }
   gens=$(grep -cE '^ *gen +[0-9]+ ' "$f")
@@ -49,7 +49,7 @@ echo "  INTERACTION is the point of the fourth cell. With only three, a null fro
 echo "  is uninterpretable -- it could mean the lever does nothing, or that the other still binds."
 echo
 echo "  MIRRORED vs ALL-DRAWN among no-signal decisions (three cells log W-D-L; control does not):"
-for cell in spec:spec_filter_arm.log veto:gate_veto_arm.log spec_veto:gate_spec_veto_arm.log; do
+for cell in s1-veto:gate_veto_arm.log s2-control:gate_control_s2.log s2-veto:gate_veto_s2.log; do
   name=${cell%%:*}; f=${cell#*:}
   [ -f "$f" ] || continue
   mir=$(grep -oE 'W-D-L ([0-9]+)-0-([0-9]+)' "$f" | wc -l)
