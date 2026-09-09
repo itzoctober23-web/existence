@@ -5,12 +5,14 @@
 Six things moved. Two REVERSE entries that were in the settled block, so read this before acting on
 anything below.
 
-1. **Datagen depth: REVERSED and cross-seed resolved.** The settled row said "closed — the effect was
-   search PARITY, not depth". At EQUAL GENERATIONS with parity held fixed, parity is SMALL and UNRESOLVED
-   cross-seed (0.512 then 0.554, mean +0.033, CI [−0.025, +0.091]) and DEPTH resolves in both classes. The even-class cell replicates
-   on a second seed and is resolved ACROSS seeds: mean effect 0.090, 95% CI **[+0.031, +0.149]**. The
-   old parity claim was measured on the TARGET distribution (`distill_gap`) and does not reach
-   trained strength. → `depth2x2_RESULT.md`
+1. **Datagen depth: RESOLVED — both depth and parity are real, and they OPPOSE.** The settled row
+   said "closed — the effect was search PARITY, not depth". At EQUAL GENERATIONS the full 2×2
+   resolves on seed 987654 and all EIGHT measurements across two seeds share a sign: deeper always
+   beats shallower inside a parity class (even-class mean +0.090, CI **[+0.032, +0.148]**; odd-class
+   +0.038), and odd always beats even at fixed depth (+0.033 shallow, +0.014 deep — parity HALVES
+   with depth). The original "+0.025 depth lever" compared d2 with d3, which is one step of depth AND
+   a parity crossing pointing opposite ways; their sum is small and unstable, which is why it never
+   reproduced. Neither term is an artifact — the comparison was. → `depth2x2_RESULT.md`
 2. **Blend 0.85 beats the shipped default, REPLICATED on two seeds.** The axis was closed by
    killing blend 1.00 — the wrong end. At depth 4, all four 0.85 matches clear 0.5 on two independent
    trainings: over 0.75 by 0.040 and 0.097, over 1.00 by 0.067 and 0.034. Cross-seed with the pooled
