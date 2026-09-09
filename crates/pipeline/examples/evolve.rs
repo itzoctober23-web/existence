@@ -1815,6 +1815,10 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                         format!("evolved_{}_gen{g}.prog", lineages[li].name),
                         format!("// SPEEDUP {f} mates, {rate:.6} mates/Mcost, {} nodes, gen {g}\n{:#?}\n",
                                 c.size(), c));
+                    // Recoverable sibling: the .prog above is a `{:#?}` dump and cannot be read
+                    // back, which made every champion this project evolved unrecoverable.
+                    let _ = std::fs::write(format!("evolved_{}_gen{g}.sexp", lineages[li].name),
+                                           grammar::sexp::to_string(&c));
                     continue;
                 }
 
@@ -1944,6 +1948,10 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
 {} nodes, generation {g}, lineage {}\n{:#?}\n",
                                     gsc.pent_rate(), gsc.ci95(), gsc.games(), c.size(),
                                     lineages[li].name, c));
+                        // Recoverable sibling: the .prog above is a `{:#?}` dump and cannot be read
+                        // back, which made every champion this project evolved unrecoverable.
+                        let _ = std::fs::write(format!("exploit_{}_gen{g}_{:.0}x.sexp", lineages[li].name, ratio),
+                                               grammar::sexp::to_string(&c));
                         println!("         ^ captured as an exploit: {ratio:.0}x surrogate, \
 {:.3} games", gsc.pent_rate());
                         // MACHINE-READABLE LEDGER alongside the program dump.
@@ -1998,6 +2006,10 @@ champ_mates\tchamp_cost\tchamp_rate\tgames\tci95\tnodes\tmate1\tmate2\n");
                     format!("evolved_{}_gen{g}.prog", lineages[li].name),
                     format!("// {f} mates, {rate:.6} mates/Mcost, {} nodes, gen {g}\n{:#?}\n",
                             c.size(), c));
+                // Recoverable sibling: the .prog above is a `{:#?}` dump and cannot be read
+                // back, which made every champion this project evolved unrecoverable.
+                let _ = std::fs::write(format!("evolved_{}_gen{g}.sexp", lineages[li].name),
+                                       grammar::sexp::to_string(&c));
             } else {
                 // rhi at SIX decimals: at three, a candidate strictly above the incumbent is
                 // indistinguishable from a tie, which is exactly the ambiguity `above` exists to end.

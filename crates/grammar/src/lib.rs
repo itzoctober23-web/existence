@@ -7,6 +7,7 @@
 pub mod ast;
 pub mod reference;
 pub mod mutate;
+pub mod sexp;
 pub mod typecheck;
 
 pub use ast::{ArithOp, FieldId, Func, Lineage, Node, OutcomeLit, PredId, Program, Rel, Ty};

@@ -96,7 +96,7 @@ impl FieldId {
 }
 
 /// The 29 primitives of GRAMMAR.md 2, plus the binding forms.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Node {
     // 2.1 rules access
     Moves(Box<Node>),                       // Pos -> List
@@ -161,7 +161,7 @@ pub enum OutcomeLit {
     Draw,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Func {
     pub name: String,
     pub params: Vec<(String, Ty)>,
@@ -169,7 +169,7 @@ pub struct Func {
     pub body: Node,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Program {
     pub funcs: Vec<Func>,
     pub lineage: Lineage,

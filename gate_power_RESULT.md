@@ -101,3 +101,44 @@ The VERIFY observer was added to answer a different question — *are the veto r
 It has not answered that one yet (no divergent ACCEPT has occurred). Instead its first output, sitting
 next to the gate line that made the actual decision, showed the same candidate measured at ±0.027 and
 ±0.163. That 6× gap is what prompted counting the accepts, and the count is what settled P2.
+
+---
+
+## The cost-blindness probe returned INCONCLUSIVE — and its premise was wrong
+
+`cost_blind.rs` completed. Pre-registration: *"a score that MOVES as the ceiling tightens means
+`cost_per_move` decides gate outcomes."*
+
+| `cost_per_move` | a's score | ci95 | CI vs 0.5 |
+|---|---|---|---|
+| `u64::MAX` (the gate's) | 0.469 | 0.090 | [0.379, 0.559] — **includes** 0.5 |
+| 100_000_000 | 0.396 | 0.083 | [0.313, 0.479] — excludes 0.5 |
+| 10_000_000 | 0.500 | 0.062 | includes 0.5 |
+| 1_000_000 | 0.500 | 0.062 | includes 0.5 |
+
+**The response is non-monotonic: 0.469 → 0.396 → 0.500 → 0.500.** A ceiling that tightens
+monotonically should hurt the expensive program monotonically. Instead the score dips and then returns
+to *exactly* parity twice. Only one row (1e8) excludes 0.5 at all, and it is the middle one. That shape
+is what noise looks like, not what a mechanism looks like, so the pre-registered "score MOVES" reading
+is **not** satisfied — a non-monotonic wobble inside overlapping intervals is not movement.
+
+**The probe's premise was also unverified and is not supported.** `cost_blind.rs` asserts in its own
+header that `capture_extension` is "strictly more work per move, and stronger for it". Measured at the
+gate's own setting it scores **0.469** — indistinguishable from the seed, not stronger. The design
+needed an arm that is *expensive AND stronger*, so that truncation would have something to take away.
+Whatever this pair is, it is not that, and the contrast cannot answer the question.
+
+**And the probe has the disease it was investigating.** At 24 pairs its own ci95 is 0.062–0.090 — the
+same order as the gate's 0.177 and far too wide to resolve the few-percent effect it was looking for.
+I built an underpowered instrument to investigate an underpowered instrument.
+
+### Verdict
+
+Cost-blindness is **neither confirmed nor refuted**; it is untested, because the contrast chosen
+cannot test it. It stays a live hypothesis and is *not* promoted to a cause. This does not change the
+main finding above, which never depended on it: a cost ceiling cannot explain 0/202 accepts, because
+it changes which program scores higher, not whether a ±0.177 instrument can resolve the difference.
+
+**Re-running this properly needs two things first:** a pair where the expensive arm is *measurably*
+stronger at the gate's settings (verified, not assumed), and enough pairs that the instrument can see
+the effect — which is exactly what `ci95_curve.rs` is measuring.
