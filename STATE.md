@@ -402,6 +402,18 @@ A fourth proxy is the first with a useful point estimate, and it is ONE ARM from
 | training loss | +0.379 | [−0.249, +0.783] | 12 |
 | **decisive-game rate** | **+0.771** | **[−0.108, +0.973]** | **6 arms** |
 
+**2026-09-09, independent support on the axis this is weakest on.** The exclusion note above says
+the depth probes were dropped "because training amount drives both terms". The `depth_2x2` arms do
+not have that problem — all four ran EXACTLY 4 generations on the same games per generation, so
+training amount is constant by construction, and their strength is head-to-head at depth 4 rather
+than the saturating origin metric. Ranked by mean `dec`: d4 95.0, d3 92.5, d1 72.8, d2 31.2. Ranked
+by strength: d4, d3, d1, d2. **Spearman ρ = +1.000, 6/6 pairs concordant.**
+
+Deliberately NOT pooled into the n=6 above: different arm length, different instrument, and pooling
+incomparable arms manufactures verdicts. And n=4 makes perfect concordance p=1/24 one-tailed — the
+between-group split {d3,d4} > {d1,d2} is the load-bearing part, since both within-group matches are
+precise nulls. See `depth2x2_RESULT.md`.
+
 The CI still includes zero, so it is NOT established, and there is a visible counterexample: the
 strongest arm on the board (`wd_r2`, 0.967) has FEWER decisive games than a weaker one (1124 vs
 1170). But at r = +0.771 a seventh arm clears zero, and **every arm already logs `dec` for free** —
