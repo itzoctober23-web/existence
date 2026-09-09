@@ -556,3 +556,23 @@ decided on. **Recorded as an open bounds question for FITNESS 7.2 rather than se
 
 The error rates (alpha = beta = 0.05) and the pentanomial statistic are untouched: those the spec
 fixes unambiguously, and 7.2 part 1 is explicit that the human declares the threshold semantics.
+
+### The sequential gate would have REGRESSED on the no-signal half — fixed before it ran
+
+`Score::llr` returns **0.0 when every pair lands in the same bucket**, which is correct: a dead heat
+carries no evidence. But 0.0 never reaches ±2.944, so `match_progs_sprt` would have played to
+`max_pairs` — **400 pairs, ~800 games, roughly 1.8 hours** — on a decision that was settled at pair 2.
+
+The old FIXED gate spent **6 pairs** on that same case. And it is not a rare case: **46.8% of the 203
+logged decisions carry zero observed variance.** Without a guard, going sequential would have been a
+~67x cost regression on nearly half of all decisions, while producing the identical non-answer.
+
+**Guard added: give up as INCONCLUSIVE if all pairs are still in one bucket after 30.** Not after 2 —
+at the measured 80.6% draw rate a genuinely different pair of programs can tie its opening several
+pairs by luck, and quitting on that discards a real candidate. Reaching 30 with zero spread means they
+do not differ on these openings, and `Inconclusive` is the honest label: the evidence never separated
+them, which is a different statement from "they are equal".
+
+**Found by reading the code, not by waiting.** The zero-variance branch is explicit in `gate.rs`, so
+the consequence was derivable without spending the 1.8 hours to observe it — and the arms had not yet
+reached a gate call, so the fix landed before it could cost anything.

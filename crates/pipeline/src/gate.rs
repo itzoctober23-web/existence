@@ -205,6 +205,23 @@ pub fn match_progs_sprt(
             }
         }
         sc.pent[pair_half.min(4)] += 1;
+
+        // ZERO VARIANCE CANNOT CROSS A BOUND, SO DO NOT KEEP PAYING FOR IT.
+        // `Score::llr` returns 0.0 when every pair lands in the same bucket -- correctly, since a
+        // dead heat carries no evidence -- but 0.0 never reaches +/-LLR_BOUND, so the loop would run
+        // to `max_pairs` and bill 400 pairs for a decision that was settled at pair 2. Under the old
+        // FIXED gate that same case cost 6 pairs, so without this the sequential gate is a large
+        // REGRESSION on exactly the 46.8% of decisions that carry zero variance.
+        //
+        // 30 pairs before giving up, not 2: at the measured 80.6% draw rate a genuinely different
+        // pair of programs can tie its first several pairs by luck, and quitting on that would
+        // discard a real candidate. P(60 straight identical pairs) is negligible for programs that
+        // differ at all, so reaching 30 with zero spread means they do not differ on these openings.
+        const ZERO_VAR_GIVE_UP: usize = 30;
+        if p + 1 >= ZERO_VAR_GIVE_UP && sc.pent.iter().filter(|c| **c > 0).count() == 1 {
+            return (Sprt::Inconclusive, sc, 0.0);
+        }
+
         let llr = sc.llr(elo0, elo1);
         if llr >= LLR_BOUND { return (Sprt::Accept, sc, llr); }
         if llr <= -LLR_BOUND { return (Sprt::Reject, sc, llr); }
