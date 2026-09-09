@@ -156,3 +156,49 @@ So this is a real 12% with a known, bounded price — recorded here so the trade
 rather than discovered later. **Not adopted in this commit:** four time-boxed experiments are running
 against current seeds, and changing search semantics underneath them would invalidate results that
 are mid-flight.
+
+### Inside `legal_moves()`: there is no hot spot, and three hypotheses died finding that out
+
+`legal_moves()` is the largest node cost, so it got decomposed. It is already a proper LEGAL
+generator (not pseudo-legal plus a filter), and the result is a **negative** one worth recording,
+because it closes off the obvious attacks:
+
+| component | ns | share of movegen |
+|---|---|---|
+| `legal_moves()` (black_box) | 444.8 | — |
+| **`legal_moves()` (cheap-consume)** | **405.8** | the honest figure |
+| `attackers_to` (checkers) | 12.0 | 3% |
+| `attacks_by` (danger map) | 34.1 | 8% |
+| `MoveList::new()` | 13.9 | 3% |
+| `attacks::queen` / `bishop` | 18.4 / 12.9 | ~25% at ~5 sliders |
+
+**Three hypotheses, all refuted by measurement:**
+
+1. *"The danger map dominates — it sweeps every enemy piece to constrain 8 king targets."* No: 34 ns,
+   8%. The precomputation is cheap.
+2. *"The sliders dominate — classical rays cost 8 table lookups per queen where a magic bitboard
+   costs one multiply-shift-load."* Partly true per call (19.4 ns for a queen) but there are only
+   ~5 sliders a side, so ~100 ns, a quarter at most.
+3. *"`MoveList` is 1032 bytes and `new()` zero-fills 1024 of them for ~120 bytes of payload."* Real
+   waste, but 13.9 ns — 3%.
+
+After two of those missed, the standing rule says suspect the harness, and it was partly right:
+`black_box` on the returned `MoveList` forces all 1032 bytes to be materialised as observable memory,
+worth **39 ns (9%)** of the earlier figure. The honest movegen cost is **405.8 ns**, and the numbers
+above supersede the 451 ns quoted earlier in this file.
+
+**The conclusion is that the cost is DISTRIBUTED** — pin detection, per-piece attack lookups, the
+per-move capture test, bitboard iteration and `push`, none of them dominant. Movegen is death by a
+thousand cuts, which is what a correct legal generator usually looks like. So it is a grind, not a
+quick win, and it should not be started on the assumption that a hot spot is waiting.
+
+### Ranked, with everything now measured
+
+| lever | worth | shape |
+|---|---|---|
+| **shuffle's integer division** | **~150 ns/node (~12%)** | one isolated change, preserves the prior-denial, costs seed reproducibility |
+| movegen | 406 ns/node total | no hot spot; a grind across many small parts |
+| eval | 252 ns/node at leaves | third, not first as the brief has it |
+| make/unmake | 46 ns | negligible — and why the incremental accumulator loses below width 64 |
+
+The shuffle is the only single change on the board with a measured double-digit percentage behind it.

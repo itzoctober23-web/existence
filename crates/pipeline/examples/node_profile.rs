@@ -69,6 +69,22 @@ fn main() {
         for p in &ps { std::hint::black_box(p.legal_moves()); n += 1; }
         n
     });
+    // THE SAME CALL, CONSUMED CHEAPLY. `black_box` on the returned MoveList forces the compiler to
+    // materialise all 1032 bytes as observable memory at every call. The real search binds the
+    // result to a local and never demands that, so the figure above may be measuring my own probe.
+    // Here the moves are still fully generated -- `len` cannot be known without generating them, and
+    // the checksum reads real entries -- but nothing forces a 1 KB store.
+    let mg_cheap = best_of(reps, || {
+        let mut acc = 0u64;
+        let mut n = 0usize;
+        for p in &ps {
+            let l = p.legal_moves();
+            acc ^= l.len() as u64 ^ l.as_slice().first().map_or(0, |m| m.0 as u64);
+            n += 1;
+        }
+        std::hint::black_box(acc);
+        n
+    });
 
     // 2. make + unmake: once per child visited. Measured as the PAIR, because the search always
     //    does both and unmake's cost is meaningless alone.
@@ -151,8 +167,81 @@ fn main() {
         n
     });
 
+    // 6. INSIDE legal_moves(). It is the largest single cost (451 ns, 44% of a leaf), and "movegen
+    //    is slow" is not an actionable statement. This is already a proper LEGAL generator -- not
+    //    pseudo-legal plus a filter -- so the cost is in its precomputation, and there are two
+    //    obvious candidates:
+    //      * `attackers_to(ksq, them, all)`      -- which pieces give check
+    //      * `attacks_by(them, occ_no_king)`     -- the full opponent DANGER map, needed only to
+    //                                               mask king destinations
+    //    The danger map is the suspicious one: it sweeps every enemy piece including sliders, at
+    //    every node, to constrain at most 8 king targets. `pinned()` is private so it is obtained by
+    //    subtraction rather than measured directly, and is reported as a residual, not a number.
+    let ksqs: Vec<(u8, board::Color, u64)> = ps.iter()
+        .map(|p| { let us = p.stm; (p.king_sq(us), us.flip(), p.all) }).collect();
+    let atk_to = best_of(reps, || {
+        let mut n = 0usize;
+        for (p, (ksq, them, all)) in ps.iter().zip(&ksqs) {
+            std::hint::black_box(p.attackers_to(*ksq, *them, *all)); n += 1;
+        }
+        n
+    });
+    let danger = best_of(reps, || {
+        let mut n = 0usize;
+        for (p, (ksq, them, _)) in ps.iter().zip(&ksqs) {
+            let occ_no_king = p.all ^ (1u64 << *ksq);
+            std::hint::black_box(p.attacks_by(*them, occ_no_king)); n += 1;
+        }
+        n
+    });
+
+    // 7. SLIDER ATTACKS, the suspect inside the 90% residual. attacks.rs uses the CLASSICAL ray
+    //    method: per direction, load RAYS[dir][sq], mask by occupancy, find the nearest blocker with
+    //    lsb/msb, then mask off the ray beyond it. That is O(1) per direction but a bishop costs 4
+    //    such rays and a QUEEN costs 8 -- roughly 16 table loads -- where a magic bitboard is one
+    //    multiply, one shift and one load for the whole piece.
+    //
+    //    Measured over the real slider squares in the corpus, so the occupancy patterns and the
+    //    branch behaviour are the ones the search actually sees, not a synthetic best case.
+    let mut slider_sites: Vec<(u8, u64)> = Vec::new();
+    for p in &ps {
+        for sq in 0u8..64 {
+            if p.all & (1u64 << sq) != 0 { slider_sites.push((sq, p.all)); }
+        }
+    }
+    let q = best_of(reps, || {
+        for (sq, occ) in &slider_sites { std::hint::black_box(board::attacks::queen(*sq, *occ)); }
+        slider_sites.len()
+    });
+    let b_ = best_of(reps, || {
+        for (sq, occ) in &slider_sites { std::hint::black_box(board::attacks::bishop(*sq, *occ)); }
+        slider_sites.len()
+    });
+
+    // 8. THE THIRD HYPOTHESIS, after two wrong ones -- and per the standing rule, two wrong
+    //    hypotheses in a row means suspect the HARNESS or the API, not the subject.
+    //
+    //    `MoveList` is `{ moves: [Move; 256], len: usize }` with `Move(u32)` -- **1032 bytes**. Its
+    //    `new()` writes `[MOVE_NONE; 256]`, zero-filling all 1024 bytes on EVERY call, to hold about
+    //    30 moves = 120 bytes of actual payload. And `legal_moves()` returns it BY VALUE, so unless
+    //    the compiler elides it there is a second 1032-byte move. Neither is move GENERATION; both
+    //    are the container.
+    let ml = best_of(reps, || {
+        for _ in 0..slider_sites.len() {
+            std::hint::black_box(board::MoveList::new());
+        }
+        slider_sites.len()
+    });
+
     println!("  {:<26} {:>10}", "primitive", "ns/op");
-    println!("  {:<26} {:>10.1}", "legal_moves()", mg);
+    println!("  {:<26} {:>10.1}   <- black_box forces a 1032 B materialisation", "legal_moves() TOTAL", mg);
+    println!("  {:<26} {:>10.1}   <- same work, consumed cheaply", "legal_moves() cheap-consume", mg_cheap);
+    println!("  {:<26} {:>10.1}   ({:.0}% of movegen)", "  attackers_to (checkers)", atk_to, 100.0*atk_to/mg);
+    println!("  {:<26} {:>10.1}   ({:.0}% of movegen)", "  attacks_by (danger map)", danger, 100.0*danger/mg);
+    println!("  {:<26} {:>10.1}   ({:.0}% of movegen)", "  residual (pins + emit)", mg-atk_to-danger, 100.0*(mg-atk_to-danger)/mg);
+    println!("  {:<26} {:>10.1}   (classical rays, {} sites)", "  attacks::queen", q, slider_sites.len());
+    println!("  {:<26} {:>10.1}   (classical rays)", "  attacks::bishop", b_);
+    println!("  {:<26} {:>10.1}   (zeroes 1024 B for ~120 B of moves)", "  MoveList::new()", ml);
     println!("  {:<26} {:>10.1}", "make + unmake (pair)", mu);
     println!("  {:<26} {:>10.1}", "eval", ev);
     println!("  {:<26} {:>10.1}", "shuffle + buffer copy", sh);
