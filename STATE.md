@@ -42,6 +42,37 @@ block 5.
 scratch (0.479 ± 0.023), and 0 KEEPs in 8 blocks once `batch_base` was fixed. The batch gate is
 **correct now but not useful** — its resolution is coarser than the effects it is asked to judge.
 
+## 🔑 THE SEARCH TRACK'S ACCEPTANCE RULE CONTRADICTS ITS OWN DOCUMENTED INTENT
+
+`evolve.rs:1199` describes the game gate:
+
+> "6 pairs = 12 games resolves a large effect… **it CANNOT resolve a 2% edge and is not asked to.
+> It is a veto on unplayable programs.**"
+
+`evolve.rs:1573` implements it:
+
+```rust
+let resolved_up = gsc.pent_rate() - gsc.ci95() > 0.5;
+if !resolved_up { REJECT }
+```
+
+**That asks the gate to resolve an edge — the exact thing the comment says it cannot do.** A veto on
+unplayable programs would reject only when the gate resolves the candidate *worse* (`resolved_down`).
+This rejects **ties**, and at 6 pairs ci95 is **0.189** (0.103 in the one live case), so a candidate
+must win **~60–69% of pairs** to be promoted.
+
+The single recorded live acceptance attempt: `gate REJECT 0.417+/-0.103` — a tie, rejected. Not an
+unplayable program.
+
+**And the population is healthy.** The probe shows `pop 8 spread 0.002859–0.002884` and `hard 0-1` —
+members are diverse *and* one solves a hard-set position the seed fails 0/8. Candidates are being
+generated, admitted, and are improving on the unsaturated dimension. They die at promotion.
+
+Same defect class as the anchor gate's "same seed family… same openings" comment, which was also
+false about its own code. **Not changed** — this is the experimental apparatus, and every unmeasured
+belief today was wrong. What would justify a change: measuring how many promotions the
+`resolved_down` rule would admit that `resolved_up` rejects, and whether they survive a larger gate.
+
 ## 🔑 WHY THE DISCOVERY TRACK FINDS NOTHING — diagnosed in the selection code
 
 The track that is supposed to discover qsearch runs 25 generations with **0 accepts** and a
