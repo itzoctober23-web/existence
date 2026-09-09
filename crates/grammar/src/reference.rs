@@ -490,7 +490,27 @@ pub fn ab_hash_id() -> Program {
 ///     m   = argmax(moves(p), UCT)                                   -- select
 ///     v   = neg(simulate(apply(p,m)))                               -- recurse
 ///     store(key p, visits+1); store(sum p, sum+v); ret v            -- backpropagate
-pub fn uct_mcts() -> Program { uct_program(false) }
+/// The declared UCT reference. **Sum selection since 2026-09-09** — see `uct_mcts_mix` for the
+/// encoding this replaced and the measurements that justified the swap.
+///
+/// Changing this changes GRAMMAR 6's declared prior (132 -> 131 nodes), which the docs require to be
+/// "a deliberate, recorded act, not a silent fix". It is recorded in GRAMMAR 6 and STATE.md, the old
+/// encoding is kept and still counted, and the evidence is: the blend form tops out at 20/23 forced
+/// mates at ANY weight while this reaches 23/23, and at matched cost (~1.0x bare alpha-beta) on the
+/// 25-position mate set it scores 17/25 against the blend form's 11/25.
+pub fn uct_mcts() -> Program { uct_program(true) }
+
+/// The ORIGINAL blend-selection encoding, kept because GRAMMAR 6's recorded 132-node count and every
+/// ladder distance measured against it must still refer to a program that exists.
+///
+/// It selects on `Mix(q, u, c) = (q*c + u*(16-c))/16`, so table slot 2 is BOTH the exploration scale
+/// inside the sqrt and the blend weight. `u`'s coefficient is `(16 - c)`: zero at 16, negative above.
+///
+/// **It must be run at an explicit weight near 8, never at `uct_exploration()`**, which is now 600
+/// for the sum encoding. At 600 this form is pathological — 1604 recursion-ceiling hits against the
+/// sum form's 1, because a negative coefficient makes selection prefer already-visited children and
+/// each descent runs deeper until it hits `MAX_CALL_DEPTH`.
+pub fn uct_mcts_mix() -> Program { uct_program(false) }
 
 /// SUM-SELECTION UCT: `argmax(q + u)` instead of `argmax(Mix(q, u, c))`.
 ///
@@ -529,7 +549,7 @@ pub fn uct_mcts() -> Program { uct_program(false) }
 /// already declares `add` (GRAMMAR 2.4), so no primitive is introduced -- the existing ones are
 /// composed the way the algorithm actually specifies, leaving slot 2 as a pure exploration
 /// constant that can be swept without simultaneously changing the blend.
-pub fn uct_mcts_sum() -> Program { uct_program(true) }
+pub fn uct_mcts_sum() -> Program { uct_program(true) }   // alias of the declared form
 
 /// Shared body. `sum_selection` picks `argmax(q + u)` over `argmax(Mix(q, u, c))`.
 fn uct_program(sum_selection: bool) -> Program {
@@ -892,7 +912,7 @@ pub fn all() -> Vec<(&'static str, Program)> {
         ("alpha-beta + iterative deepening", ab_id()),
         ("alpha-beta + hash + ID", ab_hash_id()),
         ("UCT-style MCTS", uct_mcts()),
-        ("UCT-style MCTS (sum selection)", uct_mcts_sum()),
+        ("UCT-style MCTS (blend selection, historical)", uct_mcts_mix()),
         ("capture extension (rung 6)", capture_extension()),
         ("table reduction (rung 7)", table_reduction()),
         ("proof-number search", proof_number()),

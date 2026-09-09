@@ -69,7 +69,8 @@ fn solved(prog: &grammar::Program, set: &[(Position, board::Move)], k: i64) -> u
 #[test]
 fn sum_selection_solves_forced_mates() {
     let set = mate_set(8);
-    let prog = reference::uct_mcts_sum();
+    // The DECLARED program since 2026-09-09. `uct_mcts_sum` remains as an alias.
+    let prog = reference::uct_mcts();
     let n = solved(&prog, &set, 600);
     assert_eq!(
         n,
@@ -84,7 +85,9 @@ fn mix_selection_is_penalised_above_sixteen() {
     // The regression that matters: `Mix`'s coefficient on the exploration term is `16 - w`, so a
     // large weight INVERTS it. If someone "fixes" MCTS by scaling the weight up, this catches it.
     let set = mate_set(8);
-    let prog = reference::uct_mcts();
+    // uct_mcts_MIX, explicitly: `uct_mcts()` is now the sum encoding, and running these Mix
+    // assertions against it would make them pass vacuously while claiming to test the blend.
+    let prog = reference::uct_mcts_mix();
     let low = solved(&prog, &set, 1);
     let inverted = solved(&prog, &set, 360_000);
     assert!(
@@ -100,8 +103,8 @@ fn sum_selection_beats_mix_at_the_same_weight() {
     // explanation ("exploration swamps exploitation"): if magnitude were the problem, both would
     // fail here.
     let set = mate_set(8);
-    let mix = solved(&reference::uct_mcts(), &set, 360_000);
-    let sum = solved(&reference::uct_mcts_sum(), &set, 360_000);
+    let mix = solved(&reference::uct_mcts_mix(), &set, 360_000);
+    let sum = solved(&reference::uct_mcts(), &set, 360_000);
     assert!(
         sum > mix,
         "at identical K the sum encoding must beat the convex blend; got sum {sum} vs mix {mix}"

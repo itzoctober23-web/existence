@@ -296,32 +296,49 @@ fn mcts_budget() {
              set.len());
     println!("\n  {:>10} {:>7} {:>16} {:>14} {:>12}", "budget", "mates", "cost", "mates/Mcost",
              "cost vs AB");
-    let mcts = reference::uct_mcts();
+    // BOTH ENCODINGS, each at the weight it actually works at. `uct_mcts` selects on
+    // Mix(q, u, c) = (q*c + u*(16-c))/16, so slot 2 is BOTH the exploration scale and the blend
+    // weight; its coefficient on u is (16 - c), which is zero at 16 and negative above. Measured on
+    // the 23 mate-in-one set at budget 256: 20/23 at c=1 down to 14/23 at c=16 (pure greed) and
+    // 0/23 at c=360000. Its declared 8 is mid-slope. `uct_mcts_sum` selects on q + u, so slot 2 is
+    // a pure exploration constant, and it reaches 23/23 from K=600 -- the net's declared eval scale.
+    //
+    // Comparing them at a single shared K would be a rigged test: the same number means different
+    // things in the two encodings. Each is run at its own working value and the value is printed.
+    let arms: [(&str, grammar::Program, i64); 2] = [
+        // Pinned to 8, NOT uct_exploration(): that constant is now 600 for the sum encoding,
+        // and the Mix form is pathological there (1604 ceiling hits vs the sum form's 1).
+        ("Mix", reference::uct_mcts_mix(), 8),
+        ("sum", reference::uct_mcts(), 600),
+    ];
     // 512 and 2048 added after the exploration-term fix moved the matched-cost point:
     // budget 256 fell from 0.858x to 0.413x of alpha-beta's cost, so the value that justified
     // budget_mcts = 256 no longer holds and the parity point has to be re-found, not interpolated.
-    for b in [16i64, 64, 256, 512, 1024, 2048, 4096] {
-        let mut it = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
-        let (mut found, mut cost) = (0u32, 0u64);
-        for (p, forcing) in &set {
-            let mv = it.run(&mcts, p, b);
-            cost += it.cost;
-            match forcing {
-                Some(best) => { if mv == *best { found += 1; } }
-                None => {
-                    if mv != board::types::MOVE_NONE {
-                        let mut q = p.clone();
-                        if let Some(m) = q.legal_moves().as_slice().iter().copied().find(|x| *x == mv) {
-                            q.make_move(m);
-                            if q.legal_moves().is_empty() && q.outcome() == Outcome::Loss { found += 1; }
+    for (name, mcts, kw) in &arms {
+        println!("  -- encoding {name} at slot2 = {kw} --");
+        for b in [16i64, 64, 256, 512, 1024, 2048, 4096] {
+            let mut it = Interp::new(&net, vec![depth, 32_000, *kw]);
+            let (mut found, mut cost) = (0u32, 0u64);
+            for (p, forcing) in &set {
+                let mv = it.run(mcts, p, b);
+                cost += it.cost;
+                match forcing {
+                    Some(best) => { if mv == *best { found += 1; } }
+                    None => {
+                        if mv != board::types::MOVE_NONE {
+                            let mut q = p.clone();
+                            if let Some(m) = q.legal_moves().as_slice().iter().copied().find(|x| *x == mv) {
+                                q.make_move(m);
+                                if q.legal_moves().is_empty() && q.outcome() == Outcome::Loss { found += 1; }
+                            }
                         }
                     }
                 }
             }
+            let rate = found as f64 * 1e6 / cost.max(1) as f64;
+            println!("  {b:>10} {found:>7} {cost:>16} {rate:>14.6} {:>11.3}x",
+                     cost as f64 / abc.max(1) as f64);
         }
-        let rate = found as f64 * 1e6 / cost.max(1) as f64;
-        println!("  {b:>10} {found:>7} {cost:>16} {rate:>14.6} {:>11.3}x",
-                 cost as f64 / abc.max(1) as f64);
     }
     println!("\n  Approaching {}/{} at cost ~1.0x AB => the lineage is viable and its guard bites.",
              set.len(), set.len());
@@ -1388,6 +1405,14 @@ fn main() {
     let mut lineages: Vec<Lineage> = Vec::new();
     for (name, seed_prog, bud) in [
         ("MAIN", reference::bare_alpha_beta(), budget_main),
+        // SUM ENCODING AS THE SEED, changed 2026-09-09 on measurement. The Mix form reads table
+        // slot 2 both as the exploration scale and as the weight of Mix(q,u,c)=(q*c+u*(16-c))/16,
+        // so u's coefficient is (16-c): zero at 16, negative above. That is not a tuning problem,
+        // it caps the encoding. Measured at matched cost (~1.0x bare alpha-beta) on the 25-position
+        // mate set: Mix 11/25 at budget 512 (0.968x), sum 17/25 at budget 1024 (1.085x). On
+        // mate-in-one, Mix tops out at 20/23 at ANY weight while sum reaches 23/23 from K=600.
+        // The lineage was seeded with a program whose exploration term is partly cancelled by its
+        // own blend weight, and every one of its gates reads exactly 0.500 (STATE.md:1483).
         ("MCTS", reference::uct_mcts(), budget_mcts),
     ] {
         let (f, c, r) = fitness(&seed_prog, &set, &net, depth, bud);

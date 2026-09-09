@@ -67,12 +67,15 @@ fn mate_in_one(p: &Position) -> Option<board::Move> {
 }
 
 /// Run one program over a set, reporting legality, evals, cost and BUDGET EXHAUSTION separately.
-fn probe(prog: &grammar::Program, net: &Net, ps: &[Position], d: i64, b: i64)
+/// `w` is table slot 2, passed EXPLICITLY. `uct_exploration()` is now 600, correct for the
+/// declared (sum) encoding but PATHOLOGICAL for the historical blend form, which must be run
+/// near 8. Alpha-beta ignores slot 2 entirely, so any value is fine for the control.
+fn probe(prog: &grammar::Program, net: &Net, ps: &[Position], d: i64, b: i64, w: i64)
     -> (usize, u64, u64, usize) {
     let (mut legal, mut evals, mut cost, mut over) = (0usize, 0u64, 0u64, 0usize);
     let mut ceil = 0u64;
     for p in ps {
-        let mut i = Interp::new(net, vec![d, 32_000, interp::uct_exploration()]);
+        let mut i = Interp::new(net, vec![d, 32_000, w]);
         let m = i.run(prog, p, b);
         evals += i.evals; cost += i.cost;
         if i.over_budget { over += 1; }
@@ -101,7 +104,7 @@ fn main() {
     println!("CALIBRATION — deepest depth at which the SEED program is clean");
     let mut depth = 0i64;
     for d in 1..=4 {
-        let (legal, _e, cost, over) = probe(&ab, &net, &ps, d, d);
+        let (legal, _e, cost, over) = probe(&ab, &net, &ps, d, d, 8);
         println!("  depth {d}: legal {legal}/{}  over_budget {over}/{}  cost {cost}",
                  ps.len(), ps.len());
         if legal == ps.len() && over == 0 { depth = d; }
@@ -113,7 +116,7 @@ fn main() {
     }
     println!("  -> auditing at depth {depth}\n");
 
-    let (ab_legal, ab_evals, _abc, ab_over) = probe(&ab, &net, &ps, depth, depth);
+    let (ab_legal, ab_evals, _abc, ab_over) = probe(&ab, &net, &ps, depth, depth, 8);
     let mut ab_solved = 0usize;
     for (p, best) in &mates {
         let mut i = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
@@ -129,9 +132,11 @@ fn main() {
     }
 
     // ---- UCT MCTS -------------------------------------------------------------------------
-    let mcts = reference::uct_mcts();
-    let (m_legal, m_ev_s, m_cost_s, m_over_s) = probe(&mcts, &net, &ps, depth, 8);
-    let (m_legal2, m_ev_b, m_cost_b, m_over_b) = probe(&mcts, &net, &ps, depth, 64);
+    // The HISTORICAL blend encoding: this section sweeps slot 2 to show the coefficient
+    // inverting, which is a property of Mix, not of the declared program.
+    let mcts = reference::uct_mcts_mix();
+    let (m_legal, m_ev_s, m_cost_s, m_over_s) = probe(&mcts, &net, &ps, depth, 8, 8);
+    let (m_legal2, m_ev_b, m_cost_b, m_over_b) = probe(&mcts, &net, &ps, depth, 64, 8);
     println!("\nUCT MCTS");
     println!("  @sims 8   legal {m_legal}/{}  over {m_over_s}  evals {m_ev_s}  cost {m_cost_s}",
              ps.len());
@@ -169,7 +174,8 @@ fn main() {
     }
     for (k, bgt) in [64i64, 256, 1024].iter().enumerate() {
         for (q, best) in &mates {
-            let mut i = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
+            // 8, pinned: this measures the MIX encoding, which cannot be run at the global 600.
+            let mut i = Interp::new(&net, vec![depth, 32_000, 8]);
             if i.run(&mcts, q, *bgt) == *best { m_solved[k] += 1; }
         }
         println!("  budget {bgt:>5}: mate-in-one {}/{}", m_solved[k], mates.len());
@@ -177,7 +183,7 @@ fn main() {
     // Same diagnostic that separated "weak search" from "never selects" for PN.
     let (mut m_first, mut m_distinct) = (0usize, std::collections::HashSet::new());
     for (q, _best) in &mates {
-        let mut i = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
+        let mut i = Interp::new(&net, vec![depth, 32_000, 8]);
         let mv = i.run(&mcts, q, 256);
         if q.legal_moves().as_slice().first() == Some(&mv) { m_first += 1; }
         m_distinct.insert(format!("{mv:?}"));
@@ -200,7 +206,7 @@ fn main() {
     // term and can be swept as the exploration constant it is meant to be.
     //
     // Held to the SAME bar as PN and as uct_mcts: it must SOLVE, not merely run.
-    let mcts_sum = reference::uct_mcts_sum();
+    let mcts_sum = reference::uct_mcts();
     println!("\nUCT with SUM selection (argmax(q + u)) — slot 2 is a pure exploration constant");
     for kw in [1i64, 8, 64, 600, 4096, 360_000] {
         let mut sv = 0usize;
@@ -222,7 +228,7 @@ fn main() {
     let pn = reference::proof_number();
     // 256, not 64: the budget sweep below shows 64 is simply under-resourced (21/23 -> 23/23
     // at 256), and judging a prover at a budget it cannot finish in measures the budget.
-    let (p_legal, p_ev, _pc, p_over) = probe(&pn, &net, &ps, depth, 256);
+    let (p_legal, p_ev, _pc, p_over) = probe(&pn, &net, &ps, depth, 256, 8);
     // BUDGET SWEEP. A prover that finds 21/23 is not degenerate, it is under-resourced or
     // slightly wrong, and those are different diagnoses. If the count rises with budget it is
     // resource; if it plateaus below 23 there is a residual defect.

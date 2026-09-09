@@ -183,8 +183,8 @@ Every row below is printed by that command.
 | capture extension (rung 6) | 80 | +9 | faithful |
 | table reduction (rung 7) | 86 | +15 | faithful |
 | alpha-beta + iterative deepening | 100 | +29 | faithful |
-| UCT MCTS (Mix selection) | **132** | +61 | PARTIAL — 20/23 forced mates at best, and it CANNOT reach 23/23 at any weight. See below |
-| UCT MCTS (sum selection) | **131** | +60 | **faithful — VERIFIED BY EXECUTION, 23/23 forced mates** at K >= 600 |
+| **UCT MCTS** (declared, sum selection) | **131** | **+60** | **faithful — VERIFIED BY EXECUTION, 23/23 forced mates** at K >= 600 |
+| UCT MCTS (blend selection, historical) | 132 | +61 | PARTIAL — 20/23 at best, and it CANNOT reach 23/23 at any weight. See below |
 | alpha-beta + hash reuse | **175** | +104 | faithful (validity marker, depth, EXACT/LOWER/UPPER bounds) |
 | proof-number search | **175** | +104 | faithful — VERIFIED BY EXECUTION, 23/23 forced mates |
 | alpha-beta + hash + ID | 204 | +133 | faithful |
@@ -284,9 +284,9 @@ already declared in 2.4 — and it is **131 nodes, one FEWER than the Mix form's
 takes three children and `Add` takes two. Both encodings are kept and counted: the declared program
 is unchanged, so GRAMMAR 6's recorded count still refers to a program that exists.
 
-**So the prior skew is no longer blocked on MCTS fidelity:** a faithful, solving UCT is **+60** nodes
-from the 71-node alpha-beta seed, against PN's +104. The +61 encoding that does *not* solve is the
-one previously counted.
+**THE DECLARED PROGRAM IS NOW THE SUM ENCODING (2026-09-09), and the prior is +60.** This is the deliberate recorded change this section previously said such a swap would require. `uct_mcts()` selects `argmax(q + u)`; the blend form is kept as `uct_mcts_mix()` and still counted at 132, so every ladder distance measured against it still refers to a program that exists.
+
+The evidence for making it the default rather than an alternative: it solves 23/23 forced mates where the blend form's ceiling is 20/23 at ANY weight; at matched cost (~1.0x bare alpha-beta) on the 25-position mate set it scores **17/25 against 11/25**; and it is one node CHEAPER. The MCTS lineage seed and `budget_mcts` (512 -> 1024, the measured cost-parity point) were changed with it.
 
 **Consequence for the MCTS lineage**, which is seeded with the Mix form at slot 2 = 8: its seed
 scores 15/23, and the ceiling of that encoding is 20/23 at slot 2 = 1. Any lineage claim must be read

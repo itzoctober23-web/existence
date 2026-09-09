@@ -471,7 +471,23 @@ pub const MAX_CALL_DEPTH: u32 = 128;
 /// rises 50x for the same playout count. The saturation analysis below is still arithmetically
 /// true; it simply is not what limits mate-finding at 16-4096 playouts against a branching factor
 /// near 30, where the search has to exploit rather than explore.
-pub const UCT_EXPLORATION: i64 = 8;
+// RAISED 8 -> 600 on 2026-09-09, when the SUM encoding became the lineage seed.
+//
+// Safe to change globally because slot 2 is read in exactly one place -- reference.rs:536, inside
+// the shared UCT body. Alpha-beta reads slots 0 and 1, table_reduction reads 3. Nothing else can be
+// affected by this number.
+//
+// 600 is the net's declared eval scale, i.e. C = one eval unit, and it is the value at which the
+// sum encoding first solves 23/23 mate-in-one (holding at 4096 and 360000). The comment below
+// records that derivation as "REFUTED by measurement"; it was refuted only through the Mix
+// encoding, whose blend coefficient (16 - c) is hugely NEGATIVE at that value, so the test inverted
+// the exploration term instead of enlarging it. Measured directly: at K=600 the Mix form takes 1604
+// recursion-ceiling hits and the sum form takes 1.
+//
+// THE MIX FORM MUST NOT BE RUN AT THIS VALUE. It is pathological there -- descents deepen until
+// they hit MAX_CALL_DEPTH and unwind without reaching a leaf. Anything measuring the Mix encoding
+// passes its own weight explicitly rather than reading this constant.
+pub const UCT_EXPLORATION: i64 = 600;
 
 /// Env-overridable accessor, so the weight can be SWEPT instead of guessed again.
 ///
