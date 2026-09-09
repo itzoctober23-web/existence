@@ -159,3 +159,39 @@ confound that makes the equal-wall-clock comparison uninterpretable. That was th
 experiment and it stands regardless of how many cells clear the band.
 
 The seed-987654 replication is running and tests all four cells directly.
+
+## Seed 987654: the odd-class depth cell REPLICATES in direction
+
+| seed | d1 vs d3 (depth, ODD) | verdict |
+|---|---|---|
+| 424242 | 0.450 ± 0.015 | d3 stronger, clear of 0.5 |
+| **987654** | **0.474 ± 0.017** | **d3 stronger, clear of 0.5** |
+
+Both seeds point the same way with within-run intervals clear of 0.5, and all four arms in each seed
+ran exactly 4 generations (asserted, not assumed).
+
+**But the magnitude is not resolved across seeds, and that distinction matters here.** The two effects
+are 0.050 and 0.026; their mean is 0.038 with a cross-seed standard error of 0.027, giving a 95%
+interval of **[−0.016, +0.092]** — which contains zero. Two seeds agreeing in DIRECTION is real
+evidence; it is not the same as a resolved effect, and this cell was flagged as needing ~7 seeds
+before either was run. Nothing here changes that.
+
+### The band tightens — third independent estimate
+
+This comparison gives a third measurement of how far a paired difference moves between training
+seeds, and it is much smaller than the two blend ones:
+
+| comparison | seed A | seed B | movement |
+|---|---|---|---|
+| blend 0.75 vs 1.00 @ d4 | 0.511 | 0.456 | 0.055 |
+| blend 0.75 vs 1.00 @ d2 | 0.450 | 0.502 | 0.052 |
+| **depth d1 vs d3 @ d4** | 0.450 | 0.474 | **0.024** |
+
+Mean movement 0.0437, so **between-seed sd ≈ 0.039** (was 0.047 on two estimates). Revised seeds
+needed: +0.025 → ~19, +0.040 → ~7, +0.050 → ~5, +0.121 → ~1.
+
+Caveat kept explicit: these are three different net pairs, and seed variance need not be identical
+across comparisons — pooling them assumes it roughly is. Three estimates is still few, and the 0.024
+is half the other two, which is itself a hint that the variance depends on what is being compared.
+`netmatch`'s hardcoded 0.047 is now conservative rather than wrong; it is left alone until a fourth
+estimate arrives rather than re-tuned on every new data point.
