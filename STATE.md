@@ -1480,6 +1480,24 @@ the binding constraint at that generation was not the floor. The window's value 
 conditional on capture extension being worth admitting, which is exactly what the 300-pair match is
 measuring and which has never been established.
 
+**RESEEDED 2026-09-09 — that lineage was seeded with a capped program.** Its seed selected on
+`Mix(q, u, c)`, whose coefficient on the exploration term is `(16 - c)`: zero at 16, negative above.
+The encoding's ceiling is **20/23** forced mates at ANY weight. Measured on `evolve mctsbudget`'s own
+viability criterion — "approaching 25/25 at cost ~1.0x AB" — against the sum encoding:
+
+| encoding | budget | mates | cost vs AB |
+|---|---|---|---|
+| blend (slot2=8) | 512 | 11/25 | 0.968x |
+| **sum (slot2=600)** | 1024 | **17/25** | 1.085x |
+| sum (slot2=600) | 64 | 14/25 | **0.050x** |
+
+The last row is the sharpest: the sum form reaches 14/25 for **5%** of alpha-beta's cost, where the
+blend form needs 2.17x the cost to reach 13. Best mates/Mcost is 0.0281 against 0.0163.
+
+The lineage seed is now `uct_mcts()` (sum selection) and `budget_mcts` is 1024, the measured
+cost-parity point. Whether the 0.500 gates were caused by the seed is NOT established — that is the
+next measurement, not a claim.
+
 **MCTS lineage, worth noting separately:** every gate is exactly 0.500. Those are behaviourally
 identical candidates — the "plays the same, costs less" path — not strength changes.
 
