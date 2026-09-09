@@ -274,8 +274,11 @@ killed it. That — not another hyperparameter — is where the remaining streng
 | `--gate-every 5` | no depth-4 gain (0.502 ± 0.022) |
 
 **Standing caution on this whole table, added 2026-09-09.** Most of these verdicts are ONE training
-seed. The between-seed movement of a paired difference is measured at **sd ≈ 0.039** (three
-independent estimates: 0.055, 0.052, 0.024), so an effect under ~0.08 on one seed is not settled
+seed. The between-seed movement of a paired difference is **sd ≈ 0.043** — the CANONICAL figure, four
+estimates (0.055, 0.052, 0.024, 0.062). *(This paragraph said 0.039 until 2026-09-09; that was the
+three-estimate value and is superseded. See "seed-band history" below — five different figures were
+in circulation across this repo at once, which is the defect it warns about, committed by me.)*
+So an effect under ~0.08 on one seed is not settled
 however tight its within-run interval looks. Applying that here: `capacity` at equal TIME (0.179) is
 robust, and so are `horizon` and the blend RANGE (0.278, 0.268) — but `epochs 2-vs-3` (0.052),
 `epochs 10-vs-3` (0.015) and `--gate-every 5` (0.002) are all inside the band and are one-seed
@@ -337,7 +340,13 @@ between training seeds. The blend data now measures that twice, independently:
 | 0.75 vs 1.00 @ depth 2 | 0.450 | 0.502 | **0.052** |
 
 Mean movement 0.053; for n = 2, E[range] = 1.128·sd, so between-seed sd ≈ 0.047 **on the first two
-estimates**. It has since been re-derived twice as replications landed — 0.039 on three, and
+estimates**. **Seed-band history** — each value was right for its data, and the defect is leaving superseded ones
+in place: **0.047** on the first two estimates, **0.039** on three, **0.043** on four (canonical), and
+on 2026-09-09 the blend campaign measured **0.0285 DIRECTLY** across five seeds of one contrast — the
+first estimate not built from a pair. That is lower than canonical, which is exactly why five seeds
+over-satisfied a requirement sized at ~2.9. `netmatch.rs` deliberately keeps the OLDEST and most
+conservative 0.047, because over-estimating seeds-needed is the safe error. It has been re-derived
+twice as replications landed — 0.039 on three, and
 **0.043 on four** (movements 0.055, 0.052, 0.024, 0.062). **0.043 is the current value; treat any
 other figure in this tree as superseded.** It is deliberately re-derived rather than defended, and
 `netmatch` still hardcodes 0.047, which is now CONSERVATIVE rather than wrong. Seeds needed
@@ -2884,7 +2893,7 @@ promoted tie that verifies as a genuine tie means the veto rule bought nothing.
 **Not changed.** `COST_PER_MOVE` is the experimental apparatus, and this project's rule is that the
 apparatus changes only on measurement. Recorded as the leading candidate fix, pending the observer.
 
-## 🔑 SETTLED: the P2 gate is UNDERPOWERED — 202 decisions, 0 accepts, bar never in range
+## 🔑 SETTLED: the P2 gate is UNDERPOWERED — 203 decisions, 0 accepts, bar never in range
 
 Full write-up: `gate_power_RESULT.md`.
 
