@@ -127,6 +127,21 @@ fn main() {
     // and the per-generation gate was simply never revisited. SPRT stops early when the evidence
     // is clear, so this is a CAP: a decisive candidate still costs far fewer than 224 pairs.
     let gate_pairs = arg("--gate-pairs", 224);
+    // GATE MATCH DEPTH. Defaults to the DATAGEN depth, which is what it has always silently been,
+    // so this flag changes nothing until it is set.
+    //
+    // WHY IT EXISTS. The batch gate scored with `match_nets(..., depth, ...)` -- the same `depth`
+    // the datagen uses. So the loop learns from depth-2 labels AND selects on depth-2 matches,
+    // while this project judges strength at depth 4 (gate_depth_cap, and the gate budget is sized
+    // as "100% coverage of a full depth-4 search"). It optimises the game it measures.
+    //
+    // MEASURED, both of today's candidates: b2_5 beats champion_long by +0.029 at depth 2
+    // (resolved) and +0.002 at depth 4 (unresolved); bh_100 scores 0.864 against the origin at
+    // depth 2 and 0.832 at depth 4. Gains in the measured game, not in the judged one.
+    //
+    // Aligning the GATE costs gate_pairs matches at a deeper depth; aligning the DATAGEN costs
+    // ~30 min per generation (pd_d4 was killed over exactly that). Same alignment, far cheaper.
+    let gate_match_depth = arg("--gate-match-depth", depth as usize) as u32;
     // ANCHOR GATE. A candidate must also not REGRESS against a fixed opponent.
     //
     // MEASURED 2026-09-08, and this is the root cause of the loop not learning rather than a
@@ -360,7 +375,7 @@ fn main() {
     // greps 1 only because it appears in THIS format string.) That false negative aborted the
     // anchor A/B. A setting that cannot be observed in the program's own output cannot be verified
     // by anything except reading the source.
-    println!("gens={gens} games/gen={games} depth={depth} epochs={epochs} gate-pairs={gate_pairs} gate-nodes={gate_nodes} gate-every={gate_every} include-draws={include_draws} anchor-pairs={anchor_pairs} rollback={rollback} blend={blend}");
+    println!("gens={gens} games/gen={games} depth={depth} gate-match-depth={gate_match_depth} epochs={epochs} gate-pairs={gate_pairs} gate-nodes={gate_nodes} gate-every={gate_every} include-draws={include_draws} anchor-pairs={anchor_pairs} rollback={rollback} blend={blend}");
     println!("ARCH menu {WIDTH_MENU:?}  start rung {rung} (width {})  arch-every {arch_every}",
              WIDTH_MENU[rung]);
     // ORIGIN is always the reproducible iteration-zero net, even when we resume. The control
@@ -897,16 +912,16 @@ fn main() {
             // merely have lower variance per batch. pairing_ab.sh measures that.
             let paired = std::env::var("EXISTENCE_PAIRED_BATCH").is_ok();
             let bseed = if paired { seed ^ 0xA9C0 ^ g as u64 } else { seed ^ 0xA9C0 };
-            let cs = gate::match_nets(&champion, &origin, depth as u32, gate_pairs,
+            let cs = gate::match_nets(&champion, &origin, gate_match_depth, gate_pairs,
                                       seed ^ 0xA9C0 ^ g as u64);
             let (br, bc) = if paired {
                 // Re-measured every batch on the champion's own openings; never cached, since a
                 // cached score is by definition from a different opening set.
-                let m = gate::match_nets(&base, &origin, depth as u32, gate_pairs, bseed);
+                let m = gate::match_nets(&base, &origin, gate_match_depth, gate_pairs, bseed);
                 (m.pent_rate(), m.ci95())
             } else {
                 *batch_base_anchor.get_or_insert_with(|| {
-                    let m = gate::match_nets(&base, &origin, depth as u32, gate_pairs, seed ^ 0xA9C0);
+                    let m = gate::match_nets(&base, &origin, gate_match_depth, gate_pairs, seed ^ 0xA9C0);
                     (m.pent_rate(), m.ci95())
                 })
             };
