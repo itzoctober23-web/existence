@@ -743,6 +743,8 @@ fn step_diff() {
     println!("  guard set (TARGETED, alpha-sensitive): {} positions, seed scores {gf0}/{}",
              guard.len(), guard.len());
 
+    let (_, seed_guard_cost, _) = fitness(&seed, &guard, &net, depth, 16);
+    let mut identical_cheaper = 0usize;
     let (mut ill, mut broken, mut identical, mut different) = (0usize, 0usize, 0usize, 0usize);
     let mut guard_ok_diff = 0usize;
     let mut diff_ops: std::collections::BTreeMap<String, usize> = Default::default();
@@ -764,7 +766,16 @@ fn step_diff() {
             if mv != *b { same = false; }
         }
         if !ok { broken += 1; }
-        else if same { identical += 1; }
+        else if same {
+            identical += 1;
+            // IS THE SPEEDUP PATH REACHABLE? It accepts a candidate that plays IDENTICALLY and
+            // costs LESS, with no game required. That is the path that would let hash reuse
+            // through. But 93 generations produced ZERO survivors cheaper than the champion, so
+            // the path may be correct and EMPTY -- a fourth inert feature. Counting it here
+            // instead of waiting to find out.
+            let (_, cst, _) = fitness(&cand, &guard, &net, depth, 16);
+            if cst < seed_guard_cost { identical_cheaper += 1; }
+        }
         else {
             different += 1;
             // AND does it survive the loop's actual correctness guard? This is the bucket that
@@ -799,7 +810,8 @@ fn step_diff() {
              set.len());
     println!("  ill-typed / inapplicable : {ill}");
     println!("  BROKEN    (no move)      : {broken}");
-    println!("  IDENTICAL (same play)    : {identical}");
+    println!("  IDENTICAL (same play)    : {identical}   of which CHEAPER: {identical_cheaper}");
+    println!("      ^ cheaper AND identical = the speedup path. Zero means that path is dead code.");
     println!("  DIFFERENT (plays differently)                  : {different}");
     println!("  ...AND passes the {}-position guard (THE USEFUL KIND): {guard_ok_diff}", guard.len());
     if !lost.is_empty() {
