@@ -2734,15 +2734,22 @@ Four independent observations line up behind that reading, and nothing else expl
 
 | observation | explained by |
 |---|---|
-| gate scored **exactly** 0.500 | identical play produces an exact tie |
+| gate scored **exactly** 0.500 | near-identical play produces an exact tie over 12 games |
 | generations 5-7 are **byte-identical** to the control's | same behaviour ⇒ mutations of it behave the same |
 | `distinct:0` in generation 5 | no behavioural diversity to find |
 | 133 nodes vs 131 | structurally different, behaviourally not |
 
-**So the implemented rule (`pent_rate - ci95 > 0.5`) can NEVER promote a pure speedup.** A program that
-plays identically scores exactly 0.500 in the game gate, and 0.500 is never "resolved up" at any pair
-count. The rule does not merely make speedups hard to promote — it makes them impossible, by
-construction, however cheap they get.
+**So the implemented rule (`pent_rate - ci95 > 0.5`) can NEVER promote a pure speedup.** This part is
+ARITHMETIC, not inference: a program that plays identically scores exactly 0.500, and
+`0.500 - ci95 > 0.5` is false for every ci95 > 0. Impossible by construction, however cheap the
+candidate gets, at any pair count.
+
+**The observed candidate is an illustration of that gap, not the proof of it, and it is worth keeping
+the two apart.** It FAILED `same_play` — that is precisely why it fell through to the game gate — so
+its play is *near*-identical, not identical. What the four observations show is that the difference is
+too small to register in fitness rates, gate outcome or subsequent trajectory, while the cost saving
+is 24%. A candidate in that band is unpromotable by either path: too different for path 1, too
+similar for path 2.
 
 `evolve.rs:1808` has a dedicated speedup path for exactly this case, gated on `same_play` across ALL
 guard positions. This candidate did not qualify for it — near-identical is not identical — so it fell
