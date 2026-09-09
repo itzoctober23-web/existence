@@ -3265,3 +3265,45 @@ mate guard (control vs gtol). Displacing either arm breaks its control, and an u
 cannot be read. `EPS` is next in line, with its justification now measured rather than assumed —
 the three levers found today (`SPEC_FILTER`, `GUARD_TOL`, `EPS`) were all implemented, all pre-sized
 from measurement, and all never executed.
+
+## INVENTORY: every env-gated knob in the tree, and which have never been exercised
+
+Three never-run levers were found today by stumbling on them one at a time. Doing it systematically —
+14 `EXISTENCE_*` knobs exist:
+
+| knob | status |
+|---|---|
+| `EVOLVE_SEED`, `GATE_VERIFY` | in constant use (4 live arms) |
+| `GATE_VETO` | live (1 arm) |
+| `GUARD_TOL` | **launched today**, first ever run |
+| `MATE` | used, appears in 4 logs |
+| `SPEC_FILTER` | run today, retired — untestable until PATH 1 re-checks cost |
+| `EPS` | **never run** — next in line, justification measured (population collapse) |
+| `HARD_FITNESS` | **tried once, found BROKEN, fixed, never re-run** |
+| `PAIRED_BATCH`, `UCT_K` | **never run** |
+| `FULL_REFRESH`, `HARD_N`, `MCTS_SEED`, `NET` | **never run**, no mention anywhere |
+
+**Caveat on my own check, because it nearly fooled me.** The status scan counts mentions in `*.md`, and
+several knobs show `md:1` purely because *I documented them today*. A knob is not "used" because I
+wrote about it. The live-process and log columns are the ones that mean anything; the doc column
+measures my own writing.
+
+### `HARD_FITNESS`: today's measurement PREDICTS the outcome, and argues against spending a core
+
+The knob replaces the fitness rate with `(f + hf) / (cost + hard_cost)` — folding the hard set into
+selection. `evolve.rs:1429-1438` records that it was run once with a real bug (the incumbent kept the
+OLD formula, so every candidate was scored against a differently-measured baseline), that it looked
+like it "made the search strictly worse", and that this was a comparison error rather than a result.
+The fix is in place. **It has not been run since.**
+
+Today's hard-set measurement says what to expect: across 269 generations the **best score ever reached
+by any candidate is 2 of 8**, and **65.4% of generations have no candidate scoring above zero**. So
+`hf` is zero for most of the population most of the time, while `hard_cost` is always paid. The formula
+would add a near-constant zero to the numerator and a real cost to the denominator — depressing every
+rate without ranking anything.
+
+**That is a prediction, not a verdict**, and it is cheap to state because it costs nothing: the knob
+stays unrun, and the core goes to `EPS`, whose justification is a measured 45.4% population collapse
+rather than a term that is zero two thirds of the time. If `HARD_FITNESS` is ever run, the
+pre-registered reading is that it depresses rates without improving selection — and if it instead
+helps, this measurement was wrong about which dimension carries the signal.
