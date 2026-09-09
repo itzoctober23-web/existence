@@ -1358,6 +1358,33 @@ choosing another constant. The one unambiguous improvement from the attempt surv
 a bare literal at 27 sites as `8` and 6 more as `1`, so `reference_audit` certified these programs
 under a different exploration weight than the loop runs. It is one named accessor now.
 
+## The ratchet is now visible in BEHAVIOUR: the filter gates every generation, strict gates 44%
+
+The mechanism recorded below has a measurable consequence, and it is the clearest difference the A/B
+has produced:
+
+```
+specfilter   5 gates in  5 generations   100%
+strict       4 gates in  9 generations    44%
+```
+
+Under the strict rule the surrogate bar rises to each rejected candidate's rate, so after a few
+rejections the population can no longer clear it and generations pass with `..none`. Under the
+filter the bar stays where the champion put it, so a candidate is proposed every generation. **The
+strict rule progressively silences its own loop; that is what the ratchet does when you watch it
+long enough.**
+
+The filter's `ABOVE` count climbs as the run goes on — 3, 6, 9 across generations — because it is
+measured against a fixed champion rate while the population improves. Under strict the same count
+sits at 1, because the denominator chases the numerator upward.
+
+**What this does NOT yet show.** Every one of those extra gates was a REJECTION, at 0.417 and 0.500,
+so the filter has bought more games and no acceptance. It has also not yet produced its signature
+event — a gate line whose surrogate is BELOW the incumbent's, impossible under the strict rule —
+because the population has so far always contained something above the champion's rate. The filter
+restores proposal frequency, which is what it was for; that this converts into an accepted program
+is unproven and is the harder question.
+
 ## The strict rule RATCHETS ITS OWN BAR UP on every rejection, and the A/B makes it visible
 
 The spec-filter A/B diverged in a way I did not predict and which explains the loop's behaviour over
