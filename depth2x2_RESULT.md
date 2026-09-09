@@ -130,3 +130,32 @@ blend question — the largest lever on the board — was unresolved.
 **What it does NOT say.** These are the EQUAL-WALL-CLOCK arms, 48 generations against 4. The result
 is that the *arm which trained 12× more* is stronger, measured robustly. It is not a depth result,
 and the equal-generation 2×2 above is what answers that question.
+
+## ⚠ Re-examined under the grounded seed band — only ONE depth cell survives it
+
+`STATE.md`'s measurement wall is now anchored to the right quantity: the between-seed movement of a
+**paired difference**, measured twice on the blend data at 0.055 and 0.052, giving sd ≈ **0.047**.
+Applying that to the cells above, before anyone else has to:
+
+| cell | rate | effect | verdict |
+|---|---|---|---|
+| d2 vs d4 (depth, EVEN) | 0.379 | **0.121** | **robust** — ~1 seed suffices; effect is 2.6× the seed sd |
+| d1 vs d3 (depth, ODD) | 0.450 | 0.050 | **needs ~7 seeds** — one is not enough |
+| d1 vs d2 (parity, shallow) | 0.512 | 0.012 | null, but a ONE-SEED null |
+| d3 vs d4 (parity, deep) | 0.506 | 0.006 | null, but a ONE-SEED null |
+
+**So the headline needs narrowing.** "Depth resolves in both parity classes" is solid only in the
+EVEN class, where the effect is 2.6× the seed sd. The odd-class cell sits at roughly one sd and is
+exactly the size of thing this project has repeatedly withdrawn — the "+0.025 depth lever", blend
+1.00's "depth-2 only" mechanism, and (pending) my own blend 0.85 result.
+
+**The parity nulls are one-seed nulls too**, and that is worth stating plainly. Their within-run
+intervals (±0.014) are tight, but tightness bounds the effect AT THAT SEED; between-seed movement of
+~0.047 means a second seed could read 0.46 or 0.55 without contradicting anything. A precise null on
+one seed is not a demonstrated absence.
+
+**What survives unchanged:** the equal-generation design itself, which removes the 12× training-amount
+confound that makes the equal-wall-clock comparison uninterpretable. That was the point of the
+experiment and it stands regardless of how many cells clear the band.
+
+The seed-987654 replication is running and tests all four cells directly.
