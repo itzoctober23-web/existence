@@ -1314,6 +1314,68 @@ pairs the lower bound is 0.503. The direction is consistent across both readings
 Every one of these needs a **second training seed** before a default moves — a match seed re-rolls
 openings and nothing else. `blend_seed2` (running), then `ship_candidate` for the combination.
 
+## ROOT CAUSE: the surrogate cannot express the ladder it exists to climb
+
+`evolve valleyall` scores every reference program against the seed on the SAME mates/Mcost surrogate
+the loop selects with. 25 positions, depth 3:
+
+```
+program                            nodes  mates  mates/Mcost  vs seed  hard  verdict
+bare alpha-beta (main seed)          +0     25    0.002518     1.000x    0
+alpha-beta + hash reuse           +104     25    0.002578     1.024x    0   FITTER
+alpha-beta + iterative deepening   +29     25    0.002300     0.914x    0   not fitter
+alpha-beta + hash + ID            +133     25    0.002348     0.933x    0   not fitter
+table reduction (rung 7)           +15     25    0.002496     0.992x    0   not fitter
+capture extension (rung 6)         +13     18    0.000857     0.340x    1   loses answers
+UCT-style MCTS                     +61     10    0.002437     0.968x    0   loses answers
+depth-one (purity seed)            -62      5    2.499200   992.711x    0   loses answers
+proof-number search               +104      4    0.022854     9.078x    0   loses answers
+```
+
+**Six of the seven ladder rungs score BELOW the seed.** The mechanism is arithmetic, not bad luck:
+the seed already scores **25/25 mates**, so the numerator is SATURATED and `mates/cost` is driven
+entirely by cost. The only way to exceed 1.000x is to be CHEAPER. Every genuine search improvement
+costs more — +104, +29, +133, +13, +15 nodes. The fitness function therefore ranks the ladder
+roughly in reverse.
+
+**The sharpest single number: capture extension is rated 0.340x.** It is the ONLY program in the
+entire reference set that scores on the HARD set (`hard: 1`; everything else, including the seed,
+scores 0). So the surrogate penalises hardest the one program that demonstrates the exact capability
+the hard set was built to measure. It is excluded twice over — the guard cuts it for losing 7 mates
+(25 -> 18 at a fixed budget of 16, tolerance 4) and the rate cuts it at 0.340x.
+
+**And the one rung that IS fitter cannot be climbed to.** The conjunctive test:
+
+```
+probe only (never stores)   25 mates  0.991x
+store only (never probes)   25 mates  0.997x
+hash reuse (both halves)    25 mates  1.024x
+```
+
+Both halves are needed; each alone is downhill. A strict `rate > best_rate` climb cannot take the
+first step.
+
+**This is the mechanistic explanation for `ABOVE:0`**, and it means that measurement was never
+evidence about the operators or the search. `ABOVE:0` is *structurally guaranteed* by the fitness
+function. An operator audit confirms the operators are not the gap: `WrapIfPred`, `ProbeRead` and
+`StoreHere` were added beyond GRAMMAR 4's ten precisely so rungs 4-6 are expressible, and every rung
+above the seed is reachable without the two spec operators that are missing (`add-arg`, `add-fn`) —
+those are only needed for rungs 2-3, which sit BELOW the seed. Checked before claiming, because the
+obvious story — "qsearch needs a new recursive function, so it is unreachable" — is refuted by
+`reference.rs:45`: rung 6 is a single `wrap-if` on the recursion the seed already has.
+
+**What GRAMMAR 9 actually requires, and where the loop diverges from it.** The spec says each rung
+must beat the previous "on mates-per-cost **and/or** fixed-time games". The and/or is load-bearing:
+six of seven rungs fail the mates-per-cost half, so the ladder is only climbable on the GAMES half.
+The evolve loop selects on the surrogate and only reaches games afterwards, so it filters on the one
+criterion the ladder demonstrably fails. That is the defect — not the operators, not EPS, not the
+gate's pair count.
+
+**Where EPS lands, for completeness.** With `EPS = 0.020` the tolerance band reaches 0.98, which
+covers the conjunctive path (0.991x, 0.997x) and table reduction (0.992x), but not iterative
+deepening (0.914x) and not capture extension (0.340x). So the plateau tolerance makes hash reuse
+approachable in principle while leaving two real rungs permanently outside the band.
+
 ## ANSWERED: no candidate has EVER strictly beaten the incumbent, in either arm
 
 With `ABOVE` counting guard-passers whose rate exceeds the incumbent's — the acceptance condition
