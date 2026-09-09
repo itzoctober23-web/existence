@@ -395,3 +395,27 @@ Swapping in a trained net. Holding the net fixed and random is what makes the ga
 rather than the evaluation, and that is the whole point of the search track. The fix is the OPENINGS,
 not the eval — which is exactly what the plan says, and it is why "raise `gate_pairs`" was the wrong
 first instinct: more pairs from the same balanced start yield more draws.
+
+### MEASURED: depth halves the draws but is NET WORSE per unit compute
+
+The obvious first lever for decisiveness is search depth. Tested it as an A/A at the gate's own 6-pair
+size, changing nothing but depth:
+
+| depth | W-D-L | draws | decisive games | CPU | decisive per CPU-second |
+|---|---|---|---|---|---|
+| 3 | 2-8-2 | 67% | 4 | 102s | **0.0392** |
+| 4 | 4-4-4 | **33%** | 8 | 614s | **0.0130** |
+
+**Depth 4 halves the draw rate and delivers 0.33x the information per CPU-second.** Doubling the
+decisive-game yield costs ~6x the compute, so on a fixed budget depth 3 produces more usable games
+than depth 4 does. Depth is a real lever on drawishness and the wrong one to pull.
+
+Note the pentanomial is `[0,0,6,0,0]` at BOTH depths, and `ci95` is 0.250 either way. That is correct
+and not a failure: in an A/A the decisive games are perfectly mirrored (4 wins, 4 losses), so every
+pair still lands in the middle bucket. Depth changes how many games *resolve*, not whether two
+identical programs are equal — which is exactly why this had to be measured on draw COUNT rather than
+on the gate's own output.
+
+**This strengthens the case for MASTER_PLAN's remedy #2.** An unbalanced opening book changes the
+STARTING POSITION, so it costs nothing per game — unlike depth, which pays for decisiveness with
+compute at a losing exchange rate. Same information gain, no per-game cost.
