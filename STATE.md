@@ -1314,6 +1314,37 @@ pairs the lower bound is 0.503. The direction is consistent across both readings
 Every one of these needs a **second training seed** before a default moves — a match seed re-rolls
 openings and nothing else. `blend_seed2` (running), then `ship_candidate` for the combination.
 
+## ANSWERED: no candidate has EVER strictly beaten the incumbent, in either arm
+
+With `ABOVE` counting guard-passers whose rate exceeds the incumbent's — the acceptance condition
+itself — the pre-registered question is settled:
+
+```
+FLAGGED  gen2 MCTS  rates 0.772-1.000000x  [.. distinct:4 ABOVE:0]  hard 0-0
+         gen3 MAIN  rates 0.899-1.000000x  [.. distinct:8 ABOVE:0]  hard 0-1
+         gen3 MCTS  rates 0.325-0.999996x  [.. distinct:3 ABOVE:0]  hard 0-0
+CONTROL  gen2 MCTS  rates 0.801-1.000000x  [.. distinct:4 ABOVE:0]  hard 0-0
+         gen3 MAIN  rates 0.969-1.000000x  [.. distinct:8 ABOVE:0]  hard 0-1
+         gen3 MCTS  rates 0.446-0.999993x  [.. distinct:3 ABOVE:0]  hard 0-0
+```
+
+**ABOVE is 0 in every `..none` generation of both arms.** Not once has a candidate strictly beaten
+the incumbent, so not once could anything have been accepted. `EXISTENCE_HARD_FITNESS` does not
+change that — the flag alters which candidate is proposed and the population's hard-set floor, but
+not the acceptance picture.
+
+**The six-decimal print shows the old check was reading a rounding artefact.** `0.999996x` and
+`0.999993x` both rendered as exactly `1.000x` at three decimals. So the maxima I had been reading as
+"a neutral twin ties the incumbent" were in several cases *below* it — the population was never even
+level, let alone above.
+
+**And it sharpens the diagnosis rather than repeating it.** `distinct:8 ABOVE:0` means eight of
+twelve candidates differ from the incumbent and every one differs DOWNWARD. That rules out the
+hypothesis `distinct` was added to test — "the operators produce only neutral rewrites, so no
+selection policy can help". The operators produce plenty of variation. All of it is neutral or
+worse. The bottleneck is not the selection filter and not the fitness shape; it is that the mutation
+operators, on this surrogate, never generate an improvement to select.
+
 ## ⚠ BRIEF TASK 1 IS WRONG AT THE SHIPPED WIDTH: incremental NNUE would make the engine SLOWER
 
 The standing brief calls the incremental accumulator "the biggest single win", on the premise that
