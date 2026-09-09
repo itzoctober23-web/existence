@@ -77,3 +77,61 @@ depth. Three things would change it, in rough order of how directly they attack 
 93-generation figure derives from every `search_track_*.log` on disk plus the live run, counting
 generations whose `mate-ok` was non-zero and whose best surviving rate exceeded 1.000x of the
 champion. The saturation claim is structural (25 positions, guard at the maximum), not statistical.
+
+
+---
+
+## THE ROOT CAUSE, found 2026-09-08: alpha-beta is EXACT, so correctness cannot discriminate
+
+The section above says mates is saturated and treats that as a property of the position set. It is
+not. It is a property of **alpha-beta**, and no set can fix it.
+
+**Alpha-beta with a full window returns the same value as minimax.** So every correct variant at
+the same depth returns the **same move**. `bare_alpha_beta`, `ab_hash`, `ab_id` and `ab_hash_id`
+are not merely similar — they are behaviourally IDENTICAL. They differ only in what they cost to
+compute an answer they all agree on.
+
+That predicts both saturations exactly, and both are measured:
+
+| set | seed | every exact variant | why |
+|---|---|---|---|
+| guard (25 positions) | 25/25 | 25/25 | all return the same moves |
+| hard (8 positions, depth+1 answers) | 0/8 | **0/8** | all return the same depth-3 moves |
+
+I built the hard set specifically to create a correctness gradient, and ran the control before
+restructuring acceptance around it. **Every reference program scores 0/8 — including
+`capture_extension`, which was the specific hope**, since it searches deeper on tactical lines. The
+gradient does not exist for anything reachable.
+
+**Had I skipped that control and rebuilt the acceptance rule first, selection would have been
+driven by a dimension on which every candidate scores zero** — no change at all, dressed as a fix.
+
+### What this means
+
+The MAIN lineage's fitness cannot have a correctness gradient at fixed depth. Not "does not
+currently" — cannot, as a consequence of alpha-beta's exactness. The only quantity that varies
+among correct programs is COST, and `docs/FITNESS.md` shows cost cannot convert to strength for a
+depth-limited program.
+
+So the search space decomposes into exactly two kinds of candidate:
+
+* **Exact variants** — identical play, differing only in cost. Cost is unconvertible, so these
+  cannot be stronger. Only hash reuse is even cheaper (1.024x), and it is behind a valley.
+* **Inexact variants** — extensions and reductions, which change the effective depth and therefore
+  CAN play differently. `capture_extension` and `table_reduction` are the two in the reference set,
+  measured at 0.985x and 0.993x: both LOSSES on mates-per-cost, because changing the search costs
+  more without winning anything the guard set can see.
+
+**The fitness rewards the class that cannot improve and penalises the only class that can.**
+
+### What would actually change it
+
+A fitness that can see the value of an extension. That means positions where a SMALL change of
+effective depth flips the answer — not a full extra ply, which is what the depth+1 hard set demands
+and what nothing reachable can deliver. Building such a set from `capture_extension`'s own
+disagreements would work mechanically and is REFUSED: it bakes the intended answer into the
+measurement, which is the same defect as an operator that inserts a gadget.
+
+The honest alternatives remain the three already recorded: a budget-aware seed, strength itself as
+the fitness (~1,650 pairs per generation), or accepting that this lineage is a null result and
+saying so.

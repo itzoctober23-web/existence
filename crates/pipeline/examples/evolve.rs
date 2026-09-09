@@ -363,8 +363,15 @@ fn valley_all() {
              set.len());
     println!("  seed bare alpha-beta: {sf}/{} mates, {sr:.6} mates/Mcost, {sn} nodes\n",
              set.len());
-    println!("  {:<34} {:>6} {:>7} {:>13} {:>9}  {}", "program", "nodes", "mates", "mates/Mcost",
-             "vs seed", "verdict");
+    // THE CONTROL THE HARD SET NEEDS: is it winnable by ANY program we have? An unsaturated
+    // dimension is useless if nothing reachable can score on it. capture_extension is the specific
+    // hope -- it searches deeper on tactical lines, which is exactly what these positions require.
+    let hard = harder_set(8, depth, &net, 3_000);
+    let (seed_hard, _, _) = fitness(&seed, &hard, &net, depth, 16);
+    println!("  HARD set: {} positions, seed scores {seed_hard}/{} (0 expected -- by construction)",
+             hard.len(), hard.len());
+    println!("  {:<34} {:>6} {:>7} {:>13} {:>9} {:>6}  {}", "program", "nodes", "mates",
+             "mates/Mcost", "vs seed", "hard", "verdict");
     for (name, prog) in reference::all() {
         // UCT is scored at ITS declared budget, for the same reason the lineage is: it spends
         // playouts against `budget` and alpha-beta ignores it. Scoring it at 16 would report the
@@ -379,7 +386,8 @@ fn valley_all() {
         } else {
             "not fitter"
         };
-        println!("  {name:<34} {:>+6} {f:>7} {r:>13.6} {ratio:>8.3}x  {verdict}",
+        let (hf, _, _) = fitness(&prog, &hard, &net, depth, bud);
+        println!("  {name:<34} {:>+6} {f:>7} {r:>13.6} {ratio:>8.3}x {hf:>6}  {verdict}",
                  prog.size() as i64 - sn);
     }
 
