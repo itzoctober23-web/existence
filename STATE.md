@@ -1314,6 +1314,51 @@ pairs the lower bound is 0.503. The direction is consistent across both readings
 Every one of these needs a **second training seed** before a default moves — a match seed re-rolls
 openings and nothing else. `blend_seed2` (running), then `ship_candidate` for the combination.
 
+## ⚠ BRIEF TASK 1 IS WRONG AT THE SHIPPED WIDTH: incremental NNUE would make the engine SLOWER
+
+The standing brief calls the incremental accumulator "the biggest single win", on the premise that
+"eval is a dense 256x782 forward pass at every leaf". **Both halves are false, and the fix would be
+a regression.**
+
+**1. eval is already sparse.** `Net::eval` calls `Self::active(pos, &mut idx)` and accumulates only
+the ~38 active feature rows. There is no dense 782-row pass anywhere in it.
+
+**2. Incremental is a measured LOSS at small width**, and the numbers are already in the tree
+(`pipeline/src/search.rs`, node counts identical across both paths so the ratios are real):
+
+```
+hidden  32   refresh 1718969   incr 1560497   0.91x  LOSS
+hidden 128   refresh  889406   incr 1014240   1.14x  win
+hidden 512   refresh  240701   incr  363458   1.51x  win     crossover near 64
+```
+
+**3. The shipped nets are width 16.** Reading the `EXNT` header of all 70 nets in the repo:
+
+```
+n_hidden=16    64 nets      <- everything the loop actually trains and gates
+n_hidden=32     3 nets
+n_hidden=64     2 nets
+n_hidden=256    1 net       (champion_arch)
+```
+
+The saving scales with width (~38 rows rebuilt vs ~4 touched) while the bookkeeping — two `active()`
+scans, a bitset diff, a memcpy per ply — does not. At 16 the bookkeeping is larger than the work it
+saves, so the engine would lose more than the 0.91x already measured at 32. **Do not do brief task 1
+at the current width.** It only becomes correct if the champion moves to width >= 128, which is a
+capacity decision, not a perf one.
+
+**What the real lever is, and it follows from the same arithmetic.** At width 16 an eval is roughly
+38x16 = 608 row-adds plus a 16-wide ReLU head — a few hundred nanoseconds. Against that,
+`Net::eval` does `Vec::with_capacity(40)` — a heap allocation and free on EVERY eval, in the hottest
+function in the program. The smaller the net, the larger that fixed cost is as a fraction. Three
+sites allocate per call (`eval`, `Accum::refresh`, and line 147), and `active()` already takes a
+reusable `&mut Vec<u16>` that no caller reuses. That is the width-16 optimisation, and it is the
+opposite of the one the brief names.
+
+**Not yet measured.** The above is an arithmetic argument, not a measurement, and this file has
+retracted enough unmeasured performance claims today. It gets a before/after with equal work proven
+on both arms before any number is quoted.
+
 ## Task list (docs/MASTER_PLAN items 1-6) — verified stale
 
 | item | status, verified by reading |
