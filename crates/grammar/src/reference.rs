@@ -503,17 +503,20 @@ pub fn uct_mcts() -> Program { uct_program(false) }
 /// the exploration term inside the sqrt, and once as the weight of `Mix(q, u, c)`, which
 /// interp/src/lib.rs:696 computes as `(q*c + u*(16-c))/16`. Those two uses FIGHT -- raising the
 /// slot enlarges `u` inside the sqrt while shrinking `u`'s blend coefficient `(16 - c)` toward
-/// zero, and past zero. Swept at budget 256 over the 23 mate-in-one positions:
+/// zero, and past zero. Swept at budget 256 over the 23 mate-in-one positions (fenced as `text`,
+/// because a 4-space indented block in a doc comment is a rustdoc DOCTEST and this table is not Rust):
 ///
-///     c =      1   coefficient  +15   20/23
-///     c =      2                +14   18/23
-///     c =      4                +12   18/23
-///     c =      8                 +8   15/23
-///     c =     12                 +4   14/23
-///     c =     16   coefficient    0   14/23   <- u cannot matter at all: pure greed
-///     c =     24                 -8   12/23
-///     c =     64                -48    9/23
-///     c = 360000           -359984    0/23
+/// ```text
+/// c =      1   coefficient  +15   20/23
+/// c =      2                +14   18/23
+/// c =      4                +12   18/23
+/// c =      8                 +8   15/23
+/// c =     12                 +4   14/23
+/// c =     16   coefficient    0   14/23   <- u cannot matter at all: pure greed
+/// c =     24                 -8   12/23
+/// c =     64                -48    9/23
+/// c = 360000           -359984    0/23
+/// ```
 ///
 /// Monotone, crossing the greedy baseline exactly where the coefficient reaches zero. This
 /// CORRECTS the explanation on record: the documented K = 360_000 result of 0 mates was read as
