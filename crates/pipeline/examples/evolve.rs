@@ -1277,6 +1277,21 @@ fn main() {
         ("MCTS", reference::uct_mcts(), budget_mcts),
     ] {
         let (f, c, r) = fitness(&seed_prog, &set, &net, depth, bud);
+        // THE INCUMBENT MUST USE THE SAME FORMULA AS THE CANDIDATES. With
+        // EXISTENCE_HARD_FITNESS the candidate rate is (f + hf) / (cst + hcst); leaving the seed's
+        // rate at f / cst compares the two arms on different work, and since the seed scores hf = 0
+        // the new formula only enlarges its denominator -- so EVERY candidate scored below an
+        // incumbent measured a different way.
+        //
+        // Observed exactly that before this fix: "rates 0.894-0.927x [>=.98:0 ...] pop 1". The max
+        // candidate rate fell BELOW 1.000x, nothing cleared EPS, and the population collapsed to a
+        // single member. The flag looked like it made the search strictly worse; it had only made
+        // the comparison invalid.
+        let (f, c, r) = if std::env::var("EXISTENCE_HARD_FITNESS").is_ok() {
+            let (shf, shc, _) = fitness(&seed_prog, &hard, &net, depth, bud);
+            let cc = c.saturating_add(shc);
+            (f, cc, (f + shf) as f64 * 1e6 / cc.max(1) as f64)
+        } else { (f, c, r) };
         println!("  lineage {name:<5} seed {:>3} nodes, budget {bud:<5} -> {f}/{} mates (floor {}), {c} cost, \
 {r:.6} mates/Mcost", seed_prog.size(), set.len(), f.saturating_sub(guard_tolerance));
         lineages.push(Lineage {
