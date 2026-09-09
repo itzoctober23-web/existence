@@ -1448,6 +1448,60 @@ covers the conjunctive path (0.991x, 0.997x) and table reduction (0.992x), but n
 deepening (0.914x) and not capture extension (0.340x). So the plateau tolerance makes hash reuse
 approachable in principle while leaving two real rungs permanently outside the band.
 
+## ⚠ RETRACTED: "no candidate ever beat the incumbent" — I published a TAUTOLOGY as evidence
+
+**The claim below is wrong and the instrument that produced it was vacuous.** `ABOVE` was printed
+only inside the `..none` branch, which is the ELSE of `if popn[0].2 > best_rate`. `popn` is
+parents-union-offspring sorted by rate, so if any offspring beat the incumbent, `popn[0].2 >
+best_rate` and the code takes the IF branch. **`ABOVE` can therefore only ever print 0**, in every
+run, forever, regardless of what the search does. I read that guaranteed 0 as the answer to a
+pre-registered question.
+
+That is the fourth inert diagnostic in this file — after the cost ceiling, `catch_unwind` under
+`panic=abort`, and the misplaced guard floor — and the first whose output I turned into a headline.
+It is also the second instrument defect in a row on the same question, which is the documented signal
+that the harness is wrong rather than the subject.
+
+**What the logs actually say**, counted rather than inferred, identically in both arms:
+
+```
+hardv2_fit    15 gens |  8 ..none |  7 reached the GATE | 0 accepted
+hardv2_ctrl   15 gens |  8 ..none |  7 reached the GATE | 0 accepted
+```
+
+A gate line is only reachable when a candidate DID strictly beat the incumbent. So **in 7 of 15
+generations (47%) the surrogate found a candidate that beat the champion on rate** — the opposite of
+what I recorded. Every one of the 14 gate calls then rejected it:
+
+```
+gate REJECT 0.375+/-0.110  (x2)   0.417+/-0.103  (x3)
+gate REJECT 0.458+/-0.082  (x3)   0.500+/-0.250  (x6)
+```
+
+**The corrected conclusion is stronger than the retracted one, and it agrees with the ladder.** The
+surrogate proposes rate-improvements about half the time and the GAMES say none of them is a strength
+improvement — every observed rate is at or below 0.500. That is exactly what the ladder result
+predicts: a saturated-numerator ratio rewards being cheaper, and cheaper is not stronger.
+
+**And the gate cannot accept a realistic improvement anyway.** Acceptance is
+`pent_rate - ci95 > 0.5`, so the bar is `0.5 + ci95`. At the ci95 values actually observed:
+
+```
+ci95 0.082 -> must score > 0.582      ci95 0.110 -> must score > 0.610
+ci95 0.103 -> must score > 0.603      ci95 0.250 -> must score > 0.750
+```
+
+A genuine engine improvement is typically 0.51-0.55 in pair rate. **The 12-game gate demands
+0.58-0.75**, so it would reject every real improvement it was ever shown. Six of the fourteen
+rejections sit at exactly `0.500+/-0.250`, which is 12 games carrying no information at all —
+nothing between 0.25 and 0.75 can resolve there.
+
+`ABOVE` now prints on the GATE line, where it is informative (how many candidates cleared the
+incumbent), together with the acceptance bar `needed >{0.5+ci95}` so that threshold is never again
+recalled from memory instead of read.
+
+### Superseded text follows
+
 ## ANSWERED: no candidate has EVER strictly beaten the incumbent, in either arm
 
 With `ABOVE` counting guard-passers whose rate exceeds the incumbent's — the acceptance condition

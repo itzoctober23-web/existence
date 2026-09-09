@@ -1552,16 +1552,17 @@ fn main() {
             // is 0 while `mate_ok` is large, the operators are producing only neutral rewrites and
             // no selection policy can help -- which is a different problem from EPS cutting them.
             let distinct = rel.iter().filter(|x| (**x - 1.0).abs() > 1e-9).count();
-            // ABOVE: guard-passers STRICTLY beating the incumbent. This is the acceptance condition
-            // itself (`rate > best_rate`, strictly -- see the note at the accept site), so it is the
-            // only statistic that answers "could anything have been accepted this generation".
+            // ABOVE: guard-passers STRICTLY beating the incumbent -- the acceptance condition
+            // (`rate > best_rate`) itself.
             //
-            // IT REPLACES A CHECK OF MINE THAT COULD NOT ANSWER IT. I pre-registered "does any
-            // generation report a rate above 1.000x" as the falsifiable test for the hard-fitness
-            // change, then read it off `rhi` printed at THREE DECIMALS -- where a candidate at
-            // 1.0004x renders as exactly "1.000x". The test was blind at the resolution it was
-            // reported at, so its "never fired" could not be distinguished from "fired and rounded
-            // away". Same class as the comment above: the max was never the right statistic.
+            // IT MUST BE REPORTED ON THE GATE LINE, NOT THE `..none` LINE. `..none` is printed in
+            // the ELSE of `if popn[0].2 > best_rate`, and popn is parents-union-offspring sorted by
+            // rate, so if any offspring beat the incumbent we are in the IF branch by construction.
+            // ABOVE is therefore TAUTOLOGICALLY 0 wherever `..none` prints it, and I read exactly
+            // that tautology as though it were evidence that nothing ever beats the incumbent. The
+            // logs say the opposite: 7 of 15 generations reached the gate, which is only reachable
+            // when a candidate DID beat it. Fourth inert diagnostic in this file, and the first one
+            // whose output I published a conclusion from.
             let above = rel.iter().filter(|x| **x > 1.0 + 1e-9).count();
             let offspring: Vec<(Program, u32, f64)> =
                 // guard_floor, NOT best_found. This line is the ACTUAL selection filter; the
@@ -1666,8 +1667,13 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                 };
                 let resolved_up = gsc.pent_rate() - gsc.ci95() > 0.5;
                 if !resolved_up {
-                    println!("  gen {g:>3} {:<5} gate REJECT {:.3}+/-{:.3} ({} games)  surrogate {rate:.6}",
-                             lineages[li].name, gsc.pent_rate(), gsc.ci95(), gsc.games());
+                    // ABOVE and the ACCEPTANCE BAR both belong here. `resolved_up` demands
+                    // pent_rate - ci95 > 0.5, so at these pair counts the candidate must score
+                    // above 0.5 + ci95 -- printed so the bar is never inferred from memory.
+                    println!("  gen {g:>3} {:<5} gate REJECT {:.3}+/-{:.3} ({} games)  surrogate \
+{rate:.6}  ABOVE:{above}  needed >{:.3}",
+                             lineages[li].name, gsc.pent_rate(), gsc.ci95(), gsc.games(),
+                             0.5 + gsc.ci95());
                     lineages[li].best_rate = rate;
                     continue;
                 }
@@ -1687,8 +1693,8 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                 let span = if rel.is_empty() { "none".to_string() }
                            else { format!("{rlo:.3}-{rhi:.6}x") };
                 println!("  gen {g:>3} {:<5} ..none ({n_scored} cand, {ill} ill, mate-ok {mate_ok}, \
-rates {span} [>=.98:{} .90-.98:{} .50-.90:{} <.50:{} distinct:{} ABOVE:{}], hard {hlo}-{hhi})  pop {} spread {:.6}-{:.6} tt{:?}",
-                         lineages[li].name, hist.0, hist.1, hist.2, hist.3, distinct, above,
+rates {span} [>=.98:{} .90-.98:{} .50-.90:{} <.50:{} distinct:{}], hard {hlo}-{hhi})  pop {} spread {:.6}-{:.6} tt{:?}",
+                         lineages[li].name, hist.0, hist.1, hist.2, hist.3, distinct,
                          popn.len(), spread_lo, spread_hi, tt);
             }
         }
