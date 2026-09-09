@@ -284,6 +284,23 @@ accept. **n = 1 batch gate**, at `champion_long`'s plateau (0.828 vs origin), an
 came from a different regime and the compressed metric — so this is evidence, not a verdict.
 `batch_ab2` yields four more; the ratchet yields more still.
 
+## Shipping candidates, with evidence strength stated per item
+
+All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an Elo number.
+
+| candidate | shipped | measured | strength |
+|---|---|---|---|
+| **blend 1.00** | 0.75 | 0.450 ± 0.016 (bn_075 vs bh_100) | **solid** — resolved, 3 independent routes |
+| **`--gate-every 5`** | 1 | 0.529 ± 0.015 (b2_5 vs champion_long) | **resolved**, one training run |
+| epochs 2 | 3 | 0.518 ± 0.014 (ep_2 vs ep_3) | **MARGINAL** — margin 0.004 vs ci95 0.014 |
+
+**Epochs is marginal, not clear.** I earlier called it "clear of 0.5" off a 448-pair reading; at 960
+pairs the lower bound is 0.503. The direction is consistent across both readings and both sit above
+0.5, but this is not yet a result and must not be shipped on.
+
+Every one of these needs a **second training seed** before a default moves — a match seed re-rolls
+openings and nothing else. `blend_seed2` (running), then `ship_candidate` for the combination.
+
 ## Task list (docs/MASTER_PLAN items 1-6) — verified stale
 
 | item | status, verified by reading |
