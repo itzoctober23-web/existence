@@ -259,7 +259,7 @@ should not have written it as one on a single seed however tight ±0.014 looked.
 bounds the effect AT THAT SEED and says nothing about the next one. `netmatch` now prints the
 seeds-needed figure precisely so this stops being a judgement call.
 
-## Synthesis (PROVISIONAL — the fourth cell is still running): both effects are real and they OPPOSE
+## Synthesis (CONFIRMED — all four cells landed): both effects are real and they OPPOSE
 
 Three of seed 987654's four cells have landed, and together they reframe this whole experiment.
 Stated as who wins rather than as a rate:
@@ -292,6 +292,31 @@ arms would be low — but d4 is the highest of the four. d2 is lowest because it
 shallow, which is precisely the opposing-effects picture, arriving from a completely separate
 measurement.
 
-**Provisional** until `d3 vs d4` lands: if parity-at-deep also favours odd, the picture is uniform; if
-it nulls, then parity fades with depth and the interaction is real. Either way this section gets
-amended rather than deleted.
+**RESOLVED — `d3 vs d4` landed at 0.521 ± 0.016, odd ahead, interval clear of 0.5.** So parity
+favours odd at BOTH depths, and all four cells of the seed-987654 2×2 resolve. Both branches of the
+pre-registration are answered at once: the picture is uniform in DIRECTION, and parity also FADES
+with depth.
+
+### The complete picture, both seeds
+
+| contrast | seed 424242 | seed 987654 | cross-seed mean | 95% CI |
+|---|---|---|---|---|
+| **depth**, even class (d2 vs d4) | +0.121 | +0.059 | **+0.090** | **[+0.032, +0.148]** |
+| **depth**, odd class (d1 vs d3) | +0.050 | +0.026 | +0.038 | [−0.020, +0.096] |
+| **parity**, shallow (d1 vs d2) | +0.012 | +0.054 | +0.033 | [−0.025, +0.091] |
+| **parity**, deep (d3 vs d4) | +0.006 | +0.021 | +0.014 | [−0.044, +0.071] |
+
+**Every one of the eight measurements has the same sign.** Deeper always beats shallower within a
+parity class; odd always beats even at a fixed depth. Only the even-class depth effect is resolved
+cross-seed, but eight consistent signs is itself evidence — under a true null the probability of all
+eight agreeing by chance is 1/128.
+
+**Parity halves with depth: +0.033 shallow against +0.014 deep.** That was the provisional prediction
+in this section before the last cell ran, and it held. It also explains the d1-vs-d2 result: at
+shallow depth the parity advantage (+0.033) exceeds what one extra ply buys (+0.038 in the odd class,
+less at the very bottom), so the SHALLOWER odd arm wins a head-to-head against the deeper even one.
+
+**What this settles about the original claim.** "The depth lever was parity, not depth" was measuring
+d2 against d3 — one step of depth AND a parity crossing, with the two pointing opposite ways. Their
+sum is small and unstable, which is exactly the +0.025 that never reproduced. Neither term is an
+artifact; the comparison was.
