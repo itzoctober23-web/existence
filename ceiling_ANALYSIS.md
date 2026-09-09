@@ -72,3 +72,33 @@ can represent rather than what it is shown.
   means down. It is also worth its own look, since the arch arm is the lever named above.
 * The band's width (0.79-0.86) is wider than most individual ci95 values, so run-to-run variation
   exceeds within-run measurement error. Any width experiment needs multiple seeds to beat that.
+
+
+---
+
+## DESIGN RULE, learned the hard way: equal wall clock silently varies the horizon
+
+`horizon = min(10 + (g-1)*5, cap)` widens with GENERATION COUNT. So any experiment that equalises
+WALL CLOCK rather than generations also varies the horizon, by a factor of however much the arms'
+throughputs differ — and it does so invisibly, since nothing in the output names the horizon as a
+variable under test.
+
+**Audited every A/B in this campaign:**
+
+| experiment | arms matched on | generations | final horizon | confounded? |
+|---|---|---|---|---|
+| width (w16 vs w64) | generations (`--gens 20`) | 20 / 20 | h105 / h105 | **no** |
+| draws (exclude vs include) | generations (`--gens 20`) | 20 / 20 | h105 / h105 | **no** |
+| depth (d2 vs d3) | **wall clock** (2400s) | 92 / 8 | **h465 / h45** | **YES** |
+
+The two refutations survive — width (0.179 ± 0.021) and draws (+0.086 ± 0.015) are clean
+comparisons. Only the depth result is affected, and only because equal-compute was the right design
+for THAT question and carries this side effect.
+
+**The rule:** if arms are matched on time rather than generations, pin `--horizon-cap` explicitly.
+Equal compute and equal horizon are both defensible; getting one by accident while believing you
+have the other is not.
+
+This is the third instance today of the same failure shape — two variables moving, the uncontrolled
+one flattering the result. Equal-DEPTH vs equal-TIME in the width gate. Equal-BUDGET vs equal-COST
+in the game gate. Equal-WALL-CLOCK vs equal-HORIZON here.
