@@ -324,6 +324,32 @@ accept. **n = 1 batch gate**, at `champion_long`'s plateau (0.828 vs origin), an
 came from a different regime and the compressed metric — so this is evidence, not a verdict.
 `batch_ab2` yields four more; the ratchet yields more still.
 
+## Non-transitivity is REAL — so the direct match's 3.6× precision is on the wrong quantity
+
+I suspected the codebase's non-transitivity demonstration was the same depth confound that produced
+my false "sign reversals", which would have freed the batch gate to use a direct champion-vs-base
+match and gain 3.6× signal-to-noise. **Measured at a matched depth 2, all three matches, 448 pairs:**
+
+| | value |
+|---|---|
+| ep_1 vs champion_long, **direct** | **0.548 ± 0.021** — ep_1 stronger, clear of 0.5 |
+| ep_1 vs origin | 0.831 ± 0.016 |
+| champion_long vs origin | 0.855 ± 0.016 |
+| **origin-increment** | **−0.024 ± 0.023** — champion_long stronger |
+
+**The two metrics disagree in sign at the same depth.** Not a protocol artifact — genuine
+non-transitivity. `ep_1` beats `champion_long` head-to-head while being worse against a fixed
+reference.
+
+So the anchor-increment design is **right** and stays. The direct match is 3.6× more precise, but it
+measures "beats this specific opponent", which is not "stronger" — and a ratchet built on it would
+climb a matchup rather than a strength. The 3.6× is not available; it was precision on the wrong
+quantity.
+
+Note this cuts *both* ways and neither metric is an oracle: for the blend pair the two agreed in
+sign at matched depth, here they do not. Which one is trustworthy is **pair-dependent**, so every
+number should name the instrument that produced it.
+
 ## The ceiling is not a COMPONENT — it is a measurement RATE
 
 Every named candidate is now measured and closed:
