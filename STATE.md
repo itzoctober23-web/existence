@@ -1,4 +1,40 @@
-# Existence — current state, 2026-09-08
+# Existence — current state, 2026-09-09
+
+## ✅ SETTLED (read this before anything below)
+
+**Every tuning candidate is closed. None moved the plateau. The shipped defaults are correct.**
+
+| candidate | verdict |
+|---|---|
+| capacity / width | closed — w64 does not beat w16 |
+| draw filter, horizon | closed |
+| datagen depth | closed — the effect was search PARITY (odd vs even), not depth |
+| blend 1.00 | **dead** — advantage is depth-2 only (depth shift z = 4.4) |
+| epochs 2 | **dead** — 0.498 / 0.473 / 0.448 once arms are matched; **3 is better** |
+| `--gate-every 5` | no depth-4 gain (0.502 ± 0.022) |
+
+**What the loop actually does:** from scratch it reaches ~0.82 in **10 generations** and is flat by
+15. `champion_long` sits at **0.864**, the top of that band. Training from `champion_long` produces
+no reliable gain because it is *already at the plateau this procedure reaches*.
+
+**What actually improved things today — three fixes, no hyperparameters:**
+1. **`batch_base` seeded from the starting champion.** The batch gate never gated its first K
+   generations; `ga_d4` lost 0.048 with no baseline to roll back to. Verified live: the repaired
+   gate caught a −0.045 block.
+2. **`champ_anchor` invalidated on ARCH accept** — found by turning bug 1 into a search over every
+   `champion =` site.
+3. **`netmatch` prints arm sizes with the bias quantified** — three results today were confounded
+   by unequal training (11v5, 96v1, 28v26).
+
+**The measurement wall:** effects of 0.02–0.05 need **~19 seeds** to separate from seed noise
+(spread ~0.045). Two seeds cannot; one certainly cannot. Every "resolved" one-seed reading today was
+this.
+
+**Open:** `fg_60` (do block increments keep rising as the pool grows?), `dv_4800` (is the plateau
+data-limited?), `sg_20 vs bn_075` (does gating help from scratch?), `ep2_10 vs ep2_3` (is epochs 3
+too *low*?).
+
+---
 
 > ## ⚠ READ FIRST: the origin metric does NOT invert — it is imprecise, and depth was the confound
 >
@@ -541,7 +577,12 @@ counts, ending my downgrade-then-partial-rehabilitation of blend 1.00 as a refut
 which beats the shipped defaults at depth 4, must be winning on **epochs 2** rather than on blend —
 which the depth-4 `sc_c vs s2_100` match now running shows directly.
 
-## FIRST CANDIDATE TO SURVIVE DEPTH 4: the combination (blend 1.00 + epochs 2)
+## ⚠ SUPERSEDED — "first candidate to survive depth 4"
+>
+> `sc_c` is blend 1.00 + epochs 2. **Blend 1.00 is dead** (advantage is depth-2 only, z = 4.4) and
+> **epochs 2 is dead** (0.498 / 0.473 / 0.448 once arms are matched). Whatever `sc_c` was winning
+> on, it was not either component as measured. Kept as the record of a reading that looked solid
+> and was not.
 
 ```
 sc_c vs s2_075 (shipped defaults)   depth 2:  0.531 ± 0.014   clean
@@ -562,7 +603,12 @@ it decides whether the change to make is "blend only" or "both".
 Nothing ships until the marginal reading is resolved at higher pair count **and** the depth-4
 `sc_c vs s2_100` lands.
 
-## DEPTH-4 POOL, COMPLETE (28/28, zero cycles) — epochs 2 wins, blend 1.00 is last
+## ⚠ SUPERSEDED — DEPTH-4 POOL (28/28): the `ep_*` rows are CONFOUNDED
+>
+> **Two of the eight nets (`ep_2`, `ep_3`) were time-boxed with unequal generations (28 vs 26).**
+> "epochs 2 wins" below is that confound, not an epochs effect — see the retraction section. The
+> other six rows are generation-matched and stand. Kept because the *blend* reading here (last at
+> depth 4) was independently confirmed by the direct match.
 
 | net | depth 2 | depth 4 |
 |---|---|---|
