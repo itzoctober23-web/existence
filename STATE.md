@@ -2582,17 +2582,26 @@ dense reference.
 
 ## Running now (one job per core, no chains)
 
-**Corrected 2026-09-09 against the actual process list** — the previous version of this table named
-four jobs (`fg_60`, `dv_4800`, `sg_20 vs bn_075`, `ep2_10 vs ep2_3`) that had all finished. A stale
-"currently running" table is the same defect as a stale results table: it is what a reader plans
-around. Verified by `readlink /proc/PID/exe`, which cannot self-match the way a cmdline pattern can.
+**Kept current against `readlink /proc/PID/exe`**, which cannot self-match the way a cmdline pattern
+can. A stale "currently running" table is the same defect as a stale results table: it is what a
+reader plans around.
 
 | core | job | question |
 |---|---|---|
-| 15 | `evolve` (veto arm + VERIFY observer) | are the veto rule's ACCEPTs correct? 2 VERIFY lines so far, both confirming a REJECT |
-| 13 | `ci95_curve` | A/A: how does the gate's half-width fall with pair count? Row 1 in, harness validated at 0.500 |
-| 14 | `progmatch` control | does a champion loaded through the FILE path behave identically to the in-memory original? |
-| 12 | `netmatch bs31337_075 vs bs31337_085` @ d4 | blend 0.85, training seed 4 of the power campaign |
+| 15 | `evolve` VETO arm (+VERIFY 96) | are the veto rule's ACCEPTs correct? 2 VERIFY lines, both confirming a REJECT (0.422, 0.430) |
+| 12 | `evolve` STRICT control (+VERIFY 96) | the paired control for the above — same seed 1, `EXISTENCE_GATE_VETO` unset |
+| 13 | `ci95_curve` | A/A half-width vs pair count. Rows 1-2 in; row 3 discriminates 1/n from 1/sqrt(n) |
+| 14 | `pent_shape` | is the A/A distribution DEGENERATE? Reads the raw pentanomial instead of curve-fitting |
+
+**Why the control arm runs the NEWER binary than the veto arm.** The veto arm started before `sexp.rs`
+existed, so it will not write a `.sexp` champion and its champion is unrecoverable once it exits —
+exactly the gap `sexp.rs` was written to close. The control runs the post-`sexp` build so its champion
+survives. The two are still comparable: the only differences in that build are `PartialEq` derives, a
+new module, and three `fs::write` calls on the accept path. None touch the search or consume RNG, so
+the runs remain byte-comparable up to the divergence the pairing is meant to expose.
+
+**The decisive champion-vs-champion match still needs one more veto run on the new binary.** That is
+the honest position: this control makes half of it recoverable, not all of it.
 
 ## Open, partially answered
 
