@@ -608,6 +608,28 @@ catches the early degradation the old code was blind to.
 baked in before their first real gate. Their KEEPs are still real (those were later gates against a
 genuine base), but their *starting point* was already 5 generations of undone drift.
 
+## The gate is not over-conservative: from scratch it KEEPs everything
+
+`sg_20` — identical to `bn_075` (rung 0, 20 generations, blend 0.75, seed 20260907) except
+`--gate-every 5` instead of 100, so `bn_075` had no gating at all:
+
+```
+g5   champ 0.742  base 0.500 ± 0.007  increment +0.242  KEEP
+g10  champ 0.819  base 0.731          increment +0.088  KEEP
+```
+
+**`base = 0.500 ± 0.007` at g5 is the `batch_base` fix proving itself** — the baseline is the random
+starting net matched against itself, which is 0.500 by construction. Under the old code the baseline
+would have been the 5-generation champion and that first gate would have been a no-op.
+
+So where there is real progress the gate keeps all of it. The rollbacks on `champion_long` are the
+gate working, not the gate being too strict.
+
+**Invariant to check when it finishes:** if every block KEEPs, the champion is never rolled back, so
+`sg_20.net` should be **byte-identical to `bn_075.net`** — same seed, same training, and the gate
+matches use their own seeded RNG. If it differs, the gate is perturbing the training stream, which
+would be a defect worth finding.
+
 ## THE ONE LIVE LEAD: the data pool survives rollback, and the increments are climbing
 
 `fg_20` finished 20/20 with 4 gates and **0 KEEPs**, and the invariant holds exactly —
