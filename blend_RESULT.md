@@ -104,7 +104,40 @@ the identical trajectory. It stands in for the arm that died. `blend_h2h.sh` now
 0.75 / 0.85 / 1.00 head-to-head at depth 4 — matched at 20 generations, judged on the strength
 standard rather than the saturating origin metric.
 
-### Depth 2 REPRODUCES on the same nets — so the depth-dependence is now testable, not inherited
+### ⚠ RETRACTED — this was ALREADY SETTLED and I did not read the settled section first
+
+**`STATE.md:221` is headed "✅ SETTLED (read this before anything below)" and line 230 reads
+`blend 1.00 | dead — advantage is depth-2 only (depth shift z = 4.4)`.** STATE.md:800-807 has the
+exact experiment I set out to run, as direct 448-pair matches:
+
+```
+bn_075 vs bh_100   depth 2:  0.450 +/- 0.016   RESOLVED, blend 1.00 stronger
+                   depth 4:  0.511 +/- 0.022   UNRESOLVED, no advantage
+shift              +0.061 +/- 0.027,  z = 4.40 -> the DEPTH EFFECT is resolved
+```
+
+So the blend candidate was closed before I started, by the same instrument and the same pair count.
+My depth-2 cell (0.461 ± 0.022) is a REPRODUCTION of their 0.450 ± 0.016 on a fresh opening seed —
+worth having as a replication, worth nothing as news. The standalone depth-4 run was an exact
+duplicate and was killed.
+
+**This is the documented failure mode, again: read every RESULT headline and the SETTLED block
+BEFORE designing an experiment.** The section even says so in its own heading. What led me in was a
+mid-file passage (`STATE.md:277`) framing the depth-4 evidence as coming from the weaker origin
+control — true of that passage, but superseded 500 lines later by the direct match.
+
+**What survives as genuinely new**, and is left running:
+* `bn_075` vs `bh_085` at depth 4 — blend **0.85 has never been directly matched**, only scored
+  against the origin (0.809 ± 0.024). The settled block covers 1.00, not 0.85.
+* `s2_075` vs `s2_100` at depth 4 — a **second training seed**. The recorded depth-4 result is an
+  UNRESOLVED null (0.511 ± 0.022 contains 0.5), and `STATE.md:247` states that effects of 0.02-0.05
+  need ~19 seeds to separate from a seed spread of ~0.045. One seed did not settle it; a second does
+  not either, but it is the difference between one null and two.
+
+---
+
+### (superseded) Depth 2 reproduces on the same nets
+
 
 `bn_075.net` vs `bh_100.net`, 448 pairs, **depth 2**, fresh opening seed 777:
 
