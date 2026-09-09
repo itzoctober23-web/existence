@@ -430,7 +430,18 @@ fn main() {
     // Best (origin-control rate, champion, generation) seen. The rollback target.
     let mut best_ctrl: Option<(f64, Net, usize)> = None;
     // The net a batch started from, and what --gate-every rolls back to when a batch fails.
-    let mut batch_base: Option<Net> = None;
+    // SEEDED FROM THE STARTING CHAMPION, not lazily at the first gate. This was
+    //     let base = batch_base.get_or_insert_with(|| champion.clone()).clone();
+    // inside the gate block, so `base` was first set to the champion AFTER the first K generations
+    // of training. Two consequences, both measured:
+    //   * the first gate compared a net against ITSELF -- first-gate increments were -0.002, -0.009
+    //     and -0.009 across three runs, noise by construction;
+    //   * the first K generations were NEVER GATED, so any damage they did was permanent. ga_d4 ran
+    //     20 generations with ZERO KEEPs and still finished at 0.813 against champion_long's 0.861:
+    //     its first 5 generations cost 0.048 and there was no baseline to roll back to.
+    // Seeding it here makes the first gate a real comparison and puts generations 1..K under the
+    // same rollback protection as every later block.
+    let mut batch_base: Option<Net> = Some(champion.clone());
     /// The batch base's score against the FIXED origin, cached: constant for a whole batch.
     let mut batch_base_anchor: Option<(f64, f64)> = None;
     let cost_nodes = {

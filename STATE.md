@@ -586,6 +586,28 @@ not the builds.
 **The fix this implies:** a depth-4 gate needs a *trained* anchor, not `Net::random`. That is a
 different change from `--gate-match-depth` and it is the one worth making.
 
+## BUG FIXED: the batch gate never gated its first K generations
+
+`main.rs:860` read `let base = batch_base.get_or_insert_with(|| champion.clone()).clone();` — and
+that line sits **inside** the gate block. So `batch_base` was first set at the *first gate*, to the
+champion after K generations of training, not to the net the run started from.
+
+Two measured consequences:
+
+* **The first gate compared a net against itself.** First-gate increments across four runs:
+  `rt_k5 −0.009`, `b2_5 −0.009`, `ga_d2 −0.009`, `ga_d4 −0.002`. Noise, by construction.
+* **Generations 1..K were never gated**, so damage there was permanent. `ga_d4` ran 20 generations
+  with **zero KEEPs** and still finished at **0.813** against champion_long's **0.861** — its first
+  5 generations cost 0.048 and there was no baseline to roll back to.
+
+Fixed by seeding `batch_base` from the starting champion. Verified by behaviour on the new binary:
+the first gate now reads `champ 0.863 base 0.883 increment −0.020` — a real comparison, and it
+catches the early degradation the old code was blind to.
+
+**This reframes every batch run today.** `b2_5`, `rt_k5` and `ga_d2` all had 5 ungated generations
+baked in before their first real gate. Their KEEPs are still real (those were later gates against a
+genuine base), but their *starting point* was already 5 generations of undone drift.
+
 ## Shipping candidates, with evidence strength stated per item
 
 All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an Elo number.
