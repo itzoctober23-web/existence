@@ -608,6 +608,33 @@ catches the early degradation the old code was blind to.
 baked in before their first real gate. Their KEEPs are still real (those were later gates against a
 genuine base), but their *starting point* was already 5 generations of undone drift.
 
+## THE ONE LIVE LEAD: the data pool survives rollback, and the increments are climbing
+
+`fg_20` finished 20/20 with 4 gates and **0 KEEPs**, and the invariant holds exactly —
+`fg_20.net` is **md5-identical to `champion_long.net`**, so all four rollbacks restored cleanly.
+That verifies the `batch_base` fix end-to-end.
+
+The interesting part is the sequence:
+
+```
+g5   -0.045      g10  -0.033      g15  +0.003      g20  +0.007
+pool 88k         pool 250k        pool 368k        pool 432k
+```
+
+**Monotone increasing, crossing zero at block 3.** Each block starts from the *same* champion — the
+rollback restores the net — but **the data pool is not rolled back**. It grows 9,747 → 432,237
+across the run. So the blocks are not independent samples: each trains the same starting net on a
+strictly larger pool, and the trend is the pool growing.
+
+Mean over four blocks is −0.017 ± 0.025 (no reliable change), but the mean is the wrong statistic
+for a monotone series.
+
+**PRE-REGISTERED PREDICTION:** continue past 20 generations and the blocks should turn positive and
+start KEEPing. `fg_60` is running — 12 blocks instead of 4. If blocks 5+ stay negative or flat, the
+trend was noise in a 4-point series and this closes with the rest.
+
+This is the only mechanism found today that predicts *improvement* rather than explaining absence.
+
 ## CLOSED: the loop cannot improve champion_long, and epochs 3 (shipped) is RIGHT
 
 **The fixed gate rolls back everything.** `fg_20`, 15 generations from champion_long with the
