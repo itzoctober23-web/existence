@@ -46,16 +46,23 @@ echo "=== the first run was CONFOUNDED: d2 reached horizon 465, d3 only 45 (10x)
 echo "=== wall clock forces unequal generation counts and horizon widens with generation. So the"
 echo "=== +0.025 may have been horizon, not depth. Capping both arms isolates depth."
 echo "=== seed 20260907, UNCAPPED and therefore not comparable: d2 0.850, d3 0.875"
-for SEED in 424242 987654; do
+for SEED in ${SEEDS:-424242 987654}; do
   for D in 2 3; do
-    echo "--- seed $SEED, datagen depth $D ---"
+    # IDEMPOTENT, so this can run TWICE CONCURRENTLY on different cores with different SEEDS and the
+    # second invocation picks up only what is missing. The four arms are sequential and time-boxed
+    # at SECS each, so without this a parallel launch would silently redo finished arms and
+    # overwrite the logs it duplicates.
+    if grep -q 'CONTROL  final champion' "dr_${SEED}_d${D}.log" 2>/dev/null; then
+      echo "--- seed $SEED, depth $D: already complete, skipping ---"; continue
+    fi
+    echo "--- seed $SEED, datagen depth $D (core ${CORE:-15}) ---"
     # --horizon-cap 45 IN BOTH ARMS. Without it this replication reproduces a CONFOUND rather
     # than testing depth. `horizon = 10 + (g-1)*5`, and equal wall clock forces unequal generation
     # counts, so the first run had the depth-2 arm at horizon 465 and the depth-3 arm at 45 -- a
     # 10x difference, in the direction that FAVOURS depth 3 under the horizon hypothesis. The
     # +0.025 could be entirely horizon. Capping both at 45 (what the depth-3 arm reached) leaves
     # datagen depth as the only difference.
-    timeout "$SECS" taskset -c 15 nice -n 19 ionice -c 3 "$LEARN" \
+    timeout "$SECS" taskset -c "${CORE:-15}" nice -n 19 ionice -c 3 "$LEARN" \
       --rung 0 --gens 1000000 --games 2400 --threads 1 --depth "$D" --epochs 3 \
       --horizon-cap 45 \
       --gate-every 100 --gate-pairs 224 --arch-every 0 --control-every 0 \
