@@ -346,8 +346,15 @@ sometimes decisive — the ~53% of decisions that measure something — and does
 that cannot.
 
 Pooled across the three real decisions the draw rate is **80.6%**, higher than the A/A's 67%, and
-**not one candidate has won a single game** (0 wins in 36). The instrument is not underpowered so much
+not one candidate had won a single game (0 wins in 36). The instrument is not underpowered so much
 as it is playing a drawn game.
+
+**UPDATED as arms accumulated (2026-09-09):** five real decisions now, **W-D-L 1-49-10 over 60 games —
+81.7% draws**. The draw rate held; the "zero wins" claim did not. **One candidate has now won a game**
+(`1-8-3`), so the correct statement is 1 win in 60 (1.7%), not zero. Two of the five decisions are
+`0-12-0` — every game drawn — and both carry the `1.5/n` placeholder. The conclusion is unchanged and
+slightly sharpened: wins are possible but vanishingly rare, which is why a 6-pair sample so often
+sees none at all.
 
 **The lever is decisiveness, not sample size:** more depth, sharper openings, or a net that separates.
 `gate_power_RESULT.md` opened by framing this as "raise `gate_pairs`". That framing is now retired for
