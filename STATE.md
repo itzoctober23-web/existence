@@ -1417,6 +1417,29 @@ denominators can differ no other way). The BEHAVIOURAL difference the filter was
 line whose surrogate is BELOW the incumbent's, which the strict rule cannot produce — has NOT yet
 appeared in four generations. The filter binds; whether it changes outcomes is still open.
 
+## RUNNING: the tolerance-window arm, pre-registered
+
+Three arms on identical mutation draws (seed 4242), differing only in the fitness set and the mates
+floor:
+
+```
+control    25 positions, floor 18   CAPTURED an exploit at gen 1 (95x rate, games 0.208)
+treatment  37 positions, floor 30   no capture; proposed 1.02x, games 0.458
+window     37 positions, floor 29   admits capture extension (29 >= 29), excludes the exploit (25 < 29)
+```
+
+**PRE-REGISTERED: zero captures in the window arm.** A capture refutes the window arithmetic
+outright, because the only row the loosened floor admits is one the corpus measures at 25.
+
+If it holds, the window is the first configuration that admits capture extension AT ALL. That
+program is the only reference program scoring on the hard set, and the guard has cut it in every
+configuration run so far — including the 25-position set at every tolerance, where it and the
+exploit both score 18 and cannot be told apart by any floor.
+
+**What it still will not do.** Admitting a candidate to the gate is not accepting it. Capture
+extension's game rate against the seed has never been measured, and the 12-game gate demands
+0.58-0.75. The window changes which programs get to be judged, not the standard they are judged by.
+
 ## ★ THE MATE-2 RUNG SEPARATES THE RUNG FROM THE EXPLOIT — and opens a tolerance window
 
 The two programs are **indistinguishable on the set the loop actually uses**, and the MATE-2 rung
