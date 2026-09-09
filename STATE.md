@@ -63,14 +63,24 @@ pool.truncate(MU);
    differently — observed near-misses at **0.969×**, just under the 0.98 threshold. Broken mutants
    score 0.136–0.5 and are correctly cut; the informative ones die at the same fence.
 
-**So the population is eight spellings of one function, and the one class of candidate that could
-teach it anything is filtered out one rank above the broken ones.** Raising `eps` is not the fix —
-`configs/search_track.conf` already forbids that escalation ("an eps large enough to admit anything
-is not a tolerance, it is the absence of one"). The fix is **behavioural** dedupe plus reserved
-slots for distinct behaviours, so neutral twins collapse to one entry and leave room.
+**⚠ THAT DIAGNOSIS IS REFUTED BY MEASUREMENT.** I added a rate histogram to `evolve.rs` to test it:
 
-Not implemented yet. Everything I believed today without measuring turned out null, so this gets a
-measurement before a change.
+```
+rates 0.801-1.000x [>=.98:3  .90-.98:0  .50-.90:2  <.50:0  distinct:4]
+```
+
+**Zero candidates in the 0.90–0.98 band EPS discards.** EPS is not filtering informative candidates
+out, because none exist there. The distribution is **bimodal** — near-neutral (≥0.98) or badly
+broken (≤0.90), nothing between — and `distinct:4` shows rate-distinct candidates *do* survive EPS.
+
+**The real bottleneck is the MUTATION OPERATORS.** An edit either preserves behaviour or breaks the
+program; the operators do not produce the graded, slightly-different variants that selection needs
+to climb. That is consistent with everything else measured: correct alpha-beta variants are
+behaviourally identical (40/40 at depth 3), and 0 of 17 behaviour-changing edits passed the strict
+guard.
+
+Good thing this was measured before implementing behavioural dedupe — the fix would have been
+built for a bottleneck that isn't there. Third of my own hypotheses refuted today by its own test.
 
 ## 🔑 WHY THE PLATEAU EXISTS: the search is BARE alpha-beta, by design
 
