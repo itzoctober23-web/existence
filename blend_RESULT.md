@@ -223,3 +223,31 @@ should be read as within-seed only, and `STATE.md:230`'s parenthetical dropped o
 This also puts the new 0.85 finding in its place: **it is one seed, in the same band, and it should
 be believed exactly as much as the "depth-2 only" claim it sits beside** — which is to say, pending
 its replication, now running.
+
+## Seed 20260907: a complete, mutually consistent triangle at depth 4
+
+All three pairs matched directly at the strength standard, 448 pairs each, arms matched at 20
+generations:
+
+| pair | rate | effect | verdict |
+|---|---|---|---|
+| 0.75 vs **0.85** | 0.460 ± 0.022 | +0.040 | 0.85 stronger, clear of 0.5 |
+| 0.75 vs 1.00 | 0.511 ± 0.022 | +0.011 | no advantage |
+| **0.85** vs 1.00 | 0.567 ± 0.022 | +0.067 | 0.85 stronger, clear of 0.5 |
+
+**They are transitively consistent**, which is a real check and not a formality: from the first two,
+0.85 should beat 1.00 by about +0.051; measured +0.067. Three independent 448-pair matches agreeing
+on the ordering **0.85 > 0.75 ≈ 1.00** is much harder to produce by chance than any one of them.
+
+That said, the largest effect here (+0.067) is 1.7× the between-seed sd of 0.039, so it needs ~3
+seeds. Transitive consistency shows the three matches are measuring the same thing on THIS seed; it
+says nothing about whether the ordering survives a different training seed. Both remaining
+second-seed matches are running:
+* `s2_075` vs `s2_085` — the direct replication of the +0.040
+* `s2_085` vs `s2_100` — the third leg, so the second seed gets its own triangle
+
+**Why this matters more than the individual numbers.** The shipped default is 0.75 and the settled
+block closed the axis by killing 1.00 — but 1.00 was the wrong end to test. If 0.85 holds up, the
+default is on the wrong side of an interior optimum, and the risk argument that chose 0.75 over 1.00
+("a pure bootstrap has no anchor to reality") does not apply to it: 0.85 still carries 15% of the
+game outcome.
