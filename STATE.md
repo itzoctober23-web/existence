@@ -222,6 +222,12 @@ contributes nothing measurable".
   7 minutes into a depth-4 match. **The brief recommends exe-matching as the safe alternative to
   `pgrep -f`; this is that alternative's own blind spot.** Match on the BASENAME with the suffix
   stripped: `b=$(basename "${e% (deleted)}")`.
+* **A verification whose output I never read is not a verification.** I ran
+  `grep -A1 'BASENAME with the suffix stripped' STATE.md` to confirm a claim, got NOTHING, did not
+  notice, and committed a message asserting the text was intact. The text *was* intact — the phrase
+  spans a line break and grep is line-based, so the pattern could not match. Right answer, no
+  verification: the brief's own rule, *a grep that finds nothing is usually a broken pattern, not an
+  absence*, applied to the check itself. **Print a count or a hit, never rely on silence.**
 * **State outliving its run.** A 5-hour-stale `hz_1000.log` about to be read as a current arm; a
   mid-run script edit that killed a verdict block, where **reverting within a minute did not undo
   it**.
