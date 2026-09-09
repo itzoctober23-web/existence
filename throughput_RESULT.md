@@ -72,3 +72,59 @@ One candidate is visible but OFF LIMITS by the plan's own rules: the seed search
 measured cost ladder is ~10x per ply (300 games: d1 1s, d2 3s, d3 31s) where well-ordered alpha-beta
 would be nearer 6x. Move ordering is on the DISCOVERY list — it must be found by the loop, not added
 by hand — so the cost of denying it is a deliberate, paid-for price, not a bug to fix.
+
+---
+
+## The profile: `legal_moves()` is the biggest cost, and the deliberate shuffle costs as much as eval
+
+`node_profile`, width 16, 200 positions, **best-of-9**. The minimum over repeats is used rather than
+the mean because all four background cores were busy with time-boxed experiments; the fastest repeat
+is the one that suffered least interference. Same technique `alloc_probe.rs` used to resolve 13.9 ns.
+
+| primitive | ns/op | share of a leaf node |
+|---|---|---|
+| `legal_moves()` | **451.2** | **44.4%** |
+| eval | 260.7 | 25.6% |
+| shuffle + buffer copy | 257.4 | 25.3% |
+| make + unmake (pair) | 47.1 | 4.6% |
+| attributed total | **1016.4** | vs **1256** measured by `search_bench` — **81%** |
+
+**The two independent methods agree on eval.** The width-scaling fit put eval at ~172 ns per average
+node; the direct measurement is 260.7 ns per CALL, and eval is called only at leaves. Those reconcile
+at a ~66% leaf fraction, which is what a depth-4 alpha-beta frontier looks like. Neither measurement
+was derived from the other.
+
+### This inverts the brief's ordering
+
+The loop brief ranks the accumulator first. Eval is **third**, behind movegen and the shuffle, and
+its share is ~26% of a LEAF and less of an average node. Meanwhile `legal_moves()` alone is 1.7x
+eval, and `make/unmake` — the thing an incremental accumulator would piggyback on — is 4.6%, which is
+why the incremental path measured a LOSS below width 64 and is switched off there.
+
+### The shuffle is a real, unmeasured, and *deliberate* cost
+
+`pipeline/src/search.rs` shuffles children at every node so alpha-beta cannot inherit an undeclared
+"try pawn moves first" prior from movegen emission order — MASTER_PLAN puts move ordering on the
+DISCOVERY list, so it must be found by the loop, not handed over. That is correct and is not in
+question here.
+
+**What is new is the price: 257 ns per node, 25.3% of a leaf, the same as the entire eval.** The
+denial is principled; paying a quarter of throughput for it was never a measured decision.
+
+And it is likely reducible *without* weakening the denial. The shuffle does one integer `%` per
+element — `rng % (i + 1)` — which is a division, ~20-40 cycles, roughly 30 times per node. A
+modulo-free unbiased mapping is still a uniform shuffle and still denies the prior; it just draws a
+different permutation. That changes exact reproducibility from a given seed, so it is a deliberate
+change with a determinism cost, not a free win — FITNESS 10 requires a determinism check, and the
+seeds would need re-baselining.
+
+### Honest limits
+
+* Microbenchmarks are cache-hot; a real search touches scattered positions. That biases these
+  numbers DOWN and is the most likely home of the missing 19%, along with recursion and bounds
+  checks. So treat the shares as a ranking, not a budget.
+* **The first version of this profile double-counted.** It called `p.legal_moves()` inside the timed
+  shuffle loop, so the shuffle came out at 647 ns — larger than movegen itself, which is impossible
+  for a Fisher-Yates over ~30 elements. The move lists are now hoisted out of the timed region. Same
+  class as the eval-count equivalence check: an arm doing extra work reports a cost that is not its
+  own, and the tell was a number that could not physically be right.
