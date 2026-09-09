@@ -466,7 +466,12 @@ pub const MAX_CALL_DEPTH: u32 = 128;
 /// It is a CONSTANT AND NOT A LITERAL because the value was previously written out at ~20 call
 /// sites as `8` and at four more in `reference_audit.rs` as `1`. The audit that certified these
 /// reference programs therefore ran UCT with a different exploration weight than the loop does.
-pub const UCT_EXPLORATION: i64 = 360_000;
+/// DEFAULT IS THE DECLARED 8, because both values I derived to replace it measured WORSE:
+/// K = 2000 gives 2 mates at budget 64 and K = 360_000 gives 0, against 10 for K = 8, and cost
+/// rises 50x for the same playout count. The saturation analysis below is still arithmetically
+/// true; it simply is not what limits mate-finding at 16-4096 playouts against a branching factor
+/// near 30, where the search has to exploit rather than explore.
+pub const UCT_EXPLORATION: i64 = 8;
 
 /// Env-overridable accessor, so the weight can be SWEPT instead of guessed again.
 ///

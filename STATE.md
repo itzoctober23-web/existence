@@ -1314,6 +1314,50 @@ pairs the lower bound is 0.503. The direction is consistent across both readings
 Every one of these needs a **second training seed** before a default moves — a match seed re-rolls
 openings and nothing else. `blend_seed2` (running), then `ship_candidate` for the combination.
 
+## ⚠ UCT EXPLORATION: my hypothesis is REFUTED TWICE and the declared value 8 is the best tested
+
+GRAMMAR 6 records MCTS as PARTIAL (20/23 forced mates) and attributes it to an exploration term that
+saturates. The arithmetic is real: at K = 8, `Div` truncates to 0 once a child passes ~40 visits, so
+`u` switches off mid-run. I raised K on that basis. Both values I derived are worse than the one
+they replaced:
+
+```
+budget:            16    64      cost vs alpha-beta at 16 / 64
+K = 8  (declared)   1    10          0.013x  /  0.062x     <- BEST
+K = 2000            0     2          0.399x  /  3.116x
+K = 360000          0     0          0.560x  /  3.648x
+```
+
+Monotone in the wrong direction on both mates and cost. **Two refuted hypotheses in a row is the
+documented signal to stop guessing and distrust the framing**, so there is no third K.
+
+**And there is an anomaly I cannot explain, which is the real reason to stop.** Cost rises **50x for
+the SAME playout count**. The reference program is not a rollout-to-terminal MCTS:
+
+```
+simulate(p):  if terminal(p)   -> score
+              if visits(p)==0  -> store(key p, 1); ret eval(p)      expand + evaluate, STOP
+              m = argmax(moves(p), UCT);  v = neg(simulate(apply(p,m)))
+```
+
+Every playout terminates at exactly ONE unvisited node, so the eval count is identical whatever K
+is. Cost can therefore only differ through DESCENT DEPTH — and raising exploration makes the tree
+broad and shallow, which must be CHEAPER. The measurement says 50x dearer. The code and the
+measurement disagree about the sign, and per-argmax cost is K-independent, so the discrepancy is not
+in the exploration term at all.
+
+**What this does and does not establish.** It does NOT show the saturation analysis is wrong — the
+cliff at 40 visits is arithmetic and still true. It DOES show the cliff is not what limits
+mate-finding at these budgets, because removing it makes mates worse. 16-4096 playouts against a
+branching factor near 30 is far too few to find mates by exploring; the search has to exploit, and
+K = 8 exploits.
+
+**Recorded as a bounded negative, not a fix.** `EXISTENCE_UCT_K` stays, defaulting to the declared 8
+so nothing changes, and the next step on this thread is explaining the cost anomaly rather than
+choosing another constant. The one unambiguous improvement from the attempt survives: the weight was
+a bare literal at 27 sites as `8` and 6 more as `1`, so `reference_audit` certified these programs
+under a different exploration weight than the loop runs. It is one named accessor now.
+
 ## ⚠ REFUTED BY ITS OWN EXPERIMENT: relaxing the mates guard admits exploits
 
 The `guard_tolerance 4 -> 7` proposal passed the ladder oracle (4/6 vs 3/6) and **failed in the
