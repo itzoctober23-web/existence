@@ -3224,3 +3224,44 @@ reading arrives when there are enough of them.
 `gate_pairs`, and for the ~53% of decisions that measure something that is still right. For the
 drawish half, more pairs buys more draws. The lever there is the match setup — deeper search, sharper
 openings, a net that separates — none of which is a sample-size change.
+
+## MEASURED: the population COLLAPSES to identical rates — and `EXISTENCE_EPS` was sized for exactly this
+
+Another quantity logged all along and never aggregated. Across 271 generation lines:
+
+| quantity | value |
+|---|---|
+| generations with **spread EXACTLY zero** (all members the same rate) | **123 (45.4%)** |
+| median relative spread | **0.000326** (0.03%) |
+| mean population size | 6.21 (MU = 8; 164 of 271 lines are at full 8) |
+| lines with population 1 | 19 (7.0%) |
+
+**The population is usually FULL and always UNIFORM.** Nearly half the time every member has a
+bit-identical rate, and even when it does not, the whole population spans 0.03%. A population of eight
+interchangeable programs is a population of one with a larger memory footprint.
+
+### The mechanism is `EPS`, and its knob is the second never-run lever
+
+`evolve.rs:1729` retains only candidates within `(1 - EPS)` of the top rate, and `EPS` defaults to
+**0.02**. Combined with today's measurement that **76.7% of guard-passing candidates land within 2% of
+the incumbent**, the band and the candidate distribution have almost the same width — so the filter
+keeps everything near the top and discards everything else, which is exactly how a population becomes
+uniform.
+
+`evolve.rs:1043` already sizes the fix from `valleyall`, and like `GUARD_TOL` it has **never been run**
+(absent from every log, doc, script and running environment):
+
+> *"eps 0.02 -> 0.10 — iterative deepening sits at 0.914x and needs 0.086 of tolerance to survive into
+> the population; the current band reaches 0.98."*
+
+At `EPS = 0.02` the band reaches 0.98 and **iterative deepening at 0.914x cannot enter the population
+at all** — one of the four reference rungs, excluded by a retention band rather than by any judgement
+about its quality.
+
+### Why it is not running yet
+
+All four cores hold a PAIRED experiment: seed 1 tests the gate rule (control vs veto), seed 2 tests the
+mate guard (control vs gtol). Displacing either arm breaks its control, and an unpaired treatment
+cannot be read. `EPS` is next in line, with its justification now measured rather than assumed —
+the three levers found today (`SPEC_FILTER`, `GUARD_TOL`, `EPS`) were all implemented, all pre-sized
+from measurement, and all never executed.
