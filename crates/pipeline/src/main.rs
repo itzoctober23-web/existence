@@ -949,6 +949,10 @@ base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
                 batch_base = Some(champion.clone());
                 batch_base_anchor = None; // base moved, so its anchor score must be re-measured
             } else {
+                // champ_anchor is deliberately NOT cleared here. Its only read site is
+                // guarded by `!batch_mode`, so in batch mode the cache is never consulted and
+                // clearing it would be dead code. Stating that, because the enumeration above
+                // flags this line and the next reader deserves to know it was checked.
                 champion = base;
                 if let Err(e) = champion.save(&out) {
                     eprintln!("  WARN could not save champion to {out}: {e}");
@@ -1075,6 +1079,14 @@ base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
                              if resolves { "" } else { "[gates blind, surrogate decides] " },
                              if stepped { "STEP" } else { "hold" });
                     if stepped {
+                        // Same invalidation the accept path at line 849 does. Found by
+                        // enumerating every `champion = ` site and checking each for a nearby
+                        // `champ_anchor = None`: this one had none, so with --anchor-pairs > 0 an
+                        // ARCH step would leave the OLD champion's cached anchor score in place and
+                        // judge the NEW champion's candidates against it. Same bug class as the
+                        // batch_base defect -- a lazy cache whose subject changed underneath it.
+                        // Latent rather than live: anchor-pairs defaults to 0, arch-every to 5.
+                        if anchor_pairs > 0 { champ_anchor = None; }
                         champion = acand;
                         rung = p.to_rung;
                         accepted += 1;

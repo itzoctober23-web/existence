@@ -608,6 +608,30 @@ catches the early degradation the old code was blind to.
 baked in before their first real gate. Their KEEPs are still real (those were later gates against a
 genuine base), but their *starting point* was already 5 generations of undone drift.
 
+## A second bug of the same class, found by systematic audit
+
+The `batch_base` defect was **a lazy cache whose subject changed underneath it**. So I enumerated
+every `champion = ` assignment and checked each for a nearby `champ_anchor = None`:
+
+```
+line  849  champion = cand        cleared OK
+line  952  champion = base        NO invalidation
+line 1078  champion = acand       NO invalidation   <-- real bug
+line 1130  champion = best_net    cleared OK
+```
+
+* **1078 (ARCH accept) is a genuine bug.** With `--anchor-pairs > 0`, an architecture step would
+  leave the *old* champion's cached anchor score in place and judge the *new* champion's candidates
+  against it. Latent, not live — `anchor-pairs` defaults to 0 — but `arch-every` defaults to 5, so
+  it would fire the moment anyone enabled the anchor gate. Fixed.
+* **952 (batch rollback) is safe**, because the only read site is guarded by `!batch_mode`. Now
+  documented in place, so the next audit doesn't have to re-derive that it was checked rather than
+  missed.
+
+Two bugs of one shape in one file. **The generalisable move was turning the specific bug into a
+search pattern** — "find every mutation of the thing a cache depends on" — rather than fixing the
+one instance and moving on.
+
 ## CLOSED: epochs has no effect once the arms are matched — and the gate fix catches real damage
 
 **Epochs, measured properly** (20 generations both arms, depth 2):
