@@ -620,6 +620,15 @@ correct for what is written; what is written is a DEPTH ladder, not a time-limit
 distinction matters because FITNESS 3's cost term only becomes meaningful for a budget-aware
 program (see FITNESS.md).
 
+**MEASURED 2026-09-08 — THE LADDER IS A COST LADDER, NOT A STRENGTH LADDER, AT DEPTH 3.**
+`evolve moveagree` runs every reference program on 40 random positions and compares the move
+returned against the seed's. All SEVEN alpha-beta-family programs agree with the seed 40/40 —
+including capture extension and table reduction, which change effective depth and were expected to
+differ. Only other paradigms diverge (depth-one 25%, UCT 10%, PN 0%). So the rungs of this ladder
+are indistinguishable as PLAYERS at the depth the search track runs; they differ only in cost, and
+two of them (0.985x, 0.993x) are pure overhead for identical play. Limit: 40 positions at depth 3,
+so this is "no disagreement observed here", not "never differs".
+
 ### A5 — THE LADDER AS A STANDING TEST (`evolve valleyall`), MEASURED 2026-09-08
 
 Every reference program scored on the search track's OWN fitness set (25 positions: 15 mate-in-1,

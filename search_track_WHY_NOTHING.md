@@ -135,3 +135,46 @@ measurement, which is the same defect as an operator that inserts a gadget.
 The honest alternatives remain the three already recorded: a budget-aware seed, strength itself as
 the fitness (~1,650 pairs per generation), or accepting that this lineage is a null result and
 saying so.
+
+
+---
+
+## MEASURED, not inferred: the WHOLE alpha-beta family plays identically
+
+The section above argued exactness from theory and from a coincidence of scores. `evolve moveagree`
+tests it directly — run each reference program on the same 40 random positions at depth 3 and
+compare the MOVE returned against the seed's:
+
+| program | agrees with seed | class |
+|---|---|---|
+| depth-one | 10/40 (25.0%) | different paradigm |
+| bare alpha-beta | 40/40 (100%) | exact |
+| alpha-beta + hash reuse | **40/40 (100%)** | exact |
+| alpha-beta + iterative deepening | **40/40 (100%)** | exact |
+| alpha-beta + hash + ID | **40/40 (100%)** | exact |
+| **capture extension (rung 6)** | **40/40 (100%)** | predicted "may differ" |
+| **table reduction (rung 7)** | **40/40 (100%)** | predicted "may differ" |
+| UCT-style MCTS | 4/40 (10.0%) | different paradigm |
+| proof-number search | 0/40 (0.0%) | different paradigm |
+
+**The exactness claim is confirmed. And my two-class decomposition was wrong in its second half.**
+
+I wrote that extensions and reductions "change the effective depth and therefore CAN play
+differently", and offered that as the one class capable of improving. Measured: `capture_extension`
+and `table_reduction` return the IDENTICAL move on all 40 positions. The escape hatch I proposed
+does not exist at this depth.
+
+So **every one of the seven alpha-beta-family programs plays exactly the same chess.** The only
+programs that diverge are other paradigms. GRAMMAR 9's ladder is not a strength ladder at depth 3 —
+it is purely a COST ladder, and its rungs are indistinguishable as players.
+
+That makes two rungs strictly worse than the seed rather than merely unfitter: capture extension
+costs 1.5% more (0.985x) and table reduction 0.7% more (0.993x), both for identical play. **Pure
+overhead**, not a trade.
+
+### Limit of this control
+
+40 random positions at depth 3. The honest claim is "zero disagreements observed here", not "never
+differs" — a capture extension must eventually change a move on some position, and deeper searches
+give extensions more room to matter. What is established is that at the depth this fitness actually
+runs, the family is behaviourally uniform, which is what the argument needed.

@@ -419,6 +419,74 @@ fn valley_all() {
     println!("  equivalent for ID or capture extension would be inventing an instrument.");
 }
 
+
+/// DOES ALPHA-BETA'S EXACTNESS ACTUALLY HOLD HERE? `evolve moveagree [n depth]`
+///
+/// search_track_WHY_NOTHING.md claims the MAIN lineage has no correctness gradient BECAUSE
+/// alpha-beta is exact: every correct variant at the same depth returns the same move, so
+/// correctness cannot discriminate and only cost varies. That claim is currently INFERRED -- from
+/// theory, plus the coincidence that every exact variant scores 25/25 on the guard set and 0/8 on
+/// the hard set.
+///
+/// Inference is not measurement, and this is the strongest claim of the session, so it gets the
+/// control it deserves: run every reference program on the same positions and compare the MOVE it
+/// returns against the seed's, position by position.
+///
+/// PRE-REGISTERED:
+///   * CONFIRMED if the exact variants (hash reuse, ID, hash+ID) agree with the seed on 100% of
+///     positions. Then behavioural identity is measured, not argued, and the account holds.
+///   * REFUTED if any of them disagrees anywhere. Then "identical" is too strong -- the
+///     interpreter's hash table, integer arithmetic or move ordering breaks exactness somewhere --
+///     and the conclusion needs weakening to "nearly always identical", which is a different and
+///     weaker claim about why the fitness cannot discriminate.
+///   * The INEXACT variants (capture extension, table reduction) are expected to disagree
+///     SOMETIMES. If they never disagree, they are not changing the search at all and their 0.985x
+///     and 0.993x are pure overhead, which would be worth knowing separately.
+fn move_agree() {
+    let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
+    let (n, depth) = (a(2, 40) as usize, a(3, 3));
+    let net = Net::random(32, 20260907);
+    let mut rng: u64 = 0x51A7_E5EE;
+    let mut set = Vec::new();
+    while set.len() < n {
+        let mut p = Position::startpos();
+        for _ in 0..(10 + rng % 34) {
+            let l = p.legal_moves();
+            if l.is_empty() { break; }
+            rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
+            p.make_move(l.as_slice()[(rng % l.len() as u64) as usize]);
+        }
+        if !p.legal_moves().is_empty() { set.push(p); }
+    }
+    let seed = reference::bare_alpha_beta();
+    let seed_moves: Vec<board::Move> = set.iter().map(|p| {
+        let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+        it.run(&seed, p, 16)
+    }).collect();
+
+    println!("=== move agreement with the seed, {n} positions at depth {depth} ===");
+    println!("  EXACT variants must agree 100% if alpha-beta's exactness holds in this interpreter.\n");
+    println!("  {:<34} {:>10} {:>9}  {}", "program", "agree", "pct", "class");
+    for (name, prog) in reference::all() {
+        let bud = if name.contains("MCTS") { 512 } else { 16 };
+        let mut agree = 0usize;
+        for (p, sm) in set.iter().zip(&seed_moves) {
+            let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+            if it.run(&prog, p, bud) == *sm { agree += 1; }
+        }
+        let class = if name.contains("hash") || name.contains("deepening") || name.contains("main seed") {
+            "EXACT -- must be 100%"
+        } else if name.contains("capture") || name.contains("reduction") {
+            "inexact -- may differ"
+        } else { "different paradigm" };
+        println!("  {name:<34} {agree:>7}/{n:<3} {:>8.1}%  {class}",
+                 100.0 * agree as f64 / n as f64);
+    }
+    println!("\n  100% for the exact variants => behavioural identity MEASURED, and correctness");
+    println!("  genuinely cannot discriminate among them at fixed depth.");
+    println!("  Anything below 100% => 'identical' is too strong and the account needs weakening.");
+}
+
 fn read_declared(path: &str) -> (usize, f64, i64, i64) {
     let txt = std::fs::read_to_string(path).unwrap_or_else(|e| {
         panic!("declared parameters missing at {path}: {e}. This file is part of the Given \
@@ -568,6 +636,9 @@ fn main() {
     }
     if std::env::args().nth(1).as_deref() == Some("valleyall") {
         return valley_all();
+    }
+    if std::env::args().nth(1).as_deref() == Some("moveagree") {
+        return move_agree();
     }
     let gens: usize = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(30);
     let pop: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(24);
