@@ -234,6 +234,13 @@ contributes nothing measurable".
   `find -name '*.npz'` returned 0 because the job writes `.tsv`. **Two false nulls in one check** —
   match the instrument's resolution to the thing being measured, and confirm a null against a
   second method before believing it.
+* **`taskset` on a build does not pin what the build spawns.** `taskset -c 14 cargo test` left
+  rustc children with affinity `0-15` — running on HIS cores, which is a hard resource rule. Cargo
+  spawns compiler processes through its jobserver and they did not all inherit the mask. Re-pinning
+  them individually is a losing race against new spawns. **For builds, pin with an explicit
+  `-j` limit and verify the CHILDREN's affinity, not the parent's** — or do not run a parallel build
+  while other work is on the box. Killed the run rather than keep racing it; the test suite is worth
+  having but not worth taking his cores.
 * **State outliving its run.** A 5-hour-stale `hz_1000.log` about to be read as a current arm; a
   mid-run script edit that killed a verdict block, where **reverting within a minute did not undo
   it**.
