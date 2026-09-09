@@ -2936,3 +2936,39 @@ Dumped to disk, read back through the file path, and the loader recognised it as
 identical to the in-memory original — then it played to **exactly 0.500**. Structural equality was
 already unit-tested; this adds the integration path and the behavioural confirmation. The decisive
 champion-vs-champion test STATE.md has wanted is now runnable the moment two arms finish.
+
+## 🔑 `EXISTENCE_SPEC_FILTER` is IMPLEMENTED and has NEVER BEEN RUN — and it targets P2 upstream of the gate
+
+Found while tracing why 46.8% of gate decisions see zero variance. `evolve.rs:1754` reads
+`EXISTENCE_SPEC_FILTER`, added by commit `f27bd57` — *"FITNESS 3 specifies a FILTER and the loop
+implements a CLIMB — env-gated fix"*. Verified unused: it appears in **no** `.md`, **no** `.sh`, **no**
+run log, and neither currently-running arm has it in its environment. Only two commits ever touched it.
+
+**Why it matters more than the gate's acceptance rule.** The gate is only ever reached by candidates
+that already passed a *surrogate* pre-filter, and `evolve.rs:1758` implements that as
+`popn[0].2 > best_rate` — a STRICT improvement. FITNESS 3 asks only that a candidate not be much
+worse. The comment at `evolve.rs:1740-1750` carries the measurement against the reference rungs:
+
+```
+    hash reuse            1.024x   spec PASS    strict PASS
+    table reduction       0.992x   spec PASS    strict REJECT
+    hash + ID             0.933x   spec PASS    strict REJECT
+    iterative deepening   0.914x   spec PASS    strict REJECT
+    capture extension     0.340x   spec reject  strict REJECT
+```
+
+**The spec admits FOUR rungs to the ladder; the strict rule admits ONE.** Three rungs that FITNESS 3
+would let compete are eliminated *before any game is played*, so no amount of gate power can recover
+them. If the ladder cannot be climbed because three of its four reachable rungs never reach the gate,
+that is a bigger blocker than the gate's pair count — and `evolve.rs` says so directly: *"That is
+MASTER_PLAN P2's kill criterion — 'no program improves on the seed → grammar or fitness is wrong; fix
+those' — localised in the fitness."*
+
+**It is cheap and safe to test.** The flag is env-gated and *"unset is byte-identical to today, so the
+two are A/B comparable"* — the same property that let the veto/control pair be compared, and which was
+just re-verified independently (the two arms' gen-1 lines are md5-identical).
+
+**Queued, not started:** all four E-cores are busy (veto arm, strict control, `signal_rate`,
+`pent_shape`). It launches on the first core to free. This is now the highest-value untested Existence
+lever, ahead of raising `gate_pairs`, because it acts upstream of the measurement that raising pairs
+would improve.
