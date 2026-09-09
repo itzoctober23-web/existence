@@ -195,3 +195,30 @@ across comparisons — pooling them assumes it roughly is. Three estimates is st
 is half the other two, which is itself a hint that the variance depends on what is being compared.
 `netmatch`'s hardcoded 0.047 is now conservative rather than wrong; it is left alone until a fourth
 estimate arrives rather than re-tuned on every new data point.
+
+## The EVEN-class depth cell replicates and is the first CROSS-SEED resolved result
+
+| seed | d2 vs d4 | effect |
+|---|---|---|
+| 424242 | 0.379 ± 0.016 | 0.121 |
+| **987654** | **0.441 ± 0.015** | **0.059** |
+
+Both clear of 0.5 within-run, same direction, arms matched at exactly 4 generations in each seed.
+
+Across the two seeds the mean effect is **0.090**. With the pooled between-seed sd (0.043, now from
+four independent estimates), the standard error is 0.030 and the 95% interval is
+**[+0.031, +0.149] — excluding zero.** That makes deeper datagen, at equal generations with parity
+held fixed, the first result today that survives a cross-seed test rather than a within-run one.
+
+**The assumption this rests on, stated rather than buried.** The interval uses a POOLED sd measured
+across four different net-pair comparisons, not the spread of these two points. Using only the two
+points, n = 2 gives t(1) = 12.71 and an interval of ±0.494 — useless. So the claim is: *given that
+between-seed variance is roughly comparable across comparisons, this effect is resolved.* That
+assumption is testable and is being tested every time another replication lands; the fourth estimate
+(0.062) already widened the pooled sd from 0.039 to 0.043, so it is not a fixed number being defended.
+
+**The odd-class cell still is not resolved**: effects 0.050 and 0.026, mean 0.038, which the same
+method puts at [−0.021, +0.097] — contains zero. Two cells, same experiment, and only the larger one
+survives. That is what an honest power boundary looks like rather than a uniform verdict.
+
+Remaining: both parity cells on seed 987654, which test whether the precise nulls replicate.
