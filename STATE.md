@@ -446,11 +446,25 @@ gate-match-depth 4:  champ-vs-origin 0.422±0.060  base 0.492±0.056  increment 
 Completely different output — **not inert**, unlike the three features that shipped looking correct
 in the diff and moved no number.
 
-**The cost is larger than I claimed.** At 32 pairs the depth-4 interval is ±0.060 against depth-2's
-±0.038 (1.58×) — deeper games are more decisive, so pair variance rises. Matching resolution needs
-**2.5× the pairs**, each ~25× the nodes: about 12 generations of datagen-equivalent per gate, or
-**~2.4× total compute at `--gate-every 5`**. I described this as "a fraction of the price" of
-depth-4 datagen; the honest figure is 2.4× versus ~25×. Still much cheaper, not nearly free.
+**Cost, corrected twice.** I first called it "a fraction of the price", then measured a 1.58×
+variance penalty at depth 4 and revised to 2.4×. Both were wrong. Re-deriving pair sd from the
+*trained-net* matches:
+
+| match | ci95 | implied pair sd |
+|---|---|---|
+| b2_5 vs champion_long, **depth 2**, 960 pairs | 0.015 | **0.2371** |
+| b2_5 vs champion_long, **depth 4**, 448 pairs | 0.022 | **0.2376** |
+| established, 15,008 pairs | — | 0.2362 |
+
+**Depth does not change pair variance for trained nets.** The 1.58× came from a 5-generation,
+200-game probe whose nets were near-identical and drew heavily — a different variance regime, not a
+depth effect. A depth-4 gate needs the **same pairs**; only the ~25× node cost applies, giving
+**~1.9× total compute at `--gate-every 5`**.
+
+Note `bn_075 vs origin` implies pair sd **0.162** — matches against a weak opponent are lopsided and
+so have *lower* pair variance. That also corrects the "direct match has 3.6× the SNR" claim: the
+noise ratio is only **1.3×**, and the remaining **2.8×** is the origin comparison *compressing the
+signal* because both nets are near-saturated. I attributed the whole gap to quadrature addition.
 
 ## Shipping candidates, with evidence strength stated per item
 
