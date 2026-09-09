@@ -35,7 +35,18 @@ fn main() {
     let r = s.pent_rate();
     let c = s.ci95();
     println!("  {pa} scores {r:.3} +/- {c:.3}  (interval [{:.3}, {:.3}])", r - c, r + c);
-    let verdict = if r - c > 0.5 {
+    // MARGINAL BAND. "Clear of 0.5" is true at a lower bound of 0.5001 and it is not a result.
+    // wd_r0 vs wd_r2 read 0.522 +/- 0.022 -- lower bound 0.501, a margin of 0.001 -- and went into
+    // the top of STATE.md as "w16 is stronger". At 960 pairs it is a precise NULL. A verdict whose
+    // margin is small next to its own interval is one more sample from being nothing, so it gets
+    // named rather than reported as a win.
+    let margin = (r - c - 0.5).max(0.5 - (r + c)); // >0 when the interval clears 0.5
+    let marginal = margin > 0.0 && margin < 0.5 * c;
+    let verdict = if marginal && r > 0.5 {
+        "A leads, but MARGINALLY -- the margin is small next to the interval; needs more pairs"
+    } else if marginal {
+        "B leads, but MARGINALLY -- the margin is small next to the interval; needs more pairs"
+    } else if r - c > 0.5 {
         "A is stronger, interval clear of 0.5"
     } else if r + c < 0.5 {
         "B is stronger, interval clear of 0.5"
