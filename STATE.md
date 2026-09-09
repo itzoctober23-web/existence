@@ -42,6 +42,37 @@ block 5.
 scratch (0.479 ± 0.023), and 0 KEEPs in 8 blocks once `batch_base` was fixed. The batch gate is
 **correct now but not useful** — its resolution is coarser than the effects it is asked to judge.
 
+## 🔑 THE COMPLETE MECHANISM — and the precondition the code set is now MET
+
+**Why nothing is ever promoted, end to end:**
+
+1. **The surrogate is `mates / Mcost`, and mates are SATURATED** — the seed already scores 25/25 on
+   the guard set. Mates cannot improve.
+2. **So only cost can improve — and nothing is cheaper.** `stepdiff` measured **0 of 30**
+   identical-playing mutants cheaper than the champion (95% upper bound 10%).
+3. **Therefore the surrogate can never exceed 1.000×.** Verified: across **39 lineage-generations**
+   in two runs, the max candidate rate is **exactly 1.000× and never above it**.
+4. **Ties still reach the game gate** (17 calls in the old run), where `resolved_up` at 6 pairs
+   demands ~60–69% of pairs. All rejected.
+
+**Meanwhile the one unsaturated dimension shows real progress that acceptance cannot see:**
+
+```
+hard-set scores across 39 lineage-generations (seed = 0/8 by construction)
+  20 of 39 (51%) have a member scoring >0
+  best observed: 2/8
+```
+
+`evolve.rs:1207` explains why the fitness ignores it:
+
+> "Scored and reported per generation; **acceptance is NOT changed yet, because the claim 'a
+> better-searching candidate can win these' is exactly the sort of thing that should be measured
+> before a fitness is restructured around it.**"
+
+**That measurement now exists, and the answer is yes** — 51% of lineage-generations contain a member
+that wins hard positions the seed loses. The precondition the code set for restructuring the fitness
+has been met by data the runs were already producing.
+
 ## 🔑 THE SEARCH TRACK'S ACCEPTANCE RULE CONTRADICTS ITS OWN DOCUMENTED INTENT
 
 `evolve.rs:1199` describes the game gate:
