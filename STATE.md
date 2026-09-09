@@ -1390,6 +1390,26 @@ denominators can differ no other way). The BEHAVIOURAL difference the filter was
 line whose surrogate is BELOW the incumbent's, which the strict rule cannot produce — has NOT yet
 appeared in four generations. The filter binds; whether it changes outcomes is still open.
 
+## The exploit is a STABLE ATTRACTOR: two independent seeds converged on the same shape
+
+A second specimen, from seed 31337 — a different trajectory entirely, since the mutation draw is now
+genuinely seedable:
+
+```
+seed default   18 mates,  5,440,807 cost   1,881x cheaper   1,354x rate   games 0.208
+seed 31337     18 mates,  4,836,594 cost   2,115x cheaper   1,523x rate   games 0.208
+```
+
+**Both land on exactly 18 mates and exactly 0.208 games.** 18 is the guard floor at tolerance 7
+(25-7), and 0.208 is what a program that does not search scores over 12 games. Two independent
+trajectories converged on the same point, which means this is not a fluke of one run — it is where
+selection goes when the floor is lowered by three. The fitness landscape has a large basin at
+"stop searching, keep just enough mates to clear the floor", and evolution finds it in ONE generation
+from either starting point.
+
+That also makes the corpus more useful than a list of curiosities: two rows, same signature,
+different provenance. A candidate fitness that admits one admits the family.
+
 ## FIRST MACHINE-FOUND EXPLOIT CAPTURED, and it lands exactly on the guard floor
 
 `exploit_MAIN_gen1_1354x.prog`, produced within one generation of turning the refuted
