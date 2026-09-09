@@ -611,6 +611,15 @@ no monotone path exists regardless. The bottleneck is the SEARCH — strict hill
 it, and is refused: MASTER_PLAN line 53 requires these to be DISCOVERED, so a gadget-inserting
 operator makes the discovery vacuous.
 
+**FIDELITY NOTE 2026-09-08 — `ab_id` is not budget-aware, so it is not iterative deepening as
+practitioners mean it.** Real ID searches successively deeper *until its allowance runs out*;
+`with_iterative_deepening` loops depth 1..D and stops, never reading `Budget`. Verified across the
+whole reference set: only `uct_mcts` and `proof_number` contain `Node::Budget`, and all nine
+alpha-beta-family programs are budget-blind. The node count and the ladder measurement (0.914x) are
+correct for what is written; what is written is a DEPTH ladder, not a time-limited one, and the
+distinction matters because FITNESS 3's cost term only becomes meaningful for a budget-aware
+program (see FITNESS.md).
+
 ### A5 — THE LADDER AS A STANDING TEST (`evolve valleyall`), MEASURED 2026-09-08
 
 Every reference program scored on the search track's OWN fitness set (25 positions: 15 mate-in-1,

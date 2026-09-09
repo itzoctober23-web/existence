@@ -442,10 +442,33 @@ the depth in table 0 and ignores `Budget` entirely, so halving its cost means fi
 the **identical move** — not searching twice as far. Cost-efficiency converts to strength only for
 a BUDGET-AWARE program, one that searches until its allowance is exhausted.
 
-**What that implies.** The cost term is meaningful exactly when the seed is budget-aware, and
-iterative deepening is the canonical budget-aware search — rung 5 of the GRAMMAR 9 ladder,
-currently measured at **0.914x** on this surrogate, i.e. a LOSS. So the fitness penalises the one
-structure that would make its own cost term meaningful.
+**What that implies, and it is worse than the paragraph above first said.** I wrote that
+"iterative deepening is the canonical budget-aware search" and pointed at rung 5. That is true of
+real iterative deepening and **false of `ab_id` as implemented here** — it loops depth 1..D, which
+is still depth-limited and never reads `Budget`. Checked rather than assumed, across every
+reference program:
+
+| program | reads `Budget` |
+|---|---|
+| depth_one, bare_alpha_beta, capture_extension, table_reduction | no |
+| ab_hash, ab_probe_only, ab_store_only | no |
+| **ab_id, ab_hash_id** | **no** |
+| uct_mcts | **YES** |
+| proof_number | **YES** |
+
+**Nine of eleven reference programs are budget-blind — the entire alpha-beta family.** Only the
+MCTS and proof-number paradigms can spend a saving.
+
+**So FITNESS 3 IS NOT PARADIGM-NEUTRAL, which is the property it was chosen for.** Its cost term
+converts to playing strength for MCTS and PN, and cannot convert for alpha-beta, because an
+alpha-beta program that costs half as much returns the identical move sooner. The fitness therefore
+scores two paradigms on different currencies while presenting one number, and the MAIN lineage —
+the one the whole search track is built on — is the half where the currency is counterfeit.
+
+That is a Given-column defect, not a tuning problem. It also predicts exactly the divergence
+observed: the surrogate/game disagreement showed up in the MCTS lineage (surrogate 4.4x, games
+flat) because that is the lineage where cost is real, while MAIN's surrogate gains are unconvertible
+by construction.
 
 This is not a bug to patch in the gate. It is a statement about what mates-per-cost can and cannot
 measure, and it belongs here. The gate's cost-ceiling plumbing is left in place (it is correct for
