@@ -2852,3 +2852,37 @@ promoted tie that verifies as a genuine tie means the veto rule bought nothing.
 
 **Not changed.** `COST_PER_MOVE` is the experimental apparatus, and this project's rule is that the
 apparatus changes only on measurement. Recorded as the leading candidate fix, pending the observer.
+
+## 🔑 SETTLED: the P2 gate is UNDERPOWERED — 202 decisions, 0 accepts, bar never in range
+
+Full write-up: `gate_power_RESULT.md`.
+
+Counting **every gate decision in every log in this repo** (202 of them, all at 12 games = 6 pairs,
+`evolve.rs:1297`):
+
+* **0 ACCEPTs, ever**, under the strict rule.
+* **Max `pent_rate` ever observed: 0.542.**
+* Strict rule needs `pent_rate > 0.5 + ci95`; the **smallest ci95 ever seen is 0.082**, so the easiest
+  bar ever offered was **0.582** — above the highest rate the instrument has ever produced.
+
+The bar has never been inside the achievable range. The 0/202 record is arithmetic, not bad luck.
+Rate quantization independently confirms the sample size: observed rates are spaced 1/24, exactly what
+6 pairs scored in half-points gives.
+
+**This refines, rather than replaces, what was already here.** STATE.md:2680 already noted "at 6 pairs
+ci95 reaches 0.250, so promotion needs ~60-69% of pairs", on 17 decisions. What is new is that the
+count over 202 decisions shows the bar was never *reachable at all*, which moves sample size from a
+contributing factor to the settled cause.
+
+**It also demotes the cost-blindness hypothesis** (`cost_blind.rs`, running): a cost ceiling changes
+which program scores higher, not whether a ±0.177 instrument can resolve the difference. The probe
+still answers whether efficiency is visible to the gate, but it cannot explain 0/202.
+
+**Not yet sized.** Raising `gate_pairs` is the obvious fix, but the ci95-vs-pairs curve is unmeasured
+and the two anchors disagree by 1.6x (6 pairs → 0.177 over 202 decisions; 96 pairs → 0.027 over
+exactly **one** observation). `ci95_curve.rs` measures it directly as an A/A — a program against
+itself, true rate 0.500 by symmetry, so all spread is instrument noise and a centre away from 0.500
+would invalidate the harness. **Do not pick a pair count before that lands.**
+
+The acceptance rule stays strict. A strict rule on a resolved measurement is what this gate was meant
+to be; it has never been given a resolved measurement to judge.
