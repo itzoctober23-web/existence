@@ -45,10 +45,12 @@ for cell in s1-control:gate_control_arm.log s1-veto:gate_veto_arm.log s2-control
 done
 
 echo
-echo "  INTERACTION is the point of the fourth cell. With only three, a null from either single lever"
-echo "  is uninterpretable -- it could mean the lever does nothing, or that the other still binds."
+echo "  DESIGN: rule (strict vs veto) x SEED (1, 2). The filter arm was dropped -- SPEC_FILTER cannot"
+echo "  produce gate data until PATH 1 re-checks cost, measured over 4 generations of pure no-ops."
+echo "  Two seeds because one cannot settle a champion-vs-champion question: the blend campaign needed"
+echo "  FIVE before its interval cleared zero, and two of its seeds disagreed at three seeds in."
 echo
-echo "  MIRRORED vs ALL-DRAWN among no-signal decisions (three cells log W-D-L; control does not):"
+echo "  MIRRORED vs ALL-DRAWN among no-signal decisions (all cells below log W-D-L):"
 for cell in s1-veto:gate_veto_arm.log s2-control:gate_control_s2.log s2-veto:gate_veto_s2.log; do
   name=${cell%%:*}; f=${cell#*:}
   [ -f "$f" ] || continue
