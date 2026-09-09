@@ -164,3 +164,30 @@ If 1.00 wins at depth 2 and loses at depth 4 **on both seeds**, the depth-depend
 and the blend candidate is a depth-2 artifact — the largest lever on the board would be closed by its
 own evidence. If it wins at depth 4 too, the shipped default of 0.75 is standing on a risk argument
 that the measurements contradict.
+
+## NEW — blend 0.85 beats 0.75 at DEPTH 4, where 1.00 does not
+
+The settled block declares **blend 1.00** dead. It says nothing about 0.85, which had never been
+directly matched — only scored against the frozen origin (0.809 ± 0.024, unresolved against
+everything). Direct, 448 pairs, depth 4, the strength standard:
+
+| pair | depth 4 | verdict |
+|---|---|---|
+| `bn_075` vs `bh_085` | **0.460 ± 0.022** [0.438, 0.483] | **0.85 stronger, interval clear of 0.5** |
+| `bn_075` vs `bh_100` | 0.511 ± 0.022 (recorded, STATE.md:806) | no advantage |
+
+So the response is **non-monotonic**: 0.75 → 0.85 gains, 0.85 → 1.00 gives it back. That is a
+plausible shape — some weight on the game outcome anchors the bootstrap, and pure self-distillation
+(1.00) has nothing holding it to reality, which is the exact risk argument that made 0.75 the default.
+0.85 sits between the two.
+
+**This is NOT a result yet, and the reason is quantified in this tree.** The gap is **+0.040**, and
+`STATE.md:247` states that effects of 0.02–0.05 need **~19 seeds** to separate from a seed spread of
+~0.045. One training seed cannot settle it, however clear the within-run interval looks — that is the
+same trap that produced the withdrawn "+0.025 depth lever" and the withdrawn blend-1.00 case.
+
+**What it does change:** the blend axis is not closed. The settled block's "blend 1.00 dead" is
+correct and does not generalise, because the optimum is not at either end tested. Queued next:
+* `bh_085` vs `bh_100` — is 0.85 better than 1.00 head to head? (blend_h2h's third match, now running)
+* a second-seed 0.85 arm — `blend_seed2.sh` produced 0.75 and 1.00 only, so 0.85 needs one 20-generation
+  run (~8 min at the measured 24 s/generation) plus one match. That is the replication that matters.
