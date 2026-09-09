@@ -39,13 +39,25 @@ fn main() {
         "A is stronger, interval clear of 0.5"
     } else if r + c < 0.5 {
         "B is stronger, interval clear of 0.5"
-    } else if c < 0.03 {
+    } else if c < 0.015 {
         "INDISTINGUISHABLE, and precisely so -- a narrow interval containing 0.5"
     } else {
-        "UNRESOLVED -- the interval is wide AND contains 0.5; this needs more pairs, not a verdict"
+        "UNRESOLVED -- contains 0.5 but is NOT tight enough to call a null; more pairs, not a verdict"
     };
     println!("  => {verdict}");
     println!("\n  A narrow interval around 0.5 is a RESULT (no difference); a wide one is IGNORANCE.");
     println!("  Two random movers score 0.500 with a narrow interval, so tightness alone proves");
     println!("  nothing about whether these nets were ever separable.");
+    // THE NULL THRESHOLD IS 0.015, NOT 0.03, AND IT COST A WRONG CLAIM TO LEARN THAT.
+    // At 224 pairs ci95 is ~0.030, so the old `c < 0.03` test stamped "precisely indistinguishable"
+    // on the LEAST precise reading this tool can produce. bh_100 vs champion_long read 0.529 +/-
+    // 0.030 at 224 pairs and was reported as a tie; at 896 pairs on a fresh seed it is 0.458 +/-
+    // 0.016, champion_long stronger with the interval clear of 0.5. Same direction all along, but
+    // the "tie" was underpowered, not a null. 0.015 needs ~896 pairs and excludes the 0.02-0.05
+    // effects this project actually cares about.
+    if c >= 0.015 && (r - c) <= 0.5 && (r + c) >= 0.5 {
+        let need = ((1.96 * 0.2362 / 0.015_f64).powi(2)).ceil() as u64;
+        println!("\n  NOT a null: at {pairs} pairs this cannot exclude a 0.02-0.05 effect.");
+        println!("  Re-run at ~{need} pairs before calling it a tie.");
+    }
 }
