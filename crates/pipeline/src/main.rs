@@ -416,6 +416,8 @@ fn main() {
     let mut best_ctrl: Option<(f64, Net, usize)> = None;
     // The net a batch started from, and what --gate-every rolls back to when a batch fails.
     let mut batch_base: Option<Net> = None;
+    /// The batch base's score against the FIXED origin, cached: constant for a whole batch.
+    let mut batch_base_anchor: Option<(f64, f64)> = None;
     let cost_nodes = {
         let mut probe = pipeline::search::Searcher::with_seed(1);
         let mut p0 = Position::startpos();
@@ -836,14 +838,45 @@ fn main() {
         // that is indistinguishable from its base is discarded rather than kept on a coin flip.
         if batch_mode && g % gate_every == 0 {
             let base = batch_base.get_or_insert_with(|| champion.clone()).clone();
-            let (_v, bs, bllr) =
-                gate::sprt_match_nets(&champion, &base, depth, gate_pairs, seed ^ 0xBA7C ^ g as u64,
-                                      4, 0.0, 5.0);
-            let up = bs.pent_rate() - bs.ci95() > 0.5;
-            println!("      batch gate g{g} (last {gate_every} gens): {:.3}+/-{:.3} LLR {bllr:+.2} -> {}",
-                     bs.pent_rate(), bs.ci95(), if up { "KEEP" } else { "ROLL BACK" });
+            // ---- INCREMENT OVER A FIXED ANCHOR, not a match against the parent.
+            //
+            // This compared champion vs BASE, which is a parent-relative comparison -- and
+            // parent-relative comparison is the thing measured as uninformative here. Two similar
+            // nets at depth 2 draw nearly everything, so that match returns 0.500 +/- 0.007 on a
+            // pair the ORIGIN separates easily, and non-transitivity was demonstrated directly (a
+            // net can beat its parent while being weaker against a third opponent).
+            //
+            // proxies_RESULT.md: all three cheap signals are now measured uninformative -- the
+            // held-out surrogate (r = -0.095 against 239 gate results), the training loss
+            // (r = +0.379, CI [-0.249, +0.783], n=12), and the parent gate. The ONLY thing that has
+            // resolved anything is games against a FIXED opponent: they refuted capacity
+            // (0.179 +/- 0.021) and the draw filter (+0.054 +/- 0.034).
+            //
+            // So measure both nets against the ORIGIN and compare the INCREMENTS. Same principle
+            // the 4PC ICC protocol arrived at independently: judge a change by its increment over
+            // a fixed baseline, never by a head-to-head against the thing it came from.
+            //
+            // THE BASE'S ANCHOR SCORE IS CACHED. It is constant for the whole batch, so measuring
+            // it once per batch rather than once per gate halves the games. It is recomputed
+            // whenever the base moves, which is the only time it can change.
+            let cs = gate::match_nets(&champion, &origin, depth as u32, gate_pairs,
+                                      seed ^ 0xA9C0 ^ g as u64);
+            let (br, bc) = *batch_base_anchor.get_or_insert_with(|| {
+                let m = gate::match_nets(&base, &origin, depth as u32, gate_pairs, seed ^ 0xA9C0);
+                (m.pent_rate(), m.ci95())
+            });
+            // Two-sample: the increment must clear the combined interval, not merely be positive.
+            // Requiring only `cs > br` would promote on noise every other batch.
+            let diff = cs.pent_rate() - br;
+            let se = ((cs.ci95() / 1.96).powi(2) + (bc / 1.96).powi(2)).sqrt();
+            let up = diff - 1.96 * se > 0.0;
+            println!("      batch gate g{g} (last {gate_every} gens): champ-vs-origin {:.3}+/-{:.3} \
+base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
+                     cs.pent_rate(), cs.ci95(), br, bc, diff, 1.96 * se,
+                     if up { "KEEP" } else { "ROLL BACK" });
             if up {
                 batch_base = Some(champion.clone());
+                batch_base_anchor = None; // base moved, so its anchor score must be re-measured
             } else {
                 champion = base;
                 if let Err(e) = champion.save(&out) {
