@@ -1804,7 +1804,22 @@ fn main() {
                         ic.run(&c, p, bud) == ih.run(&lineages[li].champ, p, bud)
                     })
                 };
-                if same_play {
+                // PATH 1 MUST RE-CHECK COST, and until now it did not.
+                //
+                // Its own comment defines the path as "returns the SAME move as the champion on every
+                // guard position AND COSTS LESS ... a pure speedup". The code only tested `same_play`;
+                // the "costs less" half was silently guaranteed by the caller, because the strict
+                // filter picks only when `popn[0].2 > best_rate`.
+                //
+                // EXISTENCE_SPEC_FILTER breaks that unstated invariant: it picks on `r >= 0.9 *
+                // best_rate`, so `rate` may be EQUAL or WORSE. The very first generation of the SPEC
+                // cells promoted on `0.002490 was 0.002490` -- identical play at identical cost,
+                // recorded as a "speedup". That is a no-op replacing the champion, and it would have
+                // been read as the SPEC filter working when it is the guard failing.
+                //
+                // Restoring the documented condition is a no-op under the strict filter (which already
+                // guarantees it), so the control and veto cells are unaffected and stay comparable.
+                if same_play && rate > best_rate {
                     println!("  gen {g:>3} {:<5} ACCEPT speedup: play IDENTICAL on all {} guard \
 positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best_rate);
                     lineages[li].champ = c.clone();
