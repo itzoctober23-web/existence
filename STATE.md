@@ -825,13 +825,27 @@ where the game count is only 2× — the extra factor is the rising decisive fra
 more usable positions → more data. It is the mechanism the data hypothesis required, and it explains
 why `champion_long` (far more accumulated data) sits above a fresh 20-generation run.
 
-**AND THE ADVANTAGE IS CLOSING.** By generation 9 the decisive fractions have converged —
-48.6% vs 51.1%, a gap of 2.5pp where it was 19.6pp at generation 6 — and the pool ratio has fallen
-from 3.0× toward 2.48×, heading for the 2× the game count alone gives.
+**CLOSED — the advantage is transient. Full trajectory, both arms complete:**
 
-So this is a **faster climb to the same plateau**, which is the alternative flagged when the arm was
-launched and the one the plateau-height criterion says is worth nothing. The 20-generation
-head-to-head still decides it, but the trajectory has already answered.
+```
+gen    bn_075   dv_4800     gap
+  1     16.2%     15.3%   -0.9pp   <- control: both nets still random
+  4     25.0%     42.9%  +17.9pp
+  6     34.5%     54.1%  +19.6pp   <- peak
+  9     48.6%     51.1%   +2.4pp
+ 16     50.3%     49.7%   -0.7pp
+ 20     48.8%     50.1%   +1.4pp   <- converged
+```
+
+Both arms plateau at **~49–50% decisive**. The gap peaks at generation 6 and is gone by 9.
+**2× the data buys arrival, not altitude** — a faster climb to the same ceiling, which is exactly
+the alternative flagged when the arm was launched and the one the plateau-height criterion says is
+worth nothing.
+
+Generation 1 is the control and it does real work: at −0.9pp with both nets random, the later
+divergence is training rather than the game count, and the convergence is therefore a real
+convergence rather than the measurement washing out. The depth-4 head-to-head is running to confirm,
+but the trajectory has answered.
 
 ## Testing the last structural lever: is the plateau DATA-limited?
 
