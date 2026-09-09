@@ -1,5 +1,23 @@
 # Existence — current state, 2026-09-08
 
+> ## ⚠ READ FIRST: the frozen-origin metric SATURATES and has reversed two signs
+>
+> Direct matches (`examples/netmatch.rs`) contradict the origin metric on two arms, both with
+> intervals clear of 0.5:
+>
+> | | vs origin | head-to-head |
+> |---|---|---|
+> | blend 0.75 vs 1.00 | 0.75 better +0.015 | **1.00 better, 0.459 ± 0.030** |
+> | capacity w16 vs w64 | w64 far better, 0.967 vs 0.838 | **w16 better, 0.522 ± 0.022** |
+>
+> The cause is **saturation, not effect size** — w64's origin gap was the largest in the table.
+> Beating a random opponent stops discriminating near the top of its range, and that is exactly
+> where the strong arms live. Large mid-range gaps still agree (blend 0.75/0.25, horizon).
+>
+> **Consequence:** every ceiling arm below was scored against the origin. Any gap **under ~0.05**, or
+> any arm scoring **above ~0.95**, is provisional until re-measured directly. Detail in
+> `instrument_saturation_RESULT.md`.
+
 Single source of current truth. The `*_RESULT.md` files are the working records and several contain
 claims later retracted; **this file supersedes them where they disagree.**
 

@@ -75,6 +75,9 @@ done
 echo
 echo "=== VERDICT: three independent pairs ==="
 echo "  seed 20260907   d2 0.850   d3 0.875   (UNCAPPED -- confounded with horizon, not counted)"
+echo "  NOTE: the origin rates below SATURATE. Direct matches reversed two signs the origin metric"
+echo "  gave (blend 0.75-vs-1.00 and capacity w16-vs-w64), and depth's +0.025 is SMALLER than the"
+echo "  +0.015 that reversed. The head-to-head block underneath is the verdict; these are context."
 for SEED in 424242 987654; do
   a=$(grep -A 1 'CONTROL  final champion' "dr_${SEED}_d2.log" 2>/dev/null | head -1 | grep -oE 'rate [0-9.]+ \+/- [0-9.]+')
   b=$(grep -A 1 'CONTROL  final champion' "dr_${SEED}_d3.log" 2>/dev/null | head -1 | grep -oE 'rate [0-9.]+ \+/- [0-9.]+')
@@ -84,3 +87,25 @@ echo
 echo "  2/2 for depth 3 at a MATCHED horizon => depth is the lever, not the horizon."
 echo "  Any sign flip  => the first result was the between-run band showing through. Closed."
 echo "  2-1 split      => NOT a confirmation at an effect this far inside the noise band."
+
+# HEAD-TO-HEAD, the verdict block that matters. Added after the frozen-origin metric was shown to
+# saturate: it reversed the sign on blend 0.75-vs-1.00 and on capacity w16-vs-w64, both with
+# intervals clear of 0.5. Depth's claimed +0.025 is smaller than the +0.015 that reversed, so
+# reading this replication off origin rates alone would be reading it off a broken ruler.
+NM=${NM:-/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad/xt4/release/examples/netmatch}
+echo
+if [ -x "$NM" ]; then
+  echo "=== VERDICT (head-to-head, 448 pairs): d2 vs d3, per seed ==="
+  for SEED in ${SEEDS:-424242 987654}; do
+    if [ -f "dr_${SEED}_d2.net" ] && [ -f "dr_${SEED}_d3.net" ]; then
+      printf "  seed %-9s " "$SEED"
+      taskset -c "${CORE:-15}" nice -n 19 "$NM" "dr_${SEED}_d2.net" "dr_${SEED}_d3.net" 448 2 "$SEED" \
+        2>/dev/null | grep -E 'scores' | sed 's/^ *//'
+    else
+      echo "  seed $SEED: nets missing, no head-to-head"
+    fi
+  done
+  echo "  d2 scoring BELOW 0.5 means depth 3 is stronger -- the direction the +0.025 claimed."
+else
+  echo "  no netmatch binary at $NM -- head-to-head SKIPPED (this is the verdict, so build it)"
+fi
