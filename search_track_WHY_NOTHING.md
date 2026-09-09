@@ -307,3 +307,52 @@ Only games against a fixed anchor have resolved anything all session — they re
 1,650 pairs to resolve one generation's real edge (`proxies_RESULT.md`), which is why they are not
 already the metric. That is the honest trade: the only valid signal is the one that is
 unaffordable at this cadence, and everything cheaper has now been measured and found uninformative.
+
+
+---
+
+## THE CRUX, measured: no single edit is both correct and behaviour-changing
+
+`evolve stepdiff`, 100 single-edit mutants of the seed, scored against the loop's REAL guard (the
+25-position mate/disagreement/window set, `f >= best_found`):
+
+```
+BROKEN (returned no move)                     12
+IDENTICAL (passes guard, plays the same)      55
+DIFFERENT (plays differently)                 33
+...AND passes the guard (THE USEFUL KIND)      0
+```
+
+**Zero of thirty-three.** The space at one edit is strictly partitioned: everything that changes
+play FAILS the guard, everything that passes the guard plays IDENTICALLY. Rule of three puts the
+95% upper bound on the useful rate at ~9%; the point estimate is 0.
+
+**My first version of this instrument reported 35%.** It sorted on "did it return a move" rather
+than on the guard the loop actually enforces, and its own doc comment claimed the buckets meant
+"keeps all answers". Same experiment, correct criterion, and the answer moves 35 points to zero.
+
+### What this actually says
+
+The guard set is 25 positions chosen to be MAXIMALLY SENSITIVE — mate-in-1, depth-disagreement,
+window-sensitive. Any behavioural change is overwhelmingly likely to lose at least one of them. So
+`f >= best_found` over that set is, in practice, **"do not change behaviour"**.
+
+That puts the correctness guard and the improvement goal in direct conflict:
+
+* The guards are RIGHT about exploits. They were built after two real ones (searching a ply
+  shallower; raising initial alpha to +8) and they catch that class exactly.
+* But a genuine strength improvement ALSO changes behaviour, and on a 25-position all-or-nothing
+  bar it will lose something. Capture extension is the worked example: it plays differently on 2 of
+  10 positions and would be rejected by any all-or-nothing guard that those 2 positions touch.
+
+So the loop is not failing to find improvements. It is **rejecting every candidate that could be
+one**, using a rule that cannot distinguish "worse" from "different".
+
+### Where that leaves the search track
+
+The three components are each individually correct and jointly unworkable: operators that produce
+behavioural novelty, a guard that rejects all of it, and a cost term that cannot convert to
+strength. Fixing this means the guard must tolerate REGRESSION on some positions in exchange for
+gains on others — which requires being able to weigh them, which requires a strength signal, which
+is games. The same conclusion the ceiling work reached from the other direction, and at the same
+price: ~1,650 pairs per generation.
