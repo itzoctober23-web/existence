@@ -791,9 +791,14 @@ strictly larger pool, and the trend is the pool growing.
 Mean over four blocks is −0.017 ± 0.025 (no reliable change), but the mean is the wrong statistic
 for a monotone series.
 
-**PRE-REGISTERED PREDICTION:** continue past 20 generations and the blocks should turn positive and
-start KEEPing. `fg_60` is running — 12 blocks instead of 4. If blocks 5+ stay negative or flat, the
-trend was noise in a 4-point series and this closes with the rest.
+**PREDICTION REFUTED AT BLOCK 5.** The sequence is now **−0.045, −0.033, +0.003, +0.007, −0.010** —
+block 5 went back negative with a *larger* pool than block 4 had. Five blocks give
+**−0.016 ± 0.020**, no reliable change.
+
+I predicted blocks would turn positive and start KEEPing. They did not. Four rising points was a
+pattern fitted to a series short enough that one more point could break it, and one more point broke
+it. `fg_60` has 7 blocks left and the mean may still move, but **the monotone reading is dead** and
+pool growth alone does not drive the increment.
 
 This is the only mechanism found today that predicts *improvement* rather than explaining absence.
 
