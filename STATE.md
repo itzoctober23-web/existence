@@ -727,6 +727,28 @@ gate working, not the gate being too strict.
 matches use their own seeded RNG. If it differs, the gate is perturbing the training stream, which
 would be a defect worth finding.
 
+## DATA COMPOUNDS: more games raises the decisive-game rate, which yields more data again
+
+`dv_4800` (2× games/generation) against `bn_075`, same seed, same 20 generations:
+
+| gen | bn_075 decisive | dv_4800 decisive | pool ratio |
+|---|---|---|---|
+| 1 | 389/2400 = **16.2%** | 734/4800 = **15.3%** | — (control) |
+| 2 | 372/2400 = 15.5% | 821/4800 = 17.1% | |
+| 4 | 600/2400 = 25.0% | 2061/4800 = **42.9%** | |
+| 6 | 829/2400 = 34.5% | 2599/4800 = **54.1%** | **3.0×** |
+
+**Generation 1 is the built-in control**: both nets are still random and the fractions match, so the
+later divergence is caused by *training*, not by the game count. The pool at generation 6 is **3.0×**
+where the game count is only 2× — the extra factor is the rising decisive fraction.
+
+**This is a compounding loop, not a scale-up:** more data → stronger net → more decisive games →
+more usable positions → more data. It is the mechanism the data hypothesis required, and it explains
+why `champion_long` (far more accumulated data) sits above a fresh 20-generation run.
+
+It does **not** yet establish a higher plateau — a faster climb to the same ceiling would look
+identical this early. The 20-generation head-to-head against `bn_075` is what decides that.
+
 ## Testing the last structural lever: is the plateau DATA-limited?
 
 No hyperparameter moved the plateau, and the plateau — not the climb rate — is the shipping
