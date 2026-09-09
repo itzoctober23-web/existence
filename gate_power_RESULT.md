@@ -352,3 +352,46 @@ as it is playing a drawn game.
 **The lever is decisiveness, not sample size:** more depth, sharper openings, or a net that separates.
 `gate_power_RESULT.md` opened by framing this as "raise `gate_pairs`". That framing is now retired for
 the drawish half on direct evidence, and retained only for the half where games do resolve.
+
+---
+
+## ROOT CAUSE of the drawishness — and MASTER_PLAN already prescribes the fix
+
+The gate's games are played with **`Net::random(32, 20260907)`** (`evolve.rs:1286`) — He-initialised,
+untrained weights. Both programs evaluate positions with noise. That is deliberate and correct for
+this track: the search track evolves PROGRAMS, so the net is held fixed and identical on both sides,
+"so this measures the PROGRAM and nothing else" (`gate.rs:142`).
+
+**But it makes the games structurally unable to resolve.** With no positional signal, neither side can
+convert an advantage, so games run to the length limit and draw. Measured: **80.6% draws over three
+real gate decisions, and zero wins in 36 games.**
+
+### MASTER_PLAN diagnosed this in advance, under a different cause
+
+`docs/MASTER_PLAN.md:154` — *"Openings and draw death"*:
+
+> *"Draws label every position ~0 and starve the SPRT gate of information."*
+
+It attributes draw-death to **strength** (">70% around 2800-3000"). Here the mechanism is inverted —
+draw death from **weakness**, because a random eval cannot steer toward a win — but the symptom and
+the remedy are the same, and the plan lists three legal sources of opening diversity:
+
+1. **Random opening plies** — *"Effective early; weakens as the engine strengthens."*
+2. **Self-generated unbalanced book** — mine own games for positions where own search eval sits in a
+   band (e.g. +0.6 to +1.5); start there, each played from both sides.
+3. **Chess960 start positions.**
+
+**The gate currently uses #1 and only #1**: `match_progs(..., open_plies = 4, ...)` plays four random
+plies from the start position (`gate.rs:154-156`). Four random plies from a balanced start, judged by a
+random net, is the configuration least likely to produce a decisive game.
+
+**The prescribed fix is #2**, and it applies for the opposite reason to the one the plan anticipated:
+starting from positions that are ALREADY unbalanced gives the game a determinate outcome for a better
+program to find, without requiring the net to supply one.
+
+### What this does NOT justify
+
+Swapping in a trained net. Holding the net fixed and random is what makes the gate measure the program
+rather than the evaluation, and that is the whole point of the search track. The fix is the OPENINGS,
+not the eval — which is exactly what the plan says, and it is why "raise `gate_pairs`" was the wrong
+first instinct: more pairs from the same balanced start yield more draws.
