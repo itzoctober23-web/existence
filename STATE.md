@@ -11,10 +11,12 @@ anything below.
    on a second seed and is resolved ACROSS seeds: mean effect 0.090, 95% CI **[+0.031, +0.149]**. The
    old parity claim was measured on the TARGET distribution (`distill_gap`) and does not reach
    trained strength. → `depth2x2_RESULT.md`
-2. **Blend 0.85 is a live candidate that was never tested.** The axis was closed by killing blend
-   1.00 — the wrong end. On one seed at depth 4, 0.85 beats 0.75 (0.460 ± 0.022) and 1.00
-   (0.567 ± 0.022), and the three matches are transitively consistent. Replication running.
-   → `blend_RESULT.md`
+2. **Blend 0.85 beats the shipped default, REPLICATED on two seeds.** The axis was closed by
+   killing blend 1.00 — the wrong end. At depth 4, all four 0.85 matches clear 0.5 on two independent
+   trainings: over 0.75 by 0.040 and 0.097, over 1.00 by 0.067 and 0.034. Cross-seed with the pooled
+   sd (0.0418), **0.85 over 0.75 is mean 0.0685, 95% CI [+0.011, +0.126] — excludes zero**. 0.85 over
+   1.00 does not resolve. Two seeds against a power requirement of ~2.9, so this is AT the boundary;
+   it justifies a proper multi-seed run, not a default change. → `blend_RESULT.md`
 3. **Blend 1.00's mechanism withdrawn.** "Advantage is depth-2 only, z = 4.4" reverses on seed
    424242, where 1.00 wins at depth 4. The VERDICT (dead, no cross-seed win) stands; the explanation
    does not. All four sites asserting it now say so.
