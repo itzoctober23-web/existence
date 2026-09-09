@@ -956,11 +956,29 @@ fn read_declared(path: &str) -> (usize, f64, i64, i64, u32) {
             _ => {}
         }
     }
+    // ENV OVERRIDES for the two knobs the ladder measurement actually implicates, so a treatment
+    // and a control can run SIMULTANEOUSLY against one config file instead of being separated by
+    // an edit between launches. Both still default to the config, so an unset environment is
+    // byte-identical to the previous behaviour.
+    //
+    // WHY THESE TWO, sized from `valleyall` rather than guessed:
+    //   guard_tolerance 4 -> 7   the mates floor rises from 21 to 18, which admits capture
+    //                            extension (18/25 mates, and the ONLY reference program that
+    //                            scores on the hard set). It does NOT admit any exploit: UCT is
+    //                            10, depth-one 5, proof-number 4, all still under 18.
+    //   eps 0.02 -> 0.10         iterative deepening sits at 0.914x and needs 0.086 of tolerance
+    //                            to survive into the population; the current band reaches 0.98.
+    // Parsed at each knob's OWN type: eps is f64 and guard_tolerance is u32, so one generic
+    // closure cannot serve both -- the first attempt inferred f64 from eps and failed to compile
+    // against gtol. Typed separately rather than coerced, so a malformed value is a parse failure
+    // here instead of a silently truncated tolerance later.
+    let env_f64 = |k: &str| std::env::var(k).ok().and_then(|s| s.parse::<f64>().ok());
+    let env_u32 = |k: &str| std::env::var(k).ok().and_then(|s| s.parse::<u32>().ok());
     (mu.expect("configs/search_track.conf declares no `mu`"),
-     eps.expect("configs/search_track.conf declares no `eps`"),
+     env_f64("EXISTENCE_EPS").unwrap_or_else(|| eps.expect("configs/search_track.conf declares no `eps`")),
      bmain.expect("configs/search_track.conf declares no `budget_main`"),
      bmcts.expect("configs/search_track.conf declares no `budget_mcts`"),
-     gtol.expect("configs/search_track.conf declares no `guard_tolerance`"))
+     env_u32("EXISTENCE_GUARD_TOL").unwrap_or_else(|| gtol.expect("configs/search_track.conf declares no `guard_tolerance`")))
 }
 
 
