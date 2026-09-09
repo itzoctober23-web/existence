@@ -142,3 +142,39 @@ it changes which program scores higher, not whether a ±0.177 instrument can res
 **Re-running this properly needs two things first:** a pair where the expensive arm is *measurably*
 stronger at the gate's settings (verified, not assumed), and enough pairs that the instrument can see
 the effect — which is exactly what `ci95_curve.rs` is measuring.
+
+---
+
+## A/A row 1: the harness is VALID, and the near-parity error bar is 0.250, not 0.177
+
+`ci95_curve.rs` first row, `bare_alpha_beta` against itself, 8 replicates of 6 pairs:
+
+```
+  pairs  reps  mean_rate  mean_ci95     bar    vs max-ever 0.542
+      6     8      0.500      0.250    0.750   out of reach
+```
+
+**The validity check passes exactly.** `mean_rate = 0.500` over 8 replicates is what an unbiased
+harness must produce when a program plays itself, so `match_progs` is not tilted and the measurements
+taken with it stand. That check was worth its cost: had it come back at, say, 0.55, every number in
+this file and in the gate logs would have been suspect.
+
+**The half-width at 6 pairs is 0.250 here, against 0.177 averaged over 202 real gate decisions.** Both
+are correct, and the difference is not a contradiction:
+
+* Pentanomial variance is **maximised near a rate of 0.5**. An A/A sits exactly there by construction.
+* Real gate decisions are frequently lopsided — the observed rates cluster at 0.333, 0.375, 0.417 —
+  and a lopsided pair generates less variance, pulling the average half-width down.
+
+**For sizing the gate, 0.250 is the number that matters, and this is the whole reason to run an A/A.**
+The gate's job is to resolve a candidate that is *close to* its champion; a candidate that is
+obviously worse needs no statistical help. So the regime the bar has to work in is precisely the
+near-parity regime the A/A measures. Using the 0.177 average would size the gate for the easy cases.
+
+That makes the headline finding **stronger, not weaker**: at 6 pairs the strict bar in the regime that
+matters is **0.750** — a candidate must win three pairs in four — against a maximum rate of 0.542 ever
+observed in 202 decisions. Earlier in this file the bar was computed as 0.582–0.677 from the averaged
+half-width. The correct near-parity figure is worse than both.
+
+The remaining rows (12, 24, 48, 96 pairs) are still running, and **the fix is still not sized**: the
+whole point of the curve is to measure the exponent rather than assume it.
