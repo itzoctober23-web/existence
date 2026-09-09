@@ -73,3 +73,19 @@ echo
 echo "  sc_c ABOVE 0.5 in the SHIP TEST => the combination beats the shipped defaults at a second"
 echo "  training seed. That is 'passed the gate' and nothing more -- no Elo has been measured."
 echo "  sc_c BELOW 0.5 => nothing ships; the single-component results stand as measured."
+
+# DEPTH 4 IS THE VERDICT, DEPTH 2 IS CONTEXT. This project judges strength at depth 4: the gate
+# derives its budget as "7061 nodes = 100% coverage of a full depth-4 search" and gate_depth_cap
+# defaults to 4. Every head-to-head measured earlier today used depth 2, which is what the datagen
+# uses -- so those are claims about depth-2 play and do not automatically transfer. A ship decision
+# taken at depth 2 would be a decision about the wrong game.
+# Depth 4 costs roughly 30x the nodes, so the pair count is lower; that is the intended trade.
+echo
+echo "=== SHIP TEST AT DEPTH 4 (448 pairs) -- this is the one that decides ==="
+if [ -f sc_c.net ]; then
+  printf "  sc_c vs s2_075 (shipped defaults) d4: "
+  taskset -c "$CORE" nice -n 19 "$NM" sc_c.net s2_075.net 448 4 555 2>/dev/null | grep -E 'scores|MARGINAL' | sed 's/^ *//'
+  printf "  sc_c vs s2_100 (blend only)       d4: "
+  taskset -c "$CORE" nice -n 19 "$NM" sc_c.net s2_100.net 448 4 555 2>/dev/null | grep -E 'scores|MARGINAL' | sed 's/^ *//'
+  echo "  A default moves only if depth 4 agrees. Depth-2-only evidence is not a ship."
+fi

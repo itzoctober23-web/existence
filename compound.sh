@@ -78,3 +78,20 @@ if [ -f cp_40.net ]; then
 else
   echo "  no cp_40.net. If the run accepted nothing, that IS the TIE branch, not a failed run."
 fi
+
+# DEPTH 4 IS THE VERDICT, DEPTH 2 IS CONTEXT. This project judges strength at depth 4: the gate
+# derives its budget as "7061 nodes = 100% coverage of a full depth-4 search" and gate_depth_cap
+# defaults to 4. Every head-to-head measured earlier today used depth 2, which is what the datagen
+# uses -- so those are claims about depth-2 play and do not automatically transfer. A ship decision
+# taken at depth 2 would be a decision about the wrong game.
+# Depth 4 costs roughly 30x the nodes, so the pair count is lower; that is the intended trade.
+echo
+echo "=== VERDICT AT DEPTH 4 (448 pairs) -- this is the one that decides ==="
+if [ -f cp_40.net ]; then
+  printf "  cp_40 vs b2_5          d4: "
+  taskset -c "$CORE" nice -n 19 "$NM" cp_40.net "$INIT" 448 4 555 2>/dev/null | grep -E 'scores|MARGINAL' | sed 's/^ *//'
+  printf "  cp_40 vs champion_long d4: "
+  taskset -c "$CORE" nice -n 19 "$NM" cp_40.net champion_long.net 448 4 555 2>/dev/null | grep -E 'scores|MARGINAL' | sed 's/^ *//'
+  echo "  If depth 2 and depth 4 disagree, the depth-4 reading wins and the depth-2 one is recorded"
+  echo "  as 'better at shallow search', which is a real but different claim."
+fi
