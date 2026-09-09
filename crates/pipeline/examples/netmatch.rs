@@ -122,4 +122,37 @@ fn main() {
         println!("\n  NOT a null: at {pairs} pairs this cannot exclude a 0.02-0.05 effect.");
         println!("  Re-run at ~{need} pairs before calling it a tie.");
     }
+
+    // BETWEEN-SEED POWER. Everything above is WITHIN-RUN precision: it says how well this match
+    // pinned down the difference between THESE TWO NETS. It says nothing about whether the same
+    // experiment on a different TRAINING SEED would land in the same place, and that is the error
+    // this project keeps making -- an interval clear of 0.5 gets read as a settled result.
+    //
+    // Withdrawn on exactly this in one day: the "+0.025 datagen depth lever"; blend 1.00's
+    // "advantage is depth-2 only, z = 4.4" (it reverses on the second seed); and a blend 0.85
+    // reading of mine that looked clear of 0.5 at +0.040.
+    //
+    // THE CONSTANT IS MEASURED, not assumed, and measured on the RIGHT quantity: the movement of a
+    // PAIRED difference between training seeds, from two independent cross-seed comparisons of the
+    // same net pair (0.75-vs-1.00 at depth 4: 0.511 -> 0.456, movement 0.055; at depth 2: 0.450 ->
+    // 0.502, movement 0.052). E[range] = 1.128*sd at n = 2, so sd ~ 0.047.
+    //
+    // It must NOT be compared against frozen-origin increments -- that is a different instrument,
+    // which instrument_saturation_RESULT.md shows disagreeing by up to 5x and reversing sign twice.
+    //
+    // Two estimates make this crude; it should be re-derived as more paired cross-seed comparisons
+    // accumulate, which now happens for free whenever an arm is replicated.
+    const SEED_SD: f64 = 0.047;
+    let effect = (r - 0.5).abs();
+    if effect > 0.0 {
+        let seeds = (2.8 * SEED_SD / effect).powi(2);
+        println!("\n  BETWEEN-SEED POWER (one training seed measured here):");
+        println!("    effect {effect:.3} against a between-seed sd of {SEED_SD:.3} -> ~{seeds:.0} seeds \
+for ~80% power");
+        if seeds > 2.0 {
+            println!("    ** ONE SEED CANNOT SETTLE THIS ** -- the interval above is within-run only.");
+        } else {
+            println!("    Effect is large relative to seed noise; one seed is defensible.");
+        }
+    }
 }
