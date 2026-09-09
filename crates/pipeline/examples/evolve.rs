@@ -395,6 +395,15 @@ fn valley_all() {
     let mut set = mate_set(n1);
     set.extend(disagreement_set(n2, depth, &net, 4_000));
     set.extend(window_sensitive_set(n3, depth, &net, 8, 4_000));
+    // Same EXISTENCE_MATE2 arm as the main loop, so the ORACLE can score the set change. The
+    // question this answers: `matesplit` showed capture extension scores 17/20 on MATE-1 and 18/20
+    // on MATE-2 -- it searches -- while this set rates it 0.340x, the worst of any rung. If the set
+    // is what is wrong, adding the MATE-2 rung should move the ladder ordering toward the truth.
+    if std::env::var("EXISTENCE_MATE2").is_ok() {
+        let before = set.len();
+        set.extend(forced_mate_set(12, 20_000));
+        println!("  EXISTENCE_MATE2: set {} -> {} positions", before, set.len());
+    }
 
     let seed = reference::bare_alpha_beta();
     let (sf, _sc, sr) = fitness(&seed, &set, &net, depth, 16);

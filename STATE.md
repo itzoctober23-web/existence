@@ -1417,6 +1417,49 @@ denominators can differ no other way). The BEHAVIOURAL difference the filter was
 line whose surrogate is BELOW the incumbent's, which the strict rule cannot produce — has NOT yet
 appeared in four generations. The filter binds; whether it changes outcomes is still open.
 
+## ⚠ MY per-N ACCOUNT IS REFUTED BY THE FIRST MEASUREMENT — and the real mechanism is better
+
+The first exploit captured with per-N scoring:
+
+```
+18/25 on the loop's set   MATE-1 12/12   MATE-2 7/12   132x cheaper   games 0.208
+```
+
+**It does not fail MATE-2. It scores 58% on it.** I predicted "aces MATE-1, fails MATE-2" as the
+exploit signature, twice — once from `matesplit` and once as the justification for adding the rung —
+and the measurement says no. This is not a program that refuses to search; it searches enough to
+find seven forced mates in two, and still plays at 0.208.
+
+**The corrected mechanism, which the same numbers support:**
+
+```
+                        floor   exploit   verdict
+tol 7, current set (25)    18        18   ADMITTED   <- lands exactly on the floor
+tol 7, with MATE-2 (37)    30        25   rejected
+tol 4, current set (25)    21        18   rejected
+tol 4, with MATE-2 (37)    33        25   rejected
+```
+
+MATE-2 stops it by **DEFICIT ACCUMULATION**, not by a categorical failure: it loses 7 on the original
+set and 5 more on the new rung, 12 total against a tolerance of 7. Every rung added is another place
+a program that plays badly has to keep up, and the deficits add while the tolerance does not. That is
+a better argument for FITNESS 3's four rungs than the one I made — the spec asks for MATE-{1,2,3,4}
+precisely so a deficit has four places to show up rather than one.
+
+**It also sharpens what the exploit IS.** Not "prune everything / return eval" — FITNESS 10's first
+row, which I matched it to. It finds mates competently and plays terribly, which is a different
+degenerate solution from the one the spec catalogues, and I do not yet have a name for it.
+
+**And I had a reader bug that hid this.** `exploit_check.py` used `csv.DictReader`, which takes the
+header from the FILE — still the old 11-column one — so the two new fields landed in the unnamed
+restkey and the tool printed "n/a" for a row that had the data. The header is migrated and legacy
+rows padded with empty (not zero) per-N fields. A tool that reports "not measured" for a measurement
+it is holding is worse than one that reports nothing.
+
+**Pre-registered, replacing the refuted prediction:** the treatment arm (same seed 4242, 37-position
+set, floor 30) should capture NO exploit, because 25 < 30. The control has now captured at generation
+1 on three separate seeds, so a null in the treatment is a real difference and not a quiet run.
+
 ## FITNESS 3's per-N split IS a real discriminator, and the loop throws it away
 
 FITNESS 3 specifies MATE-N for N in {1,2,3,4}, 500 each, **reported per N**, with different
