@@ -19,8 +19,15 @@ fn main() {
     let mut a = std::env::args().skip(1);
     let pa = a.next().unwrap_or_else(|| "champion_long.net".into());
     let pb = a.next().unwrap_or_else(|| "bn_075.net".into());
-    let pairs: usize = a.next().and_then(|s| s.parse().ok()).unwrap_or(224);
-    let depth: u32 = a.next().and_then(|s| s.parse().ok()).unwrap_or(2);
+    let pairs: usize = a.next().and_then(|s| s.parse().ok()).unwrap_or(448);
+    // DEFAULT DEPTH 4, NOT 2, and the default matters because I got this wrong all day.
+    // This project judges strength at depth 4: gate_depth_cap defaults to 4 and the gate sizes its
+    // budget as "7061 nodes = 100% coverage of a full depth-4 search". Depth 2 is what the DATAGEN
+    // uses, which is a different thing, and defaulting to it meant every comparison I ran -- the
+    // blend reversal, the b2_5 gain, the capacity null, draws, epochs -- answered "which net is
+    // better at depth 2" while I read them as "which net is stronger".
+    // A careless invocation should measure the thing that decides, so the careless case is now d4.
+    let depth: u32 = a.next().and_then(|s| s.parse().ok()).unwrap_or(4);
     let seed: u64 = a.next().and_then(|s| s.parse().ok()).unwrap_or(20260907);
 
     let na = Net::load(&pa).unwrap_or_else(|e| panic!("{pa}: {e}"));
@@ -29,7 +36,10 @@ fn main() {
     // differing widths is a legitimate comparison, but it must be VISIBLE in the output or a
     // capacity difference gets read as a training difference.
     println!("netmatch: {pa} (w{}) vs {pb} (w{})", na.n_hidden, nb.n_hidden);
-    println!("  {pairs} pairs, depth {depth}, seed {seed}");
+    let std_note = if depth == 4 { " (project standard for strength)" }
+                   else if depth == 2 { " (DATAGEN depth -- NOT the strength standard, which is 4)" }
+                   else { "" };
+    println!("  {pairs} pairs, depth {depth}{std_note}, seed {seed}");
 
     let s = gate::match_nets(&na, &nb, depth, pairs, seed);
     let r = s.pent_rate();
