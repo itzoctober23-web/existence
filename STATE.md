@@ -2589,50 +2589,39 @@ dense reference.
 | 6. xcheck + perft as `#[test]`s | **done AND green.** Ran them: `canonical_perft_suite`, `movegen_agrees_with_an_external_engine`, `incremental_zobrist_matches_from_scratch_everywhere`, `make_unmake_restores_the_position`, plus 2 more — **6 passed, 0 failed**. Previously recorded as done on the strength of the files existing; now actually executed. |
 | 5. register bytecode | deprioritised — the interpreter measured 1.003× hand-written on a quiet core. |
 
-## Running now — a 2x2 FACTORIAL on the two candidate P2 levers
+## Running now — verified against `/proc/PID/environ`, not from memory
 
-**Kept current against `readlink /proc/PID/exe`**, with flag presence read from each process's own
-`environ` rather than assumed.
+| core | arm | gate | bounds | EPS | question |
+|---|---|---|---|---|---|
+| 15 | seed 1 **SPRT** | sequential | [0,10] cap 400 | 0.02 | can a gate that spends evidence adaptively ACCEPT? |
+| 13 | seed 1 **SPRT + EPS** | sequential | [0,10] cap 400 | **0.10** | does fixing the 45.4% population collapse help, through a gate that can accept? |
+| 12 | seed 1 fixed-pair | 6 pairs | — | 0.02 | the baseline the SPRT arms are read against |
+| 14 | seed 2 fixed-pair | 6 pairs | — | 0.02 | second-seed baseline |
 
-P2 has two candidate blockers and they are not independent, so testing them one at a time cannot
-settle it. All four cells now run on **seed 1** with `EXISTENCE_GATE_VERIFY=96`:
+The two SPRT arms differ **only** by EPS, so the comparison is clean.
 
-| core | surrogate filter | gate rule | build | cell |
-|---|---|---|---|---|
-| 12 | strict (`> best_rate`) | strict (`rate - ci95 > 0.5`) | `xt_sx` | control |
-| 14 | **SPEC** (FITNESS 3, `>= 0.9x`) | strict | `xt_wdl` | filter only |
-| 15 | strict | **VETO** (`rate + ci95 >= 0.5`) | `xt_wdl` | gate rule only |
-| 13 | **SPEC** | **VETO** | `xt_wdl` | both |
+### Why these settings, each from a measurement rather than a preference
 
-**Why a factorial and not three comparisons.** The two levers act at different stages: the surrogate
-filter decides what REACHES the gate, the gate rule decides what the gate ACCEPTS. Relaxing the gate
-cannot help a candidate the filter already discarded, and admitting more candidates cannot help if the
-gate rejects everything. So the interesting quantity is the INTERACTION, and only the fourth cell can
-measure it. With three cells, a null from either single lever is uninterpretable: it could mean the
-lever does nothing, or that the other lever is still binding.
+* **Sequential at all** — FITNESS 7.2 specifies SPRT; the loop ran a fixed 6 pairs and produced
+  **0 accepts in 203 decisions**, 46.8% of them with zero observed variance.
+* **cap 400, not 100** — simulated from the MEASURED 81.7% draw rate, a parity candidate needs a
+  median **254 pairs** to reject under a 2-Elo band. A cap of 100 made all 800 simulated decisions
+  INCONCLUSIVE: not a wrong answer, *no* answer dressed as one.
+* **bounds [0,10], not FITNESS's bootstrap [3,5]** — at this draw rate [3,5] accepts only around
+  **+50 Elo**; a +10 candidate needs a median **2,673 pairs (~12 h per decision)**. [0,10] resolves
+  +10 in 464 and +20 in 207, splits 94/101 at exactly +5, and is what `tools/sprt.py` and every 4PC
+  gate already use. **Recorded as an open bounds question for FITNESS 7.2**, since 7.2 fixes the
+  2-Elo width for "STC, LTC, and the fixed-cost-budget gate" and the fixed-cost-budget gate is §6,
+  NET/ARCH/FEATURE only — the search-track PROGRAM gate is not named.
+* **EPS 0.10** — `evolve.rs:1043` sized it from `valleyall`, and the population collapse it targets is
+  measured: **45.4% of 271 generations had spread EXACTLY zero**.
+* **openings stay random-ply** — FITNESS 7.3 says the book comes "from then on", i.e. once there are
+  games to mine. Only the stopping rule changed, so the comparison against the fixed-pair arms is
+  clean.
 
-**Pre-registered:**
-* **SPEC alone promotes, VETO alone does not** => the surrogate filter was the binding constraint and
-  the gate's acceptance rule is a red herring. This is what `evolve.rs:1740-1750` predicts: the spec
-  filter admits four reference rungs, the strict rule one.
-* **VETO alone promotes, SPEC alone does not** => the gate rule binds and the filter is not the issue.
-* **Only the BOTH cell promotes** => genuine interaction; neither lever is sufficient alone, and any
-  single-lever experiment run earlier would have returned a misleading null.
-* **No cell promotes** => neither is the blocker and P2's cause lies elsewhere — which would itself be
-  a strong result, since these are the only two mechanisms the tree has proposed.
-
-Promotions are read against the VERIFY lines, not against the gate's own verdict: a promotion the
-independent 96-pair observer scores below 0.5 is a false positive, not a success.
-
-**Build note.** Core 12 runs `xt_sx`, which lacks only the W-D-L log field added later; the difference
-is print-only, and `xt_vfy` and `xt_sx` were verified to produce md5-identical generation lines. It was
-not restarted for cosmetic uniformity — the log parser handles both formats, and two restarts had
-already been spent today on a real defect (unrecoverable champions), not a formatting one.
-
-**Stopped this turn.** `signal_rate` — it matched RAW mutants while the 46.8% no-signal figure comes
-from filter-passing candidates, so it could neither confirm nor refute the number it existed to check.
-The correct measurement now lives in `evolve` itself: the gate line logs W-D-L, so the real population
-self-reports MIRRORED versus ALL-DRAWN.
+**Retired today, each for a stated reason:** the veto arm (SPRT supersedes the acceptance-rule
+question), the gtol arm (it changes which candidates REACH the gate, unreadable through a gate that
+cannot accept), and the SPEC_FILTER arms (untestable until PATH 1 re-checks cost).
 
 ## Open, partially answered
 
