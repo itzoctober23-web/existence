@@ -746,8 +746,13 @@ where the game count is only 2× — the extra factor is the rising decisive fra
 more usable positions → more data. It is the mechanism the data hypothesis required, and it explains
 why `champion_long` (far more accumulated data) sits above a fresh 20-generation run.
 
-It does **not** yet establish a higher plateau — a faster climb to the same ceiling would look
-identical this early. The 20-generation head-to-head against `bn_075` is what decides that.
+**AND THE ADVANTAGE IS CLOSING.** By generation 9 the decisive fractions have converged —
+48.6% vs 51.1%, a gap of 2.5pp where it was 19.6pp at generation 6 — and the pool ratio has fallen
+from 3.0× toward 2.48×, heading for the 2× the game count alone gives.
+
+So this is a **faster climb to the same plateau**, which is the alternative flagged when the arm was
+launched and the one the plateau-height criterion says is worth nothing. The 20-generation
+head-to-head still decides it, but the trajectory has already answered.
 
 ## Testing the last structural lever: is the plateau DATA-limited?
 
