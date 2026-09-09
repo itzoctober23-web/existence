@@ -26,6 +26,14 @@
 # The verdict is each arm's built-in control against its own frozen origin, at fixed depth 2
 # uncapped -- a protocol independent of either arm's TRAINING depth, which is the part that makes
 # the comparison clean.
+# PRE-FLIGHT, VERIFIED 2026-09-08 before this ran. The whole validity of this replication rests on
+# --horizon-cap pinning both arms to the same horizon, and the settings line does NOT print it while
+# the arg helper silently ignores unknown flags -- so "the binary did not reject it" proves nothing.
+# That is the exact shape of the three inert features shipped today.
+#
+# Checked by BEHAVIOUR on the binary this script hardcodes:
+#     --horizon-cap 10, 3 generations -> gen 1 (h 10), gen 2 (h 10), gen 3 (h 10)
+# Uncapped those read 10, 15, 20, since horizon = 10 + (g-1)*5. The cap bites.
 set -uo pipefail
 cd "$(dirname "$0")"
 SECS=${SECS:-2400}
