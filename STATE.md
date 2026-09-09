@@ -1,5 +1,35 @@
 # Existence — current state, 2026-09-09
 
+## 🔑 WHY THE DISCOVERY TRACK FINDS NOTHING — diagnosed in the selection code
+
+The track that is supposed to discover qsearch runs 25 generations with **0 accepts** and a
+population of 8 whose surrogate scores are identical (`spread 0.005508–0.005508`). The cause is in
+three lines of `evolve.rs`:
+
+```rust
+pool.retain(|x| x.2 >= top * (1.0 - EPS));           // eps = 0.02 -> need >= 0.98x best
+pool.retain(|x| seen.insert(format!("{:?}", x.0)));  // dedupe is STRUCTURAL, not behavioural
+pool.truncate(MU);
+```
+
+1. **The population is initialised as `vec![seed_prog; MU]`** — 8 identical copies. It does not
+   collapse; it *starts* collapsed and can only diversify through an accepted mutation.
+2. **The dedupe is structural.** Correct alpha-beta variants are behaviourally identical (measured:
+   40/40 at depth 3), so 8 syntactically-different programs computing the *same function* all
+   survive dedupe, all tie at rate 1.000×, and fill every slot.
+3. **EPS cuts before dedupe runs.** A behaviour-*changing* edit is precisely the one that scores
+   differently — observed near-misses at **0.969×**, just under the 0.98 threshold. Broken mutants
+   score 0.136–0.5 and are correctly cut; the informative ones die at the same fence.
+
+**So the population is eight spellings of one function, and the one class of candidate that could
+teach it anything is filtered out one rank above the broken ones.** Raising `eps` is not the fix —
+`configs/search_track.conf` already forbids that escalation ("an eps large enough to admit anything
+is not a tolerance, it is the absence of one"). The fix is **behavioural** dedupe plus reserved
+slots for distinct behaviours, so neutral twins collapse to one entry and leave room.
+
+Not implemented yet. Everything I believed today without measuring turned out null, so this gets a
+measurement before a change.
+
 ## 🔑 WHY THE PLATEAU EXISTS: the search is BARE alpha-beta, by design
 
 `search.rs` at the horizon returns the static eval with **no capture resolution**:
