@@ -1634,6 +1634,31 @@ A genuine engine improvement is 0.51-0.55. The gate is roughly **40x too small**
 its rejections carry almost no information — six of the fourteen are literally `0.500+/-0.250`, an
 interval spanning 0.25 to 0.75.
 
+**⚠ CORRECTION — the gate is not "too small", it is a VETO and says so.** I wrote that the gate is
+"40x too small to resolve a real improvement", which judges it by the wrong standard. Its own
+comment at `evolve.rs:1215` states the design:
+
+> GAME-GATE PAIRS. Small on purpose: a game at fitness depth is ~200x a single fitness evaluation,
+> so this is the expensive half and it only runs on a surrogate improvement. 6 pairs = 12 games
+> resolves a large effect, which is the only kind worth promoting here; **it CANNOT resolve a 2%
+> edge and is not asked to. It is a veto on unplayable programs.**
+
+So the gate is correctly implemented for its purpose. The arithmetic I did is still right — the
+acceptance bar really is 0.58-0.75 and a 0.53 candidate really would need 238 pairs — but it
+describes a DESIGN CHOICE rather than a defect. The loop deliberately promotes only large effects.
+
+**The defensible version of the criticism is narrower and stronger.** The design assumes large
+effects EXIST to be promoted. The ladder measurement says they do not: the best available rung is
+hash reuse at 1.024x on the surrogate, and every rung's game rate against the seed sits at or below
+0.5. A veto tuned to pass only large effects, in a space whose known improvements are all small, will
+never pass anything — not because the veto is wrong, but because the design's premise about the
+effect-size distribution is not met here.
+
+**And raising the gate would NOT help on its own**, which is why this correction changes the
+priority rather than just the wording. The pooled evidence says the surrogate's proposals average
+0.4554 against their champions, so a larger gate would spend 16x the games confirming rejections it
+already makes correctly. The surrogate is the binding constraint, exactly as recorded below.
+
 **Both ends of the loop are therefore broken, and independently.** The surrogate selects for
 cheapness (measured: 6 of 7 ladder rungs rank below the seed), and the gate cannot resolve what the
 surrogate hands it (measured: 40x short). Fixing either one alone changes nothing — a better
