@@ -102,3 +102,33 @@ have the other is not.
 This is the third instance today of the same failure shape — two variables moving, the uncontrolled
 one flattering the result. Equal-DEPTH vs equal-TIME in the width gate. Equal-BUDGET vs equal-COST
 in the game gate. Equal-WALL-CLOCK vs equal-HORIZON here.
+
+
+---
+
+## Two harness hazards found while the campaign ran, 2026-09-08
+
+**1. STALE OUTPUT FILES READ AS CURRENT RESULTS.** `horizon_ab2.sh` writes `hz_<cap>.log` — the same
+filenames the abandoned v1 run used. Between v2's first and second arm, its verdict block would
+have compared a FRESH cap-10 arm against v1's `hz_1000.log`, five hours old, produced by a
+different experiment with a different metric (mean gate rate, since shown near-blind), and printed
+it as a comparison. Caught because the generation counts made no sense for a sequential script: 15
+for one arm and 4 for the other, when the second cannot start until the first ends.
+
+The fix — `rm -f` the outputs at script start, so a missing arm reads as MISSING rather than as an
+old number — is parked until the run finishes, for the reason below.
+
+**2. I EDITED A RUNNING SCRIPT.** Having found hazard 1, I fixed it by inserting lines near the top
+of `horizon_ab2.sh` **while it was executing**. Bash reads scripts by BYTE OFFSET: inserting six
+lines shifts everything after them, and when the interpreter finishes the current compound command
+and seeks to the next, it reads from a now-wrong position. That is the failure that destroyed 2811
+gate pairs in this project's history.
+
+The `for` loop was already parsed in memory so the arms were safe, but the verdict block AFTER the
+loop had not been read yet and would have come from a corrupted offset. Reverted to the committed
+bytes immediately (`git checkout`), verified the run still progressing (19 generations and
+climbing), and parked the fix to apply once it finishes.
+
+**Both hazards are about the same thing: state that outlives the run that produced it.** A stale
+log outlives its experiment; a mid-run edit makes the script outlive its own parsed image. Neither
+produces an error — both produce a plausible wrong answer, which is worse.
