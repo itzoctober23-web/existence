@@ -1840,6 +1840,41 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                         continue;
                     }
                 };
+                // EXISTENCE_GATE_VERIFY=<pairs>: a DIAGNOSTIC re-match at a higher pair count.
+                //
+                // The A/B between the two acceptance rules can show that they DECIDE differently --
+                // it cannot show which decision was RIGHT, because the gate itself is 6 pairs and
+                // ci95 there is up to 0.250. A promotion at "gate 0.500" might be a real improvement
+                // the strict rule wrongly rejected, or noise the veto wrongly admitted, and the gate
+                // score cannot distinguish those.
+                //
+                // The saved `.prog` files cannot answer it either: they are `{:#?}` dumps, not
+                // loadable, as this file already records at line ~927. So the verification has to
+                // happen HERE, while the candidate is still in memory.
+                //
+                // It runs the SAME match_progs against the SAME champion with a different pair count
+                // and a DIFFERENT seed (so it is an independent sample, not a longer version of the
+                // same one), prints the result, and CHANGES NOTHING. The decision above is untouched
+                // -- this is an observer, not a second gate. Default 0 = off, so every existing run
+                // is byte-identical.
+                //
+                // At 96 pairs ci95 is ~0.047, which separates a true 0.6 from a true 0.5; the 6-pair
+                // gate cannot. Cost is ~16x the gate, paid only when a gate call happens.
+                let verify_pairs: usize = std::env::var("EXISTENCE_GATE_VERIFY")
+                    .ok().and_then(|s| s.parse().ok()).unwrap_or(0);
+                if verify_pairs > 0 {
+                    if let Ok(vsc) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        gate::match_progs(&c, &lineages[li].champ, &net,
+                                          vec![depth, 32_000, interp::uct_exploration()], bud,
+                                          verify_pairs,
+                                          0x5EEDBEEF ^ g as u64 ^ (li as u64) << 8, 4,
+                                          COST_PER_MOVE)
+                    })) {
+                        println!("  gen {g:>3} {:<5} VERIFY {:.3}+/-{:.3} ({} pairs, independent seed)",
+                                 lineages[li].name, vsc.pent_rate(), vsc.ci95(), verify_pairs);
+                    }
+                }
+
                 // EXISTENCE_GATE_VETO=1 implements the rule this gate's own comment DESCRIBES.
                 //
                 // evolve.rs documents the game gate as "a veto on unplayable programs" that
