@@ -900,7 +900,7 @@ openings and nothing else. `blend_seed2` (running), then `ship_candidate` for th
 |---|---|
 | 1. incremental NNUE accumulator | **done and correctly OFF.** `Acc` exists, `tests/incremental.rs` checks it against a full refresh, and `search.rs:169` gates it on `n_hidden >= 64`. It is a measured **0.91× LOSS** at width 32 (arch.rs:150), and shipped width is 16. All three clauses of its premise expired: eval is a sparse gather over ~38 active rows, not a dense 256×782 sweep; width is 16, not 256. It pays only at width ≥64, which was refuted at equal time. |
 | 3. Zobrist + real TT slots | **done.** Incrementally maintained key (`chess.rs:271`) with a from-scratch `zobrist()` to check against. |
-| 6. xcheck + perft as `#[test]`s | **done.** `board/tests/perft.rs`, `board/tests/xcheck.rs`, 13 test files total. |
+| 6. xcheck + perft as `#[test]`s | **done AND green.** Ran them: `canonical_perft_suite`, `movegen_agrees_with_an_external_engine`, `incremental_zobrist_matches_from_scratch_everywhere`, `make_unmake_restores_the_position`, plus 2 more — **6 passed, 0 failed**. Previously recorded as done on the strength of the files existing; now actually executed. |
 | 5. register bytecode | deprioritised — the interpreter measured 1.003× hand-written on a quiet core. |
 
 ## Queue (core 15, chained by PID)
