@@ -3048,3 +3048,40 @@ control or veto cells — is a one-line change to make when no arm is running.
 **The freed cores now run a SECOND SEED of the comparison that CAN produce data**: control and veto at
 seed 2, alongside seed 1. One seed cannot settle a champion-vs-champion question — the blend campaign
 needed five before its interval cleared zero.
+
+## MEASURED: the HARD set answers its own pre-registered question — and the answer is NO
+
+`evolve.rs:1302-1307` builds `harder_set(8, ...)` as *"THE UNSATURATED DIMENSION"* — positions the seed
+is wrong on by construction, *"so unlike the 25/25 guard set they can DISCRIMINATE"* — and scores it
+every generation while explicitly declining to act on it:
+
+> *"acceptance is NOT changed yet, because the claim 'a better-searching candidate can win these' is
+> exactly the sort of thing that should be measured before a fitness is restructured around it."*
+
+That measurement is now free: `hlo-hhi` (min–max hard score across each generation's population) has
+been logged all along. Across **269 generation lines** in every log in this repo:
+
+| quantity | value |
+|---|---|
+| hard set size | **8** |
+| **best score EVER reached by any candidate** | **2 of 8** |
+| generations where NO candidate scored above 0 | **176 (65.4%)** |
+| generations where the set DISCRIMINATED (`lo != hi`) | 59 (21.9%) |
+| mean best-in-population score | **0.52 of 8** |
+
+**The claim does not hold: a better-searching candidate does NOT win these.** In 269 generations not
+one candidate ever exceeded 2 of 8, and in nearly two thirds of them the entire population scored
+zero. Restructuring the fitness around this set would be restructuring it around a signal that is
+absent 65% of the time and never rises above a quarter of the set.
+
+**But it is not worthless, and the two facts point opposite ways.** It discriminates — `lo != hi` — in
+**21.9%** of generations, where the 25/25 guard set discriminates essentially never. So the hard set is
+a *better* instrument than the guard set and still a *poor* one. That is consistent with the gate
+finding: the guard set's saturation is why candidates reach the gate at all, and 46.8% of those gate
+decisions then measure nothing.
+
+**Conclusion, matching what the code asked for.** The pre-registered condition for restructuring
+fitness around the hard set is not met, so it should not be restructured — recorded as a closed
+question rather than an open one. If the set is to become the acceptance dimension it needs to be
+*harder to score zero on*, not merely harder than the guard set; 8 positions on which the population
+scores 0.52 on average cannot rank candidates.
