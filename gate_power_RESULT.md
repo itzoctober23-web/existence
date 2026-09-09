@@ -576,3 +576,19 @@ them, which is a different statement from "they are equal".
 **Found by reading the code, not by waiting.** The zero-variance branch is explicit in `gate.rs`, so
 the consequence was derivable without spending the 1.8 hours to observe it — and the arms had not yet
 reached a gate call, so the fix landed before it could cost anything.
+
+**The threshold of 30 is measured, not chosen.** From the real gate distribution (W-D-L 1-49-10), a
+pair lands in the middle bucket with probability **0.6725**, so the chance a genuinely DIFFERENT pair
+of programs produces N straight single-bucket pairs is:
+
+| N | P(all in one bucket) | verdict |
+|---|---|---|
+| 10 | **1.9e-2** | would discard ~2% of real candidates |
+| 20 | 3.6e-4 | borderline |
+| **30** | **6.8e-6** | negligible — the chosen value |
+| 60 | 4.6e-11 | wasteful |
+
+The intuitive "give up after a few pairs" would have been **10**, and it would have thrown away one
+real candidate in fifty. An identical pair hits the guard with probability 1 at any N, so the only
+cost of raising it is pairs; the only cost of lowering it is discarded candidates. 30 buys a 1-in-150,000
+false-stop rate for 24 extra pairs, and saves **370 pairs (~1.6 h)** every time it fires.
