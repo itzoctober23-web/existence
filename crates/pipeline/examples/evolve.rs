@@ -1363,11 +1363,26 @@ fn main() {
     // single-seed conclusions FLIP SIGN on a second seed -- blend at z = 3.3, epochs at z = 3.6 --
     // so a track that cannot produce a second trajectory cannot distinguish a finding from its own
     // one run. Every claim this file has emitted is single-trajectory by construction.
-    let mut rng = Rng::new(
-        std::env::var("EXISTENCE_EVOLVE_SEED").ok()
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(0xE0FFEE),
-    );
+    //
+    // THE FIRST ATTEMPT AT THIS BOUND NOTHING. It wrapped the variable in an `Rng` whose only two
+    // uses in the whole file were `let _ = rng.next()` -- both discarded. Seed 777 and the default
+    // therefore emitted byte-identical generations, which is exactly what the two-way check caught:
+    //     seedchk_default  gen 1 MAIN gate REJECT 0.417+/-0.103  surrogate 0.002794
+    //     seedchk_777      gen 1 MAIN gate REJECT 0.417+/-0.103  surrogate 0.002794
+    // The actual mutation draw is seeded per SLOT, from (g, li, i) and a hardcoded 0xBEEF, so the
+    // run seed has to be mixed in THERE or it does nothing. Attaching a knob to the wrong object
+    // and confirming only that it parsed is the same failure as reading a speed ratio without
+    // checking both arms did equal work.
+    //
+    // MIXED MULTIPLICATIVELY SO THE DEFAULT IS THE IDENTITY: seed 0 (unset) gives seed_mix 0, and
+    // xor-ing 0 leaves every prior trajectory bit-for-bit intact. That is deliberate -- the banked
+    // results have to stay reproducible or the comparison against them is worthless.
+    let run_seed: u64 = std::env::var("EXISTENCE_EVOLVE_SEED").ok()
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(0);
+    let seed_mix = run_seed.wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    println!("run seed {run_seed} (mix {seed_mix:#x}){}",
+             if run_seed == 0 { "  -- default trajectory, reproduces the bank" } else { "  -- NEW trajectory" });
     for g in 1..=gens {
         // Snapshot every lineage's programs BEFORE this generation, so crossover donors are drawn
         // from a fixed set rather than from populations mutating underneath the loop -- otherwise
@@ -1392,7 +1407,12 @@ fn main() {
             let cands: Vec<Program> = (0..pop)
                 .filter_map(|i| {
                     let parent = &popsnap[i % popsnap.len()].0;
-                    let mut r = Rng::new((g as u64) << 20 ^ (li as u64) << 16 ^ i as u64 ^ 0xBEEF);
+                    // seed_mix is 0 unless EXISTENCE_EVOLVE_SEED is set, so the default draw here is
+                    // unchanged. This is the ONLY place the run seed can enter: the draw is derived
+                    // entirely from the slot indices, so without it every run proposes the identical
+                    // program at every (g, li, i) forever.
+                    let mut r = Rng::new(
+                        (g as u64) << 20 ^ (li as u64) << 16 ^ i as u64 ^ 0xBEEF ^ seed_mix);
                     if i % 4 == 3 && donors.len() > 1 {
                         let d = &donors[(r.next() as usize) % donors.len()];
                         mutate::crossover(parent, d, &mut r)
@@ -1661,8 +1681,6 @@ rates {span} [>=.98:{} .90-.98:{} .50-.90:{} <.50:{} distinct:{}], hard {hlo}-{h
         }
     }
 
-    let _ = rng.next();
-    let _ = rng.next();
     println!("\n=== per-lineage summary over {gens} generations ===");
     for l in &lineages {
         println!("  {:<5} {} accepted   final {} mates {:.6} mates/Mcost ({} nodes)",

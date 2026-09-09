@@ -1199,6 +1199,60 @@ order of magnitude in seed count. Nothing in the shipping table below survives t
 not another candidate — it is either many more seeds per comparison, or longer runs where the effect
 grows relative to seed noise.
 
+## THE DISCOVERY TRACK HAS NO RUN-TO-RUN ENTROPY, and my fix for it bound nothing
+
+`EXISTENCE_EVOLVE_SEED` was added to make the evolve track produce a second trajectory. **It did
+not.** The two-way check is what caught it:
+
+```
+seedchk_default  gen 1 MAIN gate REJECT 0.417+/-0.103  surrogate 0.002794
+seedchk_777      gen 1 MAIN gate REJECT 0.417+/-0.103  surrogate 0.002794
+```
+
+Byte-identical. The binary was confirmed to contain the string (`grep -qa`, built 06:31, edit
+committed 06:33), so the variable was read and did nothing. Cause, read from source:
+
+```
+1366: let mut rng = Rng::new(<the settable seed>)   <- the knob
+1684: let _ = rng.next();                            <- its ONLY use
+1685: let _ = rng.next();                            <- and its only other use
+1395: let mut r = Rng::new((g<<20) ^ (li<<16) ^ i ^ 0xBEEF);   <- the ACTUAL mutation draw
+```
+
+I attached the knob to an object whose entire consumption is two discarded calls. **The real draw is
+derived purely from the slot indices** — generation, lineage, candidate — xor a hardcoded constant.
+
+**This is the same failure class as the harness bugs today:** confirming a change *parses* rather
+than confirming it *binds*. `gate_align.sh` already encodes the correct discipline (`--gate-match-depth`
+was verified to move a number, 0.516→0.422, not merely to be accepted on the command line). I did not
+apply it to my own change.
+
+### The consequence is larger than the knob
+
+Auditing every RNG in `evolve.rs`: besides the mutation draw there are **nine separate hardcoded
+xorshift seeds** (`0xC0DE_F00D`, `0x5EED_1234`, `0xA1FA_5EED`, `0x51A7_E5EE`, `0x5D1F_F00D`,
+`0x4A8D_3117`, …), one per position-generating function. So **every position set is also one fixed
+draw** — including the HARD set of 8.
+
+Therefore **every number this track has ever emitted is n=1 by construction**, not by sampling:
+the saturated `1.000×` rates, the `mates 25/25` ceiling, and "17 of 34 lineage-generations have a
+member scoring >0 on the hard set". None of them has a second observation behind it. That is exactly
+the defect this campaign's central result warns about — single-seed conclusions FLIP SIGN on a second
+seed (blend at z = 3.3, epochs at z = 3.6).
+
+**One thing it does NOT invalidate:** the flagged-vs-control hard-fitness arms genuinely diverge
+despite identical mutation draws, because the fitness changes which candidate is *kept*, so the
+*parent* differs at the next generation even when the draw does not. Divergence enters through the
+population, not the RNG. The comparison is still single-trajectory, but it is not a comparison of a
+thing against itself.
+
+**Fixed narrowly**: the run seed is now mixed into the mutation draw only, multiplicatively so that
+the default (unset → 0) is the identity and every banked trajectory stays bit-for-bit reproducible.
+The nine position-set seeds are deliberately left hardcoded — a fixed benchmark is what makes results
+comparable across runs. The cost of that choice is stated plainly: hard-set difficulty is one sample,
+so hard-set results do not generalise to another draw of positions, and claiming otherwise would need
+the position seeds varied too.
+
 ## Shipping candidates, with evidence strength stated per item
 
 All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an Elo number.
