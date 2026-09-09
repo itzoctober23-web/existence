@@ -608,6 +608,37 @@ catches the early degradation the old code was blind to.
 baked in before their first real gate. Their KEEPs are still real (those were later gates against a
 genuine base), but their *starting point* was already 5 generations of undone drift.
 
+## CLOSED: the loop cannot improve champion_long, and epochs 3 (shipped) is RIGHT
+
+**The fixed gate rolls back everything.** `fg_20`, 15 generations from champion_long with the
+repaired `batch_base`:
+
+```
+g5   champ 0.819  base 0.864  increment -0.045  ROLL BACK
+g10  champ 0.830  base 0.864  increment -0.033  ROLL BACK
+g15  champ 0.867  base 0.864  increment +0.003  ROLL BACK
+```
+
+Every block negative or neutral. **This also explains `b2_5`'s apparent gain.** Its "+0.033 KEEP" at
+g10 was measured against a base that was already the *degraded* 5-generation net (0.819) — so it was
+**recovering toward champion_long's 0.864, not improving past it.** The broken gate turned a
+recovery into an accept.
+
+**Epochs reverses direction once arms are matched:**
+
+| comparison | result |
+|---|---|
+| seed 20260907, depth 2 | 0.498 ± 0.021 — no effect |
+| seed 424242, depth 2 | 0.473 ± 0.020 — epochs 3 ahead |
+| **seed 20260907, depth 4** | **0.448 ± 0.022 — epochs 3 ahead, resolved** |
+
+The shipped default of 3 is not merely safe, it is **better**. The confounded evidence pointed the
+wrong way, and correcting the 2-generation imbalance flipped the sign.
+
+**Net position: nothing about the engine's settings was wrong.** Every candidate promoted today died,
+and two of them (blend, epochs) died pointing back at the shipped value. What was wrong was the
+gate, and that is fixed.
+
 ## A second bug of the same class, found by systematic audit
 
 The `batch_base` defect was **a lazy cache whose subject changed underneath it**. So I enumerated
