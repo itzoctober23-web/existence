@@ -864,7 +864,24 @@ fn main() {
             // THE BASE'S ANCHOR SCORE IS CACHED. It is constant for the whole batch, so measuring
             // it once per batch rather than once per gate halves the games. It is recomputed
             // whenever the base moves, which is the only time it can change.
-            // PAIRED MODE (EXISTENCE_PAIRED_BATCH=1), default OFF until measured.
+            // PAIRED MODE (EXISTENCE_PAIRED_BATCH=1). MEASURED AND NOT WORTH TAKING -- stays OFF.
+            //
+            // examples/pairing_match.rs, 10 replicates at 112 pairs, equal games both ways:
+            //     unpaired  mean +0.0297  sd 0.0164
+            //     paired    mean +0.0308  sd 0.0155     variance ratio 1.12x
+            // The two means agree, so the harness is unbiased; pairing simply does not help. At
+            // n=10 the F(9,9) interval on that ratio spans about [0.28, 4.5] and does not clear 1.
+            //
+            // WHY, mechanically: match_nets_open walks only 4 random plies before the nets take
+            // over (open_plies = 4), so almost all openings are near-balanced and opening
+            // difficulty contributes little of the variance. The variance is in the GAMES. There is
+            // nothing for pairing to cancel. Deeper openings would give pairing more to work with
+            // and add spread of their own; that is a different experiment, not a fix to this one.
+            //
+            // The flag is kept, defaulted off, so the negative is reproducible rather than folklore.
+            // Do not re-enable it expecting resolution: the 0.862-vs-0.833 spread on a single net
+            // that motivated this is ~2 sigma of ordinary sampling noise at 224 pairs, not an
+            // opening artefact.
             //
             // The unpaired default gives champion and base DIFFERENT opening sets, because
             // match_nets builds every opening from Rng(seed | 1) and the two seeds differ by ^g.

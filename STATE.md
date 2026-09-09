@@ -129,11 +129,25 @@ contributes nothing measurable".
   verify by program BEHAVIOUR — a number that should move and doesn't.**
 * **Instruments whose stated semantics differ from their code.** stepdiff's buckets; ttvalue's
   "UNSOUND" message printed for any challenger; moveagree counting MOVE_NONE as agreement.
+* **My own fix refuted before shipping.** Champion and base are scored on DIFFERENT opening sets
+  (`match_nets` seeds openings from `Rng(seed | 1)`, and the two call sites differ by `^g`), and a
+  comment at the anchor gate falsely claimed otherwise. Pairing them looked like free variance
+  reduction. **Measured: ratio 1.12×, F(9,9) interval ~[0.28, 4.5] — does not clear 1**, while
+  costing 2× games. Cause: openings walk only 4 random plies, so opening difficulty is a small part
+  of the variance; it is in the games. `EXISTENCE_PAIRED_BATCH` stays off.
 * **State outliving its run.** A 5-hour-stale `hz_1000.log` about to be read as a current arm; a
   mid-run script edit that killed a verdict block, where **reverting within a minute did not undo
   it**.
 
 ---
+
+### Run-to-run is BIT-EXACT; the ~0.07 band is entirely SEED variance
+
+`ratchet_test.sh` and `batch_ab2`'s K=5 arm turned out to be the same configuration (same seed,
+init, binary, settings) launched as two independent processes on different cores. They agree on
+**every line of all 9 overlapping generations**, batch gates included. So with a fixed seed and
+`--threads 1` there is **no run-to-run noise at all**, and the ~0.07 between-run band is entirely
+SEED variance. Two arms sharing a seed are directly comparable; only different seeds need the band.
 
 ### The acceptance rule cannot accept a real step
 
