@@ -1560,10 +1560,22 @@ Two reasons, neither of them the seed:
    2% edge and is not asked to. It is a veto on unplayable programs."* At 6 pairs ci95 is 0.250, so
    the acceptance bar prints as `needed >0.750`. A challenger that is neither unplayable nor
    dramatically better scores 0.500 and is rejected. That is the intended behaviour, not a fault.
-2. **The candidates are behaviourally identical, which this tree already knew.** Across 11 generation
-   lines in the two arms, `distinct` was 0 four times and 1 five times out of 8 candidates. That is
-   `search_track_WHY_NOTHING.md:91,279` and `STATE.md:161` — *"correct programs are behaviourally
-   identical, so correctness cannot rank them"* — showing up again, not a new finding.
+2. ~~**The candidates are behaviourally identical.**~~ **CORRECTED 2026-09-09 — I read an
+   unrepresentative sample.** That claim came from the first 11 generation lines, where `distinct`
+   was 0 four times and 1 five times. Over the completed arms (21 and 36 generation lines) the
+   distribution is much wider — `distinct` runs 0 through **7** of 8 candidates, with 3-or-more in
+   roughly half the generations. The population DOES produce behaviourally distinct candidates.
+   `search_track_WHY_NOTHING.md`'s finding about behaviourally identical *correct alpha-beta
+   variants* stands on its own evidence; it is not what these logs show, and I should not have
+   reached for it after 11 lines.
+
+   **What the completed arms actually show: ZERO accepts in either arm** — 0 of 21 generations with
+   the blend seed, 0 of 36 with the sum seed. Diversity is not the binding constraint; the
+   acceptance bar is. At 6 pairs the gate's ci95 is 0.250, so the rule `rate - ci95 > 0.5` demands a
+   challenger score **above 0.750 in 12 games**. A genuinely better program worth, say, 0.60 clears
+   that only by luck. That is the design working as written — `evolve.rs:1293-1296` calls it "a veto
+   on unplayable programs", not a strength gate — but it means promotion needs an effect far larger
+   than anything the mutation operators are producing.
 
 So "every MCTS gate is exactly 0.500" was never evidence about the seed. It is a 12-game veto
 returning the null on candidates that do not differ. The reseed still stands on its own measurements
