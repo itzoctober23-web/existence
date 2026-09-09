@@ -142,7 +142,14 @@ fn main() {
     //
     // Two estimates make this crude; it should be re-derived as more paired cross-seed comparisons
     // accumulate, which now happens for free whenever an arm is replicated.
-    const SEED_SD: f64 = 0.047;
+    // KEPT AT 0.047 DELIBERATELY, and it is the OLDEST of four figures. Re-derivations since:
+        // 0.039 on three estimates, 0.043 on four (canonical, STATE.md), and on 2026-09-09 the blend
+        // campaign measured 0.0285 DIRECTLY across five seeds of one contrast. All are LOWER, so 0.047
+        // OVER-estimates the seeds needed -- the safe direction for a power calculation, and why the
+        // blend campaign's five seeds comfortably cleared a bar sized at ~2.9. Do NOT lower it to
+        // chase the newest number: this line exists to stop a one-seed result being called settled,
+        // and a smaller sd weakens exactly that guard.
+        const SEED_SD: f64 = 0.047;
     let effect = (r - 0.5).abs();
     if effect > 0.0 {
         let seeds = (2.8 * SEED_SD / effect).powi(2);
