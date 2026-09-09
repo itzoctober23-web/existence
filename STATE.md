@@ -2580,45 +2580,50 @@ dense reference.
 | 6. xcheck + perft as `#[test]`s | **done AND green.** Ran them: `canonical_perft_suite`, `movegen_agrees_with_an_external_engine`, `incremental_zobrist_matches_from_scratch_everywhere`, `make_unmake_restores_the_position`, plus 2 more — **6 passed, 0 failed**. Previously recorded as done on the strength of the files existing; now actually executed. |
 | 5. register bytecode | deprioritised — the interpreter measured 1.003× hand-written on a quiet core. |
 
-## Running now (one job per core, no chains)
+## Running now — a 2x2 FACTORIAL on the two candidate P2 levers
 
-**Kept current against `readlink /proc/PID/exe`**, and flag presence read from each process's own
-`environ` rather than assumed. A stale "currently running" table is the same defect as a stale results
-table: it is what a reader plans around.
+**Kept current against `readlink /proc/PID/exe`**, with flag presence read from each process's own
+`environ` rather than assumed.
 
-Three `evolve` arms share **seed 1**, isolating the two candidate P2 levers independently:
+P2 has two candidate blockers and they are not independent, so testing them one at a time cannot
+settle it. All four cells now run on **seed 1** with `EXISTENCE_GATE_VERIFY=96`:
 
-| core | arm | surrogate filter | gate rule | build | isolates |
-|---|---|---|---|---|---|
-| 12 | STRICT control | strict (`> best_rate`) | strict | `xt_sx` | the baseline the others are read against |
-| 15 | VETO | strict | `rate + ci95 >= 0.5` | `xt_wdl` | the GATE's acceptance rule |
-| 14 | **SPEC_FILTER** | FITNESS 3 (`>= 0.9x`) | strict | `xt_wdl` | the SURROGATE pre-filter, upstream of the gate |
+| core | surrogate filter | gate rule | build | cell |
+|---|---|---|---|---|
+| 12 | strict (`> best_rate`) | strict (`rate - ci95 > 0.5`) | `xt_sx` | control |
+| 14 | **SPEC** (FITNESS 3, `>= 0.9x`) | strict | `xt_wdl` | filter only |
+| 15 | strict | **VETO** (`rate + ci95 >= 0.5`) | `xt_wdl` | gate rule only |
+| 13 | **SPEC** | **VETO** | `xt_wdl` | both |
 
-| core | job | question |
-|---|---|---|
-| 13 | `signal_rate` | no-signal share on RAW mutants. **Mis-populated by design** — see caveat below |
+**Why a factorial and not three comparisons.** The two levers act at different stages: the surrogate
+filter decides what REACHES the gate, the gate rule decides what the gate ACCEPTS. Relaxing the gate
+cannot help a candidate the filter already discarded, and admitting more candidates cannot help if the
+gate rejects everything. So the interesting quantity is the INTERACTION, and only the fourth cell can
+measure it. With three cells, a null from either single lever is uninterpretable: it could mean the
+lever does nothing, or that the other lever is still binding.
 
-All three carry `EXISTENCE_GATE_VERIFY=96`, the only instrument that measures a candidate's true
-strength rather than the 6-pair gate's view of it.
+**Pre-registered:**
+* **SPEC alone promotes, VETO alone does not** => the surrogate filter was the binding constraint and
+  the gate's acceptance rule is a red herring. This is what `evolve.rs:1740-1750` predicts: the spec
+  filter admits four reference rungs, the strict rule one.
+* **VETO alone promotes, SPEC alone does not** => the gate rule binds and the filter is not the issue.
+* **Only the BOTH cell promotes** => genuine interaction; neither lever is sufficient alone, and any
+  single-lever experiment run earlier would have returned a misleading null.
+* **No cell promotes** => neither is the blocker and P2's cause lies elsewhere — which would itself be
+  a strong result, since these are the only two mechanisms the tree has proposed.
 
-**Why two arms were restarted.** Both were on builds predating `sexp.rs`, so their champions would
-have been unrecoverable the moment they exited — precisely the gap `sexp.rs` closed, and precisely what
-would have made the decisive champion-vs-champion match impossible again. The veto arm was restarted at
-11 of 25 generation-lines (2.4 h): expensive, but far cheaper than discovering it at 80%. Its partial
-log is preserved as `gate_veto_arm_xtvfy_partial.log`, including both VERIFY anchors (0.422, 0.430).
+Promotions are read against the VERIFY lines, not against the gate's own verdict: a promotion the
+independent 96-pair observer scores below 0.5 is a false positive, not a success.
 
-**The control was deliberately NOT restarted.** It already writes `.sexp`; only W-D-L logging is
-missing, and it does not need it: the control and veto arms make the SAME gate calls until a divergent
-ACCEPT, because the rule changes what is accepted, not which games are played. So the veto arm's W-D-L
-lines describe the control's decisions too.
+**Build note.** Core 12 runs `xt_sx`, which lacks only the W-D-L log field added later; the difference
+is print-only, and `xt_vfy` and `xt_sx` were verified to produce md5-identical generation lines. It was
+not restarted for cosmetic uniformity — the log parser handles both formats, and two restarts had
+already been spent today on a real defect (unrecoverable champions), not a formatting one.
 
-**`signal_rate`'s caveat, recorded against my own probe.** It matches RAW mutants, while the 46.8%
-no-signal figure comes from candidates that passed evolve's type check AND its surrogate filter.
-Different populations, so it cannot cleanly confirm or refute that figure — it bounds the phenomenon on
-an unfiltered population and nothing more. The correct measurement is now built into `evolve` itself:
-the gate line logs W-D-L, so the REAL population self-reports MIRRORED (`draws == 0`, inert candidate,
-no pair count helps) versus ALL-DRAWN (`wins == losses == 0`, indecisive match, sample size never the
-issue).
+**Stopped this turn.** `signal_rate` — it matched RAW mutants while the 46.8% no-signal figure comes
+from filter-passing candidates, so it could neither confirm nor refute the number it existed to check.
+The correct measurement now lives in `evolve` itself: the gate line logs W-D-L, so the real population
+self-reports MIRRORED versus ALL-DRAWN.
 
 ## Open, partially answered
 
