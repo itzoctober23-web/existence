@@ -149,6 +149,25 @@ the champion gate rejected. **Even at face value with zero compression, the 0.03
 datagen depth (+0.025) — the only surviving ceiling candidate.** Detail in
 `acceptance_floor_RESULT.md`.
 
+### First reading on the FIXED batch gate — and it argues AGAINST the acceptance-floor story
+
+The ratchet test runs `--gate-every 5` on a binary that has the anchor-increment gate, so it is
+already producing the measurement `batch_ab2` was queued for:
+
+```
+batch gate g5: champ-vs-origin 0.819+/-0.024  base 0.828+/-0.022  increment -0.009+/-0.033  ROLL BACK
+```
+
+The acceptance-floor finding predicts that removing the 0.031 floor should reveal accumulated gains.
+It does not. Five generations delivered **−0.009 ± 0.033**, CI [−0.042, +0.024], and the **+0.057**
+that 5 × 0.0114/gen predicts is **excluded by the measured interval**.
+
+So the floor is real (the arithmetic stands) but "the floor is why nothing is accepted" is now
+doubtful: with the floor gone and the compressing opponent replaced, there is still nothing to
+accept. **n = 1 batch gate**, at `champion_long`'s plateau (0.828 vs origin), and the 0.0114 figure
+came from a different regime and the compressed metric — so this is evidence, not a verdict.
+`batch_ab2` yields four more; the ratchet yields more still.
+
 ## Task list (docs/MASTER_PLAN items 1-6) — verified stale
 
 | item | status, verified by reading |
