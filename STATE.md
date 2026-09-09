@@ -18,6 +18,17 @@
 > The cause is **saturation, not effect size**: w64 scores 0.967 against a random opponent, leaving
 > no room to express a difference. Large mid-range gaps still agree (blend 0.75/0.25, horizon).
 >
+> **The cleanest case, on the comparison everything else rests on.** The ratchet run's own control
+> trajectory against the origin reads **0.802 → 0.811 → 0.811 → 0.805** across 20 generations —
+> flat, and *below* champion_long's 0.861, so the origin metric says the run went nowhere and ended
+> **worse** than it started. The direct match says the opposite: **b2_5 beats champion_long
+> 0.529 ± 0.015 at 960 pairs.** Meanwhile the batch gate recorded **2 KEEPs in 5**, where
+> P(≥2 false KEEPs | true null) = **0.0059**.
+>
+> So during a span the origin control reported as flat-to-declining, the loop was making gains that
+> two independent instruments both detect. **An origin-metric "no learning" reading is not
+> evidence of no learning.**
+>
 > **Consequence:** every ceiling arm below was scored against the origin. Any gap **under ~0.05**, or
 > any arm scoring **above ~0.95**, is provisional until re-measured directly. Detail in
 > `instrument_saturation_RESULT.md`.
