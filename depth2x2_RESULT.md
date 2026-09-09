@@ -52,9 +52,13 @@ way for the wrong reasons.
 * It does say the ceiling work should stop treating parity as the explanation and treat **throughput**
   as the lever, which is what `MASTER_PLAN.md:616-617` already predicts: *"the real unlock is making
   deep search cheap enough that both hold at once."*
-* `throughput_RESULT.md` measured where that cost actually is: at the champion's width 16, eval is
-  only ~14% of a 1.26 µs node, so the eval-side optimisations the brief ranks first cannot deliver
-  the ~10x needed. The remaining ~86% is movegen and make/unmake, unprofiled.
+* `throughput_RESULT.md` has now measured where that cost actually is, and it inverts the brief's
+  ordering. Per leaf node at width 16: `legal_moves()` **451 ns (44%)**, eval **261 ns (26%)**, the
+  deliberate child shuffle **257 ns (25%)**, make/unmake **47 ns (5%)**. Eval is third, not first.
+  The cheapest quantified win is replacing the shuffle's integer division with a multiply-shift —
+  **153 ns/node, ~12% of throughput** — which preserves the move-ordering denial exactly and costs
+  only exact seed reproducibility. None of this reaches the ~10x that would let depth 3 win at equal
+  wall clock, so the honest reading is that the throughput route is incremental, not a step change.
 
 ## Honest limits
 
