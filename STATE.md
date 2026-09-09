@@ -59,10 +59,28 @@ via cost, and 0 of 30 mutants are cheaper — hence the max rate is exactly 1.00
 lineage-generations and never above. A candidate solving one hard position scores 26/25 = **1.04×**,
 which clears both the tie and EPS.
 
-**UNVERIFIED.** The flagged run is going; the check is whether any generation reports a rate above
-1.000×, which has never once happened. If it does not, the change is inert and gets recorded as the
-fourth such today. If it does, the **game gate becomes the next binding constraint** — 6 pairs
-demanding ~60–69% — and that is a separate change needing separate evidence.
+**INTERIM — the flag BINDS, but the gate still rejects.** Flagged vs control, same binary, one env
+var apart:
+
+```
+FLAGGED  gen1 MAIN  gate REJECT 0.458±0.082  surrogate 0.002265
+         gen2 MAIN  gate REJECT 0.417±0.103  surrogate 0.002453
+         gen4 MAIN  ..none  rates 0.982-1.000x  hard 1-1   <- every member solves 1
+CONTROL  gen1 MAIN  gate REJECT 0.417±0.103  surrogate 0.002794
+```
+
+The flag changes which candidate is proposed, and the population climbs to **`hard 1-1`** — all
+eight members solving a hard position the seed fails 0/8. But the max rate re-saturates at 1.000×
+once the whole population reaches the new level, and **both arms are rejected by the 12-game gate**.
+
+**So the surrogate was not the only binding constraint** — the gate is one too, exactly as the
+`resolved_up`-at-6-pairs arithmetic predicted (needs ~60–69% of pairs). Fixing the fitness moved the
+population up one rung on the hard dimension and did not produce an acceptance.
+
+**Not yet a verdict.** The control is 1 generation to the flagged arm's 4, and the banked run reaches
+`hard 2-2` on its own — so the flag may not be necessary for hard-set climbing at all. The
+comparison needs matched generation counts before it means anything, which is the exact error
+(comparing arms that did unequal work) that invalidated three results today.
 
 ## 🔑 THE COMPLETE MECHANISM — and the precondition the code set is now MET
 
