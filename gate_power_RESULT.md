@@ -316,3 +316,39 @@ it.
 **The earlier framing in this file — "the fix is to raise `gate_pairs`" — is half right.** For the ~53%
 of decisions that measure something, more pairs is the correct and sufficient lever. For the drawish
 half it is the expensive one.
+
+---
+
+## ✅ DEFINITIVE, on the REAL gate population: the no-signal case is 100% DRAWS
+
+Every W-D-L now logged on an actual candidate-vs-champion gate decision:
+
+| decision | W-D-L | draws | gate rate | VERIFY (96 pairs) |
+|---|---|---|---|---|
+| s2-control gen 1 MCTS | **0-12-0** | **100%** | 0.500 ± 0.250 | **0.505 ± 0.019** |
+| s1-veto gen 3 MAIN | 0-8-4 | 67% | 0.333 ± 0.163 | 0.422 ± 0.027 |
+| s1-veto gen 4 MAIN | 0-9-3 | 75% | 0.375 ± 0.110 | 0.430 ± 0.030 |
+| **pooled** | **0-29-7** | **80.6%** | | |
+
+**The zero-variance decision is `0-12-0` — every single game drawn.** `ci95` is 0.250 = 1.5/6, the
+placeholder, and the strict rule demanded `> 0.750`. This is the case that carries 46.8% of all 203
+logged decisions, and on the real population it is **pure ALL-DRAWN**, not mirrored.
+
+**The gate was substantively right and informationally empty.** The independent 96-pair observer puts
+that candidate at **0.505 ± 0.019** — genuinely equal to the champion. So "no signal" was the correct
+conclusion, reached from twelve games that contained none. It was right by luck, not by measurement.
+
+### This settles the sizing question against more pairs
+
+At 100% draws, **every additional pair is also a draw.** Doubling `gate_pairs` on that decision buys
+twelve more draws and the same placeholder. Raising pairs helps only where games are already
+sometimes decisive — the ~53% of decisions that measure something — and does nothing for the half
+that cannot.
+
+Pooled across the three real decisions the draw rate is **80.6%**, higher than the A/A's 67%, and
+**not one candidate has won a single game** (0 wins in 36). The instrument is not underpowered so much
+as it is playing a drawn game.
+
+**The lever is decisiveness, not sample size:** more depth, sharper openings, or a net that separates.
+`gate_power_RESULT.md` opened by framing this as "raise `gate_pairs`". That framing is now retired for
+the drawish half on direct evidence, and retained only for the half where games do resolve.
