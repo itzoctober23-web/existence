@@ -112,3 +112,21 @@ depth 4 — the strength standard — not the frozen-origin metric that is docum
 
 The seed-987654 replication will produce four more matched arms, giving this the same test again at
 no extra compute.
+
+## The d2-vs-d3 verdict is protocol- AND seed-independent (judge_depth, closed)
+
+`judge_depth.sh` asked whether the equal-wall-clock d2-vs-d3 winner is a fact about the nets or about
+the depth it is judged at. Five matches, 448 pairs each, answered it unanimously:
+
+| seed | judged d2 | judged d3 | judged d4 |
+|---|---|---|---|
+| 424242 | 0.612 ± 0.018 | 0.580 ± 0.023 | 0.655 ± 0.020 |
+| 987654 | 0.636 ± 0.020 | 0.622 ± 0.023 | — |
+
+**Same winner every time, every interval clear of 0.5, across both parity classes and two training
+seeds.** Stopped after five: a sixth unanimous confirmation was not worth holding a core while the
+blend question — the largest lever on the board — was unresolved.
+
+**What it does NOT say.** These are the EQUAL-WALL-CLOCK arms, 48 generations against 4. The result
+is that the *arm which trained 12× more* is stronger, measured robustly. It is not a depth result,
+and the equal-generation 2×2 above is what answers that question.
