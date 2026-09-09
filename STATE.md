@@ -341,9 +341,15 @@ All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an El
 
 | candidate | shipped | measured | strength |
 |---|---|---|---|
-| **blend 1.00** | 0.75 | 0.450 ± 0.016 (bn_075 vs bh_100) | **solid** — resolved, 3 independent routes |
+| **blend 1.00** | 0.75 | seed1 **0.450 ± 0.016** / seed2 **0.487 ± 0.015** | **DOWNGRADED — 2nd seed unresolved** |
 | **`--gate-every 5`** | 1 | 0.529 ± 0.015 (b2_5 vs champion_long) | **resolved**, one training run |
 | epochs 2 | 3 | 0.518 ± 0.014 (ep_2 vs ep_3) | **MARGINAL** — margin 0.004 vs ci95 0.014 |
+
+**Blend no longer clears the bar either.** Seed 20260907 resolved (0.450, 1.00 stronger); seed
+424242 did not (0.487, interval [0.471, 0.502] contains 0.5). Both point estimates favour 1.00, but
+the two seeds differ by **0.037 ± 0.011, z = 3.3** — genuinely heterogeneous, so they cannot be
+pooled into a win. `blend_seed2.sh` pre-registered exactly this: *"UNRESOLVED => needs a third
+seed"*. And both readings are at depth 2, which is not the strength standard.
 
 **Epochs is marginal, not clear.** I earlier called it "clear of 0.5" off a 448-pair reading; at 960
 pairs the lower bound is 0.503. The direction is consistent across both readings and both sit above
