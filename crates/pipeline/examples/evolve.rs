@@ -487,6 +487,87 @@ fn move_agree() {
     println!("  Anything below 100% => 'identical' is too strong and the account needs weakening.");
 }
 
+
+/// THE REAL ALARM: is the TT's move disagreement a VALUE disagreement? `evolve ttvalue [n depth]`
+///
+/// Two independent instruments now agree on the symptom. `evolve moveagree` at depth 4: ab_hash
+/// returns a different move from the seed on 2 of 20 positions, while every other exact variant
+/// agrees 20/20. `tt_pressure`: 60/60 at depths 2 and 3, **59/60 at depth 4**, with collisions
+/// rising 691 -> 159,208 -> 1,879,089.
+///
+/// Neither settles what matters, and tt_pressure says so itself: "agreement < n does NOT
+/// automatically mean a leak: alpha-beta can return a DIFFERENT best move of EQUAL value, and a TT
+/// changes which one is found first. A value disagreement would be the real alarm; this checks the
+/// cheaper proxy." Nobody has run the real alarm, and it decides whether the ONE rung measured as
+/// fitter than the seed -- and therefore the whole valley analysis built on it -- rests on a sound
+/// program or on a leak.
+///
+/// The check: where the two disagree, score BOTH moves with an exact oracle and compare values.
+/// `Searcher::best_move_capped` returns (Move, Score) and is hand-written exact alpha-beta, so
+/// v(m) = -search(apply(p, m), depth-1) is the value of playing m.
+///
+/// PRE-REGISTERED:
+///   * SOUND (tie-breaking) if the two moves have EQUAL value everywhere they differ. Then the TT
+///     is fine, alpha-beta simply returns a different member of an equal-valued set once cutoff
+///     order changes, and the 1.024x rung stands.
+///   * UNSOUND (a leak) if any disagreement is a value difference. Then ab_hash returns a WORSE
+///     move, its cheapness is partly bought by being wrong, and every result resting on it --
+///     the ladder's only fitter rung, ladder_valley_RESULT.md, the conjunctive-valley claim, and
+///     the plateau tolerance justified by it -- needs re-examining.
+fn tt_value() {
+    let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
+    let (n, depth) = (a(2, 40) as usize, a(3, 4));
+    let net = Net::random(32, 20260907);
+    let mut rng: u64 = 0x51A7_E5EE;
+    let mut set = Vec::new();
+    while set.len() < n {
+        let mut p = Position::startpos();
+        for _ in 0..(10 + rng % 34) {
+            let l = p.legal_moves();
+            if l.is_empty() { break; }
+            rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
+            p.make_move(l.as_slice()[(rng % l.len() as u64) as usize]);
+        }
+        if !p.legal_moves().is_empty() { set.push(p); }
+    }
+    let seed = reference::bare_alpha_beta();
+    let hash = reference::ab_hash();
+    // Exact oracle for the VALUE of a root move: -search(child, depth-1), uncapped.
+    let value_of = |p: &Position, m: board::Move| -> i32 {
+        let mut q = p.clone();
+        q.make_move(m);
+        let mut s = pipeline::search::Searcher::with_seed(1);
+        let (_, sc) = s.best_move_capped(&mut q, (depth as u32).saturating_sub(1), &net, u64::MAX, 1);
+        -(sc as i32)
+    };
+
+    println!("=== TT value check: {n} positions at depth {depth} ===");
+    let (mut diffs, mut value_diffs) = (0usize, 0usize);
+    for p in &set {
+        let mut ia = Interp::new(&net, vec![depth, 32_000, 8]);
+        let ma = ia.run(&seed, p, 16);
+        let mut ib = Interp::new(&net, vec![depth, 32_000, 8]);
+        let mb = ib.run(&hash, p, 16);
+        if ma == mb || ma == board::types::MOVE_NONE || mb == board::types::MOVE_NONE { continue; }
+        diffs += 1;
+        let (va, vb) = (value_of(p, ma), value_of(p, mb));
+        let verdict = if va == vb { "EQUAL VALUE -- tie-break, sound" } else { "VALUE DIFFERS -- LEAK" };
+        if va != vb { value_diffs += 1; }
+        println!("  disagreement {diffs}: seed move value {va:+}, hash move value {vb:+}  ({verdict})");
+    }
+    println!("\n  move disagreements: {diffs}/{n}");
+    println!("  of those, VALUE disagreements: {value_diffs}");
+    if diffs == 0 {
+        println!("  => no disagreement at all in this sample; nothing to judge.");
+    } else if value_diffs == 0 {
+        println!("  => SOUND. Every disagreement is an equal-valued alternative, which is exactly");
+        println!("     what a TT does to cutoff order. The 1.024x rung and the valley result stand.");
+    } else {
+        println!("  => UNSOUND. ab_hash returns a move of DIFFERENT value, so part of its cheapness");
+        println!("     is bought by being wrong. Everything resting on that rung needs re-examining.");
+    }
+}
+
 fn read_declared(path: &str) -> (usize, f64, i64, i64) {
     let txt = std::fs::read_to_string(path).unwrap_or_else(|e| {
         panic!("declared parameters missing at {path}: {e}. This file is part of the Given \
@@ -639,6 +720,9 @@ fn main() {
     }
     if std::env::args().nth(1).as_deref() == Some("moveagree") {
         return move_agree();
+    }
+    if std::env::args().nth(1).as_deref() == Some("ttvalue") {
+        return tt_value();
     }
     let gens: usize = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(30);
     let pop: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(24);
