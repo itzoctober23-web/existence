@@ -1860,7 +1860,7 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                   let elo0: f64 = std::env::var("EXISTENCE_GATE_ELO0").ok()
                       .and_then(|s| s.parse().ok()).unwrap_or(elo1 - 2.0);
                   let sprt_max: usize = std::env::var("EXISTENCE_GATE_MAXPAIRS").ok()
-                      .and_then(|s| s.parse().ok()).unwrap_or(100);
+                      .and_then(|s| s.parse().ok()).unwrap_or(400);
                   let (gsc, sprt_verdict, sprt_llr) = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                       if sprt_gate {
                           // FITNESS 7.3: random-ply openings until the unbalanced book exists. Same

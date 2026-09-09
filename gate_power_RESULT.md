@@ -469,3 +469,33 @@ losses perfectly mirrored, plus 32 draws.
 The pre-registered control requirement is therefore SATISFIED, and the treatment arm's reading is
 legitimate. Without it I would have read a treatment effect off a control that was 33 points from its
 own expected value.
+
+### SIZING: `max_pairs = 100` would have returned INCONCLUSIVE every time
+
+Simulated 800 sequential decisions per configuration, drawing pair outcomes from the MEASURED real
+gate distribution (W-D-L 1-49-10 over 60 games, 81.7% draws) rather than from an assumed one:
+
+| bounds | max_pairs | reject | accept | inconclusive | median pairs to decide |
+|---|---|---|---|---|---|
+| **[3, 5]** (FITNESS bootstrap) | **100** | 0 | 0 | **800** | capped |
+| [3, 5] | 400 | 800 | 0 | 0 | **254** |
+| [0, 10] (sprt.py default, used by 4PC) | 100 | 799 | 0 | 1 | **50** |
+| [-5, 0] (non-regression) | 400 | 800 | 0 | 0 | 115 |
+
+**The cap I chose guaranteed the answer.** A parity candidate under the spec's 2-Elo-wide [3, 5] band
+needs a median of **254 pairs** to reject; capping at 100 makes every decision INCONCLUSIVE — which is
+not a wrong answer, it is *no* answer, dressed as one. Raised to 400 and the arms relaunched (they had
+made zero gate calls, so nothing was lost).
+
+**Why so many pairs.** At 81.7% draws the pentanomial piles into the middle bucket, so the variance is
+tiny — and `LLR ∝ n/var` means a *low* variance makes each pair informative, but the [3, 5] band is
+only 2 Elo wide and sits entirely above parity, so `2mu - s0 - s1` is a very small negative number. The
+band width, not the draw rate, is what costs the pairs.
+
+**The cost is real and worth stating:** 254 pairs is 508 games at ~8s each, roughly **an hour per gate
+decision**. The [0, 10] bounds the 4PC side uses resolve the same candidate in **50 pairs** — 5x
+cheaper — and have precedent in this codebase. That is a bounds question for whoever revisits FITNESS
+7.2's schedule, not something to change unilaterally here; recorded so the trade is visible.
+
+**This was found by simulation before the arms spent hours producing it.** The measured draw rate made
+the prediction possible, which is the payoff for having measured it.
