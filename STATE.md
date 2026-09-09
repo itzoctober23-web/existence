@@ -2719,3 +2719,40 @@ relaxing it is an improvement. The default is unchanged.
 
 **Suggested amendment to the P2 kill clause:** add the promotion rule as a third named cause, ahead
 of grammar and fitness, because it is the cheapest to check and — measured here — the one that fired.
+
+## 🔑 WHY the acceptance rule blocks progress — it structurally cannot promote a SPEEDUP
+
+The veto A/B showed the two rules disagree. Following the accepted candidate through the run shows
+*what kind* of candidate the implemented rule is throwing away, and it is a specific, mechanical
+class — not bad luck.
+
+The gen-4 promotion reads `ACCEPT 15 mates 0.001848 (133 nodes, was 0.001406) gate 0.500`. Its mate
+count is IDENTICAL to the incumbent's (15). Its mates/Mcost improved 31%, and with mates fixed that
+improvement is entirely **cost: the candidate is ~24% cheaper**.
+
+Four independent observations line up behind that reading, and nothing else explains all four:
+
+| observation | explained by |
+|---|---|
+| gate scored **exactly** 0.500 | identical play produces an exact tie |
+| generations 5-7 are **byte-identical** to the control's | same behaviour ⇒ mutations of it behave the same |
+| `distinct:0` in generation 5 | no behavioural diversity to find |
+| 133 nodes vs 131 | structurally different, behaviourally not |
+
+**So the implemented rule (`pent_rate - ci95 > 0.5`) can NEVER promote a pure speedup.** A program that
+plays identically scores exactly 0.500 in the game gate, and 0.500 is never "resolved up" at any pair
+count. The rule does not merely make speedups hard to promote — it makes them impossible, by
+construction, however cheap they get.
+
+`evolve.rs:1808` has a dedicated speedup path for exactly this case, gated on `same_play` across ALL
+guard positions. This candidate did not qualify for it — near-identical is not identical — so it fell
+through to the game gate, where it was structurally unpromotable. **The two paths leave a gap, and
+that gap is where cost improvements go to die.**
+
+**What this sharpens about the P2 finding.** "No program improves on the seed" is true, and the
+acceptance rule is the blocker — but now the mechanism is specific: the search track cannot
+accumulate the cheapest and most common kind of improvement. That also fits the throughput picture,
+where 24% is larger than any single optimisation measured today.
+
+**Still not shown:** whether the veto rule's other promotions are also speedups, or whether some
+change play. The 96-pair verification observer answers that per decision and is running.
