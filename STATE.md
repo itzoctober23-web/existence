@@ -329,6 +329,32 @@ accept. **n = 1 batch gate**, at `champion_long`'s plateau (0.828 vs origin), an
 came from a different regime and the compressed metric — so this is evidence, not a verdict.
 `batch_ab2` yields four more; the ratchet yields more still.
 
+## The ceiling is not a COMPONENT — it is a measurement RATE
+
+Every named candidate is now measured and closed:
+
+| suspect | verdict |
+|---|---|
+| capacity / width | refuted — w64 does not beat w16 head-to-head, loses at equal time |
+| draw filter | refuted (and the direction survives a direct match) |
+| horizon schedule | refuted |
+| datagen depth | **was search PARITY** — odd depths sit ~2.7× from the eval, and d2-vs-d3 is even-vs-odd |
+| acceptance gate | real: batching produced 2 KEEPs in 5 gates, P = 0.0059 under a null |
+| training signal collapses | refuted — the search-minus-eval gap **grows** with strength |
+| encoding: net is material-only | refuted — champion_long is R² 0.588 against material |
+| encoding: net is a linear PST | refuted — 0 always-on, 0 always-off, 1100–2300 activation regions |
+
+What is left is not a component but an **arithmetic**:
+
+* a generation produces about **0.0114**;
+* a 224-pair gate resolves about **0.031**, and the two-sample batch bar is √2 × that;
+* so an improvement can only be *banked* as fast as it can be *measured*.
+
+That is exactly why five batched generations (≈0.057) produced a real KEEP where per-generation
+gating accepted **nothing in twenty**. The loop is not blocked from learning; it is blocked from
+*recognising* what it learned. `compound.sh` tests whether that banking compounds over 40
+generations, and larger `--gate-every` is the obvious next dial if it does.
+
 ## Shipping candidates, with evidence strength stated per item
 
 All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an Elo number.
