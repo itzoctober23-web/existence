@@ -1417,6 +1417,25 @@ denominators can differ no other way). The BEHAVIOURAL difference the filter was
 line whose surrogate is BELOW the incumbent's, which the strict rule cannot produce — has NOT yet
 appeared in four generations. The filter binds; whether it changes outcomes is still open.
 
+## ⚠ CORRECTION: capture extension really does lose mates — the markdown is not an artefact
+
+Re-scored on the 37-position set: **29/37 mates, 0.370x**, against 18/25 and 0.340x on the
+25-position set. The larger set barely moved it and it is still marked "loses answers".
+
+I wrote earlier that the set "penalises the one program that solves the hard set", implying the
+markdown was an instrument error. It is not. Capture extension loses 8 of 37 here, and `matesplit`
+independently put it at 17/20 on MATE-1 and 18/20 on MATE-2 rather than 20/20. At a fixed budget of
+16, searching captures deeper genuinely costs mate-finding elsewhere — that is a real trade, not a
+measurement artefact.
+
+**The defensible version:** the surrogate is not wrong to mark it down, it simply has no way to
+PRICE the trade of mates for tactical depth. Capture extension buys the only hard-set point any
+reference program scores and pays 8 mates for it. Whether that is a good trade is exactly the
+question games answer — and it never reaches games, because the guard cuts it first.
+
+The conjunctive result is unchanged by the larger set: probe-only 0.991x, store-only 0.997x, both
+halves 1.026x. A strict climb still cannot take the first step toward the one fitter rung.
+
 ## ✅ CONFIRMED: the MATE-2 rung turns an exploit generator into a normal-candidate generator
 
 Paired arms, seed 4242, identical mutation draws, generation 1. The ONLY difference is twelve MATE-2
