@@ -378,7 +378,7 @@ Measured once `pred` worked, 3 positions at depth 3:
 branch; the real figure is 73x and unusable. The rung needs re-encoding to match its own
 specification before any ladder number for it means anything.
 
-### 3. `tread` (primitive #26) ignores its index arguments — NOT FIXED
+### 3. `tread` (primitive #26) ignored its index arguments — MECHANISM FIXED, CONTENTS UNDECLARED
 
 Declared as "read a learned integer table **by index features**". Implemented as
 `Node::TRead(i, _) => tables.get(i)` — the arguments are DISCARDED. So `TRead(3, [d, i])` returns
@@ -388,6 +388,22 @@ and returns 0.
 
 Measured: `table_reduction` still has a byte-identical eval count to the seed (441,471) at 1.007x —
 a no-op costing 0.7%, which the `pred` fix does not touch because this is a different primitive.
+
+**The MECHANISM is now implemented.** `Interp` carries `tables_nd: Vec<NdTable>` — genuinely
+indexed tables with `dims` and row-major `data` — checked before the scalar `tables`, so every
+existing call site is unchanged and `TRead(i, args)` folds its arguments into an index. Out-of-range
+features CLAMP rather than wrap: a program reading past the edge should get the edge, not a wrapped
+unrelated entry, which is exactly the silent-correctness trap this file has produced three times.
+
+**THE TABLE CONTENTS REMAIN AN UNDECLARED GIVEN, and that is where rung 7 stops.** GRAMMAR 2.7 says
+table contents are "SPSA-tuned, never written by programs", so *something* must declare what R[d, i]
+holds before rung 7 can be measured at all. And the obvious filling — "reduce later moves more" — is
+late move reduction, which is precisely the technique MASTER_PLAN requires to be DISCOVERED rather
+than supplied. Writing my own intuition into R and then measuring "the search found a reduction
+schedule" would be circular.
+
+So rung 7 is not measurable today, and the reason is a genuine gap in the Given column rather than a
+missing implementation. Recorded rather than resolved by inventing a table.
 
 ### Why this matters beyond the three fixes
 

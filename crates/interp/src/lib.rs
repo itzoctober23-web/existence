@@ -20,6 +20,15 @@ use board::Position;
 use grammar::ast::*;
 use nnue::Net;
 
+
+/// A learned table with real index features, for `tread`. `dims` gives the extent of each index and
+/// `data` is row-major. GRAMMAR 2.7: contents are tuned, never written by programs.
+#[derive(Clone, Debug, Default)]
+pub struct NdTable {
+    pub dims: Vec<usize>,
+    pub data: Vec<i64>,
+}
+
 /// A position together with its NNUE accumulator (the hidden-layer sums).
 ///
 /// `eval` was a from-scratch gather at every leaf: ~38 active feature rows summed into the
@@ -396,6 +405,9 @@ pub struct Interp<'a> {
     pub ceiling_hits: u64,
     /// Learned integer tables. Index 0 = D (depth), 1 = INF, 2.. = whatever a program reads.
     pub tables: Vec<i64>,
+    /// INDEXED tables, checked before `tables`. Empty by default, so behaviour is unchanged unless
+    /// a caller supplies one. See the TRead arm for why this exists.
+    pub tables_nd: Vec<NdTable>,
     hash: Tt,
     /// Scratch for the narrow-width fallback in `PosAcc::score_with`, so the hot eval path
     /// allocates nothing per node. This field existed already but nothing could reach it --
@@ -442,6 +454,7 @@ impl<'a> Interp<'a> {
             illegal_applies: 0,
             ceiling_hits: 0,
             tables,
+            tables_nd: Vec::new(),
             hash: Tt::new(),
             scratch: Vec::new(),
             featbuf: Delta::new(),
@@ -639,7 +652,37 @@ impl<'a> Interp<'a> {
                 Value::Num((x * k + y * (16 - k)) / 16)
             }
 
-            Node::TRead(i, _) => Value::Num(*self.tables.get(*i).unwrap_or(&0)),
+            // INDEXED TABLE READ. GRAMMAR primitive #26 declares `tread` as "read a learned
+            // integer table BY INDEX FEATURES"; this discarded its arguments entirely
+            // (`TRead(i, _)`), so a table could only ever return one scalar.
+            //
+            // Measured consequence: table_reduction (ladder rung 7) reads TRead(3, [d, i]) to
+            // reduce by depth and move index, and had a BYTE-IDENTICAL eval count to the seed
+            // (441,471 both) -- a no-op costing 0.7%. Doubly dead, since the harness passes three
+            // tables so index 3 was out of range as well.
+            //
+            // `tables_nd` holds genuinely indexed tables and is checked first; anything not found
+            // there falls back to the scalar `tables`, so every existing call site keeps working
+            // unchanged. Indices are folded row-major and CLAMPED rather than wrapped: a program
+            // that computes an out-of-range feature should read the edge of the table, not a
+            // wrapped-around unrelated entry, which would be a silent correctness trap of exactly
+            // the kind this file has produced three times today.
+            Node::TRead(i, args) => {
+                // Loop, not map: `val!` early-returns on Flow::Ret and cannot do that in a closure.
+                let mut vals: Vec<i64> = Vec::with_capacity(args.len());
+                for a in args { vals.push(val!(a).num()); }
+                match self.tables_nd.get(*i) {
+                    Some(t) if !t.data.is_empty() => {
+                        let mut idx = 0usize;
+                        for (k, dim) in t.dims.iter().enumerate() {
+                            let v = vals.get(k).copied().unwrap_or(0).max(0) as usize;
+                            idx = idx * dim + v.min(dim.saturating_sub(1));
+                        }
+                        Value::Num(*t.data.get(idx).unwrap_or(&0))
+                    }
+                    _ => Value::Num(*self.tables.get(*i).unwrap_or(&0)),
+                }
+            }
             Node::ScoreOf(o, d) => {
                 let ov = val!(o);
                 let dv = val!(d).num();
