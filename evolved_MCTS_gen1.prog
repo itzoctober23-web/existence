@@ -1,4 +1,4 @@
-// 15 mates, 0.003414 mates/Mcost, 136 nodes, gen 1
+// SPEEDUP 15 mates, 0.001406 mates/Mcost, 131 nodes, gen 1
 Program {
     funcs: [
         Func {
@@ -207,105 +207,104 @@ Program {
                                 ),
                             ),
                             "m",
-                            Mix(
-                                Arith(
-                                    Neg,
-                                    [
-                                        Avg(
-                                            Field(
-                                                Probe(
-                                                    Key(
-                                                        Apply(
-                                                            Var(
-                                                                "p",
-                                                            ),
-                                                            Var(
-                                                                "m",
-                                                            ),
-                                                        ),
-                                                    ),
-                                                ),
-                                                Sum,
-                                            ),
-                                            Field(
-                                                Probe(
-                                                    Key(
-                                                        Apply(
-                                                            Var(
-                                                                "p",
-                                                            ),
-                                                            Var(
-                                                                "m",
+                            Arith(
+                                Add,
+                                [
+                                    Arith(
+                                        Neg,
+                                        [
+                                            Avg(
+                                                Field(
+                                                    Probe(
+                                                        Key(
+                                                            Apply(
+                                                                Var(
+                                                                    "p",
+                                                                ),
+                                                                Var(
+                                                                    "m",
+                                                                ),
                                                             ),
                                                         ),
                                                     ),
+                                                    Sum,
                                                 ),
-                                                Count,
+                                                Field(
+                                                    Probe(
+                                                        Key(
+                                                            Apply(
+                                                                Var(
+                                                                    "p",
+                                                                ),
+                                                                Var(
+                                                                    "m",
+                                                                ),
+                                                            ),
+                                                        ),
+                                                    ),
+                                                    Count,
+                                                ),
                                             ),
-                                        ),
-                                    ],
-                                ),
-                                Arith(
-                                    Sqrt,
-                                    [
-                                        Arith(
-                                            Div,
-                                            [
-                                                Arith(
-                                                    Mul,
-                                                    [
-                                                        Arith(
-                                                            Log,
-                                                            [
-                                                                Field(
-                                                                    Probe(
-                                                                        Key(
+                                        ],
+                                    ),
+                                    Arith(
+                                        Sqrt,
+                                        [
+                                            Arith(
+                                                Div,
+                                                [
+                                                    Arith(
+                                                        Mul,
+                                                        [
+                                                            Arith(
+                                                                Log,
+                                                                [
+                                                                    Field(
+                                                                        Probe(
+                                                                            Key(
+                                                                                Var(
+                                                                                    "p",
+                                                                                ),
+                                                                            ),
+                                                                        ),
+                                                                        Count,
+                                                                    ),
+                                                                ],
+                                                            ),
+                                                            TRead(
+                                                                2,
+                                                                [],
+                                                            ),
+                                                        ],
+                                                    ),
+                                                    Arith(
+                                                        Add,
+                                                        [
+                                                            Field(
+                                                                Probe(
+                                                                    Key(
+                                                                        Apply(
                                                                             Var(
                                                                                 "p",
                                                                             ),
-                                                                        ),
-                                                                    ),
-                                                                    Count,
-                                                                ),
-                                                            ],
-                                                        ),
-                                                        TRead(
-                                                            2,
-                                                            [],
-                                                        ),
-                                                    ],
-                                                ),
-                                                Arith(
-                                                    Add,
-                                                    [
-                                                        Field(
-                                                            Probe(
-                                                                Key(
-                                                                    Apply(
-                                                                        Var(
-                                                                            "p",
-                                                                        ),
-                                                                        Var(
-                                                                            "m",
+                                                                            Var(
+                                                                                "m",
+                                                                            ),
                                                                         ),
                                                                     ),
                                                                 ),
+                                                                Count,
                                                             ),
-                                                            Count,
-                                                        ),
-                                                        Const(
-                                                            1,
-                                                        ),
-                                                    ],
-                                                ),
-                                            ],
-                                        ),
-                                    ],
-                                ),
-                                TRead(
-                                    2,
-                                    [],
-                                ),
+                                                            Const(
+                                                                1,
+                                                            ),
+                                                        ],
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                ],
                             ),
                         ),
                         Let(
@@ -358,43 +357,31 @@ Program {
                                 ),
                                 Let(
                                     "_",
-                                    If(
-                                        Pred(
-                                            Var(
-                                                "m",
-                                            ),
+                                    Store(
+                                        Key(
                                             Var(
                                                 "p",
                                             ),
-                                            CapturedType,
                                         ),
-                                        Store(
-                                            Key(
-                                                Var(
-                                                    "p",
-                                                ),
-                                            ),
-                                            Sum,
-                                            Arith(
-                                                Add,
-                                                [
-                                                    Field(
-                                                        Probe(
-                                                            Key(
-                                                                Var(
-                                                                    "p",
-                                                                ),
+                                        Sum,
+                                        Arith(
+                                            Add,
+                                            [
+                                                Field(
+                                                    Probe(
+                                                        Key(
+                                                            Var(
+                                                                "p",
                                                             ),
                                                         ),
-                                                        Sum,
                                                     ),
-                                                    Var(
-                                                        "val",
-                                                    ),
-                                                ],
-                                            ),
+                                                    Sum,
+                                                ),
+                                                Var(
+                                                    "val",
+                                                ),
+                                            ],
                                         ),
-                                        None,
                                     ),
                                     Ret(
                                         Var(

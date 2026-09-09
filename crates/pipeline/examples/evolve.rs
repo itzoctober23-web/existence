@@ -1912,9 +1912,20 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                     // ABOVE and the ACCEPTANCE BAR both belong here. `resolved_up` demands
                     // pent_rate - ci95 > 0.5, so at these pair counts the candidate must score
                     // above 0.5 + ci95 -- printed so the bar is never inferred from memory.
-                    println!("  gen {g:>3} {:<5} gate REJECT {:.3}+/-{:.3} ({} games)  surrogate \
+                    // W-D-L IS LOGGED BECAUSE `games` ALONE CANNOT EXPLAIN A DEAD HEAT. Of the 203
+                    // logged decisions, 95 (46.8%) carry ci95 == 1.5/6 exactly -- `gate.rs`'s
+                    // ZERO-VARIANCE fallback -- with pent_rate exactly 0.500. An all-middle
+                    // pentanomial has two causes needing OPPOSITE fixes, and the rate cannot tell
+                    // them apart: MIRRORED (candidate plays like the champion, so each pair is one
+                    // win and one mirrored loss, draws == 0) means the operator produced an INERT
+                    // candidate and no pair count can ever help; ALL-DRAWN (wins == losses == 0)
+                    // means the match is not producing decisive games and sample size was never the
+                    // issue. Logging draws makes the REAL gate population self-reporting, rather
+                    // than needing a probe whose mutants are not the ones that reach the gate.
+                    println!("  gen {g:>3} {:<5} gate REJECT {:.3}+/-{:.3} ({} games W-D-L {}-{}-{})  surrogate \
 {rate:.6}  ABOVE:{above}  needed >{:.3}",
                              lineages[li].name, gsc.pent_rate(), gsc.ci95(), gsc.games(),
+                               gsc.wins, gsc.draws, gsc.losses,
                              // THE PRINTED BAR MUST MATCH THE ACTIVE RULE. This hardcoded `0.5 + ci95`, the
                              // resolved_up threshold; under EXISTENCE_GATE_VETO the criterion is
                              // `rate >= 0.5 - ci95`, so a veto REJECT would print a bar it was never judged
