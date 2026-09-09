@@ -1488,16 +1488,30 @@ fn main() {
                 // change play, by construction and by measurement: the depth exploit loses 8 guard
                 // positions and the alpha exploit 5. A program that changes no move on any guard
                 // position has not searched less; it has done the same search for less.
+                // IDENTITY CHECKED ON THE GUARD SET **AND** THE HARD SET.
+                //
+                // This path grants acceptance with NO game, so a false positive promotes an
+                // unexamined behaviour change. Identity across 25 guard positions is strong
+                // evidence but not proof: a candidate can match there and differ elsewhere.
+                //
+                // The hard set is 8 positions built by DEPTH DISAGREEMENT -- the seed answers them
+                // differently at depth D and D+1 -- so they are exactly where a search that
+                // changed its effective depth shows up. Adding them costs 8 more searches against
+                // a 12-game gate that costs minutes, which is a trade worth making on the one path
+                // that skips the games entirely.
+                //
+                // It is still not proof, and the honest bound is: identical on 33 positions chosen
+                // to be maximally sensitive to depth, window and mate behaviour.
                 let same_play = {
                     let mut ic = Interp::new(&net, vec![depth, 32_000, 8]);
                     let mut ih = Interp::new(&net, vec![depth, 32_000, 8]);
-                    set.iter().all(|(p, _)| {
+                    set.iter().chain(hard.iter()).all(|(p, _)| {
                         ic.run(&c, p, bud) == ih.run(&lineages[li].champ, p, bud)
                     })
                 };
                 if same_play {
                     println!("  gen {g:>3} {:<5} ACCEPT speedup: play IDENTICAL on all {} guard \
-positions, {rate:.6} was {:.6}", lineages[li].name, set.len(), best_rate);
+positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best_rate);
                     lineages[li].champ = c.clone();
                     lineages[li].best_found = f;
                     lineages[li].best_rate = rate;
