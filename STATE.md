@@ -69,9 +69,17 @@ pool.truncate(MU);
 rates 0.801-1.000x [>=.98:3  .90-.98:0  .50-.90:2  <.50:0  distinct:4]
 ```
 
-**Zero candidates in the 0.90–0.98 band EPS discards.** EPS is not filtering informative candidates
-out, because none exist there. The distribution is **bimodal** — near-neutral (≥0.98) or badly
-broken (≤0.90), nothing between — and `distinct:4` shows rate-distinct candidates *do* survive EPS.
+Two generations, corrected from my initial n=1 reading:
+
+| gen | guard-passers | in the .90–.98 band (EPS cuts) | rate-distinct |
+|---|---|---|---|
+| 1 | 5 | 0 | 4 |
+| 2 | 9 | **1** | 8 |
+| **total** | **14** | **1 (7%)** | **12** |
+
+I first wrote "zero in the band" off generation 1 alone. **The band is not empty — it is rare.** But
+**11 of 14 rate-distinct candidates survive EPS**, so EPS is not what stops the population
+diversifying. The refutation of the EPS diagnosis holds; the word "zero" did not.
 
 **The real bottleneck is the MUTATION OPERATORS.** An edit either preserves behaviour or breaks the
 program; the operators do not produce the graded, slightly-different variants that selection needs
