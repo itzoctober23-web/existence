@@ -489,6 +489,27 @@ than the 0.0059 the first 5 gates gave. **The gains are front-loaded and then st
 `compound.sh` was queued to test — and it now has a partial answer before it even starts: within
 this run, batching bought two steps and then stalled.
 
+## FIRST CANDIDATE TO SURVIVE DEPTH 4: the combination (blend 1.00 + epochs 2)
+
+```
+sc_c vs s2_075 (shipped defaults)   depth 2:  0.531 ± 0.014   clean
+                                    depth 4:  0.529 ± 0.022   MARGINAL
+```
+
+**The point estimate is stable across depths** — 0.531 → 0.529. Every other candidate collapsed:
+b2_5 went 0.529 → 0.502, bh_100's origin score 0.864 → 0.832. The depth-4 reading is flagged
+marginal by the tool's own rule (margin 0.007 against half-ci95 0.011) purely because it has **448
+pairs against depth-2's 896**. That is a *power* limitation, resolvable by spending pairs — not the
+transfer failure that killed the others.
+
+**Caveat that has to travel with it:** at depth 2, `sc_c` **loses** to `s2_100` (blend alone),
+0.472 ± 0.017. So the combination beats what ships, but blend-alone may beat the combination —
+epochs 2 appears to *hurt* on top of blend 1.00. The depth-4 version of that match is running, and
+it decides whether the change to make is "blend only" or "both".
+
+Nothing ships until the marginal reading is resolved at higher pair count **and** the depth-4
+`sc_c vs s2_100` lands.
+
 ## Shipping candidates, with evidence strength stated per item
 
 All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an Elo number.
