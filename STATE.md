@@ -392,6 +392,45 @@ A marker was written into `pd_d4.log` before killing it, because `plateau_depth.
 says a missing `pd_d4.net` **is** the tie branch. That reading does not apply: there is no result,
 only a stopped run. Logs are gitignored, so this note is the tracked record.
 
+## 8-net POOL RATING — the first non-transitivity-robust ranking (depth 2)
+
+`pool_rating.rs`, 28 matches, 224 pairs each, **zero cyclic triples out of 56** — the pool orders
+consistently, so this ranking can be read as one:
+
+| net | rating |
+|---|---|
+| **b2_5** (gate-every 5) | **0.5544** |
+| ep_2 | 0.5537 |
+| ep_3 | 0.5371 |
+| champion_long | 0.5207 |
+| bh_100 (blend 1.00) | 0.4908 |
+| s2_100 (blend 1.00, seed 2) | 0.4786 |
+| s2_075 (blend 0.75, seed 2) | 0.4354 |
+| bn_075 (blend 0.75) | 0.4292 |
+
+All three candidates hold **at depth 2**, on 1568 pairs per net rather than one match:
+gate-every 5 is +0.034 over champion_long; blend 1.00 beats 0.75 at **both** seeds (+0.062, +0.043);
+epochs 2 beats epochs 3 by +0.017.
+
+**The second-seed blend pair is the case that matters.** Its direct match was unresolved
+(0.487 ± 0.015) and I downgraded the candidate over it; against a field it separates cleanly. The
+pool did not overturn that reading — it *resolved* it, because a rating over seven opponents carries
+seven times the games and no single matchup dominates.
+
+**Still depth 2, which is not the strength standard**, and both candidates already degrade at depth 4
+(b2_5 +0.029 → +0.002; bh_100 0.864 → 0.832 vs origin). The same pool is running at depth 4
+(112 pairs, ~3h). **Nothing moves before it lands.**
+
+### Ship-candidate attribution (depth 2)
+
+```
+sc_c vs s2_075 (shipped defaults)  0.531 ± 0.014   combination BETTER
+sc_c vs s2_100 (blend only)        0.472 ± 0.017   combination WORSE than blend alone
+```
+
+**Epochs 2 hurts on top of blend 1.00.** Blend-alone is the better change. Running all three matches
+instead of only the ship test is what makes that readable rather than a bare win.
+
 ## Shipping candidates, with evidence strength stated per item
 
 All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an Elo number.
