@@ -908,7 +908,8 @@ which the depth-4 `sc_c vs s2_100` match now running shows directly.
 
 ## ⚠ SUPERSEDED — "first candidate to survive depth 4"
 >
-> `sc_c` is blend 1.00 + epochs 2. **Blend 1.00 is dead** (advantage is depth-2 only, z = 4.4) and
+> `sc_c` is blend 1.00 + epochs 2. **Blend 1.00 is dead** (advantage is depth-2 only, z = 4.4 —
+> **the z = 4.4 MECHANISM is WITHDRAWN, it reverses on seed 424242; the dead verdict stands**) and
 > **epochs 2 is dead** (0.498 / 0.473 / 0.448 once arms are matched). Whatever `sc_c` was winning
 > on, it was not either component as measured. Kept as the record of a reading that looked solid
 > and was not.
@@ -1390,7 +1391,7 @@ All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an El
 
 | candidate | shipped | measured | strength |
 |---|---|---|---|
-| ~~blend 1.00~~ | 0.75 | d2 **0.450 ± 0.016** / d4 **0.511 ± 0.022** | **DEAD — advantage is depth-2 only (z = 4.4)** |
+| ~~blend 1.00~~ | 0.75 | d2 **0.450 ± 0.016** / d4 **0.511 ± 0.022** | **DEAD** (no cross-seed win). "Depth-2 only, z = 4.4" **WITHDRAWN 2026-09-09** — reverses on seed 424242 (1.00 wins at d4, 0.456 ± 0.024) |
 | **`--gate-every 5`** | 1 | d2 **0.529 ± 0.015** / **d4 0.502 ± 0.022** | **FAILS AT DEPTH 4** — gain vanishes |
 | epochs 2 | 3 | 0.518 ± 0.014 (ep_2 vs ep_3) | **MARGINAL** — margin 0.004 vs ci95 0.014 |
 
