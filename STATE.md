@@ -2886,3 +2886,44 @@ would invalidate the harness. **Do not pick a pair count before that lands.**
 
 The acceptance rule stays strict. A strict rule on a resolved measurement is what this gate was meant
 to be; it has never been given a resolved measurement to judge.
+
+## Rung 7 locked as INERT (already documented; now enforced), and progmatch validated end to end
+
+**Rung 7 — no new finding, and I want that on the record.** `docs/GRAMMAR.md:429-453` already states
+this in full: `TRead`'s arguments were discarded, the harness passes only three tables so index 3 is
+out of range and returns 0, and `table_reduction` was measured with a **byte-identical eval count to
+the seed (441,471) at 1.007x — a no-op costing 0.7%**. I re-derived it from the source before finding
+that section. That is the fifth time this session a live-looking lead was already closed on disk.
+
+**What is genuinely added is the lock, and one strictly stronger check.** The existing record is prose
+plus an eval-count identity; nothing enforced it, and *equal eval counts do not prove equal moves* —
+two searches can spend identical work and still choose differently. `crates/interp/tests/rung7_table.rs`
+asserts **move identity** across 128 positions from 8 random walks, plus that `tables_nd` is empty and
+that scalar index 3 does not exist. Both pass, in 36s.
+
+It is deliberately a **canary**: when the reduction table is finally declared,
+`plays_identically_to_the_seed` MUST start failing, and its message says so. A rung whose behaviour is
+indistinguishable from the seed is inert by definition.
+
+**And the table must NOT simply be filled in.** GRAMMAR.md gives the reason and it is the project's
+central premise, not a detail: the obvious contents — "reduce later moves more" — *are* late move
+reduction, the technique MASTER_PLAN requires to be DISCOVERED rather than supplied. Writing that in
+by hand and then measuring "the search found a reduction schedule" would be circular. So rung 7 stays
+a declared gap in the Given column, now with a test that will notice when it closes.
+
+### progmatch: the end-to-end control PASSES
+
+`sexp.rs` is validated through the filesystem, not just in memory:
+
+```
+progmatch — 24 pairs, depth 3, budget 16, seed 777
+  a: ref:bare alpha-beta        (71 nodes, lineage Main)
+  b: <dumped>/seed.sexp         (71 nodes, lineage Main)
+  NOTE: the two programs are IDENTICAL — this is an A/A test and must read ~0.500.
+  a's score 0.500 +/- 0.062   95% CI [0.438, 0.562]   (48 games)
+```
+
+Dumped to disk, read back through the file path, and the loader recognised it as structurally
+identical to the in-memory original — then it played to **exactly 0.500**. Structural equality was
+already unit-tested; this adds the integration path and the behavioural confirmation. The decisive
+champion-vs-champion test STATE.md has wanted is now runnable the moment two arms finish.
