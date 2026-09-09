@@ -514,12 +514,39 @@ pub fn uct_mcts() -> Program {
     // With +1: an unvisited child gets u = Sqrt(Log(N)) > 0, above any heavily-visited sibling
     // whose integer Div collapses to 0, so unexplored moves are tried before the tree deepens --
     // which is what UCT's infinite FPU does in the real algorithm.
+    // SCALE INSIDE THE DIVISION, not outside it. Fixed 2026-09-08.
+    //
+    // The previous form was Sqrt(Div(Log(N), n+1)) and it made the exploration term NUMERICALLY
+    // INERT. Measured off the interpreter's arithmetic: `Log` is ln truncated to an integer, so
+    // Log(256)=5, Log(1024)=6, Log(4096)=8; `Div` is integer division, so once a child had more
+    // than Log(N) visits the quotient was 0 and u was 0 PERMANENTLY for that child; and `Sqrt`
+    // truncates, so with Div <= 8 the term could only ever be 0, 1 or 2.
+    //
+    // Two is nothing. `q` is a SCORE spanning about +/-30000 (mate is +/-29936), so an exploration
+    // bonus capped at 2 breaks ties near zero and does nothing else. That is why UCT scored 12/25
+    // and why mates FELL as the budget rose -- 12 at 256, then 10 at 1024 and 10 at 4096: with more
+    // playouts every child passes the threshold, u is 0 everywhere, and the search degenerates to
+    // greed over averages from a weak eval.
+    //
+    // Multiplying AFTER the Sqrt cannot fix it: {0,1,2} scaled by anything is still three values.
+    // The resolution has to be created before the truncation, so the numerator is scaled first and
+    // the division then has room to produce a real gradient. With table 2 at its declared value the
+    // term decays smoothly with visits instead of falling off a cliff at Log(N).
+    //
+    // The scale is a TABLE READ, not a constant: GRAMMAR 2.7 keeps magnitudes in learned tables so
+    // they stay out of the Given column, and Section 2.4 already declares that `sqrt` and `log`
+    // exist ONLY so this term is expressible. `mul` is likewise already in the grammar -- nothing
+    // new is added here, the existing primitives are simply composed in the order that survives
+    // integer truncation.
     let u = Node::Arith(
         ArithOp::Sqrt,
         vec![Node::Arith(
             ArithOp::Div,
             vec![
-                Node::Arith(ArithOp::Log, vec![visits(v("p"))]),
+                Node::Arith(
+                    ArithOp::Mul,
+                    vec![Node::Arith(ArithOp::Log, vec![visits(v("p"))]), c.clone()],
+                ),
                 Node::Arith(ArithOp::Add, vec![visits(child()), Node::Const(1)]),
             ],
         )],

@@ -297,7 +297,10 @@ fn mcts_budget() {
     println!("\n  {:>10} {:>7} {:>16} {:>14} {:>12}", "budget", "mates", "cost", "mates/Mcost",
              "cost vs AB");
     let mcts = reference::uct_mcts();
-    for b in [16i64, 64, 256, 1024, 4096, 16384, 65536] {
+    // 512 and 2048 added after the exploration-term fix moved the matched-cost point:
+    // budget 256 fell from 0.858x to 0.413x of alpha-beta's cost, so the value that justified
+    // budget_mcts = 256 no longer holds and the parity point has to be re-found, not interpolated.
+    for b in [16i64, 64, 256, 512, 1024, 2048, 4096] {
         let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
         let (mut found, mut cost) = (0u32, 0u64);
         for (p, forcing) in &set {
