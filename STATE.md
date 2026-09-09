@@ -1417,6 +1417,46 @@ denominators can differ no other way). The BEHAVIOURAL difference the filter was
 line whose surrogate is BELOW the incumbent's, which the strict rule cannot produce — has NOT yet
 appeared in four generations. The filter binds; whether it changes outcomes is still open.
 
+## ★ THE MATE-2 RUNG SEPARATES THE RUNG FROM THE EXPLOIT — and opens a tolerance window
+
+The two programs are **indistinguishable on the set the loop actually uses**, and the MATE-2 rung
+tells them apart:
+
+```
+                          25-set      MATE-2        total / 37
+capture extension (rung 6)   18      11/12  (92%)       29
+the captured exploit         18       7/12  (58%)       25
+```
+
+Both score exactly 18 of 25. **No mates guard at any tolerance can separate them on the current
+set** — that is what "the set cannot see the difference" means concretely, and it is why the exploit
+lands precisely on the floor while the rung is cut alongside it.
+
+Adding the rung opens a window:
+
+```
+                     floor   rung    exploit
+MATE-2 set, tol 4       33   out     out
+MATE-2 set, tol 7       30   out     out
+MATE-2 set, tol 8       29   IN      out     <- admits the rung, excludes the exploit
+MATE-2 set, tol 9       28   IN      out     <- same
+```
+
+**Neither change achieves this alone.** MATE-2 at tolerance 7 rejects both. Tolerance 8 on the
+25-position set has floor 17 and admits BOTH (each scores 18). Only the rung plus the loosened floor
+admits capture extension — the one reference program that scores on the hard set — while keeping out
+a program that plays at 0.208.
+
+**This is what FITNESS 3's per-N design is FOR**, arrived at by measurement rather than by reading:
+the rungs are not there to be individually decisive, they are there so a real searcher and a
+plausible impostor, tied on one rung, come apart on the next. 92% against 58% is that coming-apart.
+
+**Caveats, both real.** The exploit's 25/37 is 18 measured on the 25-set plus 7/12 measured on the
+MATE-2 probe — the same twelve positions, so the sum is exact, but it is a sum rather than a single
+run on 37. And the window rests on ONE rung and ONE captured exploit family; a different exploit
+scoring 11/12 on MATE-2 would close it, which is precisely why the spec asks for four rungs and not
+two.
+
 ## ⚠ CORRECTION: capture extension really does lose mates — the markdown is not an artefact
 
 Re-scored on the 37-position set: **29/37 mates, 0.370x**, against 18/25 and 0.340x on the
