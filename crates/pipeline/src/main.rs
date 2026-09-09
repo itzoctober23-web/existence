@@ -763,7 +763,12 @@ fn main() {
                 gate::match_nets(&champion, &anchor, depth as u32, anchor_pairs, seed ^ 0xA1C).pent_rate()
             });
             let cs = gate::match_nets(&cand, &anchor, depth as u32, anchor_pairs, seed ^ 0xA1C ^ g as u64);
-            // Same seed family for both sides so they meet the anchor on the same openings.
+            // NOTE, and this corrects a comment that used to sit here claiming "same seed family for
+            // both sides so they meet the anchor on the same openings". THEY DO NOT. `match_nets`
+            // derives every opening from `Rng(seed | 1)` (gate.rs:100), so `seed ^ 0xA1C` and
+            // `seed ^ 0xA1C ^ g` walk two entirely different opening sets. Sharing a prefix is not
+            // sharing a seed. The comparison is UNPAIRED, and its variance is the sum of two
+            // independent sampling variances rather than the variance of a paired difference.
             let veto = cs.pent_rate() + cs.ci95() < ca;
             (!veto, veto)
         } else {
@@ -859,12 +864,35 @@ fn main() {
             // THE BASE'S ANCHOR SCORE IS CACHED. It is constant for the whole batch, so measuring
             // it once per batch rather than once per gate halves the games. It is recomputed
             // whenever the base moves, which is the only time it can change.
+            // PAIRED MODE (EXISTENCE_PAIRED_BATCH=1), default OFF until measured.
+            //
+            // The unpaired default gives champion and base DIFFERENT opening sets, because
+            // match_nets builds every opening from Rng(seed | 1) and the two seeds differ by ^g.
+            // Directly observed: after the g10 KEEP the base BECAME that champion, and the same net
+            // scored 0.862 +/- 0.020 as champion and 0.833 +/- 0.022 as base -- a 0.029 gap on one
+            // net, from opening luck alone. Increments of +0.033 and +0.021 are being judged
+            // against a baseline carrying that much noise.
+            //
+            // Paired mode re-measures the base on the SAME openings as the champion, so
+            // opening difficulty is common to both sides and cancels in the difference. It costs
+            // the cached-base saving -- two matches per batch instead of one -- which is exactly
+            // why it is a flag and not a default: it must beat the cache at EQUAL TOTAL GAMES, not
+            // merely have lower variance per batch. pairing_ab.sh measures that.
+            let paired = std::env::var("EXISTENCE_PAIRED_BATCH").is_ok();
+            let bseed = if paired { seed ^ 0xA9C0 ^ g as u64 } else { seed ^ 0xA9C0 };
             let cs = gate::match_nets(&champion, &origin, depth as u32, gate_pairs,
                                       seed ^ 0xA9C0 ^ g as u64);
-            let (br, bc) = *batch_base_anchor.get_or_insert_with(|| {
-                let m = gate::match_nets(&base, &origin, depth as u32, gate_pairs, seed ^ 0xA9C0);
+            let (br, bc) = if paired {
+                // Re-measured every batch on the champion's own openings; never cached, since a
+                // cached score is by definition from a different opening set.
+                let m = gate::match_nets(&base, &origin, depth as u32, gate_pairs, bseed);
                 (m.pent_rate(), m.ci95())
-            });
+            } else {
+                *batch_base_anchor.get_or_insert_with(|| {
+                    let m = gate::match_nets(&base, &origin, depth as u32, gate_pairs, seed ^ 0xA9C0);
+                    (m.pent_rate(), m.ci95())
+                })
+            };
             // Two-sample: the increment must clear the combined interval, not merely be positive.
             // Requiring only `cs > br` would promote on noise every other batch.
             let diff = cs.pent_rate() - br;
