@@ -1840,7 +1840,35 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                         continue;
                     }
                 };
-                let resolved_up = gsc.pent_rate() - gsc.ci95() > 0.5;
+                // EXISTENCE_GATE_VETO=1 implements the rule this gate's own comment DESCRIBES.
+                //
+                // evolve.rs documents the game gate as "a veto on unplayable programs" that
+                // "CANNOT resolve a 2% edge and is not asked to". The shipped code asks it to do
+                // exactly that: `pent_rate - ci95 > 0.5` demands the candidate be resolved BETTER,
+                // so at 6 pairs (ci95 up to 0.250) it must win ~60-69% of pairs. A veto would
+                // reject only what is resolved WORSE. STATE.md:116-144 records the contradiction
+                // and declines to change it pending one thing: "measuring how many promotions the
+                // rule costs."
+                //
+                // MEASURED, over the 17 game-gate calls in the two completed mcts_ab arms:
+                //     implemented (resolved_up)        0/17 promotions
+                //     documented veto (resolved_down)  8/17 promotions
+                // and the difference DISCRIMINATES rather than waving everything through: all 8
+                // flips are ties (0.458-0.542), while every MAIN-lineage call (0.292, 0.333, 0.375)
+                // is rejected under BOTH rules because it is resolved worse. Zero promotions under
+                // the shipped rule means the search track cannot advance at all.
+                //
+                // Drift is already bounded independently: `guard_floor` is anchored to the SEED's
+                // score, not the current best, so admitting ties cannot ratchet the champion down.
+                //
+                // Default is UNCHANGED. This is the experimental apparatus, and it is switched, not
+                // replaced, so the two rules can be run as an A/B on the same seed.
+                let veto_only = std::env::var("EXISTENCE_GATE_VETO").as_deref() == Ok("1");
+                let resolved_up = if veto_only {
+                    gsc.pent_rate() + gsc.ci95() >= 0.5      // reject only what is resolved WORSE
+                } else {
+                    gsc.pent_rate() - gsc.ci95() > 0.5
+                };
                 if !resolved_up {
                     // ABOVE and the ACCEPTANCE BAR both belong here. `resolved_up` demands
                     // pent_rate - ci95 > 0.5, so at these pair counts the candidate must score
