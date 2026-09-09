@@ -1,5 +1,31 @@
 # Existence — current state, 2026-09-09
 
+## 🔑 WHY THE PLATEAU EXISTS: the search is BARE alpha-beta, by design
+
+`search.rs` at the horizon returns the static eval with **no capture resolution**:
+
+```rust
+if depth == 0 { return ... net.eval(pos, &mut self.scratch) }
+```
+
+`MASTER_PLAN.md:38` — *"Seed search program: BARE alpha-beta … No ordering, no hash reuse, no
+iterative deepening, no quiescence"*. Line 53 — *"all of these must be DISCOVERED as program edits
+that beat the current"*.
+
+**So the ~0.86 plateau is the strength of a bare depth-2 alpha-beta with a width-16 eval, and that
+is the expected, pre-registered result.** A search with no quiescence evaluates mid-capture
+positions as if they were quiet; no amount of eval training fixes a horizon that cuts through
+exchanges.
+
+**This reframes the whole day.** Every candidate I tested — blend, epochs, depth, capacity, draws,
+horizon, gate-every, data volume — is a *training-loop* knob. The training loop is at the ceiling of
+what a bare search can express. The plan says the next gains come from the **discovery track**
+(`evolve`), whose job is to find qsearch / ordering / hash reuse as program edits.
+
+**And the discovery track is the thing that is actually broken:** its population collapsed to
+identical members (`pop 8 spread 0.005508–0.005508`), 25 generations with 0 accepts, which is why I
+killed it. That — not another hyperparameter — is where the remaining strength is.
+
 ## ✅ SETTLED (read this before anything below)
 
 **Every tuning candidate is closed. None moved the plateau. The shipped defaults are correct.**
