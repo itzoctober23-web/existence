@@ -1432,7 +1432,13 @@ fn main() {
                 .collect();
             let (rlo, rhi) = rel.iter().fold((f64::MAX, 0.0f64), |(a, b), x| (a.min(*x), b.max(*x)));
             let offspring: Vec<(Program, u32, f64)> =
-                scored.into_iter().filter(|(_, f, _)| *f >= best_found).collect();
+                // guard_floor, NOT best_found. This line is the ACTUAL selection filter; the
+                // three above it are diagnostics. When I reverted a misplaced floor definition I
+                // reverted this one with it, so the tolerance changed only what was PRINTED --
+                // mate-ok read 3 and rates read 1.099-1.143x while the population stayed at 1 and
+                // nothing was ever accepted. Third inert feature today (cost ceiling, catch_unwind
+                // under panic=abort, this), and all three looked correct in the diff.
+                scored.into_iter().filter(|(_, f, _)| *f >= guard_floor).collect();
 
             let mut pool = popsnap.clone();
             pool.extend(offspring);
