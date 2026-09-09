@@ -1417,6 +1417,36 @@ denominators can differ no other way). The BEHAVIOURAL difference the filter was
 line whose surrogate is BELOW the incumbent's, which the strict rule cannot produce — has NOT yet
 appeared in four generations. The filter binds; whether it changes outcomes is still open.
 
+## ✅ CONFIRMED: the MATE-2 rung turns an exploit generator into a normal-candidate generator
+
+Paired arms, seed 4242, identical mutation draws, generation 1. The ONLY difference is twelve MATE-2
+positions in the fitness set:
+
+```
+CONTROL   25 positions, floor 18   surrogate 0.231865   ABOVE:3   gate 0.208   EXPLOIT captured
+TREATMENT 37 positions, floor 30   surrogate 0.002524   ABOVE:1   gate 0.458   normal candidate
+```
+
+The control proposes a program at **95x the incumbent's rate** that plays at 0.208 — the exploit
+signature, and it has done this at generation 1 on three separate seeds now, so it is a reliable
+behaviour rather than a run of bad luck. The treatment, from the SAME draws, proposes a program at
+**1.02x** that plays at 0.458.
+
+**The deficit-accumulation mechanism is confirmed.** The exploit-shaped candidate scores 18 on the
+original 25 and 7 on the new rung — 25 of 37 against a floor of 30 — so the guard rejects it before
+its rate is ever considered, and the population's next-best candidate is an ordinary one. `ABOVE`
+falling from 3 to 1 is the same fact from the other side: fewer candidates clear the higher floor.
+
+**This is the fix, and it is not the fix I first argued for.** The prediction that survived is the
+SECOND one — deficits adding across rungs — after the first ("aces MATE-1, fails MATE-2") was
+refuted by the specimen scoring 7/12 on MATE-2. The corrected mechanism made a sharper prediction and
+the sharper prediction held.
+
+**Scope, stated honestly.** One generation per arm. The control's failure is established across three
+seeds; the treatment's success is one observation at the point where the control reliably fails,
+which is the informative place to look but is not yet a distribution. And this fixes the EXPLOIT
+axis only — the ladder-ranking defect is untouched, as the oracle re-run showed.
+
 ## MATE-2 does NOT fix the ladder ranking — and that separates two problems I was conflating
 
 The oracle re-run with the MATE-2 rung added (37 positions instead of 25):
