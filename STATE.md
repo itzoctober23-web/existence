@@ -1417,6 +1417,44 @@ denominators can differ no other way). The BEHAVIOURAL difference the filter was
 line whose surrogate is BELOW the incumbent's, which the strict rule cannot produce — has NOT yet
 appeared in four generations. The filter binds; whether it changes outcomes is still open.
 
+## ⚠ PROCESS FAILURE: I re-derived three results that were already in the tree
+
+There are 23 analysis documents at the repo root. I did not read them before starting, and three of
+today's "findings" are re-derivations of work dated 2026-09-08:
+
+| today | already recorded |
+|---|---|
+| the gate demands 0.58-0.75, far above a real edge | `acceptance_floor_RESULT.md` — "the gate demands an edge **2.7x larger than a generation produces**" |
+| the surrogate's proposals pool at 0.4554, anti-correlated with strength | `surrogate_validation.md` — "the accept/reject surrogate **does not predict strength** — measured" |
+| tolerance 7 admits exploits, tolerance 4 is safe | `tolerance_RESULT.md` — a sweep over **33 behaviour-changing edits and 2 exploits**: tol 4 admits 6/33 genuine and no exploit, tol 5 admits ALPHA |
+
+The prior tolerance work is **more thorough than mine**: it measured 33 genuine candidates against
+two constructed exploits and located the boundary between them. My guard experiment found the same
+boundary from one direction with less evidence.
+
+**What today actually contributes, after subtracting the duplication:**
+
+1. **A third exploit family, machine-found**, which lands EXACTLY on the floor (18 = 25-7). The prior
+   work used two hand-constructed exploits (ALPHA, DEPTH); those were built by a person who knew
+   what to build. This one was found by the loop and sits on the boundary because that is where
+   selection pushes.
+2. **The corpus as a persistent regression test** — `exploits.tsv` plus a cargo test, so a
+   configuration change is checked against real specimens rather than re-argued.
+3. **MATE-2 separates the rung from the exploit**: capture extension 11/12, the exploit 7/12, where
+   both score 18/25 on the current set and NO tolerance can tell them apart.
+4. **The tolerance window** (MATE-2 set, tol 8-9), which admits capture extension while excluding the
+   exploit.
+
+Point 4 extends the prior work rather than repeating it. `tolerance_RESULT.md` concluded that on the
+original guard "**no tolerance separates them**" for the alpha exploit; the finding here is that
+adding a RUNG creates separation where changing the tolerance alone could not. That is the same
+lesson from the other side, and it is why FITNESS 3 specifies four rungs.
+
+**The process lesson, which is the expensive part.** Reading 23 files costs minutes; re-deriving
+three results cost hours of compute and turns. The rule that would have caught it is the one already
+written for the 4PC side — audit what exists before generating new work — and it applies to this repo
+just as directly.
+
 ## RUNNING: the tolerance-window arm, pre-registered
 
 Three arms on identical mutation draws (seed 4242), differing only in the fitness set and the mates
