@@ -356,3 +356,32 @@ strength. Fixing this means the guard must tolerate REGRESSION on some positions
 gains on others — which requires being able to weigh them, which requires a strength signal, which
 is games. The same conclusion the ceiling work reached from the other direction, and at the same
 price: ~1,650 pairs per generation.
+
+
+---
+
+## A pre-registered prediction of mine, FALSIFIED
+
+Before implementing `pred` I wrote: it had been a stub returning false, so `Op::WrapIfPred` was a
+disguised DELETE (wrapping a statement in `if false` removes it), and fixing it should RAISE MAIN's
+mate-ok rate above its measured baseline of 2.20/12.
+
+| lineage | pred stubbed | pred working | delta |
+|---|---|---|---|
+| MAIN | 2.20/12 (n=45) | **2.12/12 (n=16)** | −0.08 |
+| MCTS (control) | 4.47/12 (n=32) | 4.10/12 (n=10) | −0.37 |
+
+**It did not rise.** And the CONTROL moved further than the treatment — MCTS contains no `Pred` and
+cannot be affected by the fix, so its −0.37 sets the noise scale, against which MAIN's −0.08 is
+nothing. The comparison itself is sound: both runs are MU=8, λ=12, EPS=0.020, identical seed cost
+and identical mutation seeding, so the only difference is the predicate's semantics.
+
+**Why the prediction was wrong**, and `stepdiff` had already said so: WrapIfPred produced only **2
+of 53** behaviour-changing single edits. It is one operator of eleven and a weak one, so changing
+its semantics entirely — from "delete the statement" to "make it conditional" — moves the aggregate
+survival rate hardly at all. Both semantics are destructive for the same reason: wrapping
+`set best` in a condition breaks the accumulator whether the condition is `false` or `is_capture`.
+
+The `pred` fix remains correct and necessary — it is what made rung 6 fire at all, and rung 6 is the
+first family member measured to play differently. It simply did not do the thing I predicted it
+would do to the population, and the prediction is recorded as failed rather than quietly dropped.

@@ -740,6 +740,7 @@ fn step_diff() {
     let (mut ill, mut broken, mut identical, mut different) = (0usize, 0usize, 0usize, 0usize);
     let mut guard_ok_diff = 0usize;
     let mut diff_ops: std::collections::BTreeMap<String, usize> = Default::default();
+    let mut lost: std::collections::BTreeMap<u32, usize> = Default::default();
     for k in 0..n {
         let mut r = Rng::new((k as u64) << 12 ^ 0xA5A5);
         // ONE edit, not the loop's usual 1-3: the question is what a SINGLE step can do.
@@ -763,6 +764,16 @@ fn step_diff() {
             // AND does it survive the loop's actual correctness guard? This is the bucket that
             // matters: behaviour-changing AND correctness-preserving.
             let (gf, _, _) = fitness(&cand, &guard, &net, depth, 16);
+            // HOW MANY guard positions does it lose? Measured as a DISTRIBUTION, because the fix
+            // suggested by "0 of 33 pass an all-or-nothing guard" is a small TOLERANCE -- and
+            // whether that works depends entirely on whether the losses are bimodal.
+            //
+            // The guards were built so EXPLOITS score ZERO on a whole subset: the depth exploit
+            // (Const(0)->Const(1)) loses all 5 disagreement positions by construction, and the
+            // raised-alpha exploit loses all 5 window-sensitive ones. If genuine behavioural
+            // changes lose only 1-2, a tolerance of 1-2 separates the two classes cleanly. If they
+            // also lose 5+, no tolerance can distinguish them and the idea is dead.
+            *lost.entry(gf0.saturating_sub(gf)).or_default() += 1;
             if gf >= gf0 {
                 guard_ok_diff += 1;
                 *diff_ops.entry(format!("{:?}", ops)).or_default() += 1;
@@ -785,6 +796,14 @@ fn step_diff() {
     println!("  IDENTICAL (same play)    : {identical}");
     println!("  DIFFERENT (plays differently)                  : {different}");
     println!("  ...AND passes the {}-position guard (THE USEFUL KIND): {guard_ok_diff}", guard.len());
+    if !lost.is_empty() {
+        println!("\n  guard positions LOST by behaviour-changing candidates (of {gf0}):");
+        for (k, v) in &lost { println!("    lost {k:>2}: {v:>3} candidates"); }
+        let small: usize = lost.iter().filter(|(k, _)| **k <= 2).map(|(_, v)| *v).sum();
+        println!("  losing <=2: {small}  -- a tolerance of 2 would admit these");
+        println!("  The exploits lose 5 (a whole guard subset scores ZERO by construction), so a");
+        println!("  tolerance of 2 separates the classes IF the distribution is bimodal.");
+    }
     if different > 0 {
         println!("\n  operators producing a behaviour change that ALSO passes the guard:");
         for (o, c) in &diff_ops { println!("    {o:<28} {c}"); }
