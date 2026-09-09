@@ -1358,6 +1358,38 @@ choosing another constant. The one unambiguous improvement from the attempt surv
 a bare literal at 27 sites as `8` and 6 more as `1`, so `reference_audit` certified these programs
 under a different exploration weight than the loop runs. It is one named accessor now.
 
+## The strict rule RATCHETS ITS OWN BAR UP on every rejection, and the A/B makes it visible
+
+The spec-filter A/B diverged in a way I did not predict and which explains the loop's behaviour over
+time. Both arms propose the SAME candidates in the first generations, at the same rates:
+
+```
+specfilter  gen1 MAIN surrogate 0.002794  ABOVE:3    gen2 MAIN surrogate 0.002884  ABOVE:6
+strict      gen1 MAIN surrogate 0.002794  ABOVE:3    gen2 MAIN surrogate 0.002884  ABOVE:1
+```
+
+Same candidate, same rate, but **ABOVE:6 against ABOVE:1**. `ABOVE` counts offspring whose
+rate exceeds `best_rate`, so the two arms are dividing by different denominators:
+
+* strict, after gen 1's rejection: `best_rate = 0.002794` — raised to the REJECTED candidate's rate
+* filter, after gen 1's rejection: `best_rate = 0.002518` — still the champion's
+
+**So on every gate rejection the strict rule raises its own surrogate bar to the rate of a program
+the GAMES had just judged worse.** The candidate lost at 0.417 and its surrogate became the new
+threshold anyway. The bar therefore ratchets upward monotonically across a run: after N rejections
+it sits at the best rate any of N losing programs achieved, and proposals get rarer with every one.
+
+**This is a purpose with a side effect, not a plain bug.** The update exists to stop the same
+candidate being re-proposed forever, and it does that. But it buys that with a permanent, one-way
+increase in the bar, driven by programs that failed. The filter arm gets the same protection from an
+explicit already-tried set, which is why it needs one — and it leaves the bar where the champion put
+it.
+
+**Verified, and its limit stated.** The mechanism difference is confirmed from the data (the ABOVE
+denominators can differ no other way). The BEHAVIOURAL difference the filter was built for — a gate
+line whose surrogate is BELOW the incumbent's, which the strict rule cannot produce — has NOT yet
+appeared in four generations. The filter binds; whether it changes outcomes is still open.
+
 ## FIRST MACHINE-FOUND EXPLOIT CAPTURED, and it lands exactly on the guard floor
 
 `exploit_MAIN_gen1_1354x.prog`, produced within one generation of turning the refuted
