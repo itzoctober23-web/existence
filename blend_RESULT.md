@@ -251,3 +251,41 @@ block closed the axis by killing 1.00 — but 1.00 was the wrong end to test. If
 default is on the wrong side of an interior optimum, and the risk argument that chose 0.75 over 1.00
 ("a pure bootstrap has no anchor to reality") does not apply to it: 0.85 still carries 15% of the
 game outcome.
+
+## REPLICATED: blend 0.85 beats the shipped 0.75 on both training seeds
+
+Both second-seed legs landed, and both point the same way as seed 20260907:
+
+| pair | seed 20260907 | seed 424242 | effect (s1, s2) |
+|---|---|---|---|
+| 0.75 vs **0.85** | 0.460 ± 0.022 | **0.403 ± 0.022** | 0.040, **0.097** |
+| **0.85** vs 1.00 | 0.567 ± 0.022 | **0.534 ± 0.025** | 0.067, 0.034 |
+| 0.75 vs 1.00 | 0.511 ± 0.022 | 0.456 ± 0.024 | −0.011, 0.044 |
+
+Every one of the four 0.85 matches has its interval clear of 0.5, on two independent trainings, at
+depth 4 — the strength standard. Cross-seed, with the pooled between-seed sd (now **0.0418**, six
+estimates):
+
+* **0.85 over 0.75: mean effect 0.0685, 95% CI [+0.011, +0.126] — EXCLUDES ZERO.**
+* 0.85 over 1.00: mean 0.0505, 95% CI [−0.007, +0.108] — contains zero, not resolved.
+
+**So the shipped default is beaten, cross-seed, by a setting the axis was closed without testing.**
+The closure killed blend 1.00 — and 1.00 is the one end that genuinely does not help (0.75-vs-1.00
+averages to +0.017 across seeds, well inside noise). 0.85 was never tried.
+
+### The honest limits, stated before anyone changes a default
+
+* **Two seeds, and the power calculation says ~2.9.** This is right at the boundary, not comfortably
+  past it. The CI excludes zero by 0.011 — a third seed could move that.
+* **The interval uses a POOLED sd** across six different net-pair comparisons. On these two points
+  alone, n = 2 gives t(1) = 12.71 and nothing is resolvable. The claim is conditional on between-seed
+  variance being comparable across comparisons, which is an assumption that keeps being re-tested and
+  has so far held (movements 0.024-0.062, no outliers).
+* **The two seeds disagree on magnitude by 2.4×** (0.040 vs 0.097). The direction replicates; the
+  size does not.
+* This is **"passed the gate" language at best, and not even that** — no gate has been run, no Elo
+  measured. It is two head-to-head matches per seed.
+
+**What it justifies:** a proper multi-seed run on 0.85, which is now the best-evidenced open candidate
+in the tree. **What it does not justify:** changing the shipped default on two seeds, which is exactly
+the error that produced the withdrawn "+0.025 depth lever" and blend 1.00's withdrawn mechanism.
