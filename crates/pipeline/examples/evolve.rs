@@ -604,10 +604,32 @@ fn main() {
         }
     }));
 
-    // Per-move COST ceiling for the game gate. 4e8 is the seed's measured cost for ONE position at
-    // the fitness depth, so a move in the gate is budgeted like a position in the surrogate and the
-    // two are asking the same question of the same resources.
-    const COST_PER_MOVE: u64 = 400_000_000;
+    // COST CEILING DELIBERATELY OFF, and the reason is a finding rather than an omission.
+    //
+    // I added this ceiling to make the game gate reward cost-efficiency, because the surrogate
+    // scores mates-per-COST while the gate gave both sides the same BUDGET -- so a candidate could
+    // be 4.4x cheaper, max the surrogate, and play identical games. Setting it to 4e8 did nothing:
+    // the alpha-beta seed costs 3.972e8 per position and the MCTS seed 3.843e8, so neither ever
+    // reached the ceiling. The mechanism was INERT, and I nearly reported it as working.
+    //
+    // LOWERING IT UNTIL IT BINDS IS WORSE, NOT BETTER. interp/src/lib.rs:501 unwinds the whole
+    // program on a ceiling hit and `run` reports MOVE_NONE, which play_progs treats as a FORFEIT.
+    // So a binding ceiling does not hand the cheaper program more search -- it makes whichever
+    // program crosses the line first LOSE THE GAME OUTRIGHT. That converts the gate into a pure
+    // cost race, which is exactly the surrogate failure mode the gate exists to counteract.
+    //
+    // THE REAL REASON COST WILL NOT CONVERT: a DEPTH-LIMITED program cannot spend a saving. The
+    // alpha-beta seed searches to the depth in table 0 and ignores `Budget` entirely, so costing
+    // half as much means finishing sooner with the IDENTICAL move, not searching twice as far.
+    // Efficiency only becomes strength for a BUDGET-AWARE program -- one that searches until its
+    // allowance is gone. That is what iterative deepening is, and it is rung 5 of the GRAMMAR 9
+    // ladder, currently measured at 0.914x (a loss) on the surrogate.
+    //
+    // So FITNESS 3's cost term is rewarding a property that cannot become playing strength for the
+    // programs this track actually evolves. That is a statement about the FITNESS, not about the
+    // gate, and it is recorded in FITNESS.md rather than patched over here. The plumbing stays
+    // because it is correct for a budget-aware seed; the value is off so nothing pretends to work.
+    const COST_PER_MOVE: u64 = u64::MAX;
 
     let mut rng = Rng::new(0xE0FFEE);
     for g in 1..=gens {

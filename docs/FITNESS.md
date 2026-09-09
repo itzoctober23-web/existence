@@ -412,3 +412,41 @@ every ledger entry as N/A (not as PASS). It becomes mandatory the day the layer 
 - Stage 6 given an activation point (P3) and an N/A recording rule before it.
 - Budget-driven programs' INEXACT-by-construction status declared as a known weakening,
   with the per-function inner-check mitigation.
+
+
+## MEASURED 2026-09-08 — the cost term rewards something that cannot become strength
+
+FITNESS 3 scores mates-per-COST. The search track's game gate scores strength. **For the programs
+this track actually evolves, those cannot be made to agree**, and the reason is structural.
+
+**The observation.** The MCTS lineage drove its surrogate from 0.001145 to 0.005034 — a 4.4x
+improvement — while five consecutive game gates returned *exactly* 0.500 +/- 0.250. The surrogate
+saw a large gain; the games saw nothing at all.
+
+**The immediate cause.** `play_progs` gave both sides the same `budget` and no cost ceiling, so
+being cheaper bought a candidate nothing: it simply returned sooner with the same answer.
+
+**Why the obvious fix does not work.** Equalising COST per move instead of budget looks like the
+remedy, and it is inert or harmful:
+
+* Set at 4e8 it never binds — the alpha-beta seed costs 3.972e8 per position and the MCTS seed
+  3.843e8. Measured, after the change had been written and nearly reported as working.
+* Set low enough to bind, it is *worse*. `interp/src/lib.rs:501` unwinds the entire program on a
+  ceiling hit and `run` returns MOVE_NONE, which `play_progs` treats as a FORFEIT. A binding
+  ceiling therefore does not grant the cheaper program more search — it makes whichever program
+  crosses the line first LOSE OUTRIGHT, converting the gate into a pure cost race. That is the
+  surrogate's own failure mode, imported into the instrument built to catch it.
+
+**The real reason.** A DEPTH-LIMITED program cannot spend a saving. `bare_alpha_beta` searches to
+the depth in table 0 and ignores `Budget` entirely, so halving its cost means finishing sooner with
+the **identical move** — not searching twice as far. Cost-efficiency converts to strength only for
+a BUDGET-AWARE program, one that searches until its allowance is exhausted.
+
+**What that implies.** The cost term is meaningful exactly when the seed is budget-aware, and
+iterative deepening is the canonical budget-aware search — rung 5 of the GRAMMAR 9 ladder,
+currently measured at **0.914x** on this surrogate, i.e. a LOSS. So the fitness penalises the one
+structure that would make its own cost term meaningful.
+
+This is not a bug to patch in the gate. It is a statement about what mates-per-cost can and cannot
+measure, and it belongs here. The gate's cost-ceiling plumbing is left in place (it is correct for
+a budget-aware seed) with the value disabled, so nothing pretends to work.
