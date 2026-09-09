@@ -431,6 +431,27 @@ sc_c vs s2_100 (blend only)        0.472 ± 0.017   combination WORSE than blend
 **Epochs 2 hurts on top of blend 1.00.** Blend-alone is the better change. Running all three matches
 instead of only the ship test is what makes that readable rather than a bare win.
 
+## `--gate-match-depth` verified to BIND, and its real cost
+
+The loop learns from depth-2 labels **and selects on depth-2 matches**, while strength is judged at
+depth 4 — it optimises the game it measures. The new flag defaults to the datagen depth, so it
+changes nothing until set. Verified by behaviour, same seed and training, only the gate depth
+differing:
+
+```
+gate-match-depth 2:  champ-vs-origin 0.516±0.038  base 0.516±0.021  increment +0.000
+gate-match-depth 4:  champ-vs-origin 0.422±0.060  base 0.492±0.056  increment -0.070±0.082
+```
+
+Completely different output — **not inert**, unlike the three features that shipped looking correct
+in the diff and moved no number.
+
+**The cost is larger than I claimed.** At 32 pairs the depth-4 interval is ±0.060 against depth-2's
+±0.038 (1.58×) — deeper games are more decisive, so pair variance rises. Matching resolution needs
+**2.5× the pairs**, each ~25× the nodes: about 12 generations of datagen-equivalent per gate, or
+**~2.4× total compute at `--gate-every 5`**. I described this as "a fraction of the price" of
+depth-4 datagen; the honest figure is 2.4× versus ~25×. Still much cheaper, not nearly free.
+
 ## Shipping candidates, with evidence strength stated per item
 
 All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an Elo number.
