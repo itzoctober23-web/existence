@@ -18,16 +18,36 @@
 > The cause is **saturation, not effect size**: w64 scores 0.967 against a random opponent, leaving
 > no room to express a difference. Large mid-range gaps still agree (blend 0.75/0.25, horizon).
 >
-> **The cleanest case, on the comparison everything else rests on.** The ratchet run's own control
-> trajectory against the origin reads **0.802 → 0.811 → 0.811 → 0.805** across 20 generations —
-> flat, and *below* champion_long's 0.861, so the origin metric says the run went nowhere and ended
-> **worse** than it started. The direct match says the opposite: **b2_5 beats champion_long
-> 0.529 ± 0.015 at 960 pairs.** Meanwhile the batch gate recorded **2 KEEPs in 5**, where
-> P(≥2 false KEEPs | true null) = **0.0059**.
+> **⚠ THE STRONGEST CASE IS UNDER REVIEW — it may be a PROTOCOL MISMATCH, not saturation.**
+> The ratchet's control trajectory reads 0.802 → 0.811 → 0.811 → 0.805, flat and below
+> champion_long's 0.861, while a direct match says b2_5 **beats** champion_long 0.529 ± 0.015. I
+> recorded that as an inversion. But:
 >
-> So during a span the origin control reported as flat-to-declining, the loop was making gains that
-> two independent instruments both detect. **An origin-metric "no learning" reading is not
-> evidence of no learning.**
+> * the **CONTROL** uses `match_nets_capped` with `equal_time_caps` at `gate_depth_cap` — **depth 4**;
+> * the **batch gate** and every `netmatch` run above used **depth 2, uncapped**.
+>
+> A net can be better at depth 2 and worse at depth 4 with **no instrument broken at all**. Until the
+> depth-4 cross-check lands, treat both claimed reversals as unconfirmed. This is the
+> equal-depth-vs-equal-time confound already named below, reappearing as equal-depth-vs-equal-*protocol*.
+>
+> The **2 KEEPs in 5** result is unaffected — it is internal to the batch gate — and so is the
+> independent finding that b2_5 beats champion_long *at depth 2*.
+
+### The "frozen origin" is NOT frozen across runs
+
+```
+main.rs:370   let origin = Net::random(WIDTH_MENU[rung], seed)      <- depends on the RUN SEED
+main.rs:413   let anchor = Net::random(champion.n_hidden, 20260907) <- fixed
+```
+
+Every run with a different seed faces a **different origin**. Arms at seed 20260907 share one;
+the depth replication (424242, 987654) and `blend_seed2` (424242) each face their own.
+
+* **Within a seed the comparison is still clean** — `depth_replicate` pits d2 against d3 at the same
+  seed, so both meet the same opponent.
+* **Across seeds, origin rates are not comparable.** This is the real explanation for `s2_100`
+  reading 0.945 where `bh_100` read 0.832; I attributed that 0.113 swing to seed variance in the
+  nets, and it is at least partly a different opponent.
 >
 > **Consequence:** every ceiling arm below was scored against the origin. Any gap **under ~0.05**, or
 > any arm scoring **above ~0.95**, is provisional until re-measured directly. Detail in
