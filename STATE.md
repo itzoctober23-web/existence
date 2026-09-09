@@ -207,7 +207,35 @@ the champion gate rejected. **Even at face value with zero compression, the 0.03
 datagen depth (+0.025) — the only surviving ceiling candidate.** Detail in
 `acceptance_floor_RESULT.md`.
 
-### RESOLVED: it is a LEARNING failure at the plateau, not a measurement failure
+### RETRACTED, AND REVERSED: it is a MEASUREMENT failure, and batching is the repair
+
+**The section below is wrong and is kept only to show what the underpowered reading looked like.**
+
+At 448 pairs `b2_5` vs `champion_long` read **0.513 ± 0.022** and I called it indistinguishable. At
+**960 pairs** it is **0.529 ± 0.015, interval [0.514, 0.543] — b2_5 is STRONGER, clear of 0.5.**
+
+So 20 generations of **batch-gated** training from `champion_long` produced a **real, resolved gain
+of ~0.029**, while the per-generation arm over the same span accepted **nothing at all**. That is
+precisely the hopeful branch `batch_ab2.sh` pre-registered:
+
+> "KEEPs, and the arm ends above the baseline => MEASUREMENT failure. The gains were real and
+> unmeasurable one at a time, batching is the repair, and the shipped default of `--gate-every 1`
+> is the brake."
+
+**The acceptance-floor arithmetic stands after all.** The gate demands an edge larger than its own
+ci95 (0.0309 at 224 pairs) while a generation produces ~0.0114. At `--gate-every 1` the floor binds
+and nothing is ever accepted; at `--gate-every 5` the accumulated change clears it and gets kept.
+My "the floor is not the binding constraint" reading was built on the underpowered null and goes
+with it.
+
+**`--gate-every 5` is therefore a shipping candidate** — the default is 1. One training run so far;
+a second seed is required before the default moves, same bar as blend.
+
+Third time an underpowered null has misled me today, all from the same cause, which is why the
+`netmatch` null threshold moved from ci95 < 0.03 to < 0.015 (~896 pairs). This re-check is the fix
+paying for itself immediately.
+
+### Superseded reading (kept for the record): "a LEARNING failure at the plateau"
 
 `batch_ab2` finished both arms from `champion_long`, 20 generations each, on the fixed
 anchor-increment gate. **Neither arm produced any change:**
