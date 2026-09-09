@@ -1,5 +1,24 @@
 # Existence — current state, 2026-09-09
 
+## Epochs closed in BOTH directions — 3 is the optimum
+
+```
+ep2_2  vs ep2_3 @ d4:  0.448 ± 0.022   epochs 3 BETTER than 2, resolved
+ep2_10 vs ep2_3 @ d4:  0.485 ± 0.022   unresolved, no gain from 10
+seed 424242,   d2:     0.473 ± 0.020   epochs 3 ahead
+seed 20260907, d2:     0.498 ± 0.021   no effect
+```
+
+Fewer epochs loses; more epochs does not win. **The shipped default of 3 is at or near the optimum,
+tested on both sides** — a stronger statement than a bare null, and the exact reverse of the
+"epochs 2 is the surviving candidate" claim I made this morning off the confounded time-boxed arms
+(28 vs 26 generations).
+
+The `ep2_10` arm existed all day from `epochs_ab2` and cost one match to use. The mirror test was
+worth running precisely because the day's other evidence pointed the *other* way: `distill_gap`
+shows the search-minus-eval gap growing with strength, which made "the net is not fitted hard
+enough" a live explanation. It is not: 10 epochs buys nothing.
+
 ## Gating does not help from scratch — and the gate rolls back on noise
 
 ```
@@ -89,7 +108,7 @@ killed it. That — not another hyperparameter — is where the remaining streng
 | draw filter, horizon | closed |
 | datagen depth | closed — the effect was search PARITY (odd vs even), not depth |
 | blend 1.00 | **dead** — advantage is depth-2 only (depth shift z = 4.4) |
-| epochs 2 | **dead** — 0.498 / 0.473 / 0.448 once arms are matched; **3 is better** |
+| epochs | **3 is the OPTIMUM, tested both sides** — 2 loses (0.448 ± 0.022 @ d4), 10 does not win (0.485 ± 0.022 @ d4) |
 | `--gate-every 5` | no depth-4 gain (0.502 ± 0.022) |
 
 **What the loop actually does:** from scratch it reaches ~0.82 in **10 generations** and is flat by
