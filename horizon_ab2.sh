@@ -47,6 +47,17 @@ LEARN=${LEARN:-/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e2
 
 [ -x "$LEARN" ] || { echo "no learn at $LEARN"; exit 1; }
 
+# CLEAR STALE OUTPUTS FIRST. v2 writes the same hz_<cap>.log filenames v1 used, and v1's
+# hz_1000.log sat here for five hours after that run was abandoned -- long enough that the verdict
+# block would have compared a FRESH cap-10 arm against a STALE cap-1000 arm from a different
+# experiment with a different metric, and printed it as a result. Removing them makes a missing arm
+# read as MISSING rather than as an old number.
+#
+# APPLIED AFTER the run finished, not during it. Editing this file mid-run is what killed the
+# verdict block with a syntax error at line 69 -- bash reads by byte offset, and reverting within a
+# minute did NOT undo it.
+rm -f hz_10.log hz_1000.log
+
 echo "=== horizon A/B v2: cap 10 (fixed) vs cap 1000 (widening), $GENS generations, nothing gated ==="
 echo "=== verdict = built-in final control vs the FROZEN ORIGIN, not the gate rate ==="
 for CAP in 10 1000; do
