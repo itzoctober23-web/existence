@@ -20,8 +20,16 @@ use pipeline::gate;
 fn row(label: &str, sc: &gate::Score) {
     let n: u32 = sc.pent.iter().sum();
     let mid = sc.pent[2];
+    // W-D-L SEPARATES THE TWO WAYS TO GET AN ALL-MIDDLE PENTANOMIAL, and they need OPPOSITE fixes:
+    //   * identical play  -> each pair is one win + one loss (mirrored), so draws == 0
+    //   * everything draws -> draws == games, wins == losses == 0
+    // The pentanomial alone cannot tell them apart; both land every pair in bucket 2.
+    let kind = if sc.draws == 0 && sc.wins > 0 { "MIRRORED (identical play)" }
+               else if sc.wins == 0 && sc.losses == 0 { "ALL DRAWN (no decisive game)" }
+               else { "mixed" };
     println!("  {label:<34} pent {:?}  n={n}  middle={mid} ({:.1}%)  rate {:.3} +/- {:.3}",
              sc.pent, 100.0 * mid as f64 / n.max(1) as f64, sc.pent_rate(), sc.ci95());
+    println!("  {:<34}   W-D-L {}-{}-{}  => {kind}", "", sc.wins, sc.draws, sc.losses);
 }
 
 fn main() {

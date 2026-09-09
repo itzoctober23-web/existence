@@ -45,15 +45,25 @@ fn main() {
 
     for pairs in [6usize, 12, 24, 48] {
         let ph = 1.5 / pairs as f64;
+        // Split the no-signal matches by CAUSE. An all-middle pentanomial arises two ways and they
+        // need opposite fixes: MIRRORED means the mutant plays exactly like the parent (the operator
+        // produced an inert candidate -- more pairs can never help); ALL-DRAWN means the games are
+        // not decisive at these settings (the match setup is the problem, not the sample size).
         let (mut dead, mut sum, mut live) = (0usize, 0.0f64, 0usize);
+        let (mut mirrored, mut alldrawn, mut mixed) = (0usize, 0usize, 0usize);
         for (i, c) in pool.iter().enumerate() {
             let sc = gate::match_progs(&parent, c, &net, t.clone(), 16, pairs,
                                        0x51_0000 ^ (pairs as u64) << 8 ^ i as u64, 4, u64::MAX);
             let ci = sc.ci95();
-            if (ci - ph).abs() < 1e-9 { dead += 1; } else { sum += ci; live += 1; }
+            if (ci - ph).abs() < 1e-9 {
+                dead += 1;
+                if sc.draws == 0 && sc.wins > 0 { mirrored += 1; }
+                else if sc.wins == 0 && sc.losses == 0 { alldrawn += 1; }
+                else { mixed += 1; }
+            } else { sum += ci; live += 1; }
         }
         let m = if live > 0 { sum / live as f64 } else { f64::NAN };
-        println!("  {pairs:>6} {dead:>10} {:>11.1}% {m:>14.4} {:>10.3}",
+        println!("  {pairs:>6} {dead:>10} {:>11.1}% {m:>14.4} {:>10.3}   [mirrored {mirrored}, all-drawn {alldrawn}, mixed {mixed}]",
                  100.0 * dead as f64 / pool.len() as f64, 0.5 + m);
     }
     println!("\n  CROSS-CHECK: the gate logs put the no-signal share at 46.8% (95 of 203) at 6 pairs.");
