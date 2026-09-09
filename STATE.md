@@ -16,9 +16,24 @@ claims later retracted; **this file supersedes them where they disagree.**
 | horizon schedule | **REFUTED** | widening beats narrow-fixed by **+0.064 ± 0.034** |
 | datagen depth | **survives, unreplicated** | 8 deep generations beat 92 shallow, **+0.025 ± 0.013** |
 
-Depth is the only surviving lever. Its effect is smaller than the ~0.07 between-run band, so a
-2-seed replication with `--horizon-cap 45` on both arms is queued. Epochs is a fifth candidate,
-never tested on a working metric, also queued.
+Depth is the only surviving lever *among the four named candidates*. Its effect is smaller than the
+~0.07 between-run band, so a 2-seed replication with `--horizon-cap 45` on both arms is queued.
+Epochs is a fifth candidate, never tested on a working metric, also queued.
+
+### The training target's BLEND outweighs all four
+
+`target = (1 - blend) * z + blend * root` — blend weights the net's own search score against the
+game outcome. Measured on the frozen-origin metric, 20 generations, identical seed:
+
+| blend | vs frozen origin |
+|---|---|
+| 0.75 (shipped) | **0.847 ± 0.022** |
+| 0.25 | **0.735 ± 0.025** |
+
+**+0.112 ± 0.033** — bigger than draws (+0.086), horizon (+0.064) or depth (+0.025), and clear of
+the between-run band. Controlled by an identity check: both arms report `dec 389/2400` at generation
+1, before any training, so they diverge only downstream of the target. No improvement is available
+(0.75 is already shipped); the high side is queued as `blend_hi.sh`. Detail in `blend_RESULT.md`.
 
 ### Every cheap proxy for strength has failed
 
@@ -30,6 +45,24 @@ never tested on a working metric, also queued.
 
 Only games against a **fixed anchor** have resolved anything. They cost ~1,650 pairs to resolve one
 generation's real edge, which is why they are not the per-generation metric.
+
+### The champion gate COMPRESSES — it does not invert. This decides which old results survive
+
+The blend arms were measured on both instruments, giving the first direct calibration:
+
+| 0.75 − 0.25 | champion gate rate | vs frozen origin |
+|---|---|---|
+| | +0.036 ± 0.016 | **+0.112 ± 0.033** |
+
+Same direction, ~3× the magnitude. Therefore:
+
+* a **DIRECTION** from the champion gate is probably safe — it got the blend ordering right;
+* a **NULL** from it is worthless, because compression manufactures nulls. It cannot distinguish
+  *equal* from *invisible*.
+
+**Every "these arms are indistinguishable" reading taken on the champion gate must be re-asked**,
+starting with main.rs's flat 0.75/0.85/0.95/1.00 plateau and its conclusion that "the game outcome
+contributes nothing measurable".
 
 ### The search track: why it produced nothing, and what changed
 
@@ -84,7 +117,19 @@ generation's real edge, which is why they are not the per-generation metric.
 
 ## Queue (core 15, chained by PID)
 
-blend A/B v2 → ratchet test → depth replication (horizon-capped, pre-flight verified) → epochs A/B v2
+blend A/B v2 (arm 0.00 running) → ratchet test → depth replication (horizon-capped, pre-flight
+verified) → epochs A/B v2 → **blend_hi** (1.00 vs 0.85 vs re-run 0.75 control)
+
+`blend_hi` also re-runs 0.75 with the same binary and seed as a determinism check. If it does not
+reproduce 0.847 ± 0.022, the ~0.07 band is RUN variance rather than SEED variance and no cross-run
+comparison in this investigation is safe — read that before reading its blend answer.
+
+## Open, partially answered
+
+**Is the speedup acceptance path reachable?** `stepdiff` at 25/60: identical 15, **cheaper 0**;
+different 7, guard-ok 0. Trending toward the path being correct-but-empty — a fourth inert feature.
+The widened 33-position identity check is committed but deliberately NOT deployed, since restarting
+a live search-track run to strengthen a path that has never fired would cost real generations.
 
 ## Not started
 
