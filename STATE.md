@@ -2995,7 +2995,7 @@ just re-verified independently (the two arms' gen-1 lines are md5-identical).
 lever, ahead of raising `gate_pairs`, because it acts upstream of the measurement that raising pairs
 would improve.
 
-## ⛔ SPEC_FILTER IS UNTESTABLE UNTIL PATH 1 RE-CHECKS COST — measured in 4 generations
+## ⛔ SPEC_FILTER IS UNTESTABLE UNTIL PATH 1 RE-CHECKS COST — measured in 2 generations
 
 The SPEC cells were stopped. Not churn: they provably could not answer the question they were launched
 for, and the evidence is unambiguous.
@@ -3010,7 +3010,8 @@ gen 1 MCTS  ACCEPT speedup: play IDENTICAL on all 31 guard positions, 0.001406 w
 gen 2 MCTS  ACCEPT speedup: play IDENTICAL on all 31 guard positions, 0.001406 was 0.001406
 ```
 
-8 consecutive accepts, rate never moving, and **not one candidate-statistics line or gate call** — the
+**4 accepts per arm across 2 generations** (one per lineage each generation), 8 across both SPEC
+cells, rate never moving, and **not one candidate-statistics line or gate call** — the
 control at the same generations prints `..none (8 cand, 0 ill, ... rates 0.497-0.496943x ...)`.
 
 **The mechanism, verified rather than inferred.** PATH 1 accepts on `same_play` ALONE. Its own comment
@@ -3022,6 +3023,12 @@ picks on `r >= 0.9 * best_rate`, so a candidate that is WORSE reaches PATH 1 and
 So under SPEC the loop replaces its champion every generation with a program that plays identically at
 identical cost, and nothing ever reaches the gate. **The SPEC cells cannot produce gate data at all**,
 which makes 25 generations on two cores worth nothing.
+
+**Count corrected 2026-09-09:** this section first said "4 generations". `factorial_report.sh`'s
+GENS column was counting LOG LINES, and each generation emits one per lineage, so every arm read
+double. The column now counts distinct generation numbers and cross-checks against the last `gen N`
+line in each log. The finding is unchanged — every generation, both lineages, a no-op accept with
+the rate unmoved — but the number of generations it took was half what I wrote.
 
 **Not fixed in code, deliberately.** `evolve.rs` is the source of live arms, and patching it mid-run
 was the wrong instinct — the analysis could separate the two cases without touching anything, and

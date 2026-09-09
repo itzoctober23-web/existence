@@ -24,7 +24,9 @@ printf "%-11s %-5s %-6s %-6s %-11s %-9s %-8s %s\n" CELL GENS PROMO NO-OP GATE-CA
 for cell in s1-control:gate_control_arm.log s1-veto:gate_veto_arm.log s2-control:gate_control_s2.log s2-veto:gate_veto_s2.log; do
   name=${cell%%:*}; f=${cell#*:}
   [ -f "$f" ] || { printf "%-12s (no log yet)\n" "$name"; continue; }
-  gens=$(grep -cE '^ *gen +[0-9]+ ' "$f")
+  # DISTINCT generations, not log lines. Each generation emits ONE line PER LINEAGE (MAIN + MCTS),
+  # so counting lines reports double -- I read "gens 4" for an arm whose last line was gen 2.
+  gens=$(grep -oE '^ *gen +[0-9]+' "$f" | awk '{print $2}' | sort -un | wc -l)
   # PROMO SPLIT. PATH 1 accepts on `same_play` ALONE. Its own comment defines the path as identical
   # play "AND COSTS LESS", but the cost half was guaranteed by the caller: the strict filter picks
   # only when rate > best_rate. SPEC_FILTER picks on r >= 0.9*best_rate, so under SPEC a candidate
