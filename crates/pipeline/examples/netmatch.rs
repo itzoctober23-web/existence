@@ -51,6 +51,32 @@ fn main() {
     // differing widths is a legitimate comparison, but it must be VISIBLE in the output or a
     // capacity difference gets read as a training difference.
     println!("netmatch: {pa} (w{}) vs {pb} (w{})", na.n_hidden, nb.n_hidden);
+
+    // ARM SIZES, PRINTED ALWAYS. Three separate results today were confounded by arms that did
+    // unequal amounts of training, and every one was caught (or missed) here, at the comparison:
+    //   batch_ab       11 generations vs 5
+    //   depth_parity   96 vs ~1
+    //   the epochs sweep  28 vs 26  -- which is what made epochs look like a winner for two days
+    // The last one survived because I used ep_*.net without ever reading its settings line. A
+    // number that does not carry its arm size can be read as a setting effect when it is a training
+    // effect, so the size now travels with every result this tool prints.
+    let gens = |spec: &str| -> Option<usize> {
+        let log = spec.strip_suffix(".net")?.to_string() + ".log";
+        let txt = std::fs::read_to_string(log).ok()?;
+        Some(txt.lines().filter(|l| l.starts_with("gen ")).count())
+    };
+    if let (Some(ga), Some(gb)) = (gens(&pa), gens(&pb)) {
+        print!("  arms: {ga} vs {gb} generations");
+        if ga != gb {
+            // ~0.0114 per generation is the measured per-generation edge in this tree.
+            let bias = (ga as f64 - gb as f64).abs() * 0.0114;
+            println!("  <-- UNEQUAL by {}, worth ~{bias:.3} of advantage on its own",
+                     (ga as i64 - gb as i64).abs());
+            println!("  Any effect smaller than that is training amount, not the setting under test.");
+        } else {
+            println!(" (matched)");
+        }
+    }
     let std_note = if depth == 4 { " (project standard for strength)" }
                    else if depth == 2 { " (DATAGEN depth -- NOT the strength standard, which is 4)" }
                    else { "" };
