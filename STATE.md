@@ -3135,3 +3135,53 @@ between two quantities is how an inert diagnostic hides, and this file has alrea
 **What this points at.** The lever is not the operator set's expressiveness and not the type checker —
 it is that half of all well-typed candidates break a mate, and the survivors change the surrogate by
 under 2%. That is consistent with 46.8% of gate decisions measuring no signal.
+
+## 🔑 TWO MORE PRE-SIZED, NEVER-RUN KNOBS — `EXISTENCE_GUARD_TOL` and `EXISTENCE_EPS`
+
+Found by following today's measurement rather than guessing: the mate guard rejects **53.3% of
+well-typed candidates**, far more than the type checker's 2.5%, so it is the dominant filter in the
+pipeline. `evolve.rs:1033-1046` already exposes a knob for exactly that, **sized from `valleyall`
+rather than invented**:
+
+> *"guard_tolerance 4 -> 7 — the mates floor rises from 21 to 18, which admits capture extension
+> (18/25 mates, and the ONLY reference program that scores on the hard set). It does NOT admit any
+> exploit: UCT is 10, depth-one 5, proof-number 4, all still under 18."*
+
+And a second: *"eps 0.02 -> 0.10 — iterative deepening sits at 0.914x and needs 0.086 of tolerance to
+survive into the population."*
+
+**Neither has ever been run.** Verified the way SPEC_FILTER was: absent from every `.log`, every
+`.md`, every `.sh`, and every running process's environment; only the commits that added them touch
+them.
+
+### Why these are safe where SPEC_FILTER was not
+
+SPEC_FILTER changed `pick` to admit `r >= 0.9 * best_rate`, which broke PATH 1's unstated assumption
+that anything reaching it already had `rate > best_rate` — producing 4 no-op "speedup" accepts per arm
+and no gate calls at all. These two knobs act **earlier and elsewhere**: `guard_floor` filters
+offspring into the pool (`evolve.rs:1724`) and `EPS` trims the pool to within `(1-EPS)` of the top
+(`:1729`). `pick` remains the strict `popn[0].2 > best_rate`, so **PATH 1's invariant holds** and the
+degeneracy cannot recur. Checked before launching, not after.
+
+### Running: GUARD_TOL=7 at seed 2, against the seed-2 control
+
+**Bind check passed live** — an inert flag would make this an A/A that still prints a verdict, which
+this tree has shipped three times under other names:
+
+```
+gtol=7 : lineage MAIN  seed 71 nodes, budget 16 -> 23/23 mates (floor 16)
+gtol=4 : lineage MAIN  seed 71 nodes, budget 16 -> 23/23 mates (floor 19)
+```
+
+Same seed, same mate count, floor moved 19 → 16. The knob binds.
+
+**PRE-REGISTERED:**
+* **More candidates reach the gate and the VERIFY lines confirm the promoted ones** ⇒ the mate guard
+  was the binding filter, which is what the 53.3% rejection rate predicts.
+* **More candidates reach the gate but VERIFY scores them below 0.5** ⇒ the tolerance admits junk and
+  the strict floor was doing real work. A genuine result that closes the knob.
+* **No change** ⇒ the rejected 53.3% were not near the floor, and relaxing it by 3 mates reaches none
+  of them.
+
+`EXISTENCE_EPS` remains untested and is the next knob in line; it is not run now because two levers at
+once on one seed cannot be separated.
