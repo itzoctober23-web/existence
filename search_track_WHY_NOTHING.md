@@ -385,3 +385,47 @@ survival rate hardly at all. Both semantics are destructive for the same reason:
 The `pred` fix remains correct and necessary — it is what made rung 6 fire at all, and rung 6 is the
 first family member measured to play differently. It simply did not do the thing I predicted it
 would do to the population, and the prediction is recorded as failed rather than quietly dropped.
+
+
+---
+
+## The obvious fix is dead: measured, before implementing it
+
+The crux ("0 of 33 behaviour-changing edits pass an all-or-nothing guard") suggests one fix: allow
+a candidate to LOSE a couple of guard positions. The loss distribution looked encouraging —
+
+```
+guard positions lost by the 33 behaviour-changing candidates (of 25):
+  lost  2:  3      lost  6:  7      lost 22:  2
+  lost  3:  3      lost  7:  6      lost 25:  8
+  lost  5:  3      lost  9:  1
+```
+
+— minimum 2, with a clean gap before the catastrophic cluster. A tolerance of 2 would admit 3 of 33
+where the current guard admits zero.
+
+**Then I measured what the known exploits lose, instead of asserting it.**
+
+| program | guard score | LOSES | mates/Mcost |
+|---|---|---|---|
+| seed | 25/25 | — | 1.00x |
+| DEPTH exploit (`d==0` → `d==1`) | 16/25 | **9** | **7.37x** |
+| ALPHA exploit (`neg(INF)` → `8`) | 23/25 | **2** | **1.29x** |
+
+**The alpha exploit loses exactly 2 — the same as the minimum a genuine change loses.** A tolerance
+of 2 re-admits it, and at 1.29x the seed's rate it is accepted instantly and the search degenerates.
+A tolerance of 1 admits nothing, since no genuine change loses fewer than 2. **No tolerance value
+separates the classes.**
+
+I had asserted both exploits lose 5, "by construction", because the disagreement and window subsets
+are 5 positions each. Both numbers were wrong — 9 and 2. That is the fourth time this session that
+reasoning from construction disagreed with measurement, and the first three were caught the same
+way.
+
+### Why this matters beyond the dead fix
+
+Loss-count cannot separate an exploit from an improvement, and neither can rate: the alpha exploit
+posts 1.29x, which any rate-based rule would reward. The two classes are distinguishable only by
+whether the different moves are BETTER — which is playing strength, which is games. Every route out
+of this loop now terminates at the same place, and at the same measured price of ~1,650 pairs per
+generation.

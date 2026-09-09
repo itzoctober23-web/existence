@@ -814,6 +814,89 @@ fn step_diff() {
     }
 }
 
+
+/// DO THE KNOWN EXPLOITS LOSE MORE GUARD POSITIONS THAN GENUINE CHANGES? `evolve exploitcheck`
+///
+/// The guard-loss distribution says a tolerance of 2 would admit 3 of 33 behaviour-changing single
+/// edits where the current all-or-nothing guard admits ZERO. That fix is only safe if the known
+/// EXPLOITS lose MORE than the tolerance -- otherwise loosening the guard re-admits exactly what it
+/// was built to stop.
+///
+/// I asserted they lose 5 "by construction" (the disagreement and window subsets are 5 positions
+/// each, and an exploit fails its whole subset). Asserting is not measuring, and 3 candidates in
+/// the distribution already sit at exactly 5, so the margin is thin enough to need the number.
+///
+/// Both exploits are reconstructed directly rather than loaded: the saved .prog files are `{:#?}`
+/// Debug dumps, readable but not parseable back. These are the two the search track actually found:
+///   * DEPTH   -- `Const(0)` -> `Const(1)` in the horizon guard `if d == 0: ret eval(p)`, so it
+///                searches one ply less. 11x cheaper, all mates intact.
+///   * ALPHA   -- the root call's `neg(INF)` -> `Const(8)`, raising initial alpha and pruning every
+///                move worth under 8 centipawns.
+fn exploit_check() {
+    use grammar::ast::{ArithOp, Rel};
+    let depth: i64 = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(3);
+    let net = Net::random(32, 20260907);
+    let mut guard = mate_set(15);
+    guard.extend(disagreement_set(5, depth, &net, 4_000));
+    guard.extend(window_sensitive_set(5, depth, &net, 8, 4_000));
+    let seed = reference::bare_alpha_beta();
+    let (gf0, _, r0) = fitness(&seed, &guard, &net, depth, 16);
+    println!("=== known exploits vs the {}-position guard, depth {depth} ===", guard.len());
+    println!("  seed: {gf0}/{} at {r0:.6} mates/Mcost", guard.len());
+
+    // Rewrite the FIRST node matching a predicate, anywhere in the tree.
+    fn rewrite(n: &Node, f: &dyn Fn(&Node) -> Option<Node>) -> Node {
+        if let Some(r) = f(n) { return r; }
+        use Node::*;
+        match n {
+            Arith(o, a) => Arith(*o, a.iter().map(|x| rewrite(x, f)).collect()),
+            Call(i, a) => Call(*i, a.iter().map(|x| rewrite(x, f)).collect()),
+            TRead(i, a) => TRead(*i, a.iter().map(|x| rewrite(x, f)).collect()),
+            If(c, t, e) => If(Box::new(rewrite(c, f)), Box::new(rewrite(t, f)),
+                              e.as_ref().map(|x| Box::new(rewrite(x, f)))),
+            Cmp(a, b, r) => Cmp(Box::new(rewrite(a, f)), Box::new(rewrite(b, f)), *r),
+            Let(s2, a, b) => Let(s2.clone(), Box::new(rewrite(a, f)), Box::new(rewrite(b, f))),
+            Foreach(a, s2, b) => Foreach(Box::new(rewrite(a, f)), s2.clone(), Box::new(rewrite(b, f))),
+            Argmax(a, s2, b) => Argmax(Box::new(rewrite(a, f)), s2.clone(), Box::new(rewrite(b, f))),
+            Set(s2, a) => Set(s2.clone(), Box::new(rewrite(a, f))),
+            Ret(a) => Ret(Box::new(rewrite(a, f))),
+            Max(a, b) => Max(Box::new(rewrite(a, f)), Box::new(rewrite(b, f))),
+            other => other.clone(),
+        }
+    }
+
+    // DEPTH exploit: the horizon guard's Const(0) becomes Const(1).
+    let mut dex = seed.clone();
+    dex.funcs[1].body = rewrite(&seed.funcs[1].body, &|n| match n {
+        Node::Cmp(a, b, Rel::Eq) => match (&**a, &**b) {
+            (Node::Var(v), Node::Const(0)) if v == "d" =>
+                Some(Node::Cmp(a.clone(), Box::new(Node::Const(1)), Rel::Eq)),
+            _ => None,
+        },
+        _ => None,
+    });
+    // ALPHA exploit: the root call's neg(INF) becomes Const(8).
+    let mut aex = seed.clone();
+    aex.funcs[0].body = rewrite(&seed.funcs[0].body, &|n| match n {
+        Node::Arith(ArithOp::Neg, a) if a.len() == 1 => match &a[0] {
+            Node::TRead(1, _) => Some(Node::Const(8)),
+            _ => None,
+        },
+        _ => None,
+    });
+
+    for (name, prog) in [("DEPTH exploit (d==0 -> d==1)", dex), ("ALPHA exploit (neg INF -> 8)", aex)] {
+        let changed = format!("{:?}", prog) != format!("{:?}", seed);
+        let (gf, _, r) = fitness(&prog, &guard, &net, depth, 16);
+        println!("  {name:<32} built={changed}  scores {gf}/{}  LOSES {}  rate {:.6} ({:.2}x seed)",
+                 guard.len(), gf0.saturating_sub(gf), r, r / r0.max(1e-12));
+    }
+    println!("\n  Genuine behaviour-changing single edits lose a MINIMUM of 2 (measured, n=33).");
+    println!("  If both exploits lose strictly more than 2, a tolerance of 2 separates the classes");
+    println!("  and is safe. If either loses 2 or fewer, loosening the guard re-admits the exploit");
+    println!("  and the idea is dead.");
+}
+
 fn read_declared(path: &str) -> (usize, f64, i64, i64) {
     let txt = std::fs::read_to_string(path).unwrap_or_else(|e| {
         panic!("declared parameters missing at {path}: {e}. This file is part of the Given \
@@ -975,6 +1058,9 @@ fn main() {
     }
     if std::env::args().nth(1).as_deref() == Some("stepdiff") {
         return step_diff();
+    }
+    if std::env::args().nth(1).as_deref() == Some("exploitcheck") {
+        return exploit_check();
     }
     let gens: usize = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(30);
     let pop: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(24);
