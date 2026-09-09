@@ -439,6 +439,57 @@ fn read_declared(path: &str) -> (usize, f64, i64, i64) {
      bmcts.expect("configs/search_track.conf declares no `budget_mcts`"))
 }
 
+
+/// Positions the SEED GETS WRONG at the fitness depth — the gradient the fitness has never had.
+///
+/// WHY THIS EXISTS. search_track_WHY_NOTHING.md measured the MAIN lineage as having no usable
+/// gradient at all: the seed scores 25/25 on the existing set, the guard is `f >= best_found`, so
+/// every survivor also scores exactly 25 and MATES CANNOT DISCRIMINATE. Selection then falls
+/// entirely to cost, and across 93 generations with survivors, ZERO were ever cheaper than the
+/// champion. One dimension saturated, the other blocked.
+///
+/// `disagreement_set` already finds positions whose answer changes with depth, but it records the
+/// answer at the FITNESS depth, so the seed is right on them by construction — it is a guard, not
+/// a gradient. This records the answer one ply DEEPER, so the seed is WRONG on them by
+/// construction, and a candidate that searches better can be right.
+///
+/// THAT IS THE POINT: it rewards SEARCHING BETTER rather than merely searching cheaper. A capture
+/// extension resolves a tactical line the flat-depth seed truncates, so it can convert here; a
+/// program that just prunes more cannot. Rung 6 of the GRAMMAR 9 ladder becomes reachable as an
+/// improvement instead of scoring 0.985x and being discarded.
+///
+/// Still rules-derived and chess-blind: the "correct" answer is the SEED's own answer at depth+1.
+/// No human labels, no engine oracle, no chess knowledge — the same self-calibrating construction
+/// as the depth and window guards, which is what makes it legitimate under the tabula-rasa rule.
+fn harder_set(n: usize, depth: i64, net: &Net, cap: usize)
+    -> Vec<(Position, Option<board::Move>)> {
+    let ab = reference::bare_alpha_beta();
+    let mut rng: u64 = 0x4A8D_3117;
+    let mut out = Vec::new();
+    let mut tries = 0;
+    while out.len() < n && tries < cap {
+        tries += 1;
+        let mut p = Position::startpos();
+        for _ in 0..(10 + rng % 34) {
+            let l = p.legal_moves();
+            if l.is_empty() { break; }
+            rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
+            p.make_move(l.as_slice()[(rng % l.len() as u64) as usize]);
+        }
+        if p.legal_moves().is_empty() { continue; }
+        let mut here = Interp::new(net, vec![depth, 32_000, 8]);
+        let a = here.run(&ab, &p, 16);
+        let mut deeper = Interp::new(net, vec![depth + 1, 32_000, 8]);
+        let b = deeper.run(&ab, &p, 16);
+        // Both real answers, and they must DIFFER: the deeper one is recorded as correct, so the
+        // seed at the fitness depth scores zero here.
+        if a != board::types::MOVE_NONE && b != board::types::MOVE_NONE && a != b {
+            out.push((p.clone(), Some(b)));
+        }
+    }
+    out
+}
+
 fn tt_prims(p: &Program) -> usize {
     fn walk(n: &Node) -> usize {
         use Node::*;
@@ -535,6 +586,12 @@ fn main() {
     // it CANNOT resolve a 2% edge and is not asked to. It is a veto on unplayable programs.
     let gate_pairs: usize = std::env::args().nth(7).and_then(|s| s.parse().ok()).unwrap_or(6);
     let win = window_sensitive_set(n3, depth, &net, 8, 4_000);
+    // THE UNSATURATED DIMENSION, measured before anything is built on it. The seed is WRONG on
+    // these by construction (the recorded answer is its own at depth+1), so unlike the 25/25 guard
+    // set they can DISCRIMINATE. Scored and reported per generation; acceptance is NOT changed
+    // yet, because the claim "a better-searching candidate can win these" is exactly the sort of
+    // thing that should be measured before a fitness is restructured around it.
+    let hard = harder_set(8, depth, &net, 3_000);
     let n_win = win.len();
     let n_deep = deep.len();
     set.extend(deep);
@@ -588,6 +645,9 @@ fn main() {
             accepted: 0,
         });
     }
+    let (seed_hard, _, _) = fitness(&reference::bare_alpha_beta(), &hard, &net, depth, budget_main);
+    println!("  HARD set: {} positions the seed FAILS by construction; seed scores {seed_hard}/{} \
+(a real gradient, unlike the saturated 25/25 guard set)", hard.len(), hard.len());
     println!("  population MU={MU}, lambda={pop}, plateau tolerance EPS={EPS:.3} \
 (deepest measured valley half is 0.009)");
 
@@ -666,11 +726,11 @@ fn main() {
             let ill = pop - cands.len();
             const THREADS: usize = 3;
             let chunk = cands.len().div_ceil(THREADS).max(1);
-            let scored: Vec<(Program, u32, f64)> = std::thread::scope(|sc| {
+            let scored: Vec<(Program, u32, f64, u32)> = std::thread::scope(|sc| {
                 let handles: Vec<_> = cands
                     .chunks(chunk)
                     .map(|part| {
-                        let (set, net) = (&set, &net);
+                        let (set, net, hard) = (&set, &net, &hard);
                         sc.spawn(move || {
                             part.iter()
                                 .map(|c| {
@@ -710,8 +770,11 @@ fn main() {
                                         std::panic::AssertUnwindSafe(|| fitness(c, set, net, depth, bud)),
                                     );
                                     match r {
-                                        Ok((f, _cst, rate)) => (c.clone(), f, rate),
-                                        Err(_) => (c.clone(), 0, 0.0),
+                                        Ok((f, _cst, rate)) => {
+                                            let (hf, _, _) = fitness(c, hard, net, depth, bud);
+                                            (c.clone(), f, rate, hf)
+                                        }
+                                        Err(_) => (c.clone(), 0, 0.0, 0),
                                     }
                                 })
                                 .collect::<Vec<_>>()
@@ -722,6 +785,15 @@ fn main() {
             });
 
             let n_scored = scored.len();
+            // HARD-SET RANGE across candidates that pass the correctness guard. If this never
+            // varies, the gradient does not exist and restructuring acceptance around it would
+            // have achieved nothing -- which is why it is measured first.
+            let hard_scores: Vec<u32> =
+                scored.iter().filter(|(_, f, _, _)| *f >= best_found).map(|(_, _, _, h)| *h).collect();
+            let (hlo, hhi) = (hard_scores.iter().min().copied().unwrap_or(0),
+                              hard_scores.iter().max().copied().unwrap_or(0));
+            let scored: Vec<(Program, u32, f64)> =
+                scored.into_iter().map(|(p, f, r, _)| (p, f, r)).collect();
             let mate_ok = scored.iter().filter(|(_, f, _)| *f >= best_found).count();
             let rel: Vec<f64> = scored
                 .iter()
@@ -788,7 +860,7 @@ fn main() {
                 let span = if rel.is_empty() { "none".to_string() }
                            else { format!("{rlo:.3}-{rhi:.3}x") };
                 println!("  gen {g:>3} {:<5} ..none ({n_scored} cand, {ill} ill, mate-ok {mate_ok}, \
-rates {span})  pop {} spread {:.6}-{:.6} tt{:?}",
+rates {span}, hard {hlo}-{hhi})  pop {} spread {:.6}-{:.6} tt{:?}",
                          lineages[li].name, popn.len(), spread_lo, spread_hi, tt);
             }
         }
