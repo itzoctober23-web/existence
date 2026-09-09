@@ -1,6 +1,26 @@
-# The P2 game gate is UNDERPOWERED, not mis-ruled and not cost-blind
+# The P2 game gate: why 0 accepts in 203 decisions, and what replaced it
 
-**Status: the "nothing is ever promoted" symptom is explained. The fix is not yet sized.**
+**STATUS 2026-09-09, end of day — the symptom is explained, the cause is measured, and the fix is
+BUILT AND RUNNING. This file was written top-down over a day and later sections CORRECT earlier ones;
+read this summary first.**
+
+| question | answer | where |
+|---|---|---|
+| Why 0 accepts in 203 decisions? | The bar was never inside the achievable range. Max rate ever seen **0.542**; the strict bar needs **> 0.5 + ci95** | §1 |
+| Is it cost-blindness? | No — probe returned INCONCLUSIVE and its premise (`capture_extension` is stronger) was false | §"cost-blindness" |
+| Is it the acceptance rule? | Partly, but not mainly | §"supersedes both" |
+| What is it mainly? | **46.8% of decisions measured NOTHING** — `gate.rs` returns a `1.5/n` placeholder on zero variance | §"CORRECTION TO MY OWN HEADLINE" |
+| Why zero variance? | The games are **80.6% draws** on the real population; the no-signal case is `0-12-0`, every game drawn | §"DEFINITIVE" |
+| Why so drawish? | The gate plays with `Net::random(32, …)` — an untrained net — from a **balanced** 4-random-ply start | §"ROOT CAUSE" |
+| So: more pairs? | **Half right.** Correct for the ~53% that measure something; useless for the drawish half, where more pairs buy more draws | §"DEFINITIVE" |
+| Is depth the lever? | No — halves draws but delivers **0.33x the information per CPU-second** | §"depth" |
+| What IS the fix? | **Sequential SPRT** (FITNESS 7), which spends evidence where it is ambiguous. Built, wired, running on two arms | §"SIZING" |
+| What did sizing cost? | Two configurations that would have guaranteed a non-answer: `max_pairs=100` and the [3,5] band | §"SIZING", §"CAN THE GATE ACCEPT" |
+
+**Superseded claims, left in place with their corrections rather than deleted:** "mean ci95 0.177" (it
+averaged placeholders with measurements), "0.250 is the number that matters for sizing" (the A/A
+distribution is degenerate), "not one candidate has won a game" (one has, 1 in 60), and "202
+decisions" (203). Each is marked where it appears.
 
 ## The measurement
 
