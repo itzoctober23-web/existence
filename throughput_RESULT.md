@@ -202,3 +202,44 @@ quick win, and it should not be started on the assumption that a hot spot is wai
 | make/unmake | 46 ns | negligible — and why the incremental accumulator loses below width 64 |
 
 The shuffle is the only single change on the board with a measured double-digit percentage behind it.
+
+### REFUTED end-to-end: the shuffle's 12% does not survive a real search
+
+The multiply-shift shuffle was implemented at both sites (`pipeline/src/search.rs`,
+`engine/src/search.rs`), built to a separate target, and measured against the unchanged binary.
+**It is reverted.** Best-of-3 at each depth, same position set, same core:
+
+| depth | arm | nodes | nps | wall-clock |
+|---|---|---|---|---|
+| 3 | modulo | 14,205 | 847,378 | 0.017s |
+| 3 | mul-shift | 16,218 | 1,181,636 | 0.014s |
+| 4 | modulo | 114,634 | 825,742 | **0.139s** |
+| 4 | mul-shift | 121,562 | 861,684 | 0.141s |
+| 5 | modulo | 1,954,379 | 840,993 | **2.324s** |
+| 5 | mul-shift | 2,082,748 | 857,079 | 2.430s |
+
+**Two things went wrong with the prediction, and they compound.**
+
+1. **The per-node saving is ~2-4%, not 12%.** The microbenchmark timed the division in a tight loop
+   where its latency is fully exposed. In a real search the surrounding work — table loads, branches,
+   the eval — hides most of it under out-of-order execution. A microbenchmark measures a primitive's
+   cost in isolation; that is an upper bound on what removing it can buy, not an estimate.
+2. **The tree grew 6-7% at every depth.** The two shuffles draw different permutations, so the arms
+   do NOT do the same work, and the new one happened to order moves worse for alpha-beta. Three
+   depths all point the same way, but they share one position set, so this is 3 correlated samples,
+   not 3 independent ones — the direction is suspicious, the magnitude is not established.
+
+Net: at depths 4 and 5 the "faster" version is **slower in wall-clock** (0.141 vs 0.139, 2.430 vs
+2.324). The nps column alone would have reported a win, which is exactly the trap the standing rule
+names — *prove both arms did the same work before believing a speed ratio*. Here they demonstrably
+did not, and node count was the tell.
+
+**What this closes.** The only single change with a measured double-digit percentage behind it does
+not pay. Combined with the movegen decomposition finding no hot spot, and eval sitting at third,
+**there is no cheap throughput win available in this engine.** The ~10x that would let depth-3
+datagen win at equal wall clock is not reachable by micro-optimisation, and the honest consequence is
+that MASTER_PLAN's "make deep search cheap enough" route needs a structural change (the bytecode, or
+a fundamentally cheaper movegen), not a tuning pass.
+
+**Kept as a method note:** `node_profile` is still useful for RANKING components. It is not usable for
+predicting end-to-end gains, and this is the measurement that establishes the difference.
