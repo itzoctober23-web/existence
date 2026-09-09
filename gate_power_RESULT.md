@@ -270,3 +270,49 @@ produced them.
 **What this costs me:** the fix is not the single knob I implied. Half the decisions need a gate that
 can produce decisive games at all; only the other half needs more pairs. Sizing `gate_pairs` on the
 mixed average would have been sizing against a number that is half placeholder.
+
+---
+
+## ✅ RESOLVED: the zero-variance case is BOTH mechanisms — and drawishness dominates
+
+The A/A at the gate's own sample size (6 pairs), with W-D-L:
+
+```
+  A/A  seed vs ITSELF   pent [0, 0, 6, 0, 0]  middle 6/6 (100%)  rate 0.500 +/- 0.250
+                        W-D-L 2-8-2
+```
+
+**8 of 12 games drawn (66.7%); the 4 decisive games split 2-2, perfectly mirrored.** That is exactly
+what two identical deterministic programs must produce — the same game twice with colours swapped —
+so it doubles as a validity check on the harness. `ci95` is 0.250 = 1.5/6, the zero-variance
+placeholder, confirming the path.
+
+### It is not MIRRORED *or* ALL-DRAWN. It is both, and the draws dominate
+
+Every pair lands in bucket 2 by one of two routes: a **drawn pair** (DD) or a **mirrored pair**
+(WL/LW). Here two thirds arrive by the first route and one third by the second. Both mechanisms are
+real; the question posed as an either/or had a false premise.
+
+### Replicated on the real gate population
+
+The first W-D-L ever logged on an actual gate decision — candidate against champion, not a self-match —
+read `0-8-4`: **also 8 draws of 12, also 66.7%**. Two independent measurements on different program
+pairs agree on the draw rate to the game.
+
+| measurement | W-D-L | draws |
+|---|---|---|
+| A/A, seed vs itself, 6 pairs | 2-8-2 | **66.7%** |
+| real gate decision, candidate vs champion | 0-8-4 | **66.7%** |
+
+### What this settles about the fix
+
+At `p(draw) ≈ 2/3`, a 6-pair sample has a substantial chance that every pair ties — which is precisely
+the 46.8% of decisions carrying the placeholder. Raising `gate_pairs` does reduce that probability, so
+it is not useless. But **two thirds of the games carry no signal at all**, and adding pairs buys more
+of the same mixture. The efficient lever is making games decisive — more depth, sharper openings, a net
+that separates — because it attacks the 2/3, where extra pairs only chip at the sampling noise around
+it.
+
+**The earlier framing in this file — "the fix is to raise `gate_pairs`" — is half right.** For the ~53%
+of decisions that measure something, more pairs is the correct and sufficient lever. For the drawish
+half it is the expensive one.
