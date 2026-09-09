@@ -2786,3 +2786,36 @@ gen 3 MAIN  gate REJECT 0.333+/-0.163 (12 games)  surrogate 0.002924  ABOVE:2  n
 What this does NOT yet answer is the question the observer exists for: whether the veto rule's
 ACCEPTS are correct. This decision was a reject, agreed by both rules. The first divergence is at
 generation 4.
+
+### The gate is doing TWO jobs and cannot tell them apart — the veto rule can
+
+Every one of the 17 game-gate calls prints the candidate's surrogate. Comparing each against its own
+lineage's seed rate separates the population cleanly into two kinds:
+
+| kind | lineage | gate rate | surrogate vs seed | implemented rule | veto rule |
+|---|---|---|---|---|---|
+| **surrogate exploits** | MAIN ×9 | 0.292–0.375, resolved DOWN | 1.17–1.26× | reject ✓ | **reject ✓** |
+| **cost improvements** | MCTS ×8 | 0.458–0.542, TIES | **1.01–2.18×** | reject ✗ | **accept ✓** |
+
+**Both groups improve the surrogate. They differ in whether they actually play worse.** The MAIN
+candidates raise mates/Mcost by ~20% while their play resolves BELOW 0.5 — that is the classic
+surrogate exploit, and the game gate exists to catch it. It does, and the veto rule catches it too:
+`rate + ci95 < 0.5` rejects all nine.
+
+The MCTS candidates raise mates/Mcost by up to **2.18×** — nearly double the efficiency — with play
+that ties rather than degrades. The implemented rule rejects them anyway, because a tie is not
+"resolved up".
+
+**So `pent_rate - ci95 > 0.5` is not merely strict — it conflates two opposite cases.** It sees
+"failed to prove itself better" and rejects, whether the candidate is an exploit that plays worse or
+a speedup that plays the same. The distinguishing signal is present in the same numbers it already
+computes: exploits are resolved DOWN, improvements are TIED. `rate + ci95 < 0.5` uses exactly that
+signal, which is why it rejects 9/9 exploits and accepts 8/8 improvements on this data.
+
+That is a considerably better argument for the documented rule than "it promotes more often". It
+promotes the right subset, and rejects the right subset, on every case observed.
+
+**Caveat that keeps this honest:** "improvement" here means surrogate-above-seed, and the surrogate is
+gameable — that is the whole reason the game gate exists. The 96-pair verification observer is the
+independent check, and it has judged one decision so far (a reject, correctly). Until it judges an
+ACCEPT, the claim above rests on the surrogate plus a tie, not on demonstrated strength.
