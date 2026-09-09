@@ -1371,6 +1371,39 @@ The evolve loop selects on the surrogate and only reaches games afterwards, so i
 criterion the ladder demonstrably fails. That is the defect — not the operators, not EPS, not the
 gate's pair count.
 
+**WHY the fixed-time half is unavailable, verified in the interpreter.** GRAMMAR 9's criterion has
+two halves and the loop can only run one of them, because there is no fixed-cost comparison to run.
+`interp/src/lib.rs:427-435` keeps two separate quantities and says so explicitly:
+
+* `budget` — "the value the program RECEIVES as its second parameter ... UCT uses it as a simulation
+  count, **alpha-beta ignores it**";
+* `cost_cap` — "SAFETY ceiling ... Generous but FINITE. Large enough that no honest program notices."
+
+So every alpha-beta program runs to whatever cost its depth table implies and is then normalised by
+that cost. Nothing ever runs at a COMMON budget. A ratio with a saturated numerator is precisely the
+shape that rewards being cheap, which is why `depth-one` scores **992.711x** while answering 5 of 25,
+and why the guard rather than the rate is what keeps it out.
+
+**The unsaturated dimension exists and is the right idea, but it is sparse.** On the HARD set the
+seed scores 0/8 and capture extension scores 1/8 — it is the only program in the reference set that
+scores at all. That is the correct signal and it is why the set was built. But a dimension where the
+best known program scores 1 of 8 gives almost every mutation a score of 0, which matches what both
+arms actually print: `hard 0-0` and `hard 0-1` nearly everywhere. It discriminates the ONE known
+rung from the field; it does not supply a gradient for a population to climb.
+
+**Which is why `EXISTENCE_HARD_FITNESS` did not fix anything, and now I know the reason.** It adds
+hard solves to a numerator that is already saturated at 25 and adds their cost to the denominator, so
+a 0-or-1 term perturbs a 25-term sum. Arithmetically it cannot invert an ordering where the gap is
+0.340x versus 1.000x. That is a better account than the one I recorded earlier ("the flag binds but
+the gate still rejects"), which described the symptom without the cause.
+
+**Next experiment, pre-registered.** `valleyall` is now a ground-truth ORACLE for surrogate designs,
+and it runs offline — which is exactly what GRAMMAR 9's own heading asks for ("run offline before any
+compute is spent"). Any candidate surrogate must rank hash reuse, iterative deepening, capture
+extension and table reduction ABOVE the seed, and depth-one and proof-number search BELOW it. The
+current one gets 1 of 6 right. A design is worth putting in the loop only after it passes that
+ordering test, and no loop time gets spent before it does.
+
 **Where EPS lands, for completeness.** With `EPS = 0.020` the tolerance band reaches 0.98, which
 covers the conjunctive path (0.991x, 0.997x) and table reduction (0.992x), but not iterative
 deepening (0.914x) and not capture extension (0.340x). So the plateau tolerance makes hash reuse
