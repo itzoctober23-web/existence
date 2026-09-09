@@ -72,7 +72,7 @@ fn probe(prog: &grammar::Program, net: &Net, ps: &[Position], d: i64, b: i64)
     let (mut legal, mut evals, mut cost, mut over) = (0usize, 0u64, 0u64, 0usize);
     let mut ceil = 0u64;
     for p in ps {
-        let mut i = Interp::new(net, vec![d, 32_000, interp::UCT_EXPLORATION]);
+        let mut i = Interp::new(net, vec![d, 32_000, interp::uct_exploration()]);
         let m = i.run(prog, p, b);
         evals += i.evals; cost += i.cost;
         if i.over_budget { over += 1; }
@@ -116,7 +116,7 @@ fn main() {
     let (ab_legal, ab_evals, _abc, ab_over) = probe(&ab, &net, &ps, depth, depth);
     let mut ab_solved = 0usize;
     for (p, best) in &mates {
-        let mut i = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
+        let mut i = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
         if i.run(&ab, p, depth) == *best { ab_solved += 1; }
     }
     println!("CONTROL — bare alpha-beta @depth {depth}");
@@ -157,7 +157,7 @@ fn main() {
     }
     for (k, bgt) in [64i64, 256, 1024].iter().enumerate() {
         for (q, best) in &mates {
-            let mut i = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
+            let mut i = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
             if i.run(&mcts, q, *bgt) == *best { m_solved[k] += 1; }
         }
         println!("  budget {bgt:>5}: mate-in-one {}/{}", m_solved[k], mates.len());
@@ -165,7 +165,7 @@ fn main() {
     // Same diagnostic that separated "weak search" from "never selects" for PN.
     let (mut m_first, mut m_distinct) = (0usize, std::collections::HashSet::new());
     for (q, _best) in &mates {
-        let mut i = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
+        let mut i = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
         let mv = i.run(&mcts, q, 256);
         if q.legal_moves().as_slice().first() == Some(&mv) { m_first += 1; }
         m_distinct.insert(format!("{mv:?}"));
@@ -188,14 +188,14 @@ fn main() {
     for bgt in [64, 256, 1024] {
         let mut soln = 0usize;
         for (q, best) in &mates {
-            let mut i = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
+            let mut i = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
             if i.run(&pn, q, bgt) == *best { soln += 1; }
         }
         println!("  budget {bgt:>5}: mate-in-one {soln}/{}", mates.len());
     }
     let mut solved = 0usize;
     for (p, best) in &mates {
-        let mut i = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
+        let mut i = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
         if i.run(&pn, p, 256) == *best { solved += 1; }
     }
     println!("\nproof-number search");
@@ -208,11 +208,11 @@ fn main() {
     // is a sketch that never selects.
     let (mut first_move, mut same_as_ab) = (0usize, 0usize);
     for (p, _best) in &mates {
-        let mut i = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
+        let mut i = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
         let m = i.run(&pn, p, 256);
         let l = p.legal_moves();
         if l.as_slice().first() == Some(&m) { first_move += 1; }
-        let mut j = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
+        let mut j = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
         if j.run(&ab, p, depth) == m { same_as_ab += 1; }
     }
     println!("  returns the FIRST legal move  {first_move}/{}", mates.len());

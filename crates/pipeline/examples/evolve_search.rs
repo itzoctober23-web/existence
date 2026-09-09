@@ -64,7 +64,7 @@ fn passes_oracle(prog: &Program, set: &[Position], depth: u32, net: &Net) -> (us
     let mut scratch = Vec::new();
     let (mut ok, mut n) = (0usize, 0usize);
     for p0 in set {
-        let mut it = Interp::new(net, vec![depth as i64, 32_000, interp::UCT_EXPLORATION]);
+        let mut it = Interp::new(net, vec![depth as i64, 32_000, interp::uct_exploration()]);
         let mv = it.run(prog, p0, 100_000_000);
         let mut p = p0.clone();
         let list = p.legal_moves();
@@ -101,7 +101,7 @@ fn passes_oracle(prog: &Program, set: &[Position], depth: u32, net: &Net) -> (us
 /// Denominated in COST UNITS, not evaluations, because proof-number search proves mates with
 /// zero eval calls and an eval-count denominator would divide by zero for it (FITNESS 3).
 fn mates_per_cost(prog: &Program, set: &[Position], depth: i64, net: &Net) -> (u32, f64, u32) {
-    let mut it = Interp::new(net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
+    let mut it = Interp::new(net, vec![depth, 32_000, interp::uct_exploration()]);
     let (mut found, mut cost, mut forfeits) = (0u32, 0u64, 0u32);
     for p in set {
         let mv = it.run(prog, p, 100_000_000);
@@ -215,7 +215,7 @@ fn play(a: &Program, b: &Program, a_white: bool, start: &Position, net: &Net,
         if pos.halfmove >= 100 { return None; }
         let is_a = (pos.stm == board::Color::White) == a_white;
         let prog = if is_a { a } else { b };
-        let mut it = Interp::new(net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
+        let mut it = Interp::new(net, vec![depth, 32_000, interp::uct_exploration()]);
         let mv = it.run(prog, &pos, budget);
         // A program that returns no legal move forfeits: it failed to play chess.
         if !list.as_slice().contains(&mv) { return Some(!is_a); }
@@ -352,7 +352,7 @@ fn main() {
     // was uninformative rather than negative.
     {
         let probe = reference::bare_alpha_beta();
-        let mut it = Interp::new(&net, vec![depth, 32_000, interp::UCT_EXPLORATION]);
+        let mut it = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
         it.run(&probe, &oracle_set[0], i64::MAX / 4);
         let full = it.cost.max(1);
         let cover = budget as f64 / full as f64;

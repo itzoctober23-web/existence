@@ -468,6 +468,22 @@ pub const MAX_CALL_DEPTH: u32 = 128;
 /// reference programs therefore ran UCT with a different exploration weight than the loop does.
 pub const UCT_EXPLORATION: i64 = 360_000;
 
+/// Env-overridable accessor, so the weight can be SWEPT instead of guessed again.
+///
+/// 360_000 was derived as "C = one eval unit" and is REFUTED by measurement: it gives 0 mates at
+/// budgets 16 and 64 at 3.6x alpha-beta's cost, because exploration then dominates so completely
+/// that the search never exploits. The derivation was right in form -- sqrt(K) is the UCT constant,
+/// and the collapse-to-zero cliff at K = 8 is real -- and wrong in magnitude: `u` needs to be
+/// commensurable with the DIFFERENCES between sibling q values, not with q's absolute range.
+///
+/// Both endpoints are now known to fail, which brackets the answer rather than settling it:
+///   K = 8        cliff at 40-64 visits, exploration switches off mid-run, mates peak then FALL
+///   K = 360_000  no cliff, but exploration swamps exploitation and mates go to 0
+/// `EXISTENCE_UCT_K` exists so the interior is measured.
+pub fn uct_exploration() -> i64 {
+    std::env::var("EXISTENCE_UCT_K").ok().and_then(|s| s.parse().ok()).unwrap_or(UCT_EXPLORATION)
+}
+
 type Env<'p> = Vec<(&'p str, Value)>;
 
 impl<'a> Interp<'a> {
