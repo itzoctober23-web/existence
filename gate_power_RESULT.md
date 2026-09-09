@@ -4,11 +4,11 @@
 
 ## The measurement
 
-Across **every gate decision in every log in this repo** — 202 decisions:
+Across **every gate decision in every log in this repo** — 203 decisions (snapshot; the count grows while arms run):
 
 | quantity | value |
 |---|---|
-| decisions logged | 202 |
+| decisions logged | **203** (snapshot 2026-09-09; grows while arms run) |
 | sample size, every one | **12 games = 6 pairs** (`evolve.rs:1297`, `gate_pairs` default 6) |
 | ACCEPTs, ever | **0** |
 | mean ci95 | 0.177 |
@@ -17,9 +17,9 @@ Across **every gate decision in every log in this repo** — 202 decisions:
 
 The strict acceptance rule is `pent_rate - ci95 > 0.5`, i.e. `pent_rate > 0.5 + ci95`.
 At the **smallest error bar ever observed** that bar is **0.582**.
-The **highest rate ever observed in 202 decisions is 0.542**.
+The **highest rate ever observed in 203 decisions is 0.542**.
 
-So the bar has never once been inside the range of outcomes the instrument can produce. The 0/202
+So the bar has never once been inside the range of outcomes the instrument can produce. The 0/203
 accept record is not a coincidence, not a run of bad candidates, and not a cost artifact — at 6 pairs
 the rule is arithmetically out of reach.
 
@@ -37,7 +37,7 @@ default, which is the kind of cross-check this project requires before believing
 Two fixes were on the table for P2. The measurement retires the framing of both.
 
 * **"Relax the acceptance rule"** (the veto arm, `EXISTENCE_GATE_VETO=1`, `pent_rate + ci95 >= 0.5`).
-  Applying the veto criterion to the 202 observed `(rate, ci95)` pairs accepts **145/202 = 72%**.
+  Applying the veto criterion to the 203 observed `(rate, ci95)` pairs accepts **145/203 = 71%** (recomputed, not renumbered).
   **This is NOT evidence that the veto is a rubber stamp, and I first wrote that it was.** STATE.md:2633
   already measured the contrary on the two-arm comparison — every *resolved-worse* candidate is
   rejected under both rules — and the veto's documented intent is "a veto on unplayable programs",
@@ -53,7 +53,7 @@ Two fixes were on the table for P2. The measurement retires the framing of both.
   this document.
 
 * **"Make `COST_PER_MOVE` finite"** (`cost_blind.rs`). **It has now run and returned INCONCLUSIVE —
-  see the section at the bottom of this file.** It could not have explained 0/202 in any case: a cost
+  see the section at the bottom of this file.** It could not have explained 0/203 in any case: a cost
   ceiling changes *which* program scores higher, not whether a ±0.177 instrument can resolve the
   difference. Cost-blindness remains a live, untested hypothesis and is not a cause.
 
@@ -66,7 +66,7 @@ not yet measured.** Two anchors exist and they disagree:
 
 | pairs | ci95 | source | n |
 |---|---|---|---|
-| 6 | 0.177 | 202 gate decisions | 202 |
+| 6 | 0.177 | 203 gate decisions — **but see the CORRECTION below: this averages placeholders with measurements** | 203 |
 | 96 | 0.027 | the VERIFY observer | **1** |
 
 Pure `1/sqrt(n)` scaling from the 6-pair anchor predicts **0.044** at 96 pairs; the single observed
@@ -136,7 +136,7 @@ I built an underpowered instrument to investigate an underpowered instrument.
 
 Cost-blindness is **neither confirmed nor refuted**; it is untested, because the contrast chosen
 cannot test it. It stays a live hypothesis and is *not* promoted to a cause. This does not change the
-main finding above, which never depended on it: a cost ceiling cannot explain 0/202 accepts, because
+main finding above, which never depended on it: a cost ceiling cannot explain 0/203 accepts, because
 it changes which program scores higher, not whether a ±0.177 instrument can resolve the difference.
 
 **Re-running this properly needs two things first:** a pair where the expensive arm is *measurably*
@@ -145,7 +145,11 @@ the effect — which is exactly what `ci95_curve.rs` is measuring.
 
 ---
 
-## A/A row 1: the harness is VALID, and the near-parity error bar is 0.250, not 0.177
+## ⚠ SUPERSEDED BELOW — A/A row 1: the harness is VALID (the 0.250 reading is REFUTED)
+
+> **Read the two sections after this one before believing anything here.** The A/A's 0.250 is
+> not a measured error bar at all: it is `gate.rs`'s zero-variance placeholder `1.5/n`. The
+> VALIDITY result (`mean_rate` exactly 0.500) stands; the sizing claim does not.
 
 `ci95_curve.rs` first row, `bare_alpha_beta` against itself, 8 replicates of 6 pairs:
 
@@ -159,21 +163,21 @@ harness must produce when a program plays itself, so `match_progs` is not tilted
 taken with it stand. That check was worth its cost: had it come back at, say, 0.55, every number in
 this file and in the gate logs would have been suspect.
 
-**The half-width at 6 pairs is 0.250 here, against 0.177 averaged over 202 real gate decisions.** Both
+**The half-width at 6 pairs is 0.250 here, against 0.177 averaged over 203 real gate decisions.** Both
 are correct, and the difference is not a contradiction:
 
 * Pentanomial variance is **maximised near a rate of 0.5**. An A/A sits exactly there by construction.
 * Real gate decisions are frequently lopsided — the observed rates cluster at 0.333, 0.375, 0.417 —
   and a lopsided pair generates less variance, pulling the average half-width down.
 
-**For sizing the gate, 0.250 is the number that matters, and this is the whole reason to run an A/A.**
+**~~For sizing the gate, 0.250 is the number that matters~~ — REFUTED two sections below, and this was the reason to run an A/A.**
 The gate's job is to resolve a candidate that is *close to* its champion; a candidate that is
 obviously worse needs no statistical help. So the regime the bar has to work in is precisely the
 near-parity regime the A/A measures. Using the 0.177 average would size the gate for the easy cases.
 
 That makes the headline finding **stronger, not weaker**: at 6 pairs the strict bar in the regime that
 matters is **0.750** — a candidate must win three pairs in four — against a maximum rate of 0.542 ever
-observed in 202 decisions. Earlier in this file the bar was computed as 0.582–0.677 from the averaged
+observed in 203 decisions. Earlier in this file the bar was computed as 0.582–0.677 from the averaged
 half-width. The correct near-parity figure is worse than both.
 
 The remaining rows (12, 24, 48, 96 pairs) are still running, and **the fix is still not sized**: the
@@ -208,7 +212,7 @@ structure is not this one. The A/A remains valid for what it was primarily for: 
 **Not resolved either way yet.** Row 3 (24 pairs) discriminates: `1/n` continuing predicts 0.0625,
 `1/sqrt(n)` from row 2 predicts 0.088. Until it lands, **no pair count should be chosen from this
 curve**, and the sizing question stays open exactly as this file has said throughout. The headline
-finding is untouched — it rests on 202 real gate decisions, 0 accepts, and a max rate of 0.542, none
+finding is untouched — it rests on 203 real gate decisions, 0 accepts, and a max rate of 0.542, none
 of which involve the A/A.
 
 ---
