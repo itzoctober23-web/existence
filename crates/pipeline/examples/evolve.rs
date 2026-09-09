@@ -1552,6 +1552,17 @@ fn main() {
             // is 0 while `mate_ok` is large, the operators are producing only neutral rewrites and
             // no selection policy can help -- which is a different problem from EPS cutting them.
             let distinct = rel.iter().filter(|x| (**x - 1.0).abs() > 1e-9).count();
+            // ABOVE: guard-passers STRICTLY beating the incumbent. This is the acceptance condition
+            // itself (`rate > best_rate`, strictly -- see the note at the accept site), so it is the
+            // only statistic that answers "could anything have been accepted this generation".
+            //
+            // IT REPLACES A CHECK OF MINE THAT COULD NOT ANSWER IT. I pre-registered "does any
+            // generation report a rate above 1.000x" as the falsifiable test for the hard-fitness
+            // change, then read it off `rhi` printed at THREE DECIMALS -- where a candidate at
+            // 1.0004x renders as exactly "1.000x". The test was blind at the resolution it was
+            // reported at, so its "never fired" could not be distinguished from "fired and rounded
+            // away". Same class as the comment above: the max was never the right statistic.
+            let above = rel.iter().filter(|x| **x > 1.0 + 1e-9).count();
             let offspring: Vec<(Program, u32, f64)> =
                 // guard_floor, NOT best_found. This line is the ACTUAL selection filter; the
                 // three above it are diagnostics. When I reverted a misplaced floor definition I
@@ -1671,11 +1682,13 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                     format!("// {f} mates, {rate:.6} mates/Mcost, {} nodes, gen {g}\n{:#?}\n",
                             c.size(), c));
             } else {
+                // rhi at SIX decimals: at three, a candidate strictly above the incumbent is
+                // indistinguishable from a tie, which is exactly the ambiguity `above` exists to end.
                 let span = if rel.is_empty() { "none".to_string() }
-                           else { format!("{rlo:.3}-{rhi:.3}x") };
+                           else { format!("{rlo:.3}-{rhi:.6}x") };
                 println!("  gen {g:>3} {:<5} ..none ({n_scored} cand, {ill} ill, mate-ok {mate_ok}, \
-rates {span} [>=.98:{} .90-.98:{} .50-.90:{} <.50:{} distinct:{}], hard {hlo}-{hhi})  pop {} spread {:.6}-{:.6} tt{:?}",
-                         lineages[li].name, hist.0, hist.1, hist.2, hist.3, distinct,
+rates {span} [>=.98:{} .90-.98:{} .50-.90:{} <.50:{} distinct:{} ABOVE:{}], hard {hlo}-{hhi})  pop {} spread {:.6}-{:.6} tt{:?}",
+                         lineages[li].name, hist.0, hist.1, hist.2, hist.3, distinct, above,
                          popn.len(), spread_lo, spread_hi, tt);
             }
         }
