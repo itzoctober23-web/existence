@@ -1499,7 +1499,39 @@ question games answer — and it never reaches games, because the guard cuts it 
 The conjunctive result is unchanged by the larger set: probe-only 0.991x, store-only 0.997x, both
 halves 1.026x. A strict climb still cannot take the first step toward the one fitter rung.
 
-## ✅ CONFIRMED: the MATE-2 rung turns an exploit generator into a normal-candidate generator
+## ⚠ WALKED BACK: MATE-2 COMPRESSES the exploit, it does not eliminate bad candidates
+
+I claimed the rung "turns an exploit generator into a normal-candidate generator" on the strength of
+generation 1. Generation 2 is worse than that claim allows:
+
+```
+TREATMENT (37 positions, floor 30)
+  gen 1 MAIN  surrogate 0.002524 =  1.02x the seed   games 0.458   ordinary
+  gen 2 MAIN  surrogate 0.006432 =  2.60x the seed   games 0.250   plays badly
+
+CONTROL (25 positions, floor 18)
+  gen 1 MAIN  surrogate 0.231865 = 94.91x the seed   games 0.208   EXPLOIT
+```
+
+**What survives:** the rate inflation is compressed from **95x to 2.6x**, and no candidate has
+tripped the 10x capture threshold in 4 generations on seed 4242 or 1 on seed 31337, where the
+control captured at generation 1 on both. The extreme exploit is gone.
+
+**What does NOT survive:** "normal-candidate generator". A program at 2.6x the incumbent's rate
+playing at 0.250 is the same failure in a smaller size — a surrogate gain that is not a strength
+gain. The guard now stops the egregious version and lets the mild one through, which is exactly what
+a higher floor should be expected to do: it is a threshold, not a fix for the ratio being the wrong
+measure.
+
+**And the gate caught it**, at 0.250 against a bar of 0.582. That is the veto working as designed.
+The loop is not in danger from these; it is wasting games on them.
+
+**Honest scope of the whole MATE-2 result**, restated: it closes the extreme-exploit hole in the
+GUARD. It does nothing for the ranking defect (measured: rungs moved <0.4%), and it does not stop
+the surrogate proposing mildly-inflated bad players, because that is the ratio's nature and not the
+floor's job.
+
+## Original claim, superseded by the above
 
 Paired arms, seed 4242, identical mutation draws, generation 1. The ONLY difference is twelve MATE-2
 positions in the fitness set:
