@@ -2819,3 +2819,36 @@ promotes the right subset, and rejects the right subset, on every case observed.
 gameable — that is the whole reason the game gate exists. The 96-pair verification observer is the
 independent check, and it has judged one decision so far (a reject, correctly). Until it judges an
 ACCEPT, the claim above rests on the surrogate plus a tie, not on demonstrated strength.
+
+### The gate is COST-BLIND by construction — and that may be the real fix, not the acceptance rule
+
+`evolve.rs:1502` sets `const COST_PER_MOVE: u64 = u64::MAX`, and that constant is what
+`gate::match_progs` receives. **So the game gate has no cost ceiling.** Both programs get the same
+BUDGET parameter — playouts for MCTS, depth for MAIN — and may spend unlimited cost reaching it.
+
+A candidate that reaches the same budget more cheaply therefore makes the *same moves* and scores
+exactly 0.500. Its efficiency is invisible to the gate **by construction**, not by bad luck.
+
+**This is 4PC's lesson with the sign flipped, and 4PC codified it.** `OPEN_LEADS.md:458-461`:
+*"gate_policy forbids shipping on [fixed nodes] alone because fixed nodes equalise the node count and
+hide speed cost"*, with a recorded case swinging **+68 at fixed nodes to −89 at movetime** — a
+157-point reversal from the budget basis alone.
+
+| project | budget basis | what it hides | status |
+|---|---|---|---|
+| 4PC | fixed nodes | a speed **cost** — a slower change looks fine | caught: movetime confirm REQUIRED before shipping |
+| Existence | fixed budget, `COST_PER_MOVE = u64::MAX` | a speed **gain** — a faster change looks like a tie | **not caught** |
+
+**This competes with my own earlier conclusion and may beat it.** I argued the acceptance rule should
+change, because `pent_rate - ci95 > 0.5` cannot promote a tie. But if the gate were cost-aware — a
+finite `COST_PER_MOVE`, so the expensive program gets truncated mid-search — then a 24%-cheaper
+candidate would genuinely outplay its incumbent, score above 0.5, and be promoted **by the existing
+strict rule**. The rule would not need relaxing at all.
+
+That is the better fix if it works: it keeps the strict "must prove itself better" standard and
+removes the blindness rather than lowering the bar. **Which of the two is right is now an empirical
+question, not an argument** — and the 96-pair verification observer is the instrument for it, since a
+promoted tie that verifies as a genuine tie means the veto rule bought nothing.
+
+**Not changed.** `COST_PER_MOVE` is the experimental apparatus, and this project's rule is that the
+apparatus changes only on measurement. Recorded as the leading candidate fix, pending the observer.
