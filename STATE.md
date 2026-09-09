@@ -484,6 +484,13 @@ contributes nothing measurable".
   after its arms were already complete, was re-running a verdict I had. **Before spending a match,
   check whether the two nets can differ at all** — the md5 that proves a rollback worked also proves
   the comparison is empty.
+* **Two runs of a deterministic program are one observation.** `evolve` seeds its mutation RNG
+  with a fixed constant (`Rng::new(0xE0FFEE)`) and takes no seed argument, so every run is the same
+  run. I aggregated `search_track.log` (34) and `hist_probe.log` (5) as **39 lineage-generations**;
+  gen-3 MAIN is field-for-field identical between them, so the true n is **34**. The hard-set
+  finding survives (50% vs the reported 51%) but the sample size did not. **Counting re-runs of a
+  deterministic process as independent samples is the same error as counting one seed as evidence** —
+  which is the day's other main lesson, arrived at from the opposite direction.
 * **State outliving its run.** A 5-hour-stale `hz_1000.log` about to be read as a current arm; a
   mid-run script edit that killed a verdict block, where **reverting within a minute did not undo
   it**.
