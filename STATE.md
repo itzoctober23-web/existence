@@ -1417,6 +1417,48 @@ denominators can differ no other way). The BEHAVIOURAL difference the filter was
 line whose surrogate is BELOW the incumbent's, which the strict rule cannot produce — has NOT yet
 appeared in four generations. The filter binds; whether it changes outcomes is still open.
 
+## MATE-2 does NOT fix the ladder ranking — and that separates two problems I was conflating
+
+The oracle re-run with the MATE-2 rung added (37 positions instead of 25):
+
+```
+                        WITH MATE-2        before        change
+bare alpha-beta (seed)     1.000x  37/37   1.000x  25/25
+hash reuse                 1.026x  37/37   1.024x         +0.002
+iterative deepening        0.915x  37/37   0.914x         +0.001
+hash + ID                  0.936x  37/37   0.933x         +0.003
+UCT-style MCTS             0.808x  12/37   0.968x         -0.160
+depth-one                784.729x   6/37 992.711x       -207.98
+```
+
+**The rungs did not move.** ID is still 0.915x, hash+ID still 0.936x — both still below the seed,
+still rejected. Adding the rung the spec asks for changed the ladder ordering by less than 0.4%.
+
+**The reason is the one thing I did not check: the seed aces MATE-2 as well, 37/37.** A rung only
+unsaturates a numerator if the incumbent FAILS some of it. Twelve more positions the seed also solves
+leave `mates/cost` exactly as cost-dominated as before, so the ratio still measures cheapness.
+
+**So there are TWO separate defects and MATE-2 addresses only one of them:**
+
+| defect | mechanism | does MATE-2 help? |
+|---|---|---|
+| exploits admitted at a lowered floor | guard floor is an absolute count | **YES** — deficits accumulate across rungs (18/25 -> 25/37 against floor 30) |
+| ladder ranked below the seed | numerator saturated, ratio measures cost | **NO** — seed scores 37/37, saturation is untouched |
+
+I had been treating these as one problem with one fix. They are not, and only the measurement
+separated them.
+
+**What WOULD unsaturate the numerator: positions the seed FAILS.** That is exactly the HARD set —
+seed 0/8 by construction — and capture extension is the only reference program that scores on it.
+The earlier `EXISTENCE_HARD_FITNESS` attempt failed because it ADDED a 0-or-1 hard term to a
+numerator already saturated at 25; the arithmetic could not invert a 0.340x-vs-1.000x ordering. The
+direction that survives all of today's measurements is to rank PRIMARILY on the unsaturated
+dimension rather than adding it to a saturated one — which is a different change from the one I
+tried, and it now has evidence behind it rather than an argument.
+
+**MATE-2 still earns its place**, on the exploit axis, which is what the paired arm is testing. It is
+just not the ladder fix I hoped it was.
+
 ## ⚠ MY per-N ACCOUNT IS REFUTED BY THE FIRST MEASUREMENT — and the real mechanism is better
 
 The first exploit captured with per-N scoring:
