@@ -731,11 +731,17 @@ fn step_diff() {
     // the 25-position mate/disagreement/window set, and the search track's measured mate-ok is
     // about 2/12, so most candidates that return a move still FAIL it. Reporting 35% as "the
     // useful kind" would have overstated the useful bucket several-fold.
+    // TARGETED guard: alpha-sensitive instead of window-sensitive. The genuine-loss distribution
+    // MUST be measured on the SAME guard the exploit losses were measured on, or the comparison is
+    // cross-protocol -- the error this session has already produced four times. The exploit check
+    // reports the alpha exploit losing 5 on this guard against 2 on the old one, so a "genuine
+    // minimum of 2" carried over from the old guard would prove nothing about the new one.
     let mut guard = mate_set(15);
     guard.extend(disagreement_set(5, depth, &net, 4_000));
-    guard.extend(window_sensitive_set(5, depth, &net, 8, 4_000));
+    guard.extend(alpha_sensitive_set(5, depth, &net, 8, 4_000));
     let (gf0, _, _) = fitness(&seed, &guard, &net, depth, 16);
-    println!("  guard set: {} positions, seed scores {gf0}/{}", guard.len(), guard.len());
+    println!("  guard set (TARGETED, alpha-sensitive): {} positions, seed scores {gf0}/{}",
+             guard.len(), guard.len());
 
     let (mut ill, mut broken, mut identical, mut different) = (0usize, 0usize, 0usize, 0usize);
     let mut guard_ok_diff = 0usize;
@@ -801,8 +807,9 @@ fn step_diff() {
         for (k, v) in &lost { println!("    lost {k:>2}: {v:>3} candidates"); }
         let small: usize = lost.iter().filter(|(k, _)| **k <= 2).map(|(_, v)| *v).sum();
         println!("  losing <=2: {small}  -- a tolerance of 2 would admit these");
-        println!("  The exploits lose 5 (a whole guard subset scores ZERO by construction), so a");
-        println!("  tolerance of 2 separates the classes IF the distribution is bimodal.");
+        println!("  MEASURED on THIS guard: DEPTH exploit loses 8, ALPHA exploit loses 5.");
+        println!("  A tolerance of 2-4 rejects both exploits. Whether it admits anything genuine");
+        println!("  is the distribution above -- and both numbers now come from the same guard.");
     }
     if different > 0 {
         println!("\n  operators producing a behaviour change that ALSO passes the guard:");
@@ -885,11 +892,22 @@ fn exploit_check() {
         _ => None,
     });
 
+    // The TARGETED guard: mate + depth-disagreement + ALPHA-sensitive, replacing the window set.
+    let mut guard2 = mate_set(15);
+    guard2.extend(disagreement_set(5, depth, &net, 4_000));
+    let alpha_set = alpha_sensitive_set(5, depth, &net, 8, 4_000);
+    let n_alpha = alpha_set.len();
+    guard2.extend(alpha_set);
+    let (g2f0, _, _) = fitness(&seed, &guard2, &net, depth, 16);
+    println!("  targeted guard: {} positions ({n_alpha} alpha-sensitive), seed {g2f0}/{}",
+             guard2.len(), guard2.len());
+
     for (name, prog) in [("DEPTH exploit (d==0 -> d==1)", dex), ("ALPHA exploit (neg INF -> 8)", aex)] {
         let changed = format!("{:?}", prog) != format!("{:?}", seed);
         let (gf, _, r) = fitness(&prog, &guard, &net, depth, 16);
-        println!("  {name:<32} built={changed}  scores {gf}/{}  LOSES {}  rate {:.6} ({:.2}x seed)",
-                 guard.len(), gf0.saturating_sub(gf), r, r / r0.max(1e-12));
+        let (g2f, _, _) = fitness(&prog, &guard2, &net, depth, 16);
+        println!("  {name:<32} built={changed}  OLD guard loses {:>2}  TARGETED guard loses {:>2}  rate {:.2}x",
+                 gf0.saturating_sub(gf), g2f0.saturating_sub(g2f), r / r0.max(1e-12));
     }
     println!("\n  Genuine behaviour-changing single edits lose a MINIMUM of 2 (measured, n=33).");
     println!("  If both exploits lose strictly more than 2, a tolerance of 2 separates the classes");
@@ -971,6 +989,81 @@ fn harder_set(n: usize, depth: i64, net: &Net, cap: usize)
         // seed at the fitness depth scores zero here.
         if a != board::types::MOVE_NONE && b != board::types::MOVE_NONE && a != b {
             out.push((p.clone(), Some(b)));
+        }
+    }
+    out
+}
+
+
+/// Build the alpha-raised variant of a program: the root call's `neg(INF)` becomes `Const(k)`.
+/// Shared by the exploit check and by `alpha_sensitive_set`, so the guard is built against the
+/// SAME transformation it is meant to catch rather than a proxy for it.
+fn raise_alpha(seed: &Program, k: i8) -> Program {
+    use grammar::ast::ArithOp;
+    fn rw(n: &Node, k: i8) -> Node {
+        use Node::*;
+        if let Arith(ArithOp::Neg, a) = n {
+            if a.len() == 1 {
+                if let TRead(1, _) = &a[0] { return Const(k); }
+            }
+        }
+        match n {
+            Arith(o, a) => Arith(*o, a.iter().map(|x| rw(x, k)).collect()),
+            Call(i, a) => Call(*i, a.iter().map(|x| rw(x, k)).collect()),
+            TRead(i, a) => TRead(*i, a.iter().map(|x| rw(x, k)).collect()),
+            If(c, t, e) => If(Box::new(rw(c, k)), Box::new(rw(t, k)),
+                              e.as_ref().map(|x| Box::new(rw(x, k)))),
+            Cmp(a, b, r) => Cmp(Box::new(rw(a, k)), Box::new(rw(b, k)), *r),
+            Let(s2, a, b) => Let(s2.clone(), Box::new(rw(a, k)), Box::new(rw(b, k))),
+            Foreach(a, s2, b) => Foreach(Box::new(rw(a, k)), s2.clone(), Box::new(rw(b, k))),
+            Argmax(a, s2, b) => Argmax(Box::new(rw(a, k)), s2.clone(), Box::new(rw(b, k))),
+            Set(s2, a) => Set(s2.clone(), Box::new(rw(a, k))),
+            Ret(a) => Ret(Box::new(rw(a, k))),
+            Max(a, b) => Max(Box::new(rw(a, k)), Box::new(rw(b, k))),
+            other => other.clone(),
+        }
+    }
+    let mut p = seed.clone();
+    p.funcs[0].body = rw(&seed.funcs[0].body, k);
+    p
+}
+
+/// Positions where RAISING THE INITIAL ALPHA changes the seed's answer.
+///
+/// THE EXISTING WINDOW GUARD DOES NOT TARGET THE EXPLOIT IT WAS BUILT FOR. `window_sensitive_set`
+/// varies table 1 (INF) between 32000 and 8, and since alpha is `neg(INF)` that produces a
+/// SYMMETRIC window of [-8, +8]. The exploit the search actually found raises the initial alpha to
+/// +8 while beta stays at INF -- asymmetric, a different transformation. Measured consequence: the
+/// alpha exploit loses only 2 of the 25 guard positions, catching it incidentally rather than by
+/// design, and it still posts 1.29x the seed's mates-per-cost.
+///
+/// This builds the guard from the transformation ITSELF: run the seed and the alpha-raised variant,
+/// keep the positions where they disagree, and record the SEED's answer as correct. The exploit
+/// then scores ZERO on every one of them by construction -- the same self-calibrating shape as the
+/// depth-disagreement set, which compares the seed against itself one ply shallower.
+fn alpha_sensitive_set(n: usize, depth: i64, net: &Net, raised: i8, cap: usize)
+    -> Vec<(Position, Option<board::Move>)> {
+    let ab = reference::bare_alpha_beta();
+    let hi = raise_alpha(&ab, raised);
+    let mut rng: u64 = 0xA1FA_5EED;
+    let mut out = Vec::new();
+    let mut tries = 0;
+    while out.len() < n && tries < cap {
+        tries += 1;
+        let mut p = Position::startpos();
+        for _ in 0..(10 + rng % 34) {
+            let l = p.legal_moves();
+            if l.is_empty() { break; }
+            rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
+            p.make_move(l.as_slice()[(rng % l.len() as u64) as usize]);
+        }
+        if p.legal_moves().is_empty() { continue; }
+        let mut a_it = Interp::new(net, vec![depth, 32_000, 8]);
+        let a = a_it.run(&ab, &p, 16);
+        let mut b_it = Interp::new(net, vec![depth, 32_000, 8]);
+        let b = b_it.run(&hi, &p, 16);
+        if a != board::types::MOVE_NONE && a != b {
+            out.push((p.clone(), Some(a)));
         }
     }
     out
