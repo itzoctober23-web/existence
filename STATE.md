@@ -2682,6 +2682,17 @@ not broken. **The third cause is a one-line disagreement between a comment and t
 now demonstrated live: two arms identical up to generation 4, then the same candidate with the same
 surrogate and the same gate score is REJECTED by one rule and ACCEPTED by the other.
 
+**COST OF THE VERIFY OBSERVER, measured rather than assumed.** A non-gate generation costs ~430s;
+generation 3, which carries one MAIN-lineage gate call plus its 96-pair verification, has taken
+~915s. So the observer costs roughly **480s per MAIN gate call** — acceptable. The risk is the MCTS
+lineage, which runs at `budget_mcts = 1024` against MAIN's 16, so its verification could be far more
+expensive per pair. If an MCTS verification proves to cost hours, the pair count comes down; it is an
+observer and its precision is a free parameter.
+
+**The experiment does not need all 25 generations.** The question is "when the veto accepts a tie, was
+the candidate actually better?", which needs a handful of ACCEPT events with verification attached —
+the first came at generation 4 in the un-instrumented run. Six to eight generations should answer it.
+
 **What is still not shown, and is running:** whether promoting ties produces a STRONGER engine or just
 a busier one. `EXISTENCE_GATE_VERIFY=96` re-matches every gate call at 16× the pairs so each decision
 can be judged after the fact. Until that lands, this establishes the constraint is the rule — not that
