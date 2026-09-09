@@ -258,3 +258,40 @@ should not have written it as one on a single seed however tight ±0.014 looked.
 **The tightness of ±0.014 is what made this seductive**, and it is worth naming: a narrow interval
 bounds the effect AT THAT SEED and says nothing about the next one. `netmatch` now prints the
 seeds-needed figure precisely so this stops being a judgement call.
+
+## Synthesis (PROVISIONAL — the fourth cell is still running): both effects are real and they OPPOSE
+
+Three of seed 987654's four cells have landed, and together they reframe this whole experiment.
+Stated as who wins rather than as a rate:
+
+| contrast | rate | winner | reading |
+|---|---|---|---|
+| d1 vs d3 | 0.474 | **d3** | deeper wins INSIDE the odd class |
+| d2 vs d4 | 0.441 | **d4** | deeper wins INSIDE the even class |
+| d1 vs d2 | 0.554 | **d1** | **ODD beats EVEN across one ply of depth** |
+
+`d1` is depth 1 — odd and SHALLOWER. `d2` is depth 2 — even and DEEPER. So in that third row the two
+effects **oppose each other**: depth favours d2, parity favours d1. Parity wins by +0.054. **Crossing
+from odd to even costs more than one ply of depth gains.**
+
+This is neither of the two stories told earlier today, and it is better than both:
+
+* The original settled claim — *"the effect was search PARITY, not depth"* — is wrong, because depth
+  wins cleanly inside both classes.
+* My replacement — *"depth is real, parity is a precise null"* — is also wrong, because parity beats a
+  whole ply of depth in a head-to-head.
+
+**Both effects are real. They point in different directions, and which one dominates depends on which
+comparison you run.** A study that only ever compared d2 with d3 (the original depth lever) was
+measuring their SUM, with the two confounded and pointing opposite ways — which is exactly why that
++0.025 was never reproducible.
+
+**Independent support from a quantity nobody tuned for.** The decisive-game rates, measured before any
+of these matches ran: d1 89.5, d2 **32.5**, d3 91.8, d4 94.8. If parity alone drove this, both EVEN
+arms would be low — but d4 is the highest of the four. d2 is lowest because it is even **and**
+shallow, which is precisely the opposing-effects picture, arriving from a completely separate
+measurement.
+
+**Provisional** until `d3 vs d4` lands: if parity-at-deep also favours odd, the picture is uniform; if
+it nulls, then parity fades with depth and the interaction is real. Either way this section gets
+amended rather than deleted.
