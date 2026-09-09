@@ -3085,3 +3085,53 @@ fitness around the hard set is not met, so it should not be restructured — rec
 question rather than an open one. If the set is to become the acceptance dimension it needs to be
 *harder to score zero on*, not merely harder than the guard set; 8 positions on which the population
 scores 0.52 on average cannot rank candidates.
+
+## MEASURED: what the mutation operators actually produce — the MATE GUARD is the dominant filter
+
+GRAMMAR 4's operator set has never been characterised from the logs, and the numbers were already
+there. Single extraction so every figure shares a denominator (217 generation lines, all logs):
+
+| stage | count | share |
+|---|---|---|
+| candidates generated | 2275 | — |
+| ill-typed (type checker rejects) | 57 | **2.5% of candidates** |
+| well-typed | 2218 | — |
+| **pass the MATE guard** | **1036** | **46.7% of well-typed** |
+| rate-distinct among guard-passers | 795 | 76.7% |
+
+**The type checker is not the filter; the correctness oracle is.** It rejects 2.5%, while the mate
+guard rejects **53.3% of well-typed candidates**. More than half of everything the operators produce
+is well-formed and breaks a mate.
+
+Among the 1036 that survive, the change is almost always tiny:
+
+```
+  >= 0.98    795   76.7%    (under 2% off the incumbent)
+  0.90-0.98   84    8.1%
+  0.50-0.90   93    9.0%
+  < 0.50      64    6.2%    (destroyed)
+```
+
+### The pre-registered condition is NOT met, and I nearly reported the opposite
+
+`evolve.rs:1701` fixes the test in advance: *"If this is 0 while `mate_ok` is large, the operators are
+producing only neutral rewrites and no selection policy can help."* Measured: **distinct is 795, not
+0**, and generations with `mate_ok > 0` but `distinct == 0` are **13 of 217 (6.0%)**. So the operators
+do produce measurable variation and that diagnosis does not apply.
+
+I had this wrong an hour ago — I computed "36.5% distinct" against *well-typed* when `distinct` is
+counted among **guard-passers** only. Right denominator: **76.7%**. It was never committed to a
+document, but it was the basis of a claim I made, and the correct reading is nearly its opposite.
+
+### One anomaly chased and cleared
+
+Summed over all lines, `distinct` (795) exactly equalled the `>= 0.98` bucket (795), with the remainder
+(241) exactly equalling the three lower buckets — which would suggest `distinct` was duplicating a
+bucket rather than measuring what it claims. **Per-line it does not**: they agree in only 25.3% of
+lines, and lines like `(8, 0, 0, 1, distinct 3)` and `(10, 0, 0, 0, distinct 0)` separate them
+cleanly. The aggregate match was a coincidence of sums. Recorded because an unexplained exact equality
+between two quantities is how an inert diagnostic hides, and this file has already found four.
+
+**What this points at.** The lever is not the operator set's expressiveness and not the type checker —
+it is that half of all well-typed candidates break a mate, and the survivors change the surrogate by
+under 2%. That is consistent with 46.8% of gate decisions measuring no signal.
