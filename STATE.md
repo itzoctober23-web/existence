@@ -244,6 +244,35 @@ no reliable gain because it is *already at the plateau this procedure reaches*.
 3. **`netmatch` prints arm sizes with the bias quantified** — three results today were confounded
    by unequal training (11v5, 96v1, 28v26).
 
+**GROUNDED 2026-09-09 — the band was measured on the wrong quantity, and now it is measured on the
+right one.** Two figures were in circulation: "~0.045" (unsourced, below) and "~0.07" from
+`ceiling_ANALYSIS.md`. The 0.07 is 44 **control-vs-origin** readings across 17 runs — but line 297 of
+this file records that the origin is `Net::random(WIDTH_MENU[rung], seed)` and therefore **differs
+per seed**, so that band mixes net variance with a changing opponent. It also uses an instrument with
+3.6× worse signal-to-noise than a direct match.
+
+What actually matters for the claims being made is different: how much a **PAIRED difference** moves
+between training seeds. The blend data now measures that twice, independently:
+
+| comparison | seed 20260907 | seed 424242 | movement |
+|---|---|---|---|
+| 0.75 vs 1.00 @ depth 4 | 0.511 | 0.456 | **0.055** |
+| 0.75 vs 1.00 @ depth 2 | 0.450 | 0.502 | **0.052** |
+
+Mean movement 0.053; for n = 2, E[range] = 1.128·sd, so **between-seed sd ≈ 0.047**. Seeds needed
+for a paired test at ~80% power:
+
+| effect | seeds |
+|---|---|
+| +0.025 | ~28 |
+| +0.040 | ~11 |
+| +0.050 | ~7 |
+
+So the "~19 seeds" figure is the right order and the wall is real — but it is now anchored to the
+quantity the claims are actually about, and it gives a usable number per effect size rather than one
+blanket figure. **Two estimates make the sd itself crude**; it should be re-derived as more paired
+cross-seed comparisons accumulate, which now happens for free every time an arm is replicated.
+
 **The measurement wall:** effects of 0.02–0.05 need **~19 seeds** to separate from seed noise
 (spread ~0.045). Two seeds cannot; one certainly cannot. Every "resolved" one-seed reading today was
 this.
