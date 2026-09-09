@@ -25,10 +25,11 @@ Epochs is a fifth candidate, never tested on a working metric, also queued.
 `target = (1 - blend) * z + blend * root` — blend weights the net's own search score against the
 game outcome. Measured on the frozen-origin metric, 20 generations, identical seed:
 
-| blend | vs frozen origin |
-|---|---|
-| 0.75 (shipped) | **0.847 ± 0.022** |
-| 0.25 | **0.735 ± 0.025** |
+| blend | vs frozen origin | decisive @ gen 20 |
+|---|---|---|
+| 0.75 (shipped) | **0.847 ± 0.022** | 1170/2400 |
+| 0.25 | **0.735 ± 0.025** | 498/2400 |
+| 0.00 | **0.691 ± 0.025** | 340/2400 |
 
 **+0.112 ± 0.033** — bigger than draws (+0.086), horizon (+0.064) or depth (+0.025), and clear of
 the between-run band. Controlled by an identity check: both arms report `dec 389/2400` at generation
@@ -42,6 +43,20 @@ the between-run band. Controlled by an identity check: both arms report `dec 389
 | `mcnemar_z` surrogate | 239 gate results | r = **−0.095**, CI [−0.220, +0.032] |
 | training loss | control vs origin, n=12 | r = **+0.379**, CI [−0.249, +0.783] — wrong sign |
 | candidate-vs-champion gate | fixed anchor | **0.500 ± 0.007** on pairs an anchor separates easily |
+
+A fourth proxy is the first with a useful point estimate, and it is ONE ARM from resolving:
+
+| proxy | r | 95% CI | n |
+|---|---|---|---|
+| mcnemar_z surrogate | −0.095 | [−0.220, +0.032] | 239 |
+| training loss | +0.379 | [−0.249, +0.783] | 12 |
+| **decisive-game rate** | **+0.771** | **[−0.108, +0.973]** | **6 arms** |
+
+The CI still includes zero, so it is NOT established, and there is a visible counterexample: the
+strongest arm on the board (`wd_r2`, 0.967) has FEWER decisive games than a weaker one (1124 vs
+1170). But at r = +0.771 a seventh arm clears zero, and **every arm already logs `dec` for free** —
+so this resolves at no extra compute as the queue drains. Measured on 20-generation arms only; the
+1-generation depth probes were excluded because training amount drives both terms.
 
 Only games against a **fixed anchor** have resolved anything. They cost ~1,650 pairs to resolve one
 generation's real edge, which is why they are not the per-generation metric.
@@ -158,10 +173,18 @@ comparison in this investigation is safe — read that before reading its blend 
 
 ## Open, partially answered
 
-**Is the speedup acceptance path reachable?** `stepdiff` at 25/60: identical 15, **cheaper 0**;
-different 7, guard-ok 0. Trending toward the path being correct-but-empty — a fourth inert feature.
+**Is the speedup acceptance path reachable?** ANSWERED, and the instrument fix is what delivered it.
+`stepdiff6` died at 50/60 (cause unknown — no OOM evidence either way, and neither journal nor
+dmesg was readable) yet still reported: **identical 30, cheaper 0; different 17, guard-ok 0**. The
+previous run died and yielded nothing; this one died and yielded its answer, which is exactly what
+moving every summary counter into the progress line was for.
+
+Read honestly, this is **bounded, not empty**: 0 in 30 gives a 95% upper bound of 10% by the rule of
+three. Combined with 93 prior generations producing no cheaper survivor, it is consistent with
+empty, but 30 trials cannot prove a rate below ~10%.
+
 The widened 33-position identity check is committed but deliberately NOT deployed, since restarting
-a live search-track run to strengthen a path that has never fired would cost real generations.
+a live search-track run to strengthen a path bounded below 10% would cost real generations.
 
 ## Not started
 
