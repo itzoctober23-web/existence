@@ -472,9 +472,16 @@ fn move_agree() {
         it.run(&seed, p, 16)
     }).collect();
 
+    let seed_cost: u64 = set.iter().map(|p| {
+        let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+        it.cost_cap = cap;
+        it.run(&seed, p, 16);
+        it.cost
+    }).sum();
     println!("=== move agreement with the seed, {n} positions at depth {depth} ===");
     println!("  EXACT variants must agree 100% if alpha-beta's exactness holds in this interpreter.\n");
-    println!("  {:<34} {:>10} {:>9} {:>6}  {}", "program", "agree", "pct", "noMove", "class");
+    println!("  {:<34} {:>10} {:>9} {:>6} {:>12} {:>8}  {}", "program", "agree", "pct", "noMove",
+             "evals", "cost", "class");
     for (name, prog) in reference::all() {
         let bud = if name.contains("MCTS") { 512 } else { 16 };
         // COUNT MOVE_NONE SEPARATELY. Without this a program that hit the 2e9 per-run COST CAP
@@ -496,8 +503,22 @@ fn move_agree() {
         } else if name.contains("capture") || name.contains("reduction") {
             "inexact -- may differ"
         } else { "different paradigm" };
-        println!("  {name:<34} {agree:>7}/{n:<3} {:>8.1}% {none:>6}  {class}",
-                 100.0 * agree as f64 / n as f64);
+        // EVALS AND COST, because "agrees 100%" and "costs 1.5% more" together are suspicious for
+        // a CAPTURE EXTENSION. A real one re-searches every capture at the horizon and should move
+        // node counts substantially in midgame positions. If its eval count is within a whisker of
+        // the seed's, it is barely firing -- which would make GRAMMAR 6's "faithful" label wrong
+        // and would explain the 100% agreement as a non-event rather than a finding about
+        // extensions.
+        let (mut ev, mut cost) = (0u64, 0u64);
+        for p in &set {
+            let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+            it.cost_cap = cap;
+            it.run(&prog, p, bud);
+            ev += it.evals;
+            cost += it.cost;
+        }
+        println!("  {name:<34} {agree:>7}/{n:<3} {:>8.1}% {none:>6} {:>12} {:>7.3}x  {class}",
+                 100.0 * agree as f64 / n as f64, ev, cost as f64 / seed_cost.max(1) as f64);
     }
     println!("\n  100% for the exact variants => behavioural identity MEASURED, and correctness");
     println!("  genuinely cannot discriminate among them at fixed depth.");
