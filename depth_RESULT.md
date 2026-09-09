@@ -53,3 +53,39 @@ tuned.
   means the depth-3 net saw far less data diversity, and a longer run might close or widen the gap.
 * Both controls use fixed-depth-2 uncapped play, which is independent of either arm's training
   depth. That part is clean.
+
+
+---
+
+## CONFOUNDED WITH THE HORIZON — found before the replication ran
+
+The two arms differ in more than datagen depth, and the difference runs in the direction that
+flatters the winner.
+
+`horizon = 10 + (g-1)*5`, and equal wall clock forces unequal generation counts:
+
+| arm | generations | horizon reached |
+|---|---|---|
+| depth 2 | 92 | **465** |
+| depth 3 | 8 | **45** |
+
+**A 10× horizon difference.** The horizon hypothesis — the fourth ceiling candidate, currently
+under test — says NARROW is better, because far-from-terminal labels are anti-signal in near-random
+self-play (`datagen.rs:17-20`, and `main.rs:514` measured sign accuracy 0.452 → 0.441 training on
+ALL decided positions against 0.543 at ≤10 plies). **The depth-3 arm had the narrow horizon.**
+
+So +0.025 may be the horizon, not the depth, and this experiment cannot tell them apart.
+
+**The confound is STRUCTURAL, not an oversight in one run.** Equal wall clock → unequal generation
+counts → unequal horizons, every time. So the replication as originally queued would have
+reproduced it faithfully at two more seeds and produced a confident, confounded answer — which is
+worse than no answer, because three agreeing runs read as strong evidence.
+
+`depth_replicate.sh` now passes `--horizon-cap 45` to BOTH arms, pinning the horizon at what the
+depth-3 arm reached naturally, so datagen depth is the only remaining difference. **The original
+seed-20260907 result is not comparable to the capped ones and is excluded from the count**, which
+means the replication answers 2 pairs rather than 3.
+
+This is the same class as the equal-time/equal-depth error in the width experiment and the
+equal-cost/equal-budget error in the game gate: two things varying at once, with the uncontrolled
+one pointing the way I wanted.
