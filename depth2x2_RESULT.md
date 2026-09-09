@@ -320,3 +320,26 @@ less at the very bottom), so the SHALLOWER odd arm wins a head-to-head against t
 d2 against d3 — one step of depth AND a parity crossing, with the two pointing opposite ways. Their
 sum is small and unstable, which is exactly the +0.025 that never reproduced. Neither term is an
 artifact; the comparison was.
+
+## Practical consequence: the shipped datagen depth is on the RIGHT side of parity, for a reason nobody had measured
+
+`MASTER_PLAN.md:617` sets the loop's datagen depth to 1 and gives the reason as throughput —
+*"until then depth 1 is the correct datagen setting"*, where "then" is the accumulator and the
+bytecode making deep search cheap.
+
+The 2×2 adds an independent reason that was never part of that argument: **depth 1 is ODD**, and odd
+beats even at fixed depth on every measurement here (+0.033 shallow, +0.014 deep, eight of eight
+signs). So the shipped setting is correct on the parity axis as well as the throughput one.
+
+**This does NOT argue for moving to depth 3.** Depth 3 is odd *and* deeper, so both effects favour it
+per generation (+0.038 cross-seed in the odd class) — but it costs **31×** the datagen time (measured:
+1s vs 31s per 300 games), and the equal-wall-clock comparison is unambiguous: the shallow arm gets
+~12× more generations and wins. The per-generation gain does not survive the throughput loss, and
+`throughput_RESULT.md` establishes there is no cheap way to close that gap.
+
+**So the finding is scientifically real and operationally inert**, and it is worth saying that plainly
+rather than letting a resolved effect imply an action it does not support. What it changes is the
+*explanation*: the default was chosen for throughput and happens to also be right on parity, which
+means a future throughput breakthrough would make depth 3 (odd, deeper) the natural target — not
+depth 2, which is where a naive "one more ply" step would land and which is the worst of the four
+arms tested.
