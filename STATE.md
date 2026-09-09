@@ -96,6 +96,11 @@ contributes nothing measurable".
    loses 2 on the old guard. Both figures were wrong.
 6. **"A transposition-table soundness bug."** The depth-4 disagreement was the 2e9 cost cap
    truncating searches, with `MOVE_NONE == MOVE_NONE` scored as agreement.
+7. **"Batching the gate does not help — every batch rolls back, so it is a LEARNING failure."**
+   `batch_ab.sh` ran at 17:22 on a binary built at 17:13; the anchor-increment batch gate landed at
+   19:18 (`bae8c7b`). It measured the OLD head-to-head gate, printing `0.500+/-0.007` — the blind
+   gate's signature, not a null. Its arms were also unequal (11 generations vs 5, time-boxed), and
+   its negative was pre-registered as expected. Re-queued as `batch_ab2.sh`.
 
 ---
 
@@ -115,10 +120,37 @@ contributes nothing measurable".
 
 ---
 
+### The acceptance rule cannot accept a real step
+
+`resolved_up = pent_rate - ci95 > 0.5` (main.rs:675) — acceptance needs an edge **larger than the
+gate's own ci95**. At 224 pairs that is **0.0309**; a real per-generation edge is **~0.0114**. Both
+figures reproduce numbers recorded independently elsewhere in the tree.
+
+> The shipped gate demands an edge **2.7× larger** than a generation produces.
+
+main.rs:757 already states the premise — "real steps are far smaller than that" — but concludes it
+only about the ANCHOR gate, which by main.rs:752 "can only ever veto" and so cannot rescue anything
+the champion gate rejected. **Even at face value with zero compression, the 0.0309 floor exceeds
+datagen depth (+0.025) — the only surviving ceiling candidate.** Detail in
+`acceptance_floor_RESULT.md`.
+
+## Task list (docs/MASTER_PLAN items 1-6) — verified stale
+
+| item | status, verified by reading |
+|---|---|
+| 1. incremental NNUE accumulator | **done and correctly OFF.** `Acc` exists, `tests/incremental.rs` checks it against a full refresh, and `search.rs:169` gates it on `n_hidden >= 64`. It is a measured **0.91× LOSS** at width 32 (arch.rs:150), and shipped width is 16. All three clauses of its premise expired: eval is a sparse gather over ~38 active rows, not a dense 256×782 sweep; width is 16, not 256. It pays only at width ≥64, which was refuted at equal time. |
+| 3. Zobrist + real TT slots | **done.** Incrementally maintained key (`chess.rs:271`) with a from-scratch `zobrist()` to check against. |
+| 6. xcheck + perft as `#[test]`s | **done.** `board/tests/perft.rs`, `board/tests/xcheck.rs`, 13 test files total. |
+| 5. register bytecode | deprioritised — the interpreter measured 1.003× hand-written on a quiet core. |
+
 ## Queue (core 15, chained by PID)
 
 blend A/B v2 (arm 0.00 running) → ratchet test → depth replication (horizon-capped, pre-flight
-verified) → epochs A/B v2 → **blend_hi** (1.00 vs 0.85 vs re-run 0.75 control)
+verified) → epochs A/B v2 → **blend_hi** (1.00 vs 0.85 vs re-run 0.75 control) → **batch_ab2**
+
+`batch_ab2` is the highest-value item and is LAST only because the chain is pid-linked and cannot be
+reordered while it runs. **If a slot frees earlier, run it first** — every arm ahead of it asks what
+to feed a loop that may be unable to swallow anything.
 
 `blend_hi` also re-runs 0.75 with the same binary and seed as a determinism check. If it does not
 reproduce 0.847 ± 0.022, the ~0.07 band is RUN variance rather than SEED variance and no cross-run
