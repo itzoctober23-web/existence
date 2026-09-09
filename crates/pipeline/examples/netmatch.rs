@@ -30,8 +30,23 @@ fn main() {
     let depth: u32 = a.next().and_then(|s| s.parse().ok()).unwrap_or(4);
     let seed: u64 = a.next().and_then(|s| s.parse().ok()).unwrap_or(20260907);
 
-    let na = Net::load(&pa).unwrap_or_else(|e| panic!("{pa}: {e}"));
-    let nb = Net::load(&pb).unwrap_or_else(|e| panic!("{pb}: {e}"));
+    // "random:<width>:<seed>" constructs a net instead of loading one, so the ORIGIN can be an
+    // opponent here. Without it the origin is reachable only from inside `learn`, and the question
+    // "does an origin-increment recover what a direct match says" cannot be asked at a matched
+    // depth -- which is the only way to ask it, since both previous disagreements were confounded
+    // by the control playing depth 4 while the direct match played depth 2.
+    let load = |spec: &str| -> Net {
+        if let Some(rest) = spec.strip_prefix("random:") {
+            let mut it = rest.split(':');
+            let w: usize = it.next().and_then(|x| x.parse().ok()).expect("random:<width>:<seed>");
+            let sd: u64 = it.next().and_then(|x| x.parse().ok()).expect("random:<width>:<seed>");
+            Net::random(w, sd)
+        } else {
+            Net::load(spec).unwrap_or_else(|e| panic!("{spec}: {e}"))
+        }
+    };
+    let na = load(&pa);
+    let nb = load(&pb);
     // A width mismatch is not an error to paper over -- the nets face each other directly, so
     // differing widths is a legitimate comparison, but it must be VISIBLE in the output or a
     // capacity difference gets read as a training difference.
