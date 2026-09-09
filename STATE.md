@@ -1535,7 +1535,27 @@ population whose mate guard is `f >= 1` — vacuous."* It is kept here as eviden
 must never read the global weight, and as a reminder that the comparison had to be redone: an A/B
 where one arm runs in a configuration nobody ever shipped is rigged, however bad the arm looks.
 
-Still NOT established: whether the seed is why every MCTS gate reads 0.500. The 25-generation arms
+**ANSWERED, and it is NOT the seed.** Both A/B arms have now run generations, and the MCTS gate
+reads `0.500 +/- 0.250 (12 games)` in the blend arm AND in the sum arm. The reseed improves the SEED
+(15/23 mates vs 11/23, half the cost) and does not touch the gate reading at all.
+
+Two reasons, neither of them the seed:
+
+1. **The 12-game gate is BY DESIGN and is not a strength gate.** `evolve.rs:1293-1296`: *"6 pairs =
+   12 games resolves a large effect, which is the only kind worth promoting here; it CANNOT resolve a
+   2% edge and is not asked to. It is a veto on unplayable programs."* At 6 pairs ci95 is 0.250, so
+   the acceptance bar prints as `needed >0.750`. A challenger that is neither unplayable nor
+   dramatically better scores 0.500 and is rejected. That is the intended behaviour, not a fault.
+2. **The candidates are behaviourally identical, which this tree already knew.** Across 11 generation
+   lines in the two arms, `distinct` was 0 four times and 1 five times out of 8 candidates. That is
+   `search_track_WHY_NOTHING.md:91,279` and `STATE.md:161` — *"correct programs are behaviourally
+   identical, so correctness cannot rank them"* — showing up again, not a new finding.
+
+So "every MCTS gate is exactly 0.500" was never evidence about the seed. It is a 12-game veto
+returning the null on candidates that do not differ. The reseed still stands on its own measurements
+(mates, guard floor, cost); it simply does not bear on this.
+
+Superseded note (kept): Still NOT established: whether the seed is why every MCTS gate reads 0.500. The 25-generation arms
 are running; a guard floor of 7 was never vacuous, so the 0.500 gates need their own explanation.
 
 The lineage seed is now `uct_mcts()` (sum selection) and `budget_mcts` is 1024, the measured
