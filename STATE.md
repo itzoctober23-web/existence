@@ -1246,6 +1246,27 @@ despite identical mutation draws, because the fitness changes which candidate is
 population, not the RNG. The comparison is still single-trajectory, but it is not a comparison of a
 thing against itself.
 
+### VERIFIED BOTH WAYS — the track can finally produce a second trajectory
+
+```
+DEFAULT   gen1 MAIN REJECT 0.417+/-0.103  surrogate 0.002794   reproduces the bank
+          gen2 MAIN REJECT 0.417+/-0.103  surrogate 0.002884   matches the banked gen-2 exactly
+SEED 777  gen1 MAIN REJECT 0.458+/-0.082  surrogate 0.002705   DIVERGES
+          gen1 MCTS ..none                                     different shape entirely
+```
+
+Both halves of the check pass: the default is bit-identical to the banked run, so nothing already
+measured is invalidated, and 777 departs immediately. The binary announces which it is on its first
+line (`run seed 777 (mix 0x3660740359129bbd) -- NEW trajectory`), so a log can no longer be mistaken
+for the wrong arm.
+
+**The first thing the second trajectory buys.** Seed 777 shows the SAME saturation — rates capping at
+exactly `1.000x`, `hard 0-0`, `..none` generations. That was previously a single-trajectory
+observation and the central claim resting on it (the surrogate is saturated, so selection has nothing
+to rank) could not be separated from one unlucky run. It now reproduces on an independent trajectory.
+That does not make it a large sample, but it moves the saturation from n=1 to n=2 and it is the first
+evidence about this track that is not a restatement of the same run.
+
 **Fixed narrowly**: the run seed is now mixed into the mutation draw only, multiplicatively so that
 the default (unset → 0) is the identity and every banked trajectory stays bit-for-bit reproducible.
 The nine position-set seeds are deliberately left hardcoded — a fixed benchmark is what makes results
