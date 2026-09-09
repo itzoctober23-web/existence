@@ -178,3 +178,45 @@ overhead**, not a trade.
 differs" — a capture extension must eventually change a move on some position, and deeper searches
 give extensions more room to matter. What is established is that at the depth this fitness actually
 runs, the family is behaviourally uniform, which is what the argument needed.
+
+
+---
+
+## Depth 4, with a valid cost cap: uniformity does NOT break
+
+The "raise the fitness depth so extensions have room to matter" escape was the last cheap way out.
+It is closed, at least at depth 4. Re-run with the per-run cost cap raised to 5e10 so nothing is
+truncated (`noMove` is 0 for every program — the earlier depth-4 run had 17-19 of 20 searches cut
+off by the default 2e9 ceiling and was worthless):
+
+| program | agrees with seed @ d4 | noMove |
+|---|---|---|
+| bare alpha-beta | 12/12 (100%) | 0 |
+| alpha-beta + hash reuse | **12/12 (100%)** | 0 |
+| alpha-beta + iterative deepening | 12/12 (100%) | 0 |
+| alpha-beta + hash + ID | 12/12 (100%) | 0 |
+| **capture extension (rung 6)** | **12/12 (100%)** | 0 |
+| **table reduction (rung 7)** | **12/12 (100%)** | 0 |
+| depth-one | 3/12 (25%) | 0 |
+| UCT MCTS | 0/12 (0%) | 0 |
+| proof-number | 0/12 (0%) | 0 |
+
+**All seven alpha-beta-family programs still play identically.** Extensions and reductions do not
+start diverging with an extra ply of room. Only other paradigms differ.
+
+**And hash reuse agrees 12/12**, which closes the transposition-table soundness alarm completely:
+the depth-4 "18/20" that raised it was the cost cap truncating searches, with `MOVE_NONE ==
+MOVE_NONE` scored as agreement and the two "disagreements" being positions where ab_hash COMPLETED
+and the seed did not — because ab_hash is cheaper. The TT is sound and the 1.024x rung stands.
+
+### Where that leaves it
+
+Uniformity holds at both depths tested (40/40 at depth 3, 12/12 at depth 4). The MAIN lineage's
+fitness cannot discriminate on correctness at either, cost is the only signal, and cost is
+unconvertible for a depth-limited program. Two rungs of the declared ladder are pure overhead at
+both depths: capture extension 0.985x and table reduction 0.993x, for identical play.
+
+Limit: 12 positions at depth 4 and 40 at depth 3, and only those two depths. This is not "identical
+at every depth forever" — a capture extension must eventually change a move somewhere. It is that
+at the depths this fitness can afford to run, the family is behaviourally uniform, which is what
+the argument needs and all it claims.
