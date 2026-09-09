@@ -340,6 +340,63 @@ prior, labelled `faithful`, under a line reading "no sketches remain".
 After the repair: agrees 60/60 at every depth (a sound TT does not change alpha-beta's value),
 and it now earns its keep in evaluations — 59,347,691 vs 66,932,291 at depth 4, **-11.3%**.
 
+## DECLARED PRIMITIVES THAT DO NOT DO WHAT THIS DOCUMENT SAYS — measured 2026-09-08
+
+Three defects, found by pulling one thread: capture extension "played identically to the seed and
+cost 1.6% more", which is impossible for an extension that re-searches captures. All three were
+INVISIBLE while the first one stood, because a dead branch masks everything downstream of it.
+
+### 1. `pred` (primitive #5) was a stub — FIXED
+
+`interp/src/lib.rs` read `Node::Pred(..) => Value::Bool(false)`. Every predicate always false.
+
+Measured consequence: `capture_extension` had a BYTE-IDENTICAL eval count to the seed
+(4,127,466 both). It was the seed plus a dead branch costing 1.6% — while section 6 called it
+"faithful". `Op::WrapIfPred` was also a disguised DELETE, since wrapping a statement in `if false`
+removes it.
+
+Now implemented for the three PredIds with unambiguous Boolean readings (`is_capture`,
+`is_promotion`, `gives_check`), strictly from move flags and a board query. The other four
+(`captured_type`, `moving_type`, `from_square`, `to_square`) name quantities that are NOT booleans
+while the signature says Bool; any reading of them would smuggle in the chess knowledge section 2.1
+forbids, so they remain false and the SPEC GAP is recorded rather than papered over.
+
+### 2. `capture_extension` contradicts rung 6's own wording — NOT FIXED
+
+Section 9 rung 6 says "capture extension **at horizon**". The reference applies `if is_capture:
+nd = d` inside the move loop at EVERY depth, so captures are free throughout the tree — not
+quiescence, but full-width search with captures unbounded.
+
+Measured once `pred` worked, 3 positions at depth 3:
+
+| program | evals | cost | agreement |
+|---|---|---|---|
+| bare alpha-beta | 441,471 | 1.000x | 3/3 |
+| **capture extension** | **24,440,705** | **73.363x** | 1/3, and 2 searches hit the cost cap |
+
+**73x, and it truncates.** The 0.985x recorded for this rung in the ladder was the cost of a dead
+branch; the real figure is 73x and unusable. The rung needs re-encoding to match its own
+specification before any ladder number for it means anything.
+
+### 3. `tread` (primitive #26) ignores its index arguments — NOT FIXED
+
+Declared as "read a learned integer table **by index features**". Implemented as
+`Node::TRead(i, _) => tables.get(i)` — the arguments are DISCARDED. So `TRead(3, [d, i])` returns
+one scalar regardless of depth or move index, and table-driven reduction (rung 7) cannot vary by
+anything. It is doubly dead: the harness also passes only three tables, so index 3 is out of range
+and returns 0.
+
+Measured: `table_reduction` still has a byte-identical eval count to the seed (441,471) at 1.007x —
+a no-op costing 0.7%, which the `pred` fix does not touch because this is a different primitive.
+
+### Why this matters beyond the three fixes
+
+`search_track_WHY_NOTHING.md` concluded that the only class of candidate that CAN improve is the
+inexact variants — extensions and reductions — and measured both as no-ops. Both were no-ops
+because the primitives underneath them were missing or mis-specified, not because of alpha-beta's
+exactness. **The class was not empty by mathematics; it was empty by omission.** The uniformity
+measurements stand as measurements; their explanation was incomplete.
+
 ## 7. Fitness interface (details in FITNESS.md)
 A program exposes `choose`. Exactness is NOT program-settable. The compiler derives a
 static taint per returned Score: a score is **exact** iff it provably came through
