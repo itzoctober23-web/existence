@@ -725,7 +725,20 @@ fn step_diff() {
         it.run(&seed, p, 16)
     }).collect();
 
+    // THE REAL GUARD SET, not just "did it return a move". The first version of this instrument
+    // sorted on whether a candidate returned MOVE_NONE, and its own doc comment claimed the
+    // buckets meant "keeps all answers" -- they did not. The loop's guard is `f >= best_found` on
+    // the 25-position mate/disagreement/window set, and the search track's measured mate-ok is
+    // about 2/12, so most candidates that return a move still FAIL it. Reporting 35% as "the
+    // useful kind" would have overstated the useful bucket several-fold.
+    let mut guard = mate_set(15);
+    guard.extend(disagreement_set(5, depth, &net, 4_000));
+    guard.extend(window_sensitive_set(5, depth, &net, 8, 4_000));
+    let (gf0, _, _) = fitness(&seed, &guard, &net, depth, 16);
+    println!("  guard set: {} positions, seed scores {gf0}/{}", guard.len(), guard.len());
+
     let (mut ill, mut broken, mut identical, mut different) = (0usize, 0usize, 0usize, 0usize);
+    let mut guard_ok_diff = 0usize;
     let mut diff_ops: std::collections::BTreeMap<String, usize> = Default::default();
     for k in 0..n {
         let mut r = Rng::new((k as u64) << 12 ^ 0xA5A5);
@@ -747,7 +760,13 @@ fn step_diff() {
         else if same { identical += 1; }
         else {
             different += 1;
-            *diff_ops.entry(format!("{:?}", ops)).or_default() += 1;
+            // AND does it survive the loop's actual correctness guard? This is the bucket that
+            // matters: behaviour-changing AND correctness-preserving.
+            let (gf, _, _) = fitness(&cand, &guard, &net, depth, 16);
+            if gf >= gf0 {
+                guard_ok_diff += 1;
+                *diff_ops.entry(format!("{:?}", ops)).or_default() += 1;
+            }
         }
         // PROGRESS, because a long measurement with no output is indistinguishable from a hang.
         // run_search_track.sh records this project learning that once already: "the loop printed
@@ -764,9 +783,10 @@ fn step_diff() {
     println!("  ill-typed / inapplicable : {ill}");
     println!("  BROKEN    (no move)      : {broken}");
     println!("  IDENTICAL (same play)    : {identical}");
-    println!("  DIFFERENT (plays differently, THE USEFUL KIND) : {different}");
+    println!("  DIFFERENT (plays differently)                  : {different}");
+    println!("  ...AND passes the {}-position guard (THE USEFUL KIND): {guard_ok_diff}", guard.len());
     if different > 0 {
-        println!("\n  operators that produced a behaviour change:");
+        println!("\n  operators producing a behaviour change that ALSO passes the guard:");
         for (o, c) in &diff_ops { println!("    {o:<28} {c}"); }
     } else {
         println!("\n  ZERO behaviour-changing single edits. If this holds at larger n, the blocker");
