@@ -80,3 +80,26 @@ cheap proxy in this project to survive contact, after `mcnemar_z` (r = −0.095)
 * **One seed, one 20-generation run per arm.** The difference clears the between-run band; the
   *shape* of the curve does not yet.
 * Decisiveness is an **observation**, not a validated proxy. The 0.00 arm is its first real test.
+
+---
+
+## 2026-09-09 — the high side was never settled, and the determinism question it posed is answered
+
+**`blend_hi.sh` did not produce a verdict, and the reason is in its own logs.** The two treatment
+arms completed 20 generations (`bh_085` → 0.809 ± 0.024, `bh_100` → 0.832 ± 0.024 on the frozen
+origin) but **the 0.75 control stopped at generation 9**, so there was nothing to compare them
+against. The two treatment arms differ by +0.023 ± 0.034 — unresolved — and they were measured on the
+instrument this tree has since documented as SATURATING, which reversed the sign on this very
+comparison and on capacity w16-vs-w64.
+
+**The determinism check it asked for is now done, and it passes.** `blend_hi.sh:41-42` says the
+re-run doubles as a free determinism test — *"same binary, same seed, --threads 1. If the re-run
+reproduces 0.847 exactly, the ~0.07 between-run band is purely SEED variance."* The first nine
+generation lines of `bh_075c.log` are **byte-identical** to `bn_075.log`. So the run-to-run band is
+**not** nondeterminism at a fixed seed; it is between-SEED variance, exactly as that line predicted.
+
+That has a second consequence, which is what makes the question answerable at zero training cost:
+`bn_075.net` is a completed 20-generation 0.75 arm on the same seed and settings, verified to follow
+the identical trajectory. It stands in for the arm that died. `blend_h2h.sh` now runs
+0.75 / 0.85 / 1.00 head-to-head at depth 4 — matched at 20 generations, judged on the strength
+standard rather than the saturating origin metric.
