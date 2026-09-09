@@ -419,3 +419,29 @@ on the gate's own output.
 **This strengthens the case for MASTER_PLAN's remedy #2.** An unbalanced opening book changes the
 STARTING POSITION, so it costs nothing per game — unlike depth, which pays for decisiveness with
 compute at a losing exchange rate. Same information gain, no per-game cost.
+
+### My own probe reproduced the gate's defect — 6 pairs cannot validate its own control
+
+The unbalanced-opening probe pre-registered that its CONTROL arm must reproduce the independently
+measured 67% A/A draw rate, "or this harness is not the gate and arm 2 means nothing". It came back
+**0-12-0, 100% draws**.
+
+Before blaming the harness, the arithmetic:
+
+| sample (identical settings) | W-D-L | draws | n |
+|---|---|---|---|
+| `pent_shape` A/A | 2-8-2 | 66.7% | 12 |
+| probe CONTROL | 0-12-0 | 100.0% | 12 |
+| **pooled** | **2-20-2** | **83.3%** | **24** |
+| real gate population | 0-29-7 | 80.6% | 36 |
+
+**The pooled value matches the real population.** P(all 12 drawn | p = 0.67) = 0.008 — unlikely, not
+excluded. Two 6-pair samples of the same quantity straddle it, and neither alone can pin it.
+
+**This is the same defect the investigation is about.** I built a probe at the gate's own sample size
+to model the gate, and inherited its inability to resolve anything — then nearly read a treatment
+effect off it. The control requirement is what caught it, which is the only reason it was written
+before the numbers were seen.
+
+Re-running at **24 pairs (48 games per arm)**. The treatment reading stands or falls on the control
+reproducing ~80% there; at 12 games neither arm carries information.
