@@ -228,6 +228,12 @@ contributes nothing measurable".
   `for SEED` loop simply started the *next* arm (987654) with the identical flaw, and it ran for
   five more minutes on a core before I noticed the log name had changed. **Kill the parent script
   FIRST, then the child** — otherwise the loop races you and respawns what you just removed.
+* **A null from a coarse instrument is not a null.** `du -sb` over a 125G tree reported "0 bytes
+  added in 15s" for the 4PC datagen and I nearly recorded it as STALLED. Per-file `stat` over the
+  same interval showed +25KB and +67KB and a new file created mid-sample. Earlier the same day a
+  `find -name '*.npz'` returned 0 because the job writes `.tsv`. **Two false nulls in one check** —
+  match the instrument's resolution to the thing being measured, and confirm a null against a
+  second method before believing it.
 * **State outliving its run.** A 5-hour-stale `hz_1000.log` about to be read as a current arm; a
   mid-run script edit that killed a verdict block, where **reverting within a minute did not undo
   it**.
