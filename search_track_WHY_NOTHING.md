@@ -263,3 +263,47 @@ is all that is claimed.
 `table_reduction` remains a no-op for an unrelated reason the predicate fix does not touch: `tread`
 discards its index arguments, so `TRead(3, [d, i])` cannot vary by depth or move index, and the
 harness passes only three tables so index 3 is out of range anyway.
+
+
+---
+
+## The diagnosis completed, 2026-09-08
+
+Four measurements, each of which corrected a guess I had made earlier, now compose into one account.
+
+**1. The operators are NOT the blocker.** 150 single-edit mutants of the seed, 8 positions at
+depth 3: 18 broken (12%), 79 identical (53%), **53 play differently (35%)**, produced by InsertMax
+20, Delete 10, Dup 9, ReplaceConst 7, Tweak 5, WrapIfPred 2. I built this expecting the useful
+bucket might be empty, which would have moved the blocker to the operator set. It is not empty.
+
+**2. Correct programs are behaviourally identical, so correctness cannot rank them.** All seven
+alpha-beta-family reference programs agree with the seed 40/40 at depth 3 and 12/12 at depth 4.
+That is alpha-beta's exactness, not an accident of the set.
+
+**3. The hard set does not discriminate either — for ANYTHING.** It was built specifically to
+create a correctness gradient, with the seed scoring 0/8 by construction. Every reference program
+also scores 0/8. And across **92 generations of live search, roughly 1,100 candidates, not one has
+ever scored above 0**. Unsaturated, and unreachable by anything the search actually produces.
+
+**4. Cost is the only remaining signal and it cannot convert to strength.** Nine of eleven
+reference programs never read `Budget`, so a depth-limited program that costs half as much returns
+the identical move sooner (`docs/FITNESS.md`).
+
+### The account
+
+The search HAS behaviour-changing candidates — 35% of single edits — and the fitness CANNOT RANK
+THEM BY PLAY. Mates saturates at 25/25 among everything that passes the guard; the hard set reads 0
+for everything ever generated; and what remains is cost, which for these programs is not strength.
+So the population wanders among genuinely different programs guided by a signal that is not
+measuring the thing anyone wants.
+
+This is not "the fitness needs tuning". Every component behaves as specified, and the composition
+has no gradient toward playing strength.
+
+### What is left
+
+Only games against a fixed anchor have resolved anything all session — they refuted capacity
+(0.179 ± 0.021) and the draw filter (+0.086 ± 0.015). As a per-generation fitness they cost roughly
+1,650 pairs to resolve one generation's real edge (`proxies_RESULT.md`), which is why they are not
+already the metric. That is the honest trade: the only valid signal is the one that is
+unaffordable at this cadence, and everything cheaper has now been measured and found uninformative.
