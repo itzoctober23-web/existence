@@ -458,28 +458,45 @@ fn move_agree() {
         }
         if !p.legal_moves().is_empty() { set.push(p); }
     }
+    // RAISE THE PER-RUN COST CAP. The default is 2e9 and a depth-4 search costs ~1.67e9 per
+    // position, so at depth 4 the ceiling truncated 17-19 of 20 searches and `run` returned
+    // MOVE_NONE. The first version of this instrument counted MOVE_NONE == MOVE_NONE as AGREEMENT,
+    // which is how it reported ab_hash at 18/20 and nearly had me file a transposition-table
+    // soundness bug. The 2 "disagreements" were positions where ab_hash COMPLETED and the seed did
+    // not -- because ab_hash is cheaper. A point in its favour, read as a leak.
+    let cap: u64 = 50_000_000_000;
     let seed = reference::bare_alpha_beta();
     let seed_moves: Vec<board::Move> = set.iter().map(|p| {
         let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
+        it.cost_cap = cap;
         it.run(&seed, p, 16)
     }).collect();
 
     println!("=== move agreement with the seed, {n} positions at depth {depth} ===");
     println!("  EXACT variants must agree 100% if alpha-beta's exactness holds in this interpreter.\n");
-    println!("  {:<34} {:>10} {:>9}  {}", "program", "agree", "pct", "class");
+    println!("  {:<34} {:>10} {:>9} {:>6}  {}", "program", "agree", "pct", "noMove", "class");
     for (name, prog) in reference::all() {
         let bud = if name.contains("MCTS") { 512 } else { 16 };
-        let mut agree = 0usize;
+        // COUNT MOVE_NONE SEPARATELY. Without this a program that hit the 2e9 per-run COST CAP
+        // and returned no move at all was scored as a "disagreement", which is a resource artefact
+        // and not a difference of opinion. At depth 4 the seed costs ~1.67e9 per position against
+        // that 2e9 ceiling, so it is close enough for variance to push individual positions over --
+        // and this instrument reported ab_hash at 18/20 and had me an inch from filing a
+        // transposition-table soundness bug that the value check then could not reproduce.
+        let (mut agree, mut none) = (0usize, 0usize);
         for (p, sm) in set.iter().zip(&seed_moves) {
             let mut it = Interp::new(&net, vec![depth, 32_000, 8]);
-            if it.run(&prog, p, bud) == *sm { agree += 1; }
+            it.cost_cap = cap;
+            let mv = it.run(&prog, p, bud);
+            if mv == board::types::MOVE_NONE { none += 1; }
+            else if mv == *sm { agree += 1; }
         }
         let class = if name.contains("hash") || name.contains("deepening") || name.contains("main seed") {
             "EXACT -- must be 100%"
         } else if name.contains("capture") || name.contains("reduction") {
             "inexact -- may differ"
         } else { "different paradigm" };
-        println!("  {name:<34} {agree:>7}/{n:<3} {:>8.1}%  {class}",
+        println!("  {name:<34} {agree:>7}/{n:<3} {:>8.1}% {none:>6}  {class}",
                  100.0 * agree as f64 / n as f64);
     }
     println!("\n  100% for the exact variants => behavioural identity MEASURED, and correctness");
