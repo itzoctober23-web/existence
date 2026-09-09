@@ -44,7 +44,40 @@ Width is closed as a cheap lever. The ceiling is in the DATA, and the remaining 
   `datagen.rs:17-20` warns the outcome is nearly independent of a position 40 plies earlier.
 * **the draw filter**, which discards ~64% of every batch. `draws_ab.sh` is running.
 
-## The confound, stated rather than buried
+## The confound, TESTED — and it is substantially weakened
+
+The obvious objection to the above is "width 64 has 4x the parameters on identical data, so it is
+simply undertrained at 20 generations". That is checkable from the loss trajectories already on
+disk, and it does not hold:
+
+| arm | mean loss, first 5 gens | mid 5 | last 5 | late slope (mid->last) |
+|---|---|---|---|---|
+| w16 | 0.0273 | 0.0353 | 0.0397 | +0.0044 — FLAT |
+| w64 | 0.0276 | 0.0217 | **0.0262** | +0.0045 — FLAT |
+
+**Neither arm was still improving.** Both late slopes are slightly POSITIVE, so neither is a net
+still descending that was cut off early. Undertraining predicts a steeply falling loss at the
+cutoff, and that is not what either arm shows.
+
+**And the wider net FITS BETTER while PLAYING WORSE.** w64's final loss is 0.0262 against w16's
+0.0397 -- as 4x the parameters should manage -- and it still loses at 0.179 ± 0.021 per unit of
+clock. That is not a capacity shortfall. It is lower training loss failing to convert into
+strength, plus the speed penalty equal-time correctly charges it.
+
+That decoupling is worth more than the width result itself: **loss on this target is not a proxy
+for playing strength here.** It is the same lesson as the draws A/B, where the include arm's much
+lower loss (0.0191 vs 0.0726) came with measurably WORSE play -- twice in one day, from two
+unrelated experiments.
+
+CAVEAT ON THE LOSS COMPARISON: each arm generates its own self-play data with its own net, so the
+two losses are computed on different distributions and are not strictly commensurable. The
+FLATNESS of each trajectory is a within-arm fact and is unaffected; the cross-arm level comparison
+is the weaker of the two claims and is flagged as such.
+
+Both arms' loss also RISES across the run (w16: 0.0273 -> 0.0397). That is the horizon schedule
+widening and making the task genuinely harder, which is the next candidate under test.
+
+## The original confound, stated rather than buried
 
 The arms are matched on GENERATIONS, not on training-to-convergence. Width 64 has **4x the
 parameters and received exactly the same data**, so "undertrained at 20 generations" is a live
