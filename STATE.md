@@ -489,7 +489,25 @@ than the 0.0059 the first 5 gates gave. **The gains are front-loaded and then st
 `compound.sh` was queued to test — and it now has a partial answer before it even starts: within
 this run, batching bought two steps and then stalled.
 
-## HINT (not a finding): the blend ordering may REVERSE at depth 4
+## RESOLVED: blend 1.00's advantage is depth-2 only — the candidate is DEAD
+
+The direct 448-pair match settles the hint below:
+
+```
+bn_075 vs bh_100   depth 2:  0.450 ± 0.016   RESOLVED, blend 1.00 stronger
+                   depth 4:  0.511 ± 0.022   UNRESOLVED, no advantage
+shift              +0.061 ± 0.027,  z = 4.40 -> the DEPTH EFFECT is resolved
+```
+
+Blend 1.00 genuinely beats 0.75 **at depth 2** and shows **no advantage at depth 4**. Depth 4 is the
+strength standard, so **the blend candidate is dead for shipping** and the shipped default of 0.75
+stands. The pool's common-opponent route pointed the same way independently.
+
+**Consequence for the surviving candidate:** `sc_c` (blend 1.00 + epochs 2) beats the shipped
+defaults at depth 4 — and it cannot be the blend doing it. It must be **epochs 2**, which the
+depth-4 `sc_c vs s2_100` match tests directly.
+
+### The hint this replaced (kept: it called the direction correctly while underpowered)
 
 Depth-4 pool, via the common opponent `champion_long`:
 
@@ -542,7 +560,7 @@ All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an El
 
 | candidate | shipped | measured | strength |
 |---|---|---|---|
-| **blend 1.00** | 0.75 | seed1 **0.450 ± 0.016** / seed2 **0.487 ± 0.015** | **DOWNGRADED — 2nd seed unresolved** |
+| ~~blend 1.00~~ | 0.75 | d2 **0.450 ± 0.016** / d4 **0.511 ± 0.022** | **DEAD — advantage is depth-2 only (z = 4.4)** |
 | **`--gate-every 5`** | 1 | d2 **0.529 ± 0.015** / **d4 0.502 ± 0.022** | **FAILS AT DEPTH 4** — gain vanishes |
 | epochs 2 | 3 | 0.518 ± 0.014 (ep_2 vs ep_3) | **MARGINAL** — margin 0.004 vs ci95 0.014 |
 
