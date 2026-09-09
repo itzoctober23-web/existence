@@ -223,6 +223,11 @@ contributes nothing measurable".
   spans a line break and grep is line-based, so the pattern could not match. Right answer, no
   verification: the brief's own rule, *a grep that finds nothing is usually a broken pattern, not an
   absence*, applied to the check itself. **Print a count or a hit, never rely on silence.**
+* **Killing a child does not stop the loop that spawned it.** I killed `depth_parity.sh`'s
+  depth-4 arm for seed 424242 after finding the protocol flaw, and reported it handled. The script's
+  `for SEED` loop simply started the *next* arm (987654) with the identical flaw, and it ran for
+  five more minutes on a core before I noticed the log name had changed. **Kill the parent script
+  FIRST, then the child** — otherwise the loop races you and respawns what you just removed.
 * **State outliving its run.** A 5-hour-stale `hz_1000.log` about to be read as a current arm; a
   mid-run script edit that killed a verdict block, where **reverting within a minute did not undo
   it**.
