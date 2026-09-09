@@ -2688,6 +2688,23 @@ generation 3, which carries one MAIN-lineage gate call plus its 96-pair verifica
 lineage, which runs at `budget_mcts = 1024` against MAIN's 16, so its verification could be far more
 expensive per pair. If an MCTS verification proves to cost hours, the pair count comes down; it is an
 observer and its precision is a free parameter.
+**AND THE FOLLOW-UP CONCERN WAS WRONG — checked before acting on it.** I reasoned that the MCTS
+lineage runs at `budget_mcts = 1024` against MAIN's 16, so its verification would cost ~64× and the
+experiment would stall at exactly the generation that matters (the first ACCEPT is an MCTS one). On
+that basis I was about to restart the arm a second time with a smaller pair count.
+
+**The measured costs are printed in the arm's own seed lines and say otherwise:**
+
+```
+lineage MAIN  budget   16  ->  9,235,450,584 cost
+lineage MCTS  budget 1024  -> 10,664,860,202 cost      ratio 1.15x, not 64x
+```
+
+`budget` is PLAYOUTS, and an MCTS playout terminates at the first unvisited node — so per-move cost
+is comparable to alpha-beta at budget 16, not 64× it. The same fact is in `mcts_budget`'s own output
+from earlier today. Scaling a cost by a parameter's numeric value, when the parameter is not a
+multiplier of work, is the same error class as reading an origin-increment against a direct-match
+band. No restart; the run stands.
 
 **The experiment does not need all 25 generations.** The question is "when the veto accepts a tie, was
 the candidate actually better?", which needs a handful of ACCEPT events with verification attached —
