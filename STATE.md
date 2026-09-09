@@ -1337,6 +1337,26 @@ Passing the oracle therefore said nothing about exploit-resistance, and I treate
 did. An offline ranking test over known-good programs cannot validate a filter whose job is to
 reject unknown-bad ones.
 
+**DISAMBIGUATED — it is the GUARD, and EPS is inert.** Single-knob arms, generation 1:
+
+```
+guardonly_s0  GUARD_TOL=7, eps 0.02   surrogate 3.308333  ABOVE:4  gate 0.208   1314x the seed
+epsonly_s0    eps 0.10, GUARD_TOL=4   surrogate 0.002794  ABOVE:3  gate 0.417   1.11x the seed
+ctl_s0        defaults                surrogate 0.002794  ABOVE:3  gate 0.417   1.11x the seed
+```
+
+`guardonly` reproduces the exploit on its own — a surrogate 1314x the seed's 0.002518 with a game
+rate of 0.208. `epsonly` is byte-identical to the control on every field. So the mates guard is the
+sole cause and the EPS widening is inert here, which is what the reasoning predicted; the value of
+running it is that the prediction is now a measurement.
+
+One honest limit on the EPS half: EPS governs which candidates are RETAINED in the population, and
+at generation 1 there is not yet a population wide enough for a 0.02-versus-0.10 band to separate,
+so "inert" is established only for the first generation. The guard result does not depend on that —
+it fires immediately and unambiguously.
+
+**Superseded confound note follows.**
+
 **CONFOUNDED, and I have to say so: I changed two knobs at once.** The `tol7` arms set
 `GUARD_TOL=7` AND `EPS=0.10` together, so this measurement cannot attribute the exploit to the guard
 alone. Theory says the guard — a 433x-rate candidate survives any EPS band, so EPS cannot be what
