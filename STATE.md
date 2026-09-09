@@ -1358,6 +1358,42 @@ choosing another constant. The one unambiguous improvement from the attempt surv
 a bare literal at 27 sites as `8` and 6 more as `1`, so `reference_audit` certified these programs
 under a different exploration weight than the loop runs. It is one named accessor now.
 
+## FIRST MACHINE-FOUND EXPLOIT CAPTURED, and it lands exactly on the guard floor
+
+`exploit_MAIN_gen1_1354x.prog`, produced within one generation of turning the refuted
+`GUARD_TOL=7` on as a generator:
+
+```
+18 mates, 81 nodes, generation 1, lineage MAIN
+surrogate 3.308333 vs incumbent 0.002443 = 1354x
+games 0.208 +/- 0.151 over 12 -- far below parity
+
+cost:  exploit      5,440,807
+       seed    10,233,319,689      -> 1,881x CHEAPER for 18 of 25 mates
+```
+
+**It barely searches.** 5.4M cost units against the seed's 10.2B is not a cheaper search, it is
+almost no search — and it still collects 18 mate-in-1/2 positions, because those are findable
+without one. Then it plays at 0.208.
+
+**And it scores EXACTLY 18, which is exactly the floor.** At tolerance 7 the mates floor is 25-7=18.
+The population did not merely slip past the guard, it landed on the boundary to the unit. At the
+default tolerance of 4 the floor is 21 and this program is rejected before its rate is ever
+considered. That is the guard doing the whole job, and it is why the tolerance stays at 4.
+
+**Consequence for the spec filter, which matters because I shipped it this turn.** FITNESS 3's
+filter is a test on the RATE (>= 0.9x the champion). This exploit has 1354x the rate, so it sails
+through any rate filter — the spec's included. The rate filter is not and was never the exploit
+defence; FITNESS 2's correctness oracle is, and the mates guard is what plays that role here. So the
+two changes are orthogonal and both are needed: the guard keeps no-search programs out, the filter
+stops discarding rungs that are slightly cheaper-but-sound. Implementing the filter without keeping
+the guard would have reproduced exactly this specimen.
+
+**Why hand-written exploits could not have taught this.** The reference set's degenerate programs
+are `depth-one` (5/25 mates) and `proof-number search` (4/25) — both far under any plausible floor,
+so they never test the boundary. A machine-found exploit sits ON the boundary by construction,
+because that is where selection pushes it. That is the gap the corpus exists to close.
+
 ## ⚠ REFUTED BY ITS OWN EXPERIMENT: relaxing the mates guard admits exploits
 
 The `guard_tolerance 4 -> 7` proposal passed the ladder oracle (4/6 vs 3/6) and **failed in the
