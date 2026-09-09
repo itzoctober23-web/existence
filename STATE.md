@@ -1,5 +1,43 @@
 # Existence — current state, 2026-09-09
 
+## 📋 SESSION 2026-09-09 — what changed, with pointers
+
+Six things moved. Two REVERSE entries that were in the settled block, so read this before acting on
+anything below.
+
+1. **Datagen depth: REVERSED and cross-seed resolved.** The settled row said "closed — the effect was
+   search PARITY, not depth". At EQUAL GENERATIONS with parity held fixed, parity is a precise null
+   (0.512 ± 0.014, 0.506 ± 0.014) and DEPTH resolves in both classes. The even-class cell replicates
+   on a second seed and is resolved ACROSS seeds: mean effect 0.090, 95% CI **[+0.031, +0.149]**. The
+   old parity claim was measured on the TARGET distribution (`distill_gap`) and does not reach
+   trained strength. → `depth2x2_RESULT.md`
+2. **Blend 0.85 is a live candidate that was never tested.** The axis was closed by killing blend
+   1.00 — the wrong end. On one seed at depth 4, 0.85 beats 0.75 (0.460 ± 0.022) and 1.00
+   (0.567 ± 0.022), and the three matches are transitively consistent. Replication running.
+   → `blend_RESULT.md`
+3. **Blend 1.00's mechanism withdrawn.** "Advantage is depth-2 only, z = 4.4" reverses on seed
+   424242, where 1.00 wins at depth 4. The VERDICT (dead, no cross-seed win) stands; the explanation
+   does not. All four sites asserting it now say so.
+4. **The measurement wall is grounded on the right quantity.** Between-seed movement of a PAIRED
+   difference, four estimates (0.055, 0.052, 0.024, 0.062) → **sd ≈ 0.043**. It must not be compared
+   against frozen-origin increments, which disagree by up to 5× and reverse sign. `netmatch` now
+   prints seeds-needed on every match, so a one-seed reading labels itself.
+5. **MASTER_PLAN's P2 kill has fired, and the cause is not on its list.** No program improves on the
+   seed (0 promotions in 17 gate calls). But grammar measures healthy (`distinct` 0–7 of 8) and
+   fitness measures healthy (+31% surrogate, HARD set moves). The blocker is the ACCEPTANCE RULE:
+   0/17 promotions as implemented, 8/17 as documented. Demonstrated live — two arms identical to
+   generation 4, then the same candidate with the same surrogate and gate score is REJECTED by one
+   rule and ACCEPTED by the other.
+6. **Throughput: no cheap win exists.** Eval is THIRD at ~26% of a leaf (movegen 44%, the deliberate
+   shuffle 25%, make/unmake 5%), so the brief's "eval caps the engine at ~10k nps" is wrong twice
+   over — the measured rate is 796k nps at width 16. Movegen has no hot spot. The one double-digit
+   candidate (replacing the shuffle's integer division, 12% in isolation) was implemented and is
+   **REFUTED end-to-end**: slower in wall-clock at depths 4 and 5, because the tree grew 6–7%.
+   → `throughput_RESULT.md`
+
+**Default settings unchanged by all of the above.** Everything here is measurement; nothing shipped.
+
+
 ## Epochs closed in BOTH directions — 3 is the optimum
 
 ```
