@@ -43,6 +43,13 @@ SECS=${SECS:-2400}
 # of calling this a lever" -- the effect is +0.025 against a run-to-run band of ~0.07, so one pair of
 # arms cannot settle it. Serialising the replication on one core would take hours it does not need to.
 CORE=${CORE:-15}
+# TAG scopes every output file. WITHOUT THIS, PARALLEL SEEDS SILENTLY DESTROY EACH OTHER: the
+# outputs were named dp_${TAG}_d${D}.log/.net/.jsonl -- scoped by DEPTH only -- so three seeds running at
+# once wrote the same six files and the replication would have been three runs interleaved into one
+# set of logs. Caught before any result was read, but only because the arms were inspected rather
+# than trusted. Defaults to the seed, so a single-seed invocation keeps its historical filenames
+# only if TAG is set empty deliberately.
+TAG=${TAG:-$SEED}
 SEED=${SEED:-20260907}
 PAIRS=${PAIRS:-1000}
 LEARN=${LEARN:-/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad/xt2/release/learn}
@@ -56,8 +63,8 @@ for D in 2 3; do
   timeout 900 taskset -c "$CORE" nice -n 19 ionice -c 3 "$LEARN" \
     --rung 0 --gens 1 --games 300 --threads 1 --depth "$D" --epochs 3 \
     --gate-every 100 --gate-pairs 224 --arch-every 0 --control-every 0 \
-    --seed "$SEED" --out "/dev/null" --ledger "/dev/null" > "dp_probe_d${D}.log" 2>&1
-  echo "  depth $D, 300 games: $(grep -oE '\[[0-9]+s\]' "dp_probe_d${D}.log" | tail -1)"
+    --seed "$SEED" --out "/dev/null" --ledger "/dev/null" > "dp_${TAG}_probe_d${D}.log" 2>&1
+  echo "  depth $D, 300 games: $(grep -oE '\[[0-9]+s\]' "dp_${TAG}_probe_d${D}.log" | tail -1)"
 done
 
 echo
@@ -67,19 +74,19 @@ for D in 2 3; do
   timeout "$SECS" taskset -c "$CORE" nice -n 19 ionice -c 3 "$LEARN" \
     --rung 0 --gens 1000000 --games 2400 --threads 1 --depth "$D" --epochs 3 \
     --gate-every 100 --gate-pairs 224 --arch-every 0 --control-every 0 \
-    --seed "$SEED" --out "dp_d${D}.net" --ledger "dp_d${D}.jsonl" > "dp_d${D}.log" 2>&1
-  echo "  completed $(grep -cE '^gen ' "dp_d${D}.log") generations in ${SECS}s"
+    --seed "$SEED" --out "dp_${TAG}_d${D}.net" --ledger "dp_${TAG}_d${D}.jsonl" > "dp_${TAG}_d${D}.log" 2>&1
+  echo "  completed $(grep -cE '^gen ' "dp_${TAG}_d${D}.log") generations in ${SECS}s"
 done
 
 echo
 echo "=== VERDICT: each arm vs the FROZEN ORIGIN ==="
 for D in 2 3; do
-  if [ -f "dp_d${D}.net" ]; then
+  if [ -f "dp_${TAG}_d${D}.net" ]; then
     timeout 1800 taskset -c "$CORE" nice -n 19 ionice -c 3 "$CTRL" \
-      --champion "dp_d${D}.net" --pairs "$PAIRS" > "dp_d${D}_ctrl.log" 2>&1
-    printf "  depth %s  %s\n" "$D" "$(grep -E 'fixed depth 2' "dp_d${D}_ctrl.log" | head -1)"
+      --champion "dp_${TAG}_d${D}.net" --pairs "$PAIRS" > "dp_${TAG}_d${D}_ctrl.log" 2>&1
+    printf "  depth %s  %s\n" "$D" "$(grep -E 'fixed depth 2' "dp_${TAG}_d${D}_ctrl.log" | head -1)"
   else
-    echo "  depth $D produced no net -- read dp_d${D}.log"
+    echo "  depth $D produced no net -- read dp_${TAG}_d${D}.log"
   fi
 done
 echo
