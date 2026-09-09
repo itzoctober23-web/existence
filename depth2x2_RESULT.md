@@ -70,3 +70,45 @@ way for the wrong reasons.
   (0.506 ± 0.014), so the conclusion is the clean one rather than the "parity matters only when deep"
   variant that would have required amending this write-up.
 * 448 pairs per match. `netmatch` prints the pair count its own precision rule would demand.
+
+## Free side-result: the decisive-game rate tracks strength, with the confound removed
+
+`STATE.md:399-409` has the decisive-game rate as the most promising cheap proxy for strength —
+**r = +0.771, CI [−0.108, +0.973], n = 6 arms** — one arm short of clearing zero, and notes that the
+depth probes were **excluded "because training amount drives both terms"**.
+
+The 2x2 arms do not have that confound: all four ran **exactly 4 generations** on the same games per
+generation, so training amount is constant by construction. And strength here is head-to-head at
+depth 4 — the strength standard — not the frozen-origin metric that is documented to saturate.
+
+| arm | mean dec/300 | strength index | rank agreement |
+|---|---|---|---|
+| d4 | 95.0 | +0.115 | 1st / 1st |
+| d3 | 92.5 | +0.056 | 2nd / 2nd |
+| d1 | 72.8 | −0.038 | 3rd / 3rd |
+| d2 | 31.2 | −0.133 | 4th / 4th |
+
+(strength index = sum of pairwise margins over the four head-to-head matches)
+
+**Spearman ρ = +1.000, 6 of 6 pairs concordant.**
+
+### What this is and is not
+
+* It is **not** a seventh arm for the n=6 correlation. Different arm length (4 vs 20 generations) and
+  a different strength instrument; pooling them would manufacture a verdict, which this project has
+  been bitten by before.
+* It **is** independent supporting evidence on the one axis the existing result is weakest on: the
+  exclusion note says training amount drives both terms, and here it cannot, because it is held
+  constant.
+* **n = 4.** Perfect concordance has p = 1/24 ≈ 0.042 under a random-ordering null one-tailed, 0.083
+  two-tailed. Suggestive, not established.
+* The **within-group** orderings (d4 over d3, d1 over d2) rest on margins smaller than their own
+  intervals — both of those matches are precise nulls. The load-bearing part is the **between-group**
+  split, {d3, d4} stronger than {d1, d2}, which is resolved in both cross-group matches and matches
+  the decisive-rate split exactly.
+* The counterexample on record still stands: `wd_r2` is the strongest arm on the board with FEWER
+  decisive games than a weaker one. A proxy that fails on the strongest arm is not usable for
+  promotion decisions, whatever its correlation.
+
+The seed-987654 replication will produce four more matched arms, giving this the same test again at
+no extra compute.
