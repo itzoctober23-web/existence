@@ -608,6 +608,36 @@ catches the early degradation the old code was blind to.
 baked in before their first real gate. Their KEEPs are still real (those were later gates against a
 genuine base), but their *starting point* was already 5 generations of undone drift.
 
+## ⚠ THE CAMPAIGN'S REAL LIMIT: seed variance swamps every effect being chased
+
+**Both** candidates fail seed replication, the same way, with the heterogeneity itself resolved:
+
+| comparison | seed 20260907 | seed 424242 | difference | z |
+|---|---|---|---|---|
+| blend 0.75 vs 1.00 | 0.450 | 0.487 | +0.037 | **+3.31** |
+| epochs 2 vs 3 | 0.518 | 0.473 | −0.045 | **−3.61** |
+
+Both **flip sign** between seeds. This is not two unlucky draws — the seed-to-seed differences are
+significant, so the effects genuinely differ by seed.
+
+**What that costs, quantified.** With a seed-to-seed spread of ~0.045 on the estimate:
+
+| effect size | seeds needed | 20-generation arms |
+|---|---|---|
+| 0.05 | ~3 | 6 |
+| 0.03 | ~9 | 17 |
+| **0.02** | **~19** | **39** |
+
+Every candidate this campaign has chased sits in the 0.02–0.05 band. **Two seeds cannot separate
+them from seed noise**, and one seed certainly cannot — which is exactly what every "resolved"
+depth-2 reading earlier today was.
+
+**This is the honest closing state:** the measurement protocol (train 20 generations at two
+settings, match the results) is under-powered for the effects it is being pointed at, by roughly an
+order of magnitude in seed count. Nothing in the shipping table below survives that, and the fix is
+not another candidate — it is either many more seeds per comparison, or longer runs where the effect
+grows relative to seed noise.
+
 ## Shipping candidates, with evidence strength stated per item
 
 All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an Elo number.
