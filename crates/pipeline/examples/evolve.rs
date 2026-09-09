@@ -1288,6 +1288,12 @@ fn main() {
         guard_floor: u32,
         best_rate: f64,
         accepted: usize,
+        /// Programs already sent to the ladder. Used ONLY by the spec filter: under the strict
+        /// rule, re-proposal is prevented by raising `best_rate` to a rejected candidate's rate,
+        /// but under a TOLERANCE filter that same update ratchets the bar DOWNWARD, because every
+        /// rejection lowers the reference the next 0.9x is measured against. The filter therefore
+        /// records what it has already tried and leaves `best_rate` to the ACCEPT paths alone.
+        gated: std::collections::HashSet<String>,
     }
     let mut lineages: Vec<Lineage> = Vec::new();
     for (name, seed_prog, bud) in [
@@ -1321,6 +1327,7 @@ fn main() {
             guard_floor: f.saturating_sub(guard_tolerance),
             best_rate: r,
             accepted: 0,
+            gated: Default::default(),
         });
     }
     let (seed_hard, _, _) = fitness(&reference::bare_alpha_beta(), &hard, &net, depth, budget_main);
@@ -1604,8 +1611,32 @@ fn main() {
             let popn = &lineages[li].popn;
             let (spread_lo, spread_hi) = (popn.last().unwrap().2, popn[0].2);
             let tt: Vec<usize> = popn.iter().map(|(p, _, _)| tt_prims(p)).collect();
-            if popn[0].2 > best_rate {
-                let (c, f, rate) = popn[0].clone();
+            // FITNESS 3 SPECIFIES A FILTER, NOT A CLIMB: "(a) a filter -- a PROGRAM candidate
+            // must score >= 0.9x the champion on MATE-{1,2} and >= 0.8x on MATE-{3,4} to reach the
+            // ladder". This loop requires `rate > best_rate` STRICTLY -- an IMPROVEMENT in the
+            // surrogate -- where the spec asks only that a candidate not be much WORSE and lets the
+            // ladder decide. Measured against the reference rungs (`evolve valleyall`):
+            //     hash reuse            1.024x   spec PASS    strict PASS
+            //     table reduction       0.992x   spec PASS    strict REJECT
+            //     hash + ID             0.933x   spec PASS    strict REJECT
+            //     iterative deepening   0.914x   spec PASS    strict REJECT
+            //     capture extension     0.340x   spec reject  strict REJECT
+            // The spec admits FOUR rungs to the ladder; the strict rule admits ONE. That is
+            // MASTER_PLAN P2's kill criterion -- "no program improves on the seed -> grammar or
+            // fitness is wrong; fix those" -- localised in the fitness.
+            //
+            // Env-gated: unset is byte-identical to today, so the two are A/B comparable.
+            let spec_filter = std::env::var("EXISTENCE_SPEC_FILTER").is_ok();
+            let pick = if spec_filter {
+                popn.iter().find(|(pr, _, r)| {
+                    *r >= 0.9 * best_rate && !lineages[li].gated.contains(&format!("{pr:?}"))
+                }).cloned()
+            } else if popn[0].2 > best_rate {
+                Some(popn[0].clone())
+            } else {
+                None
+            };
+            if let Some((c, f, rate)) = pick {
                 // ---- TWO ACCEPTANCE PATHS, because one gate cannot judge both kinds of change.
                 //
                 // MEASURED: the game gate accepts only when `rate - ci95 > 0.5`, and at 6 pairs
@@ -1679,7 +1710,8 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                         // candidate scores as the worst possible program and the run continues.
                         println!("  gen {g:>3} {:<5} gate PANIC -- candidate cannot play, rejected",
                                  lineages[li].name);
-                        lineages[li].best_rate = rate;
+                        if spec_filter { lineages[li].gated.insert(format!("{c:?}")); }
+                        else { lineages[li].best_rate = rate; }
                         continue;
                     }
                 };
@@ -1720,7 +1752,8 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                         println!("         ^ captured as an exploit: {ratio:.0}x surrogate, \
 {:.3} games", gsc.pent_rate());
                     }
-                    lineages[li].best_rate = rate;
+                    if spec_filter { lineages[li].gated.insert(format!("{c:?}")); }
+                    else { lineages[li].best_rate = rate; }
                     continue;
                 }
                 println!("  gen {g:>3} {:<5} ACCEPT  {f} mates  {rate:.6} ({} nodes, was {:.6})  gate {:.3}",
