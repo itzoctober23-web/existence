@@ -415,7 +415,15 @@ fn valley_all() {
     // THE CONTROL THE HARD SET NEEDS: is it winnable by ANY program we have? An unsaturated
     // dimension is useless if nothing reachable can score on it. capture_extension is the specific
     // hope -- it searches deeper on tactical lines, which is exactly what these positions require.
-    let hard = harder_set(8, depth, &net, 3_000);
+    // HARD SET SIZE, settable. The ranking defect needs an UNSATURATED dimension, and the hard set
+    // is the only one there is: the seed scores 0/8 by construction. But 8 positions with capture
+    // extension scoring 1 is not yet a gradient -- it is one position, and one position is as
+    // consistent with luck as with a real signal. If the score scales with the set (about 5 of 40),
+    // the dimension is real and can carry a ranking. If it stays at 1, the "hard set" is a single
+    // lucky position wearing a plural.
+    let n_hard: usize = std::env::var("EXISTENCE_HARD_N").ok()
+        .and_then(|x| x.parse().ok()).unwrap_or(8);
+    let hard = harder_set(n_hard, depth, &net, 3_000 * (n_hard as usize / 8).max(1));
     let (seed_hard, _, _) = fitness(&seed, &hard, &net, depth, 16);
     println!("  HARD set: {} positions, seed scores {seed_hard}/{} (0 expected -- by construction)",
              hard.len(), hard.len());
