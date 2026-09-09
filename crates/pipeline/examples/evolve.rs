@@ -348,6 +348,46 @@ fn mcts_budget() {
 /// criterion is hash reuse ASSEMBLED by the population without a gadget operator. If it is not,
 /// that is a result about the prior, not a failure to fix -- and this is the measurement that
 /// says so with numbers rather than an impression from a log.
+/// FITNESS 3 SPECIFIES MATE-N FOR N IN {1,2,3,4}, REPORTED **PER N**. The loop scores a single
+/// pooled ratio over `mate_set` (MATE-1 only) plus two disagreement sets, and `forced_mate_set`
+/// -- the MATE-2 generator -- is defined at line 57 and never used by any fitness set.
+///
+/// That is not a cosmetic difference. FITNESS 10's table of degenerate solutions opens with
+///     | Prune everything / return eval | mates-per-cost filter (3); ladder (7) |
+/// and the per-N split IS how filter (3) catches it: a program that does not search still finds
+/// MATE-1, because mate-in-one is a one-ply check that costs nothing, but it cannot find MATE-2.
+/// Pooling the two into one number destroys exactly the signal that separates them, which is why
+/// the captured exploits score 18 of 25 while playing at 0.208.
+///
+/// This measures the claim instead of asserting it: every reference program, scored on MATE-1 and
+/// MATE-2 SEPARATELY. `depth-one` is the hand-written non-searcher and is the one to watch.
+fn mate_split() {
+    let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
+    let (n1, n2, depth) = (a(2, 20) as usize, a(3, 20) as usize, a(4, 3));
+    let net = Net::random(32, 20260907);
+    let m1 = mate_set(n1);
+    let m2 = forced_mate_set(n2, 20_000);
+    println!("=== MATE-1 vs MATE-2, scored separately (FITNESS 3 asks for per-N) ===");
+    println!("  MATE-1 set: {} positions   MATE-2 set: {} positions   depth {depth}\n",
+             m1.len(), m2.len());
+    println!("  {:<30} {:>12} {:>12}   {}", "program", "MATE-1", "MATE-2", "verdict");
+    for (name, prog) in reference::all() {
+        let bud = if name.contains("MCTS") { 256 } else { 16 };
+        let (f1, _, _) = fitness(&prog, &m1, &net, depth, bud);
+        let (f2, _, _) = fitness(&prog, &m2, &net, depth, bud);
+        let (p1, p2) = (f1 as f64 / m1.len().max(1) as f64, f2 as f64 / m2.len().max(1) as f64);
+        // A NON-SEARCHER is the signature: high on MATE-1, near zero on MATE-2. Anything that
+        // holds up on both is doing real work.
+        let v = if p1 >= 0.5 && p2 <= 0.1 { "NON-SEARCHER: aces MATE-1, fails MATE-2" }
+                else if p2 >= 0.5 { "searches" }
+                else if p1 <= 0.1 { "fails both" }
+                else { "partial" };
+        println!("  {name:<30} {f1:>5}/{:<6} {f2:>5}/{:<6}   {v}", m1.len(), m2.len());
+    }
+    println!("\n  If depth-one aces MATE-1 and fails MATE-2 while the seed holds both, the per-N");
+    println!("  split separates non-searchers from searchers and the pooled ratio does not.");
+}
+
 fn valley_all() {
     let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
     let (n1, n2, n3, depth) = (a(2, 15) as usize, a(3, 5) as usize, a(4, 5) as usize, a(5, 3));
@@ -1174,6 +1214,10 @@ fn main() {
     }
     if std::env::args().nth(1).as_deref() == Some("mctsbudget") {
         return mcts_budget();
+    }
+    if std::env::args().nth(1).as_deref() == Some("matesplit") {
+        mate_split();
+        return;
     }
     if std::env::args().nth(1).as_deref() == Some("valleyall") {
         return valley_all();

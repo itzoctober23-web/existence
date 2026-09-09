@@ -1417,6 +1417,55 @@ denominators can differ no other way). The BEHAVIOURAL difference the filter was
 line whose surrogate is BELOW the incumbent's, which the strict rule cannot produce — has NOT yet
 appeared in four generations. The filter binds; whether it changes outcomes is still open.
 
+## FITNESS 3's per-N split IS a real discriminator, and the loop throws it away
+
+FITNESS 3 specifies MATE-N for N in {1,2,3,4}, 500 each, **reported per N**, with different
+thresholds (>=0.9x on MATE-{1,2}, >=0.8x on MATE-{3,4}). The loop scores ONE pooled ratio over
+`mate_set` — which is MATE-1 only — plus two disagreement sets. `forced_mate_set`, the MATE-2
+generator, is defined at `evolve.rs:57` and **used by no fitness set anywhere**.
+
+FITNESS 10's table of degenerate solutions opens with
+
+```
+| Prune everything / return eval | mates-per-cost filter (3); ladder (7) |
+```
+
+and the per-N split is how filter (3) is supposed to catch it. Measured, rather than asserted
+(`evolve matesplit`, 20 positions each, depth 3):
+
+```
+program                            MATE-1    MATE-2
+depth-one (purity seed)              1/20      1/20    fails both
+bare alpha-beta (main seed)         20/20     20/20    searches
+alpha-beta + iterative deepening    20/20     20/20    searches
+alpha-beta + hash + ID              20/20     20/20    searches
+table reduction (rung 7)            20/20     20/20    searches
+capture extension (rung 6)          17/20     18/20    searches
+UCT-style MCTS                      11/20      2/20    <- 5.5x COLLAPSE
+proof-number search                  5/20      5/20    partial
+```
+
+**MATE-2 separates a shallow searcher from a real one.** UCT falls 11 -> 2 while every alpha-beta
+variant holds 20/20. A pooled ratio over MATE-1 alone cannot see that difference at all, and it is
+precisely the difference between "found a mate that was one ply away" and "searched".
+
+**My specific prediction was WRONG and that is worth recording.** I pre-registered that `depth-one`
+would ace MATE-1 and fail MATE-2, as the hand-written non-searcher. It scores 1/20 on BOTH: it has
+no terminal check, so it cannot see mate-in-one either, and it is not a valid proxy for the exploit
+class. The mechanism survived on a program I had not nominated, which is weaker evidence than a
+confirmed prediction and is reported as such.
+
+**The caveat that limits this.** Whether the per-N split catches MY captured exploits is still
+UNTESTED, because those specimens are `{:#?}` dumps and there is no text format to reload them. The
+argument that it would — they score 18/25 on a set that is 15/25 MATE-1, so they are finding shallow
+mates cheaply — is inference, not measurement. Making it a measurement needs either a serialiser or
+a capture that records per-N scores at capture time. The latter is far cheaper and is the next step.
+
+**Second observation, unprompted and awkward for the current set.** Capture extension scores 17/20
+and 18/20 here — it searches, on both rungs. On the loop's actual 25-position set it scores 18/25
+and is rated **0.340x**, the worst of any rung. The set the loop uses penalises the one program that
+solves the hard set, and the per-N view says it is searching perfectly well.
+
 ## The exploit is a STABLE ATTRACTOR: two independent seeds converged on the same shape
 
 A second specimen, from seed 31337 — a different trajectory entirely, since the mutation draw is now
