@@ -183,7 +183,8 @@ Every row below is printed by that command.
 | capture extension (rung 6) | 80 | +9 | faithful |
 | table reduction (rung 7) | 86 | +15 | faithful |
 | alpha-beta + iterative deepening | 100 | +29 | faithful |
-| UCT MCTS | **130** | +59 | PARTIAL — solves 20/23 forced mates, not 23/23. See the correction below |
+| UCT MCTS (Mix selection) | **132** | +61 | PARTIAL — 20/23 forced mates at best, and it CANNOT reach 23/23 at any weight. See below |
+| UCT MCTS (sum selection) | **131** | +60 | **faithful — VERIFIED BY EXECUTION, 23/23 forced mates** at K >= 600 |
 | alpha-beta + hash reuse | **175** | +104 | faithful (validity marker, depth, EXACT/LOWER/UPPER bounds) |
 | proof-number search | **175** | +104 | faithful — VERIFIED BY EXECUTION, 23/23 forced mates |
 | alpha-beta + hash + ID | 204 | +133 | faithful |
@@ -244,6 +245,52 @@ the declared prior's node count and is therefore a deliberate, recorded act, not
 `f >= 12`, and 12/25 is the score of a near-greedy searcher, not of UCT. Any claim that the lineage
 "discovered" something must be read against that, and any hybrid built on it inherits an
 exploration term that cannot see past 2.
+
+**RESOLVED 2026-09-09 — UCT reaches 23/23. The blend was inverting the exploration term.**
+
+The "PARTIAL" status above is closed, and the *reason* recorded for it was wrong.
+
+`uct_mcts` reads table slot 2 **twice**: once to scale the exploration term inside the sqrt, and
+once as the weight of `Mix(q, u, c)`, which `interp/src/lib.rs:696` computes as
+`(q*c + u*(16-c))/16`. The two uses fight. Raising the slot enlarges `u` inside the sqrt while
+shrinking `u`'s blend coefficient `(16 - c)` toward zero — and past it. Swept at budget 256 over the
+23 mate-in-one positions:
+
+| slot 2 | coefficient on `u` | mates |
+|---|---|---|
+| 1 | +15 | **20/23** |
+| 4 | +12 | 18/23 |
+| 8 | +8 | 15/23 |
+| 16 | **0** | 14/23 |
+| 24 | −8 | 12/23 |
+| 64 | −48 | 9/23 |
+| 360000 | −359984 | **0/23** |
+
+Monotone, crossing the greedy baseline exactly where the coefficient reaches zero.
+
+**This corrects the explanation on record.** The K = 360,000 result was read above as "exploration
+swamps exploitation so the search never exploits". It is the opposite: at that weight the
+coefficient on `u` is hugely negative, so the program is *penalised* for exploring. Proof by
+substitution — at the **same** K = 360,000, selecting on `q + u` instead of `Mix` scores **23/23**
+rather than 0/23. Magnitude was never the problem.
+
+**And the derivation that was discarded was correct.** `interp/src/lib.rs` records C = one eval unit
+= 600 as "REFUTED by measurement". The sum-selection encoding first reaches 23/23 at exactly
+**K = 600**, the net's declared eval scale, and holds it at 4096 and 360000. That derivation was
+right in form *and* in magnitude; it was defeated by the convex blend it was fed through.
+
+`uct_mcts_sum` (`reference.rs`) selects `argmax(q + u)`. It introduces no primitive — `arith add` is
+already declared in 2.4 — and it is **131 nodes, one FEWER than the Mix form's 132**, because `Mix`
+takes three children and `Add` takes two. Both encodings are kept and counted: the declared program
+is unchanged, so GRAMMAR 6's recorded count still refers to a program that exists.
+
+**So the prior skew is no longer blocked on MCTS fidelity:** a faithful, solving UCT is **+60** nodes
+from the 71-node alpha-beta seed, against PN's +104. The +61 encoding that does *not* solve is the
+one previously counted.
+
+**Consequence for the MCTS lineage**, which is seeded with the Mix form at slot 2 = 8: its seed
+scores 15/23, and the ceiling of that encoding is 20/23 at slot 2 = 1. Any lineage claim must be read
+against a seed whose exploration term is partly cancelled by its own blend weight.
 
 **CORRECTION 2026-09-08 — "faithful" meant COUNTED AND READ, and for PN it was wrong.**
 

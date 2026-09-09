@@ -147,7 +147,19 @@ fn main() {
     // tables[2] = 1 -- which weights the EXPLOITATION term at 1/16 and is close to pure random
     // exploration. That is a harness choice about a LEARNED table, not a property of the program,
     // so a shortfall at k=1 must not be reported as the encoding failing.
-    for kw in [1i64, 4, 8, 16] {
+    // SWEPT PAST 16 ON PURPOSE. `Mix(a,b,w) = (a*w + b*(16-w))/16` (interp/src/lib.rs:696), and
+    // table slot 2 is read TWICE by uct_mcts: once to scale the exploration term inside the sqrt,
+    // and once as this blend weight. The two uses fight. Raising it makes `u` bigger inside the
+    // sqrt while driving `u`'s blend coefficient `(16 - w)` toward zero -- and PAST zero:
+    //     w =  1  -> u weighted 15/16   (mostly exploration)
+    //     w =  8  -> u weighted  8/16
+    //     w = 16  -> u weighted  0      (pure greed; u cannot matter at all)
+    //     w > 16  -> u weighted NEGATIVE (the program is penalised for exploring)
+    // So values above 16 are predicted to score at or below the w=16 greedy point, and the
+    // documented K = 360_000 result of 0 mates is explained by an INVERTED exploration term rather
+    // than by "exploration swamping exploitation". 24 and 64 test that directly; 360_000 is the
+    // documented endpoint, included so the prediction is checked against the number on record.
+    for kw in [1i64, 2, 4, 8, 12, 16, 24, 64, 360_000] {
         let mut sv = 0usize;
         for (q, best) in &mates {
             let mut i = Interp::new(&net, vec![depth, 32_000, kw]);
@@ -178,6 +190,35 @@ fn main() {
                               else { "FAILS the solving bar — the same bar PN is held to" });
 
     // ---- PROOF-NUMBER SEARCH ---------------------------------------------------------------
+    // ---- SUM-SELECTION UCT: does removing the double-role reach the solving bar? ----
+    //
+    // `uct_mcts` reads table slot 2 both as the exploration scale inside the sqrt AND as the Mix
+    // weight, and the sweep above shows those two uses fighting: mates fall monotonically as the
+    // slot rises, crossing the greedy baseline exactly at w = 16 where `u`'s blend coefficient
+    // (16 - w) reaches zero, and hitting 0/23 at the documented 360_000 where it is hugely
+    // negative. `uct_mcts_sum` selects on `q + u` instead, so slot 2 scales ONLY the exploration
+    // term and can be swept as the exploration constant it is meant to be.
+    //
+    // Held to the SAME bar as PN and as uct_mcts: it must SOLVE, not merely run.
+    let mcts_sum = reference::uct_mcts_sum();
+    println!("\nUCT with SUM selection (argmax(q + u)) — slot 2 is a pure exploration constant");
+    for kw in [1i64, 8, 64, 600, 4096, 360_000] {
+        let mut sv = 0usize;
+        for (q, best) in &mates {
+            let mut i = Interp::new(&net, vec![depth, 32_000, kw]);
+            if i.run(&mcts_sum, q, 256) == *best { sv += 1; }
+        }
+        println!("  exploration K {kw:>7} (budget 256): mate-in-one {sv}/{}", mates.len());
+    }
+    for bgt in [64i64, 256, 1024] {
+        let mut sv = 0usize;
+        for (q, best) in &mates {
+            let mut i = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
+            if i.run(&mcts_sum, q, bgt) == *best { sv += 1; }
+        }
+        println!("  budget {bgt:>5} at declared K: mate-in-one {sv}/{}", mates.len());
+    }
+
     let pn = reference::proof_number();
     // 256, not 64: the budget sweep below shows 64 is simply under-resourced (21/23 -> 23/23
     // at 256), and judging a prover at a budget it cannot finish in measures the budget.

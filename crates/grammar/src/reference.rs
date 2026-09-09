@@ -490,7 +490,46 @@ pub fn ab_hash_id() -> Program {
 ///     m   = argmax(moves(p), UCT)                                   -- select
 ///     v   = neg(simulate(apply(p,m)))                               -- recurse
 ///     store(key p, visits+1); store(sum p, sum+v); ret v            -- backpropagate
-pub fn uct_mcts() -> Program {
+pub fn uct_mcts() -> Program { uct_program(false) }
+
+/// SUM-SELECTION UCT: `argmax(q + u)` instead of `argmax(Mix(q, u, c))`.
+///
+/// WHY THIS EXISTS AS A SECOND ENCODING RATHER THAN AN EDIT TO `uct_mcts`. GRAMMAR 6 declares the
+/// prior as a NODE COUNT, so changing the declared program changes the declared prior; the docs
+/// require that to be "a deliberate, recorded act, not a silent fix". Both encodings therefore live
+/// here and both are counted, so the prior can be restated with the evidence attached.
+///
+/// THE DEFECT IT REMOVES, measured not argued. `uct_mcts` reads table slot 2 TWICE: once to scale
+/// the exploration term inside the sqrt, and once as the weight of `Mix(q, u, c)`, which
+/// interp/src/lib.rs:696 computes as `(q*c + u*(16-c))/16`. Those two uses FIGHT -- raising the
+/// slot enlarges `u` inside the sqrt while shrinking `u`'s blend coefficient `(16 - c)` toward
+/// zero, and past zero. Swept at budget 256 over the 23 mate-in-one positions:
+///
+///     c =      1   coefficient  +15   20/23
+///     c =      2                +14   18/23
+///     c =      4                +12   18/23
+///     c =      8                 +8   15/23
+///     c =     12                 +4   14/23
+///     c =     16   coefficient    0   14/23   <- u cannot matter at all: pure greed
+///     c =     24                 -8   12/23
+///     c =     64                -48    9/23
+///     c = 360000           -359984    0/23
+///
+/// Monotone, crossing the greedy baseline exactly where the coefficient reaches zero. This
+/// CORRECTS the explanation on record: the documented K = 360_000 result of 0 mates was read as
+/// "exploration swamps exploitation so the search never exploits", but the coefficient on `u` is
+/// negative there -- the program is PENALISED for exploring. The term is inverted, not dominant.
+/// Both endpoints of that bracket failed for the same reason, which is why the interior never
+/// contained an answer.
+///
+/// Real UCT adds an exploration bonus to the value; it does not convex-blend the two. `arith`
+/// already declares `add` (GRAMMAR 2.4), so no primitive is introduced -- the existing ones are
+/// composed the way the algorithm actually specifies, leaving slot 2 as a pure exploration
+/// constant that can be swept without simultaneously changing the blend.
+pub fn uct_mcts_sum() -> Program { uct_program(true) }
+
+/// Shared body. `sum_selection` picks `argmax(q + u)` over `argmax(Mix(q, u, c))`.
+fn uct_program(sum_selection: bool) -> Program {
     let c = Node::TRead(2, vec![]); // exploration weight, learned
 
     let visits = |node: Node| Node::Field(b(Node::Probe(b(Node::Key(b(node))))), FieldId::Count);
@@ -568,11 +607,15 @@ pub fn uct_mcts() -> Program {
             ],
         )],
     );
-    let select = Node::Argmax(
-        b(Node::Moves(b(v("p")))),
-        "m".into(),
-        b(Node::Mix(b(q), b(u), b(c))),
-    );
+    let score = if sum_selection {
+        // Faithful UCT: value PLUS exploration bonus. Slot 2 now scales only `u`, inside the sqrt.
+        Node::Arith(ArithOp::Add, vec![q, u])
+    } else {
+        // The declared encoding, kept byte-identical so GRAMMAR 6's recorded node count still
+        // refers to a program that exists.
+        Node::Mix(b(q), b(u), b(c))
+    };
+    let select = Node::Argmax(b(Node::Moves(b(v("p")))), "m".into(), b(score));
 
     // simulate(p) -> Score
     let sim_body = Node::seq(vec![
@@ -846,6 +889,7 @@ pub fn all() -> Vec<(&'static str, Program)> {
         ("alpha-beta + iterative deepening", ab_id()),
         ("alpha-beta + hash + ID", ab_hash_id()),
         ("UCT-style MCTS", uct_mcts()),
+        ("UCT-style MCTS (sum selection)", uct_mcts_sum()),
         ("capture extension (rung 6)", capture_extension()),
         ("table reduction (rung 7)", table_reduction()),
         ("proof-number search", proof_number()),
