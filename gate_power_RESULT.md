@@ -499,3 +499,40 @@ cheaper — and have precedent in this codebase. That is a bounds question for w
 
 **This was found by simulation before the arms spent hours producing it.** The measured draw rate made
 the prediction possible, which is the payoff for having measured it.
+
+### CAN THE GATE ACCEPT? Under the spec's bootstrap bounds at this draw rate — effectively no
+
+The whole point of going sequential is a gate that *can* accept. Simulated at the measured 81.7% draw
+rate, holding everything but the candidate's true strength fixed:
+
+| true Elo | bounds | accept | reject | inconclusive | median pairs | ~hours/decision |
+|---|---|---|---|---|---|---|
+| 0 | [3,5] | 0 | 0 | **500/500** | capped | — |
+| +10 | [3,5] | — | — | — | **2,673** | **11.9** |
+| +20 | [3,5] | — | — | — | 1,002 | 4.5 |
+| +50 | [3,5] | 488/500 | 0 | 12 | 319 | 1.4 |
+| **+10** | **[0,10]** | — | — | — | **464** | **2.1** |
+| **+20** | **[0,10]** | 200/200 | 0 | 0 | **207** | **0.9** |
+| +5 | [0,10] | 94/200 | 101/200 | 5 | 808 | 3.6 |
+
+**Under FITNESS 7.2's bootstrap [3,5], the gate accepts only at ~+50 Elo.** Everything from 0 to +20
+returns INCONCLUSIVE at any affordable pair count — a +10 candidate needs a median **2,673 pairs**,
+about **12 hours per decision**. That gate rejects bad candidates efficiently and can never promote a
+modest good one, which is the same failure as before wearing a better statistic.
+
+**Both SPRT arms therefore run [0, 10]**, and the deviation is deliberate and evidenced rather than
+convenient:
+* it is **5.8x cheaper** at +10 (464 pairs against 2,673) and resolves +20 in 207;
+* it has **precedent in this codebase** — `tools/sprt.py` defaults to `ELO0=0, ELO1=10` and every 4PC
+  gate this project has run uses it;
+* at +5, exactly the midpoint, it splits 94 accept / 101 reject, which is the correct behaviour for a
+  candidate sitting on the bound rather than a bias either way.
+
+**What FITNESS actually pins down.** 7.2 fixes the width at 2 Elo "for STC, LTC, and the
+fixed-cost-budget gate". The fixed-cost-budget gate is §6, which is *NET/ARCH/FEATURE only*. The
+search-track PROGRAM gate is not named there, so the width rule's application to it is an
+interpretation, not a quotation — and the measurement above is what an interpretation should be
+decided on. **Recorded as an open bounds question for FITNESS 7.2 rather than settled here.**
+
+The error rates (alpha = beta = 0.05) and the pentanomial statistic are untouched: those the spec
+fixes unambiguously, and 7.2 part 1 is explicit that the human declares the threshold semantics.
