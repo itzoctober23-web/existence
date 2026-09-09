@@ -780,7 +780,50 @@ impl<'a> Interp<'a> {
                     Flow::Ret(v) | Flow::Normal(v) => v,
                 }
             }
-            Node::Pred(..) => Value::Bool(false),
+            // ---- THE PREDICATE PRIMITIVE. This was `=> Value::Bool(false)`: a hardcoded stub.
+            //
+            // GRAMMAR 2.1 declares `pred` as primitive #5 with a full signature and a declared
+            // PredId list, and NOTHING implemented it. Consequences, all measured before this fix:
+            // capture_extension (ladder rung 6) had a byte-identical eval count to the seed
+            // (4,127,466 both) because its condition was always false, so it was the seed plus a
+            // dead branch costing 1.6% -- while GRAMMAR 6 called it "faithful". And Op::WrapIfPred
+            // was a disguised DELETE: wrapping a statement in `if false` removes it.
+            //
+            // Rules-derived only. `is_capture` and `is_promotion` read the move's own FLAG, which
+            // the move generator sets; `gives_check` applies the move and asks the board. No piece
+            // values, no ordering heuristics, nothing about which of these is GOOD -- that is what
+            // the search has to discover, and GRAMMAR 2.1 forbids it here explicitly.
+            Node::Pred(mv, pv, id) => {
+                let m = val!(mv).mv();
+                let pos_v = val!(pv);
+                match (m == MOVE_NONE, pos_v.pos()) {
+                    (false, Some(pos)) => {
+                        use board::types::MoveFlag as F;
+                        let b = match id {
+                            PredId::IsCapture => {
+                                matches!(m.flag(), F::Capture | F::EnPassant | F::PromoCapture)
+                            }
+                            PredId::IsPromotion => matches!(m.flag(), F::Promo | F::PromoCapture),
+                            PredId::GivesCheck => {
+                                let mut q = pos.clone();
+                                q.make_move(m);
+                                let opp = q.stm;
+                                q.in_check(opp)
+                            }
+                            // SPEC GAP, recorded rather than invented. GRAMMAR types `pred` as
+                            // returning Bool, but CapturedType, MovingType, FromSquare and
+                            // ToSquare name quantities that are not booleans. Any Bool reading of
+                            // them ("captures a non-pawn", "moves to the centre") would be
+                            // smuggling in chess knowledge that GRAMMAR 2.1 forbids -- "No values,
+                            // no importance, no piece worth". They stay false until the spec says
+                            // what they mean.
+                            _ => false,
+                        };
+                        Value::Bool(b)
+                    }
+                    _ => Value::Bool(false),
+                }
+            }
         };
         Flow::Normal(v)
     }
