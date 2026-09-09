@@ -1272,6 +1272,15 @@ fn main() {
     // yet, because the claim "a better-searching candidate can win these" is exactly the sort of
     // thing that should be measured before a fitness is restructured around it.
     let hard = harder_set(8, depth, &net, 3_000);
+    // PER-N PROBES, scored on every captured exploit so the corpus records the dimension FITNESS 3
+    // specifies. `matesplit` measured that MATE-2 separates a shallow searcher from a real one --
+    // UCT falls 11/20 to 2/20 while every alpha-beta variant holds 20/20 -- and this loop's own set
+    // is 15/25 MATE-1 with no MATE-2 at all. Without these two numbers, "the exploit only finds
+    // shallow mates" stays an INFERENCE about specimens that cannot be reloaded: the dumps are
+    // `{:#?}` and there is no text format for Program. With them it is a measurement taken while
+    // the program is still in hand. Built once; scored only on a capture, not per candidate.
+    let m1_probe = mate_set(12);
+    let m2_probe = forced_mate_set(12, 20_000);
     let n_win = win.len();
     let n_deep = deep.len();
     set.extend(deep);
@@ -1811,20 +1820,24 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                         //
                         // Cost is recomputed from the rate rather than plumbed through: rate is
                         // mates*1e6/cost by construction, so cost = mates*1e6/rate exactly.
+                        let (e1, _, _) = fitness(&c, &m1_probe, &net, depth, bud);
+                        let (e2, _, _) = fitness(&c, &m2_probe, &net, depth, bud);
                         let ex_cost = f as f64 * 1e6 / rate.max(1e-12);
                         let champ_cost = lineages[li].best_found as f64 * 1e6
                             / best_rate.max(1e-12);
                         let line = format!(
-                            "{}\t{}\t{}\t{:.0}\t{:.6}\t{}\t{:.0}\t{:.6}\t{:.3}\t{:.3}\t{}\n",
+                            "{}\t{}\t{}\t{:.0}\t{:.6}\t{}\t{:.0}\t{:.6}\t{:.3}\t{:.3}\t{}\t\
+{}/{}\t{}/{}\n",
                             lineages[li].name, g, f, ex_cost, rate,
                             lineages[li].best_found, champ_cost, best_rate,
-                            gsc.pent_rate(), gsc.ci95(), c.size());
+                            gsc.pent_rate(), gsc.ci95(), c.size(),
+                            e1, m1_probe.len(), e2, m2_probe.len());
                         use std::io::Write;
                         if let Ok(mut fh) = std::fs::OpenOptions::new()
                             .create(true).append(true).open("exploits.tsv") {
                             if fh.metadata().map(|m| m.len() == 0).unwrap_or(false) {
                                 let _ = fh.write_all(b"lineage\tgen\tex_mates\tex_cost\tex_rate\t\
-champ_mates\tchamp_cost\tchamp_rate\tgames\tci95\tnodes\n");
+champ_mates\tchamp_cost\tchamp_rate\tgames\tci95\tnodes\tmate1\tmate2\n");
                             }
                             let _ = fh.write_all(line.as_bytes());
                         }
