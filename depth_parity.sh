@@ -81,3 +81,25 @@ echo "  d2 BELOW 0.5 means the deeper arm is stronger."
 echo "  d2-vs-d4 tying while d2-vs-d3 loses => the lever was PARITY, and depth is closed."
 echo "  Note the generation counts above: at equal wall clock d4 gets far fewer generations, so a"
 echo "  d4 loss is a statement about COMPUTE COST, not about whether deeper labels are better."
+
+# ==== DESIGN FLAW FOUND WHILE RUNNING, 2026-09-09. DO NOT RE-RUN AS WRITTEN. ====
+# This inherits depth_replicate's TIME-BOXED protocol (SECS per arm, identical for every depth), and
+# at a fixed wall clock the arms do wildly different amounts of training:
+#     dr_987654_d2   96 generations
+#     dr_987654_d3    8 generations
+#     dr_424242_d4    0 generations after 9 minutes  (~30 min/generation)
+# So a d2-vs-d4 comparison here is 96 generations against roughly one. That is not a depth
+# comparison, it is a training-amount comparison wearing a depth label -- the same unequal-arms
+# defect that made batch_ab.sh (11 gens vs 5) uninterpretable.
+#
+# It also means the EXISTING d2-vs-d3 replication carries a 12x generation disparity. --horizon-cap
+# fixed the horizon confound and does nothing about this one.
+#
+# For the ORIGINAL question -- "is deeper datagen worth the compute" -- unequal generations is the
+# point, not a confound, and the time-boxed protocol is correct.
+# For the PARITY question -- "was the +0.025 depth or odd/even?" -- arms must be matched on
+# GENERATIONS, which costs ~10 hours for a 20-generation d4 arm.
+#
+# The parity question already has a cheaper and more direct answer in distill_gap: the
+# search-minus-eval gap is ~2.7x larger at odd depths than even ones on every net across two
+# odd/even pairs, while depth WITHIN a parity class barely moves it. That is mechanism, not a proxy.
