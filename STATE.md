@@ -674,6 +674,27 @@ gate working, not the gate being too strict.
 matches use their own seeded RNG. If it differs, the gate is perturbing the training stream, which
 would be a defect worth finding.
 
+## Testing the last structural lever: is the plateau DATA-limited?
+
+No hyperparameter moved the plateau, and the plateau — not the climb rate — is the shipping
+criterion. Three independent observations point at data volume:
+
+* `fg_20`'s block increments rose monotonically as the pool grew: **−0.045, −0.033, +0.003, +0.007**
+  with pool 88k → 432k, each block starting from the *same* champion.
+* `champion_long`, carrying far more accumulated data, sits at **0.864** where a fresh 20-generation
+  run reaches **~0.82**.
+* The pool survives rollback, so data is the one thing that monotonically accumulates while the
+  champion is repeatedly reset.
+
+`dv_4800` is `bn_075`'s exact configuration with **`--games 4800` instead of 2400** — same 20
+generations, so the arm-size guard reads "matched" and the variable under test is data *per*
+generation.
+
+**This is not an efficiency claim.** At equal generations the arm burns 2× the compute. The question
+is strictly whether the plateau HEIGHT is data-limited; whether that data is worth its cost is a
+different question and would need equal wall clock, which is the confound that has bitten three
+experiments today.
+
 ## THE ONE LIVE LEAD: the data pool survives rollback, and the increments are climbing
 
 `fg_20` finished 20/20 with 4 gates and **0 KEEPs**, and the invariant holds exactly —
