@@ -977,18 +977,19 @@ openings and nothing else. `blend_seed2` (running), then `ship_candidate` for th
 | 6. xcheck + perft as `#[test]`s | **done AND green.** Ran them: `canonical_perft_suite`, `movegen_agrees_with_an_external_engine`, `incremental_zobrist_matches_from_scratch_everywhere`, `make_unmake_restores_the_position`, plus 2 more — **6 passed, 0 failed**. Previously recorded as done on the strength of the files existing; now actually executed. |
 | 5. register bytecode | deprioritised — the interpreter measured 1.003× hand-written on a quiet core. |
 
-## Queue (core 15, chained by PID)
+## Running now (one job per core, no chains)
 
-blend A/B v2 (arm 0.00 running) → ratchet test → depth replication (horizon-capped, pre-flight
-verified) → epochs A/B v2 → **blend_hi** (1.00 vs 0.85 vs re-run 0.75 control) → **batch_ab2**
+| core | job | question |
+|---|---|---|
+| 13 | `fg_60` | do block increments keep rising as the pool grows past 432k? |
+| 14 | `dv_4800` | is the plateau DATA-limited? (2× games/generation, same 20 generations) |
+| 12 | `sg_20 vs bn_075` @ d4 | does gating help from scratch? |
+| 15 | `ep2_10 vs ep2_3` @ d4 | is the shipped epochs default too **low**? |
 
-`batch_ab2` is the highest-value item and is LAST only because the chain is pid-linked and cannot be
-reordered while it runs. **If a slot frees earlier, run it first** — every arm ahead of it asks what
-to feed a loop that may be unable to swallow anything.
-
-`blend_hi` also re-runs 0.75 with the same binary and seed as a determinism check. If it does not
-reproduce 0.847 ± 0.022, the ~0.07 band is RUN variance rather than SEED variance and no cross-run
-comparison in this investigation is safe — read that before reading its blend answer.
+The old PID-chained queue is gone — every arm in it either completed or was killed for a measured
+defect (`depth_parity` for unequal arms, `pd_d4` for an expired premise, two verdict matches for
+being tautological). Chains are not being rebuilt: they made reordering impossible while running,
+which repeatedly left the highest-value item last.
 
 ## Open, partially answered
 
