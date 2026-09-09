@@ -802,8 +802,13 @@ fn step_diff() {
         // This one printed NOTHING for its whole run and I could only tell it was alive by reading
         // /proc.
         if (k + 1) % 25 == 0 {
-            println!("  ..{}/{n}  broken {broken}  identical {identical}  DIFFERENT {different}",
-                     k + 1);
+            // EVERY number the summary reports, in the progress line. The previous version
+            // printed only three of them and the run was killed by its own timeout at 75/100 --
+            // 75 candidates of work and NO answer to the question it was launched for, because
+            // `identical_cheaper` only appeared after the loop. A long measurement must be
+            // informative when truncated, not all-or-nothing.
+            println!("  ..{}/{n}  broken {broken}  identical {identical} (cheaper {identical_cheaper})  \
+DIFFERENT {different} (guard-ok {guard_ok_diff})", k + 1);
         }
     }
     println!("=== single-edit mutants of the seed, {n} attempts, {} positions at depth {depth} ===",
