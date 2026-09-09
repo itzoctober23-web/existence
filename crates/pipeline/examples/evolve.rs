@@ -749,6 +749,15 @@ fn step_diff() {
             different += 1;
             *diff_ops.entry(format!("{:?}", ops)).or_default() += 1;
         }
+        // PROGRESS, because a long measurement with no output is indistinguishable from a hang.
+        // run_search_track.sh records this project learning that once already: "the loop printed
+        // only every 10th barren generation so 55 minutes of silence looked identical to a hang".
+        // This one printed NOTHING for its whole run and I could only tell it was alive by reading
+        // /proc.
+        if (k + 1) % 25 == 0 {
+            println!("  ..{}/{n}  broken {broken}  identical {identical}  DIFFERENT {different}",
+                     k + 1);
+        }
     }
     println!("=== single-edit mutants of the seed, {n} attempts, {} positions at depth {depth} ===",
              set.len());
