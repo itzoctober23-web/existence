@@ -569,7 +569,18 @@ fn tt_value() {
         if !p.legal_moves().is_empty() { set.push(p); }
     }
     let seed = reference::bare_alpha_beta();
-    let hash = reference::ab_hash();
+    // CHALLENGER IS SELECTABLE. This was hardcoded to ab_hash for the transposition-table alarm;
+    // the same question -- "are the moves it plays DIFFERENTLY actually BETTER?" -- is now the live
+    // one for capture extension, which is the first alpha-beta-family program measured to play
+    // different chess (8/10 agreement at 1.679x cost, once `pred` was implemented and the rung was
+    // moved to the horizon).
+    let which = std::env::args().nth(4).unwrap_or_else(|| "hash".into());
+    let (chall_name, hash) = match which.as_str() {
+        "capture" => ("capture extension", reference::capture_extension()),
+        "id" => ("iterative deepening", reference::ab_id()),
+        _ => ("hash reuse", reference::ab_hash()),
+    };
+    println!("  challenger: {chall_name}");
     // Exact oracle for the VALUE of a root move: -search(child, depth-1), uncapped.
     let value_of = |p: &Position, m: board::Move| -> i32 {
         let mut q = p.clone();
@@ -589,9 +600,14 @@ fn tt_value() {
         if ma == mb || ma == board::types::MOVE_NONE || mb == board::types::MOVE_NONE { continue; }
         diffs += 1;
         let (va, vb) = (value_of(p, ma), value_of(p, mb));
-        let verdict = if va == vb { "EQUAL VALUE -- tie-break, sound" } else { "VALUE DIFFERS -- LEAK" };
+        // For an EXACT variant a value difference is a leak. For an INEXACT one (an extension)
+        // it is the whole point -- a different effective depth SHOULD change the value, and the
+        // sign says whether the change is an improvement.
+        let verdict = if va == vb { "EQUAL VALUE" }
+                      else if vb > va { "CHALLENGER BETTER" }
+                      else { "CHALLENGER WORSE" };
         if va != vb { value_diffs += 1; }
-        println!("  disagreement {diffs}: seed move value {va:+}, hash move value {vb:+}  ({verdict})");
+        println!("  disagreement {diffs}: seed {va:+}, challenger {vb:+}  ({verdict})");
     }
     println!("\n  move disagreements: {diffs}/{n}");
     println!("  of those, VALUE disagreements: {value_diffs}");
@@ -601,9 +617,50 @@ fn tt_value() {
         println!("  => SOUND. Every disagreement is an equal-valued alternative, which is exactly");
         println!("     what a TT does to cutoff order. The 1.024x rung and the valley result stand.");
     } else {
-        println!("  => UNSOUND. ab_hash returns a move of DIFFERENT value, so part of its cheapness");
-        println!("     is bought by being wrong. Everything resting on that rung needs re-examining.");
+        println!("  => VALUE DIFFERENCES PRESENT. For an EXACT variant (hash reuse, ID) that is a");
+        println!("     LEAK. For an INEXACT one (an extension) it is expected -- a different");
+        println!("     effective depth SHOULD change values -- and this oracle CANNOT judge it:");
+        println!("     it searches depth-1, SHALLOWER than the program it is judging, so it is");
+        println!("     blind to exactly the tactics an extension exists to see. Use games.");
     }
+}
+
+
+/// PLAY TWO REFERENCE PROGRAMS AGAINST EACH OTHER. `evolve refmatch <pairs> <depth> <name>`
+///
+/// The value-oracle check cannot judge an EXTENSION. `ttvalue` scores a move with
+/// `best_move_capped` at depth-1, which is SHALLOWER than the program being judged -- and a
+/// capture extension exists precisely to see tactics a flat search misses, so a flatter judge is
+/// blind to its whole purpose. Measured anyway and reported as inconclusive: 5/20 disagreements,
+/// 2 better, 2 worse, 1 equal, which is what a blind judge produces.
+///
+/// Games need no oracle. Whoever wins, wins. This is the same `match_progs` the search track's
+/// gate uses, so the number means the same thing as an in-loop gate result.
+fn ref_match() {
+    let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
+    let (pairs, depth) = (a(2, 24) as usize, a(3, 3));
+    let which = std::env::args().nth(4).unwrap_or_else(|| "capture".into());
+    let (name, chall) = match which.as_str() {
+        "hash" => ("hash reuse", reference::ab_hash()),
+        "id" => ("iterative deepening", reference::ab_id()),
+        _ => ("capture extension", reference::capture_extension()),
+    };
+    let net = Net::random(32, 20260907);
+    let seed = reference::bare_alpha_beta();
+    println!("=== {name} vs bare alpha-beta, {pairs} pairs at depth {depth} ===");
+    println!("  Same net and same budget both sides, so this measures the PROGRAM.");
+    let sc = gate::match_progs(&chall, &seed, &net, vec![depth, 32_000, 8], 16, pairs,
+                               0x9E2D_1A77, 4, u64::MAX);
+    println!("\n  {}W-{}D-{}L   rate {:.3} +/- {:.3}", sc.wins, sc.draws, sc.losses,
+             sc.pent_rate(), sc.ci95());
+    let up = sc.pent_rate() - sc.ci95() > 0.5;
+    let down = sc.pent_rate() + sc.ci95() < 0.5;
+    println!("  => {}", if up { "CHALLENGER STRONGER, resolved" }
+                        else if down { "CHALLENGER WEAKER, resolved" }
+                        else { "UNRESOLVED at this pair count -- needs more games, not a conclusion" });
+    println!("\n  NOTE ON COST: this is a fixed-DEPTH match, so the extension's extra work is not");
+    println!("  charged. capture extension costs 1.679x the seed, so a win here is a win per NODE,");
+    println!("  not per unit of time. Both readings matter and they are different questions.");
 }
 
 fn read_declared(path: &str) -> (usize, f64, i64, i64) {
@@ -761,6 +818,9 @@ fn main() {
     }
     if std::env::args().nth(1).as_deref() == Some("ttvalue") {
         return tt_value();
+    }
+    if std::env::args().nth(1).as_deref() == Some("refmatch") {
+        return ref_match();
     }
     let gens: usize = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(30);
     let pop: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(24);
