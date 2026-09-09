@@ -1314,6 +1314,40 @@ pairs the lower bound is 0.503. The direction is consistent across both readings
 Every one of these needs a **second training seed** before a default moves — a match seed re-rolls
 openings and nothing else. `blend_seed2` (running), then `ship_candidate` for the combination.
 
+## ⚠ REFUTED BY ITS OWN EXPERIMENT: relaxing the mates guard admits exploits
+
+The `guard_tolerance 4 -> 7` proposal passed the ladder oracle (4/6 vs 3/6) and **failed in the
+loop within three generations**:
+
+```
+tol7  gen1 MAIN  surrogate 1.090070  ABOVE:4  gate 0.125+/-0.110   (433x the seed's rate)
+tol7  gen3 MAIN  surrogate 6.551549  ABOVE:2  gate 0.125+/-0.110   (2600x the seed's rate)
+ctl   gen1 MAIN  surrogate 0.002705  ABOVE:3  gate 0.458+/-0.082   (1.07x the seed's rate)
+```
+
+Enormous surrogate, catastrophic games: the exploit signature. Dropping the mates floor from 21 to
+18 admits precisely the degenerate cheap-and-shallow optimiser the guard exists to stop — the same
+shape as `depth-one`, which scores 992.711x on the surrogate and 5/25 on mates. The control, at the
+same generations, proposes candidates at 1.07x the seed that lose narrowly (0.458). One knob turned
+a plausible-candidate generator into an exploit generator.
+
+**The methodological lesson is bigger than the knob.** The oracle ranks NINE HAND-WRITTEN reference
+programs. The guard must exclude an entire SPACE of degenerate programs that mutation can reach.
+Passing the oracle therefore said nothing about exploit-resistance, and I treated it as though it
+did. An offline ranking test over known-good programs cannot validate a filter whose job is to
+reject unknown-bad ones.
+
+**CONFOUNDED, and I have to say so: I changed two knobs at once.** The `tol7` arms set
+`GUARD_TOL=7` AND `EPS=0.10` together, so this measurement cannot attribute the exploit to the guard
+alone. Theory says the guard — a 433x-rate candidate survives any EPS band, so EPS cannot be what
+admitted it, while the mates floor is exactly what a cheap-and-shallow program has to clear — but
+that is reasoning, not measurement, and the whole point of this file is not to accept the first.
+Single-knob arms are running now.
+
+**What the gate did right.** Both exploits were rejected at 0.125, so the system was never in
+danger; the cost of the bad guard is wasted gate time, not a corrupted champion. That is the guard
+and gate working as a pair, which is worth recording alongside the failure.
+
 ## ROOT CAUSE: the surrogate cannot express the ladder it exists to climb
 
 `evolve valleyall` scores every reference program against the seed on the SAME mates/Mcost surrogate
