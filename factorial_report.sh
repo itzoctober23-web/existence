@@ -47,8 +47,10 @@ done
 echo
 echo "  DESIGN: rule (strict vs veto) x SEED (1, 2). The filter arm was dropped -- SPEC_FILTER cannot"
 echo "  produce gate data until PATH 1 re-checks cost, measured over 4 generations of pure no-ops."
-echo "  Two seeds because one cannot settle a champion-vs-champion question: the blend campaign needed"
-echo "  FIVE before its interval cleared zero, and two of its seeds disagreed at three seeds in."
+echo "  Two seeds because one cannot settle a champion-vs-champion question. The blend campaign needed"
+echo "  FIVE: at two seeds its interval was [+0.011, +0.126], clearing zero by 0.011 -- at the boundary,"
+echo "  not past it. All five seeds did agree in SIGN (0.460 0.403 0.403 0.394 0.440, every one below"
+echo "  0.500); it was the INTERVAL that needed the seeds, not a disagreement between them."
 echo
 echo "  MIRRORED vs ALL-DRAWN among no-signal decisions (all cells below log W-D-L):"
 for cell in s1-veto:gate_veto_arm.log s2-control:gate_control_s2.log s2-veto:gate_veto_s2.log; do
