@@ -993,6 +993,25 @@ fn main() {
     set.extend(deep);
     set.extend(win);
 
+    // ---- REFUSE TO RUN ON A SHORT GUARD SET. RESTORED after the lineage rewrite silently dropped
+    // these, which a `unused variable: n_win` warning revealed. Reading the warning was the only
+    // reason it was caught: a dropped guard produces no symptom at all -- the loop runs happily
+    // with a set too small to bite, which is exactly the failure these exist to prevent, and it is
+    // how the depth exploit survived the first time.
+    if n_win < n3 {
+        println!("  REFUSING TO RUN: found {n_win} window-sensitive positions, wanted {n3}.");
+        println!("  Without them a candidate can raise alpha and buy cost for free, which is what");
+        println!("  happened the moment the depth exploit was closed.");
+        return;
+    }
+    if n_deep < n2 {
+        println!("  REFUSING TO RUN: found {n_deep} depth-requiring positions, wanted {n2}.");
+        println!("  Without them the 'do not lose mates' guard cannot bite and this loop optimises");
+        println!("  toward searching one ply less -- which is what it did when the guard was built");
+        println!("  from mate distance instead of disagreement.");
+        return;
+    }
+
     // ---- DECLARED PARAMETERS FIRST: everything below depends on them.
     let (mu, eps, budget_main, budget_mcts) = read_declared("configs/search_track.conf");
     let (MU, EPS) = (mu, eps);
