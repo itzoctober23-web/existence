@@ -466,6 +466,18 @@ so have *lower* pair variance. That also corrects the "direct match has 3.6× th
 noise ratio is only **1.3×**, and the remaining **2.8×** is the origin comparison *compressing the
 signal* because both nets are near-saturated. I attributed the whole gap to quadrature addition.
 
+## The full 40-generation batch-gate record (`rt_k5`)
+
+8 gates, **2 KEEPs**, and the base moved 0.828 → 0.865 on the origin metric:
+
+* KEEPs at **g10 (+0.033)** and **g25 (+0.039)**
+* **g30, g35, g40 all ROLL BACK** — the last 15 generations produced nothing keepable
+
+P(≥2 KEEPs in 8 | true null) = **0.0157**, so the KEEPs remain unlikely to be noise, though weaker
+than the 0.0059 the first 5 gates gave. **The gains are front-loaded and then stop**, which is what
+`compound.sh` was queued to test — and it now has a partial answer before it even starts: within
+this run, batching bought two steps and then stalled.
+
 ## Shipping candidates, with evidence strength stated per item
 
 All head-to-head at 960 pairs. **Nothing here has shipped**; none of it is an Elo number.
