@@ -1751,6 +1751,39 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                                     lineages[li].name, c));
                         println!("         ^ captured as an exploit: {ratio:.0}x surrogate, \
 {:.3} games", gsc.pent_rate());
+                        // MACHINE-READABLE LEDGER alongside the program dump.
+                        //
+                        // The .prog file is `{:#?}` output: readable by a person, NOT reloadable by
+                        // the program. There is no text format for Program -- 1 occurrence of
+                        // "parse" in 1760 lines of the grammar crate and no serde anywhere -- so a
+                        // captured specimen cannot be replayed through a candidate fitness.
+                        //
+                        // It does not need to be. What makes a specimen a THREAT is entirely
+                        // captured by (mates, cost, game rate): any surrogate that is a function of
+                        // mates and cost can be asked "would you admit 18 mates at 5.4M cost when
+                        // the champion is 25 at 10.2B?" arithmetically. That turns the corpus into
+                        // a regression test without needing a parser, which is the difference
+                        // between an instrument that exists and one that is merely planned.
+                        //
+                        // Cost is recomputed from the rate rather than plumbed through: rate is
+                        // mates*1e6/cost by construction, so cost = mates*1e6/rate exactly.
+                        let ex_cost = f as f64 * 1e6 / rate.max(1e-12);
+                        let champ_cost = lineages[li].best_found as f64 * 1e6
+                            / best_rate.max(1e-12);
+                        let line = format!(
+                            "{}\t{}\t{}\t{:.0}\t{:.6}\t{}\t{:.0}\t{:.6}\t{:.3}\t{:.3}\t{}\n",
+                            lineages[li].name, g, f, ex_cost, rate,
+                            lineages[li].best_found, champ_cost, best_rate,
+                            gsc.pent_rate(), gsc.ci95(), c.size());
+                        use std::io::Write;
+                        if let Ok(mut fh) = std::fs::OpenOptions::new()
+                            .create(true).append(true).open("exploits.tsv") {
+                            if fh.metadata().map(|m| m.len() == 0).unwrap_or(false) {
+                                let _ = fh.write_all(b"lineage\tgen\tex_mates\tex_cost\tex_rate\t\
+champ_mates\tchamp_cost\tchamp_rate\tgames\tci95\tnodes\n");
+                            }
+                            let _ = fh.write_all(line.as_bytes());
+                        }
                     }
                     if spec_filter { lineages[li].gated.insert(format!("{c:?}")); }
                     else { lineages[li].best_rate = rate; }
