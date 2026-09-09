@@ -20,11 +20,12 @@ training amount. Equal generations removes that and leaves depth and parity as t
 | d1 vs d3 | parity (both ODD) | **0.450 ± 0.015** | d3 stronger, interval clear of 0.5 |
 | d2 vs d4 | parity (both EVEN) | **0.379 ± 0.016** | d4 stronger, interval clear of 0.5 |
 | d1 vs d2 | depth (both shallow) | **0.512 ± 0.014** | **INDISTINGUISHABLE, and precisely so** |
-| d3 vs d4 | depth (both deep) | *running* | pending |
+| d3 vs d4 | depth (both deep) | **0.506 ± 0.014** | **INDISTINGUISHABLE, and precisely so** |
 
-**Both depth rows resolve in favour of the deeper arm. The parity row that has finished is a precise
-null** — a narrow interval containing 0.5, which `netmatch` distinguishes from an underpowered
-"unresolved" by its own 0.015 criterion (ci95 0.014 here, so it qualifies).
+**Both depth rows resolve in favour of the deeper arm. BOTH parity rows are precise nulls** — narrow
+intervals containing 0.5, which `netmatch` distinguishes from an underpowered "unresolved" by its own
+0.015 criterion (ci95 0.014 in each, so both qualify). The 2x2 is complete and it separates cleanly:
+**depth moves strength at both parities; parity moves nothing at either depth.**
 
 Pre-registered before the run: *"d3>d1 AND d4>d2 => depth genuinely helps per label"*. That is the
 outcome, and the shallow parity row adds that parity does not.
@@ -61,7 +62,7 @@ way for the wrong reasons.
   than these ci95s, so a second seed is the price of calling the depth rows settled. The parity null
   is the more robust of the two claims here because a null at ±0.014 is harder to produce by chance
   than a direction.
-* The fourth cell (parity at DEPTH) is still running. If it also nulls, parity is null at both depths
-  and the conclusion is clean; if it resolves, parity matters only when deep and this write-up needs
-  amending rather than extending.
+* The fourth cell landed as predicted in this file before it ran: parity nulls at depth too
+  (0.506 ± 0.014), so the conclusion is the clean one rather than the "parity matters only when deep"
+  variant that would have required amending this write-up.
 * 448 pairs per match. `netmatch` prints the pair count its own precision rule would demand.

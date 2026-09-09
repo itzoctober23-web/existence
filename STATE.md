@@ -333,6 +333,7 @@ head-to-head at depth 4:
 | d1 vs d3 | parity (ODD) | **0.450 ± 0.015** — d3 stronger, clear of 0.5 |
 | d2 vs d4 | parity (EVEN) | **0.379 ± 0.016** — d4 stronger, clear of 0.5 |
 | d1 vs d2 | depth (shallow) | **0.512 ± 0.014** — INDISTINGUISHABLE, and precisely so |
+| d3 vs d4 | depth (deep) | **0.506 ± 0.014** — INDISTINGUISHABLE, and precisely so |
 
 The `distill_gap` measurement below is NOT refuted: crossing parity really does move the training
 target 2.6x. What is refuted is the inference from it to strength. **A 2.6x difference in the
@@ -340,7 +341,8 @@ training signal produced 0.512 ± 0.014 in the trained net — nothing.** Depth,
 target within a parity class, is what moves strength, in both classes, both intervals clear of 0.5.
 
 So the heading below is wrong as a claim about STRENGTH and right as a claim about the TARGET. See
-`depth2x2_RESULT.md`. One seed so far; the deep parity cell is still running.
+`depth2x2_RESULT.md`. The 2x2 is COMPLETE: both depth rows resolve, both parity rows are precise
+nulls. One seed; replication on 987654 is running in the same script.
 
 ### The depth lever is SEARCH PARITY, not depth (measured on the TARGET distribution)
 
