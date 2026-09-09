@@ -1417,6 +1417,42 @@ denominators can differ no other way). The BEHAVIOURAL difference the filter was
 line whose surrogate is BELOW the incumbent's, which the strict rule cannot produce — has NOT yet
 appeared in four generations. The filter binds; whether it changes outcomes is still open.
 
+## The MATE-2 result, fully tempered: it removed the TAIL, not the BIAS
+
+Accumulated across three configurations — 14 generations, zero captures, against a control that
+captured at generation 1 on all three seeds. The exploit axis holds. But what the surviving
+proposals actually look like:
+
+```
+mate2_treat  (4242, floor 30)   gen1 MAIN 1.02x games 0.458    gen2 MAIN 2.60x games 0.250
+mate2_31337  (31337, floor 30)  gen1 MAIN 1.05x games 0.333    gen2 MAIN 1.32x games 0.375
+window       (4242, floor 29)   gen1 MAIN 1.02x games 0.458
+```
+
+```
+MATE-2 MAIN gates pooled   0.3540 +/- 0.0945 -> [0.260, 0.448]   24 pairs
+ORIGINAL 25-set   pooled   0.4554 +/- 0.0505 -> [0.405, 0.506]   84 pairs
+```
+
+**The proposals are not better. If anything they are worse.** The intervals overlap only in
+0.405-0.448 and both sit below 0.5. Removing the extreme exploits did not make the survivors good —
+it removed the tail, not the bias. That is what a higher floor can do and all it can do.
+
+**The window arm adds nothing so far.** Its generation 1 is byte-identical to the treatment's
+(surrogate 0.002524, games 0.458): the looser floor did not change which candidate was best, because
+the binding constraint at that generation was not the floor. The window's value was always
+conditional on capture extension being worth admitting, which is exactly what the 300-pair match is
+measuring and which has never been established.
+
+**MCTS lineage, worth noting separately:** every gate is exactly 0.500. Those are behaviourally
+identical candidates — the "plays the same, costs less" path — not strength changes.
+
+**Where this leaves the whole day's Existence work.** Two axes were attacked. The exploit axis
+genuinely improved and is measured. The ranking axis is now refuted from both directions: MATE-2
+does not unsaturate the numerator (rungs moved <0.4%), and the hard set rewards difference rather
+than depth (depth-one ties capture extension at 6/40). `proxies_RESULT.md` said it already — only
+games measure strength here — and everything today has converged on that sentence.
+
 ## ⚠ REFUTED: the HARD set measures DIFFERENCE from the seed, not better search
 
 The direction I called "the one that survives every other measurement today" — rank primarily on the
