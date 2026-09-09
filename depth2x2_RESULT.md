@@ -53,7 +53,7 @@ way for the wrong reasons.
   as the lever, which is what `MASTER_PLAN.md:616-617` already predicts: *"the real unlock is making
   deep search cheap enough that both hold at once."*
 * `throughput_RESULT.md` has now measured where that cost actually is, and it inverts the brief's
-  ordering. Per leaf node at width 16: `legal_moves()` **451 ns (44%)**, eval **261 ns (26%)**, the
+  ordering. Per leaf node at width 16: `legal_moves()` **406 ns (44%)** (the 451 first measured was inflated 9% by `black_box`), eval **261 ns (26%)**, the
   deliberate child shuffle **257 ns (25%)**, make/unmake **47 ns (5%)**. Eval is third, not first.
   The cheapest quantified win is replacing the shuffle's integer division with a multiply-shift —
   **153 ns/node, ~12% of throughput** — which preserves the move-ordering denial exactly and costs
@@ -134,7 +134,7 @@ and the equal-generation 2×2 above is what answers that question.
 ## ⚠ Re-examined under the grounded seed band — only ONE depth cell survives it
 
 `STATE.md`'s measurement wall is now anchored to the right quantity: the between-seed movement of a
-**paired difference**, measured twice on the blend data at 0.055 and 0.052, giving sd ≈ **0.047**.
+**paired difference**, measured twice on the blend data at 0.055 and 0.052, giving sd ≈ 0.047 — since re-derived to **0.043** on four estimates; see STATE.md.
 Applying that to the cells above, before anyone else has to:
 
 | cell | rate | effect | verdict |

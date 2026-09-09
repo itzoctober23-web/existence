@@ -294,7 +294,11 @@ between training seeds. The blend data now measures that twice, independently:
 | 0.75 vs 1.00 @ depth 4 | 0.511 | 0.456 | **0.055** |
 | 0.75 vs 1.00 @ depth 2 | 0.450 | 0.502 | **0.052** |
 
-Mean movement 0.053; for n = 2, E[range] = 1.128·sd, so **between-seed sd ≈ 0.047**. Seeds needed
+Mean movement 0.053; for n = 2, E[range] = 1.128·sd, so between-seed sd ≈ 0.047 **on the first two
+estimates**. It has since been re-derived twice as replications landed — 0.039 on three, and
+**0.043 on four** (movements 0.055, 0.052, 0.024, 0.062). **0.043 is the current value; treat any
+other figure in this tree as superseded.** It is deliberately re-derived rather than defended, and
+`netmatch` still hardcodes 0.047, which is now CONSERVATIVE rather than wrong. Seeds needed
 for a paired test at ~80% power:
 
 | effect | seeds |
@@ -862,6 +866,9 @@ than the 0.0059 the first 5 gates gave. **The gains are front-loaded and then st
 this run, batching bought two steps and then stalled.
 
 ## RESOLVED: blend 1.00's advantage is depth-2 only — the candidate is DEAD
+
+> **⚠ WITHDRAWN 2026-09-09 — the MECHANISM, not the verdict.** "Depth-2 only" does not replicate: on seed 424242 blend 1.00 wins at depth **4** (0.456 ± 0.024) and depth 2 is unresolved. The candidate is still dead (no cross-seed win); the depth-dependent explanation is not. See the settled table and `blend_RESULT.md`.
+
 
 The direct 448-pair match settles the hint below:
 

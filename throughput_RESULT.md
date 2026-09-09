@@ -83,7 +83,7 @@ is the one that suffered least interference. Same technique `alloc_probe.rs` use
 
 | primitive | ns/op | share of a leaf node |
 |---|---|---|
-| `legal_moves()` | **451.2** | **44.4%** |
+| `legal_moves()` | **451.2** (superseded → **405.8**, see below) | **44.4%** |
 | eval | 260.7 | 25.6% |
 | shuffle + buffer copy | 257.4 | 25.3% |
 | make + unmake (pair) | 47.1 | 4.6% |
