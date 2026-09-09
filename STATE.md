@@ -30,6 +30,7 @@ claims later retracted; **this file supersedes them where they disagree.**
 | candidate | verdict | measurement |
 |---|---|---|
 | capacity / net width | **REFUTED** | w64 loses **0.179 ± 0.021** to w16 at equal TIME |
+| **datagen depth (d2 vs d3)** | **CONFOUNDED WITH PARITY** | see below — the effect is even-vs-odd, not shallow-vs-deep |
 | draw filter | **REFUTED** | excluding draws better by **+0.086 ± 0.015**, two independent protocols |
 | horizon schedule | **REFUTED** | widening beats narrow-fixed by **+0.064 ± 0.034** |
 | datagen depth | **survives, unreplicated** | 8 deep generations beat 92 shallow, **+0.025 ± 0.013** |
@@ -37,6 +38,31 @@ claims later retracted; **this file supersedes them where they disagree.**
 Depth is the only surviving lever *among the four named candidates*. Its effect is smaller than the
 ~0.07 between-run band, so a 2-seed replication with `--horizon-cap 45` on both arms is queued.
 Epochs is a fifth candidate, never tested on a working metric, also queued.
+
+### The depth lever is SEARCH PARITY, not depth
+
+`distill_gap` measures `|tanh(root/scale) − tanh(eval/scale)|` — at blend 1 that is not a proxy for
+the training signal, it **is** the training signal. Across two odd/even pairs:
+
+| net | d3 | d4 | d5 | d6 |
+|---|---|---|---|---|
+| origin(random) | 0.0244 | 0.0137 | 0.0235 | 0.0167 |
+| bn_000 | 0.3518 | 0.1524 | 0.3567 | 0.1842 |
+| bn_075 (20 gen) | **0.5715** | 0.1976 | **0.5861** | 0.2365 |
+
+**Odd depths cluster high, even depths cluster low, and depth barely matters within a class.** For
+bn_075, two extra plies inside a parity class moves the gap +2.5% (d3→d5) and +20% (d4→d6); crossing
+parity moves it **2.6×**. This is the classic alpha-beta odd-even effect — at odd depth the side to
+move gets the last ply and takes material without reply, inflating the root against a quiet eval.
+
+**The depth lever compared d2 with d3 — even against odd.** Its +0.025 is a comparison between two
+target distributions that differ 2.6× in how far they sit from the net's own eval, so "deeper search
+gives better labels" is not what was measured. `depth_parity.sh` (d2 vs d4, parity held fixed) is
+queued and decides it.
+
+Note this does not say depth-3 training is *worse* — it says the mechanism is misattributed. Odd-depth
+targets are systematically optimistic about the side to move, and that may genuinely help; it is just
+not "deeper search sees more".
 
 ### The training target's BLEND outweighs all four
 
