@@ -1876,7 +1876,14 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                     println!("  gen {g:>3} {:<5} gate REJECT {:.3}+/-{:.3} ({} games)  surrogate \
 {rate:.6}  ABOVE:{above}  needed >{:.3}",
                              lineages[li].name, gsc.pent_rate(), gsc.ci95(), gsc.games(),
-                             0.5 + gsc.ci95());
+                             // THE PRINTED BAR MUST MATCH THE ACTIVE RULE. This hardcoded `0.5 + ci95`, the
+                             // resolved_up threshold; under EXISTENCE_GATE_VETO the criterion is
+                             // `rate >= 0.5 - ci95`, so a veto REJECT would print a bar it was never judged
+                             // against. That is the defect class this tree keeps finding -- the gate comment
+                             // describing a veto while the code demanded resolution, the anchor comment
+                             // claiming 'same seed family, same openings' when it did not. Adding a third
+                             // while fixing the first would be poor.
+                             if veto_only { 0.5 - gsc.ci95() } else { 0.5 + gsc.ci95() });
                     // EXPLOIT CAPTURE. A candidate whose surrogate is orders above the incumbent
                     // while its GAMES are far below parity is, by definition, a program that beats
                     // the fitness function without playing better. Those are the only examples that
