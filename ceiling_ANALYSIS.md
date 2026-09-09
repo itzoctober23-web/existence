@@ -132,3 +132,47 @@ climbing), and parked the fix to apply once it finishes.
 **Both hazards are about the same thing: state that outlives the run that produced it.** A stale
 log outlives its experiment; a mid-run edit makes the script outlive its own parsed image. Neither
 produces an error — both produce a plausible wrong answer, which is worse.
+
+
+---
+
+## ALL FOUR CEILING CANDIDATES NOW RESOLVED — one survivor
+
+| candidate | verdict | measurement |
+|---|---|---|
+| capacity / net width | **REFUTED** | w64 loses **0.179 ± 0.021** to w16 at equal time |
+| draw filter | **REFUTED** | excluding draws better by **+0.086 ± 0.015**, two protocols |
+| horizon schedule | **REFUTED** | widening beats narrow by **+0.064 ± 0.034** |
+| **datagen depth** | **survives** | 8 deep generations beat 92 shallow, **+0.025 ± 0.013** |
+
+Three of four are dead with resolved measurements. Depth is the only lever left standing.
+
+### The horizon result makes the depth result STRONGER, not weaker
+
+I flagged the depth A/B as confounded: equal wall clock forced unequal generation counts, so the
+depth-3 arm ran at horizon 45 while depth-2 ran at 465, and I feared depth-3 won *because* of its
+narrower horizon.
+
+**The horizon experiment says narrow is measurably WORSE** (0.774 vs 0.838). So:
+
+* depth-3 arm: horizon 45 (the *bad* setting) → 0.875
+* depth-2 arm: horizon 465 (the *good* setting) → 0.850
+
+**Depth 3 won while carrying a horizon handicap.** The confound runs against the result rather than
+for it, so the true depth effect is at least +0.025 and plausibly larger once horizon is matched —
+which the queued replication now does with `--horizon-cap 45` on both arms.
+
+Stated limit: the horizon arms tested caps of 10 vs 1000 (reaching h10 and h105 at 20 generations),
+while the depth arms sat at h45 and h465. Different ranges, so the direction transfers but the
+magnitude does not.
+
+### Cost of a rule I already knew
+
+The horizon run's verdict block died with a bash syntax error at line 69, because I edited the
+script WHILE IT WAS RUNNING and bash reads by byte offset. I reverted within a minute, and **the
+revert was not sufficient** — the damage still landed. The measurements survived only because each
+arm's built-in control writes to its own log, independent of the driver's summary block. That is
+luck, not design.
+
+The rule has no safe version: do not edit a running script. Not "edit carefully", not "edit and
+revert quickly".
