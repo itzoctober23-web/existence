@@ -477,6 +477,11 @@ in eighteen produces something PATH 1 would take.
 
 ### What it projects onto the live arms
 
+> **⚠️ SUPERSEDED 2026-09-10.** The 0.055 below is measured on halves that are biased optimistic BY
+> CONSTRUCTION -- `ab_probe_only()` is `ab_hash_parts(true,false)`, i.e. one known-correct table split
+> down the middle. Rejoining it is a friendlier question than the one the arms face. Read "The minimal
+> halves, measured" at the foot of this file before quoting anything in this section.
+
     P(union even attempted per generation)   ~ 0.20    measured from composition_s2's gen-6 population
     P(a union is PATH-1 acceptable)          ~ 0.055   measured here
     -> P(acceptable union per generation)    ~ 0.011
@@ -498,3 +503,68 @@ Also: the united children here run at **30.4% hits and 3.8 probes/store**, again
 and 14.0. They are cheaper and behaviour-preserving, so PATH 1 takes them — but they are not
 behaving like `ab_hash`. Some of the 11 may be cheap for a reason unrelated to transposition reuse.
 That is worth knowing before any of this is called "the search found hash reuse".
+
+---
+
+## The minimal halves, measured (2026-09-10)
+
+The section above named its own limit: its halves sit at 10 and 5 call sites, the live population's at
+one each. That limit turned out to be the more important half of the result.
+
+**The halves here are built the way the population builds them** -- single mutations off the seed, kept
+when they carry exactly one side -- and the mode ABORTS if it cannot draw both in 20,000 attempts rather
+than falling back to the hand-built pair, which would have reproduced the old number under a new label.
+The tags it built, `P1K1F1` and `S1K1`, are byte-identical to what `gate_composition_s2` carries at
+gens 4-6. Same controls as before: probe half 0 stores, store half 0 probes, only `ab_hash` cheaper.
+
+                              hand-built (10/5 sites)   MINIMAL (1/1 site)
+    well-typed children              200 of 200            200 of 200
+    carrying BOTH halves              26  (13.0%)           18  ( 9.0%)
+    ...that play IDENTICALLY          17  (65.4%)            4  (22.2%)
+    ...AND cheaper (PATH-1)           11  ( 5.5%)            3  ( 1.5%)
+    hit rate / probes-per-store     30.4% / 3.8           4.9% / 4.2
+
+### What is NOT resolved: the headline rate
+
+**3/200 vs 11/200 is Fisher p = 0.0531. That is not a resolved difference and must not be reported as
+one.** Wilson 95%: minimal [0.51%, 4.32%], hand-built [3.10%, 9.58%] -- they overlap. The point estimate
+falls 3.7x, but this run cannot distinguish that from noise. `ttunion 1000 3 1` is running to settle it.
+
+### What IS resolved: the bottleneck is SOUNDNESS, not speed
+
+Decomposing the funnel separates a decisive difference from a null one:
+
+    behaviour preservation among union-carriers   65.4% vs 22.2%   Fisher p = 0.0065   DECISIVE
+    cheaper GIVEN it preserves behaviour          64.7% vs 75.0%   Fisher p = 0.91     NULL
+
+**A minimal union is not failing because it is slow. It is failing because it returns the wrong answer
+~78% of the time.** Once it preserves behaviour it is, if anything, slightly likelier than the
+hand-built one to be cheaper. Every generation of effort aimed at making the united child *faster* is
+aimed at the step that is already working.
+
+### Why the hand-built number was optimistic BY CONSTRUCTION
+
+`ab_probe_only() = ab_hash_parts(true, false)` and `ab_store_only() = ab_hash_parts(false, true)`. They
+are not two independent programs that happen to carry one primitive each -- they are ONE known-correct
+table with one side deleted, at matched sites. Crossing them re-joins a table that was sound before it
+was split. That measures *"can crossover rejoin a correct table"*, which is close to a tautology, not
+*"do two independently-placed random edits form a table"*, which is what the arms are attempting.
+
+So the 5.5% was never the live rate, and the 19% projection built on it was never the live projection.
+Using the minimal point estimate instead: **0.20 x 0.015 = 0.30%/generation -> 5.5% over the 19
+generations remaining** (range across the CI: ~2% to ~15%), and 13.9% over 50.
+
+### The union event has still never happened outside the MCTS lineage
+
+Across both composition arms, every member tagged with both P and S is `P10S5K15F10` or
+`P10S6K16F10` -- that is `uct_mcts`, which was BORN with a table, and one store-edit off it. The
+evolved minimal members are `P1K1F1` or `S1K1`, never fused. **Zero genuine unions in 21 generations of
+live population.** A near-miss to watch for is a single member tagged like `P1S1K2F1`.
+
+### Next discriminator, named and NOT built
+
+The soundness gap predicts something countable: if a one-site probe reads entries a one-site store wrote
+in a different context, then hits should be dominated by writer-context != reader-context. Tag each
+stored slot with its writer call-site id and count cross-context hits. Not built -- the actionable
+conclusion (soundness is the barrier, cheapness is not) does not move on the answer, and the n=1000
+power run is the thing that changes a published number.
