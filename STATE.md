@@ -4485,3 +4485,41 @@ selecting weaker players, and the whole filter hypothesis would need re-reading.
 **The clean test already exists and is running.** All four factorial cells share binary, seed and set;
 their OUTCOMES (acceptances, final spread) are the seed-robust class per today's variance measurement,
 unlike per-gate rates. That comparison answers this properly. **No conclusion until it lands.**
+
+## 2026-09-10 — the autocorrelation is MEASURED, and it retires the mates-vs-strength correlation
+
+The previous entry suspected that successive gate rates within an arm are not independent, which would
+mean the nominal standard error understates uncertainty. That is measurable, not just arguable:
+
+    lag-1 autocorrelation of successive gate rates
+      gate_diversity_s1         MCTS  n=24  acf1 +0.499   n_eff  8.0   SE inflation x1.73
+      gate_diversity_PAIRED_off MCTS  n=22  acf1 +0.495   n_eff  7.4   x1.72
+      gate_sprt30_s1            MAIN  n= 9  acf1 +0.062   n_eff  7.9   x1.06
+      gate_composition_s1        all  n= 9  acf1 +0.348   n_eff  4.4   x1.44
+      gate_composition_s2        all  n= 9  acf1 +0.200   n_eff  6.0   x1.23
+
+**MCTS gate rates are half-autocorrelated: 24 gate calls carry the information of 8.** That is the
+expected shape — the population evolves gradually, successive candidates are relatives, and every gate
+is played against the SAME champion, so consecutive rates share most of their determinants.
+
+Correcting both quantities by their own measured inflation:
+
+    effect (mates 6 vs 8)   +0.0512 +/- 0.0227  ->  +2.26 se    (was +3.89 nominal)
+    noise floor (s1 vs s2)  +0.0347 +/- 0.0124  ->  +2.80 se    (was +3.72 nominal)
+
+**The effect is SMALLER than the noise floor. The "more selling -> better play" correlation does not
+survive.** It is retired as unsupported, and with it the worry that §3's filter selects weaker
+players. Neither direction is established; the metric simply cannot resolve either at these sample
+sizes.
+
+**Standing correction, applying backwards to today's work.** Any interval computed from per-gate rates
+in this project is too narrow by roughly **x1.7** for MCTS and **x1.2-1.4** elsewhere. That does not
+touch the results resting on COUNTS — the mate-selling pile-up (14 of 14, 16 of 24), the filter's
+non-floor selection (7 of 7, p~2e-4), or the 0-acceptance outcomes — because those are discrete events
+rather than averaged rates, and per today's seed-variance measurement outcome counts are the
+seed-robust class. It does retire every rate-based comparison made from a single arm.
+
+**Why this was worth doing rather than hedging.** "The interval is probably too narrow" is a caveat
+that lets a conclusion stand while sounding careful. Measuring `acf1` converts it into a number that
+either kills the result or does not — and here it killed one, cleanly, using data already on disk. The
+seed control raised the suspicion; the autocorrelation measurement settled it.
