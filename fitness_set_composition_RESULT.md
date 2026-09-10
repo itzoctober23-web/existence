@@ -140,3 +140,24 @@ programs known to carry each half.
   (16) is the binding constraint, not the depth, and **that means the harness currently cannot
   evaluate any program past depth 3.** MATE-3 needs 5 plies, so §3's third stratum is unreachable
   until that ceiling is understood. Open, and the next thing to measure.
+
+### MATE-4 by random-play mining is measured infeasible — §3's retrograde walk is not optional
+
+    MATE-1   0.001 s/position
+    MATE-2   0.050-0.11 s/position
+    MATE-3   3.17-5.34 s/position
+    MATE-4   >840 s with ZERO of 3 found, then killed
+
+**A lower bound, not a rate.** The probe had not exhausted its 400,000-try budget, so all this
+supports is "more than ~157x the MATE-3 cost for even one position". The trend across the three
+measured strata is roughly 50-60x per level, and MATE-4 is consistent with that or worse.
+
+FITNESS §3 asks for 500 positions at each of MATE-1..4 and specifies they be **"mined by retrograde
+walk from actual game endings in own self-play"**. On these numbers that phrasing is not a stylistic
+preference: MATE-1..3 at 500 each is roughly half an hour of random-play mining and is affordable,
+while MATE-4 is not reachable this way at all. The retrograde walk is the only route to the fourth
+stratum, and it needs self-play games to walk back FROM — which at iteration zero do not exist yet.
+
+**Consequence, stated plainly:** the ladder is buildable to MATE-3 today, and MATE-3 additionally
+needs the cost ceiling raised (5 plies, ~90e9 per position extrapolated). The fourth stratum waits on
+self-play, which is a dependency the spec implies and nothing in this repo had made explicit.
