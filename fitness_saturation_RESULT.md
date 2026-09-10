@@ -89,8 +89,35 @@ longer earns a core: the old gate is 0/203 historically, produced 3 more REJECTs
 plus the 3 historical readings already tabulated above, which span seeds 1 and 2.
 
 The prediction to falsify: if saturation is the cause, the treatment arm's MAIN candidates should
-stop being resolved-worse by VERIFY. If they are still resolved worse, saturation is NOT the
-mechanism and this document is wrong.
+stop being resolved-worse by VERIFY.
+
+**CORRECTION to that falsifier, written 2026-09-09 19:29, BEFORE the treatment's first gate.** As
+first stated it read "if they are still resolved worse, saturation is NOT the mechanism". That is
+wrong, and the treatment arms' own logs show why: every generation so far reads **`hard 0-0`**, i.e.
+no retained member scores anything on the hard set. With `hf = 0` the treatment's surrogate is
+`(23+0)/(cost + hard_cost)` — improvable ONLY by cutting cost, which is exactly the control's
+`23/cost` with a larger denominator. **The incentive is then IDENTICAL and the fix has not engaged
+at all.** A "still resolved worse" reading in that state would say nothing whatever about saturation.
+
+So the three readings are:
+
+- **Treatment MAIN stops being resolved worse** → consistent with saturation, subject to the
+  mechanism caveat below.
+- **Treatment MAIN still resolved worse AND `hf > 0` reached the gate** → saturation is refuted as
+  the mechanism, and this document is wrong.
+- **Treatment MAIN still resolved worse AND `hf` stayed 0** → **UNINTERPRETABLE.** The fix never
+  engaged. Not evidence either way.
+
+**And the third case cannot currently be distinguished from the second**, because of the structural
+gap recorded above: gated generations print no `hard` field, and `hf` is dropped at the population
+boundary. That is what would make the tuple-widening refactor worth its cost — not the secondary
+mechanism question, but the fact that a negative result is otherwise unreadable. Deferred while the
+arms have produced no gated generation; the trigger to pay for it is a negative treatment reading.
+
+One reason to expect engagement anyway: with `HARD_FITNESS=1` a candidate scoring `hf > 0` gets a
+numerator boost, so it is MORE likely to win its generation and reach the gate. Historically 93 of
+287 gen-lines carry a non-zero hard score, so the dimension does vary — it simply has not yet in
+these two arms.
 
 **LIMIT OF THIS RUN, stated before the result arrives.** It can answer the OUTCOME and not the
 MECHANISM. A gated generation prints only the VERIFY and gate lines; the `hard h-h` field is printed

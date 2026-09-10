@@ -104,8 +104,15 @@ def main():
     if len(treat) < 3:
         print(f"    n={len(treat)} is too few to decide. Keep running.")
     elif worse == len(treat):
-        print("    SATURATION IS REFUTED as the mechanism: the fix did not change the outcome.")
-        print("    fitness_saturation_RESULT.md must be corrected.")
+        print("    Treatment MAIN is STILL resolved worse. Two readings, and they are NOT the same:")
+        print("      * if hf>0 reached the gate -> saturation is REFUTED as the mechanism and")
+        print("        fitness_saturation_RESULT.md must be corrected;")
+        print("      * if hf stayed 0 -> UNINTERPRETABLE. With hf=0 the surrogate is")
+        print("        (23+0)/(cost+hard_cost), improvable only by cutting cost -- identical in")
+        print("        incentive to the control's 23/cost. The fix never engaged.")
+        print("    These cannot be told apart from these logs (gated gens print no `hard` field),")
+        print("    so THIS is the result that makes the tuple-widening refactor worth its cost.")
+        print("    Every treatment gen so far reads `hard 0-0`, so do not assume engagement.")
     elif worse == 0:
         print("    CONSISTENT with saturation being the cause.")
         print("    NOT PROOF, and the confirming check is NOT AVAILABLE from these logs: a gated")
