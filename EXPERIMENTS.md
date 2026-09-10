@@ -1282,3 +1282,53 @@ behind the bogus "0.14x" interpreter reading. Fixed; seed now 10/10.
   informative direction: it is an ANTI-ordering costing +16/+31/+54% nodes at depth 3/4/5.
 - **"Deeper random openings will make games decisive."** Null: 8.3% decisive at 4 plies,
   15.0% at 32, inside the noise at n=60. The lever was volume, not opening depth.
+
+---
+
+## 2026-09-09 — the gate was fixed, and it cleared the real suspect
+
+- **Sequential gate: VERIFIED, and it ACCEPTS.** FITNESS 7 specifies SPRT; the shipped gate was a
+  fixed 6-pair match that had never accepted anything in 203 decisions. `sprt_smoke` ran both
+  pre-registered checks on the real binary: A/A (seed vs itself, must NOT accept) returned
+  `Inconclusive llr +0.00 after 30 pairs, W-D-L 11-38-11` -- the zero-variance give-up firing as
+  designed -- and A/B (seed vs `depth_one`, must decide) returned `Accept llr +3.08 after 26 pairs,
+  W-D-L 34-18-0`. First accept this gate has ever produced.
+
+- **Gate bounds `[0,10]` -> `[0,30]`. The WIDTH was the cost driver, not the stopping rule.** The
+  LLR scales with `(p1-p0)`, so a 10-Elo width gives each pair 0.0144 of evidence and the test
+  crawls. Simulated with the exact formula from `gate.rs` at the measured 0.806 draw rate, 400 runs
+  per cell: `[0,10]` burns the full 400-pair cap **63.8%** of the time against a null candidate,
+  median 274 pairs. `[0,30]` burns it **0.0%**, median 55, false-accepts 4.8% (alpha=0.05), power
+  81.8% at +25 Elo and 98.5% at +50. `[0,50]`/`[0,100]` are cheaper still but their power collapses
+  at +25 (39.8%, 13.5%) -- they would discard real gains. **Deviates from FITNESS 7.2's 2-Elo width,
+  flagged as open.**
+
+- **FAILED: decisive openings via a material gap.** FITNESS 7.3 asks for an unbalanced book. Probe at
+  24 pairs: control (balanced) **8-32-8, 66.7% draws**; treatment (material gap >= 2) **9-30-9,
+  62.5%**. Two games on 48 -- noise. Pentanomial was `[0,0,24,0,0]` in BOTH arms. **What was wrong
+  with the experiment: nothing -- the idea does not transfer.** Both sides evaluate with
+  `Net::random`, so neither can convert an edge it cannot see; `unbalanced_open.rs:4` had already
+  said so. MASTER_PLAN:154's three legal sources all fail at iteration zero: random plies is what we
+  run, the self-generated book needs a working eval to mine, and Chess960 is symmetric. That section
+  targets draw-death **from strength**; ours is a random eval shuffling to a repetition. Same
+  symptom, different cause. **Do not re-run the material-gap book.**
+
+- **The surrogate proposes candidates that are WORSE — and that, not the gate, is why nothing was
+  ever accepted.** With the gate cleared, VERIFY (96 pairs, independent seed) says: under the
+  standard guard, MAIN **3/3 resolved WORSE** (0.422+/-0.027, 0.430+/-0.030, 0.430+/-0.031) while
+  MCTS is **0/3** (0.490, 0.492, 0.505). Mechanism, with a natural experiment: MAIN's seed is
+  **23/23 mates -- saturated** -- so "keep every mate, get cheaper" can only be satisfied by
+  searching less, and cheapness is the axis that costs strength; MCTS's seed is **15/23**, not
+  saturated, and does not degrade. `evolve.rs:1639` already stated the saturation; the known repair
+  (swap mate-in-1 for a forced-mate set) is INCOMPLETE because 23/23 is still saturated. Acting on
+  it via `EXISTENCE_HARD_FITNESS=1`, which was implemented, pre-justified, defaulted OFF, and had
+  never once been enabled by any arm. A/B running on two seeds; falsifier pre-registered.
+
+- **MY OWN ERROR, recorded because the do-not-regress list is also for method.** I first reported
+  "4 of 4 MAIN resolved worse" plus a Spearman over n=7. Both wrong. Arms with identical
+  configuration replay the SAME trajectory, so seed-1 gen-3 appeared in three log files and seed-2
+  gen-1 in two, and I counted duplicates as independent observations; I also pooled a relaxed-guard
+  arm (tolerance 7 / floor 16, where a candidate may SHED mates to buy cost) with the tolerance-4
+  arms. Corrected to 3/3 and 0/3, Spearman withdrawn as uninterpretable at n=3. `ab_report.py` now
+  does the dedup and stratification, reads the guard and the HARD_FITNESS flag from each log's own
+  HEADER rather than its filename, and was validated against the corrected hand count before use.
