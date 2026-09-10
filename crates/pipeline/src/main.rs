@@ -284,11 +284,19 @@ fn main() {
     //   * A rung costs ONE 50KB file write and is the input to the instrument that still works
     //     above the saturation band: head-to-head against a recent ancestor.
     //
-    // So the reliable instrument was rationed at the price of the unreliable one. Measured today:
-    // gen400 beats gen200 by +0.043 at depth 1 and +0.039 at depth 4, resolved at 448 pairs --
-    // a real gain the control reported as a DECLINE (0.871 -> 0.819) over the same window. That
-    // comparison was only possible because two rungs happened to exist; at gen 500 or 600 there
-    // was nothing to compare against and the question would have been unanswerable.
+    // So the reliable instrument was rationed at the price of the unreliable one. Measured today
+    // on two rungs ~49 minutes apart: the later net wins by +0.043 at depth 1 and +0.139 at
+    // depth 4, both resolved at 448 pairs, same files and seed with only the depth differing.
+    // (An earlier note here said +0.039 at depth 4. That was a stale unmatched run and it is
+    // wrong -- the margin TRIPLES at the judged depth, it does not stay flat.)
+    //
+    // Two things follow. The "decline" the control reported over this window (0.871 -> 0.819) was
+    // an artefact of pooling two runs' logs, see pooled_runs_RESULT.md. And the depth-1 gate sees
+    // roughly a third of the improvement it is selecting on, which makes raising the gate depth a
+    // live lead rather than a settled non-issue.
+    //
+    // That comparison was only possible because two rungs happened to exist; at gen 500 or 600
+    // there was nothing to compare against and the question would have been unanswerable.
     //
     // 0 = off, preserving the previous behaviour exactly for any caller that does not ask.
     let rung_every = arg("--rung-every", 0);

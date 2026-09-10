@@ -40,16 +40,41 @@ going up.
    written down before the run (`control_caps_RESULT.md`).
 2. **Selection at the wrong depth.** The loop gates at depth 1 while strength is judged at depth 4
    — `main.rs:154` already warns it "optimises the game it measures".
-   **Refuted:** the later net beats the earlier by **+0.043 at depth 1** and **+0.039 at depth 4**,
-   448 pairs each. The gap does not move with depth, so the depth-1 gate transfers and needs no
-   change.
+   **Not refuted — and it resolves the OPPOSITE way from the worry.** See the correction below.
 
 Both were good hypotheses. Neither was the answer, because there was no question.
 
+## ⚠ CORRECTION, one hour later, to my own "+0.039 at depth 4"
+
+**I quoted a depth-4 number from a DIFFERENT, unmatched run and compared it to a matched depth-1
+number.** Exactly the mistake this file is about — comparing rows that do not belong together —
+committed while writing the file that documents it. The matched pair, same two files, same 448
+pairs, same seed, only depth differing:
+
+| depth | earlier net scores | later net's margin |
+|---|---|---|
+| 1 — what the gate uses | 0.457 ± 0.018 | **+0.043** |
+| 4 — what strength is judged at | **0.361 ± 0.020** | **+0.139** |
+
+**The margin more than TRIPLES at depth 4.** Both intervals are clear of 0.5, and this is the clean
+comparison: one script, both arms, nothing varying but the depth argument.
+
+So hypothesis 2 is **not refuted** — it is real, and it points the other way from the worry. The
+fear was that a depth-1 gate would select for a shallow game and the gains would evaporate at
+depth 4. Instead the gains are **three times larger** at depth 4 than the gate can see. The loop is
+improving substantially more than its own accept criterion is able to measure.
+
+**What that implies, stated as a lead and not a result:** a gate blind to two thirds of the
+improvement it is selecting on must be rejecting candidates that are real depth-4 gains. Raising
+the gate depth is the obvious move and is NOT free — 224 pairs at depth 4 costs ~7 min/generation
+against ~2s today, roughly 200x, which is why depth 1 was chosen. The cheap version to test first
+is a *shallow gate plus a deeper tiebreak* on candidates near the accept threshold. Not run yet.
+
 ## The measurement that stands
 
-Head-to-head between two saved nets, 448 pairs, same seed: the later net wins by **~+0.04 at both
-depths**. That compares two *files* and so is unaffected by the labelling bug.
+Head-to-head between two saved nets, 448 pairs, same seed: the later net wins by **+0.043 at
+depth 1 and +0.139 at depth 4**. That compares two *files* and so is unaffected by the labelling
+bug.
 
 **But the labels are still wrong and must not be quoted as "gen200 vs gen400".** The `gen200` rung
 was written 11:53 and the `gen400` rung 12:42, by **different runs**. The lineage is continuous —
