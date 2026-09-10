@@ -114,9 +114,11 @@ def main():
         print("    gate, the log never says whether the surrogate rose via the hard set or via")
         print("    cost. It cannot be recovered arithmetically either: the guard pins f at 23, so")
         print("    rate=(23+hf)/(cost+hard_cost) has two unknowns and one equation.")
-        print("    To confirm the MECHANISM rather than the OUTCOME, evolve.rs must print hf on")
-        print("    the gate line. Until then this reads as 'the fix worked', not 'saturation was")
-        print("    why'.")
+        print("    The gap is STRUCTURAL, not a missing println: hf is built at evolve.rs:1656 and")
+        print("    dropped at the population boundary, because popn is Vec<(Program,u32,f64)> --")
+        print("    a 3-tuple (evolve.rs:1387). Confirming the MECHANISM means widening it and")
+        print("    every destructuring site, then rebuilding. Until then this reads as 'the fix")
+        print("    worked', not 'saturation was why'.")
     else:
         print("    MIXED. Report the count, claim nothing.")
     return 0

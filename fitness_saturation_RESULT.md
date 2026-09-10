@@ -97,10 +97,19 @@ MECHANISM. A gated generation prints only the VERIFY and gate lines; the `hard h
 only on non-gated `..none` lines. So for exactly the candidates that reach a gate, nothing records
 whether their surrogate rose via the hard set or merely via cost -- and it cannot be recovered
 arithmetically, because the guard pins `f` at 23 and `rate = (23+hf)/(cost+hard_cost)` leaves two
-unknowns in one equation. A clean answer needs `hf` printed on the gate line, which means a rebuild
-and a restart; the arms are 40+ minutes into their first gated generation, so that is not worth
-paying now. **If the treatment arm reads clean, the honest claim is "the fix worked", not
-"saturation was why".** The distinction is recorded here so it cannot be quietly dropped later.
+unknowns in one equation.
+
+**The gap is STRUCTURAL, not a missing `println!`.** `hf` is computed at `evolve.rs:1656`, which
+builds `(prog, f, rate, hf)` -- and then dropped at the population boundary, because
+`popn: Vec<(Program, u32, f64)>` (`evolve.rs:1387`) is a THREE-tuple. Every downstream site
+destructures three fields (`pick` at 1756/1764, the `pool` sort/retain at 1726-1732). Carrying `hf`
+to the gate line therefore means widening that tuple and updating each site, then rebuilding and
+restarting -- a refactor of a running experiment's source for a SECONDARY confirmation, while the
+arms are 40+ minutes into their first gated generation. Not worth paying now, and recorded precisely
+so the cost is known rather than re-derived.
+
+**If the treatment arm reads clean, the honest claim is "the fix worked", not "saturation was why".**
+The distinction is recorded here so it cannot be quietly dropped later.
 
 ## Cost note — one figure MEASURED, one still an ESTIMATE
 
