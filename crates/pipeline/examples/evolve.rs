@@ -1499,6 +1499,23 @@ fn tt_supply() {
     let (c_p, c_s) = (med(&mut raw_p), med(&mut raw_s));
     let (k_p, k_s) = (medu(&mut mate_p), medu(&mut mate_s));
 
+    // DISTINCT-FORM COUNT. Retention dedups by program structure:
+    //     pool.retain(|x| seen.insert(format!("{:?}", x.0)))
+    // so a class whose members collapse to fewer DISTINCT programs is culled harder by dedup than by
+    // any rate comparison. The store half is `S1K1` -- a Store and a Key, a small edit space -- while
+    // the probe half is `P1K1F1` whose Field can be any of six variants. If stores have materially
+    // fewer distinct forms, dedup alone reproduces the observed 3:1 skew with selection behaving
+    // exactly as written, and no audit of the ordering is needed.
+    let mut form_p: std::collections::HashSet<String> = Default::default();
+    let mut form_s: std::collections::HashSet<String> = Default::default();
+    for k in 0..n {
+        let mut r = Rng::new((k as u64) << 12 ^ 0xA11CE);
+        let Some((c, _)) = mutate::mutate_program_n(&seed, &mut r, edits) else { continue };
+        let t = tt_counts(&c);
+        if t[0] > 0 && t[1] == 0 { form_p.insert(format!("{:?}", c)); }
+        else if t[1] > 0 && t[0] == 0 { form_s.insert(format!("{:?}", c)); }
+    }
+
     let pct = |x: usize| 100.0 * x as f64 / wt.max(1) as f64;
     println!("=== SUPPLY of the two halves: {n} draws of {edits} edit(s) from the seed ===");
     println!("  well-typed children : {wt} of {n}");
@@ -1536,6 +1553,13 @@ fn tt_supply() {
         println!("    STORE-carriers passing guard: {ns:>3} of {n_s}   median rel-rate {ms2:.6}x");
         println!("    READING: if stores still rate HIGHER here, conditioning is NOT the explanation");
         println!("             and the remaining difference is the PARENT (seed vs population member).");
+        println!("\n  DISTINCT FORMS (retention dedups on format!(\"{{:?}}\", program)):");
+        println!("    probe-only: {probe_only:>5} children -> {:>5} distinct  ({:.1}% unique)",
+                 form_p.len(), 100.0 * form_p.len() as f64 / probe_only.max(1) as f64);
+        println!("    store-only: {store_only:>5} children -> {:>5} distinct  ({:.1}% unique)",
+                 form_s.len(), 100.0 * form_s.len() as f64 / store_only.max(1) as f64);
+        println!("    READING: stores materially FEWER distinct -> DEDUP explains the 3:1 skew and");
+        println!("             the ordering is innocent. Comparable -> dedup is not the cause either.");
         println!("    READING: stores rank WORSE on rel-rate -> retention explains the 3:1 skew.");
         println!("             stores rank BETTER or equal   -> retention cannot explain it; audit selection.");
     } else {
