@@ -151,6 +151,14 @@ fn every_declared_rung_is_constructible() {
     // test should assert, and the honest limit of this instrument is node KINDS, not node shapes.
     //
     // Assert only the two that are proven. A shape-level reachability check is the follow-up.
+    //
+    // ⚠ SETTLED 2026-09-10 by `tests/shape_reachability.rs`, the follow-up named on the line above.
+    // At shape (kind + arity) granularity, rung 7's missing element is exactly `("TRead", 2)`:
+    // seed TRead arities `[0]`, newly constructible `[]`. So table reduction IS unreachable, and
+    // "very likely" has become measured. That file also settles the second thing this granularity
+    // hides: 0 of 823 applied mutations changed `Program::funcs.len()`, so the two GRAMMAR 4
+    // operators that would move either dimension -- `add-arg` and `add-fn` -- are absent, not rare.
+    // This test is left asserting only what IT can prove; the shape file carries the rest.
     let names: Vec<&str> = unreachable.iter().map(|(n, _)| *n).collect();
 
     // STATE AS OF 2026-09-08, after Op::ProbeRead and Op::StoreHere landed. Every declared rung is

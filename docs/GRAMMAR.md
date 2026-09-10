@@ -140,6 +140,37 @@ Two things this settles rather than assumes:
    operator is to place. Selection now picks the operator FIRST and tries it at every position,
    so each declared operator gets an equal draw regardless of how many sites it has.
 
+**TWO OF THE TEN DECLARED OPERATORS DO NOT EXIST — measured 2026-09-10, `tests/shape_reachability.rs`.**
+
+The table above declares ten operators. `mutate::ALL_OPS` implements eleven names, which reads like
+a superset and is not: `replace`/`insert` ship as the narrower `ReplaceConst`/`InsertMax`, three
+memory operators were added later (`ProbeRead`, `StoreHere`, `WrapIfPred`), and the last two rows of
+the table have no implementation under any spelling.
+
+| declared | status | measured consequence |
+|---|---|---|
+| `add-arg` — "add an Int/Score parameter and thread a value at each call site" | **absent** | no operator emits a node with a longer argument list. Seed TRead arities `[0]`, newly constructible `[]` |
+| `add-fn` — "split a subtree into a new function and call it" | **absent** | **0 of 823** applied mutations changed `funcs.len()`, across all 10 reference programs |
+
+Two consequences follow, and both were previously open:
+
+1. **Rung 7 of the ladder is UNREACHABLE, now proven.** `table_reduction` needs `TRead(3, [d, i])`.
+   The seed contains `TRead(0, [])` and `TRead(1, [])`, so the kind-granularity check in
+   `reachability.rs` correctly reported "nothing missing" and recorded the rung as NOT PROVEN
+   EITHER WAY. At shape granularity the missing element is exactly `("TRead", 2)` and no operator
+   builds it. `reachability.rs:153` named this follow-up; this is it.
+2. **The search is confined to one function forever.** `typecheck.rs:19` admits 1..4 functions, but
+   neither mutation nor `crossover()` can change the count — crossover writes
+   `out.funcs[rfi].body` and never pushes a func. Seeded with a 1-function program, three quarters
+   of the declared program space is unreachable. Not unlikely: unreachable.
+
+This is an EXPRESSIVENESS gap and it is narrow. `reachability.rs`'s header records that the last
+claim of this shape was stale — hash reuse turned out to be reachable, and the barrier there is a
+conjunctive fitness valley, not expressibility. Nothing here says the missing operators would make
+the search succeed; it says the ladder's third rung and all multi-function programs are outside what
+the current operator set can construct, which is a fact about the Given column rather than about
+any run.
+
 ## 5. Seeds
 ### 5.1 Purity lineage seed (depth-one), 8 nodes
 ```
