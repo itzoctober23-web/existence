@@ -1985,7 +1985,27 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                     // means the match is not producing decisive games and sample size was never the
                     // issue. Logging draws makes the REAL gate population self-reporting, rather
                     // than needing a probe whose mutants are not the ones that reach the gate.
-                    println!("  gen {g:>3} {:<5} gate {} {:.3}+/-{:.3} ({} games W-D-L {}-{}-{})  surrogate \
+                    // `hard {hlo}-{hhi}` IS PRINTED HERE BECAUSE A NEGATIVE RESULT IS OTHERWISE
+                    // UNREADABLE. Under EXISTENCE_HARD_FITNESS the surrogate is
+                    // (f + hf) / (cost + hard_cost). If NO candidate scores on the hard set then
+                    // hf = 0, the rate is (23+0)/(cost+hard_cost), and the only way to improve it
+                    // is still to cut cost -- identical in incentive to the control's 23/cost. The
+                    // fix has then not engaged, and "the treatment is still resolved worse" is not
+                    // evidence against the saturation diagnosis; it is no evidence at all.
+                    //
+                    // The non-gated `..none` line already carries this field, but a GATED
+                    // generation prints only VERIFY and this line, so it was missing for exactly
+                    // the candidates that reach a gate. `hhi == 0` identifies the uninterpretable
+                    // case outright.
+                    //
+                    // This is the range over guard-passing CANDIDATES, not the winner's own hf --
+                    // that one is dropped at the population boundary (`popn` is a 3-tuple). The
+                    // range is enough for the reading that matters: hhi == 0 means the winner had
+                    // hf = 0 too, so the fix demonstrably did not engage.
+                    //
+                    // PRINT-ONLY: consumes no RNG and touches no state, so an arm built with this
+                    // must reproduce its trajectory exactly. That is checked on restart.
+                    println!("  gen {g:>3} {:<5} gate {} {:.3}+/-{:.3} ({} games W-D-L {}-{}-{})  hard {hlo}-{hhi}  surrogate \
 {rate:.6}  ABOVE:{above}  needed >{:.3}",
                              lineages[li].name,
                                match sprt_verdict {
