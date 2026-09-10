@@ -240,6 +240,40 @@ The NNUE track has already acted on its version: the proxy may no longer promote
 accepts require the GAMES to resolve. The grammar track has not — its surrogate still selects which
 candidate is spent on games.
 
+## THE FULL 10-PROGRAM LADDER — and it points at the same thing the absolute ruler does
+
+45 matches, all ten reference programs, 24 pairs each, 0 forfeits:
+
+| games rank | program | game score | surrogate | surrogate rank |
+|---|---|---|---|---|
+| 1 | **proof-number search** | 0.593 | 0.006739 | 9th of 10 |
+| 2 | **alpha-beta + iterative deepening** | 0.584 | 0.307478 | 5th |
+| 3 | alpha-beta + hash + ID | 0.573 | 0.304226 | 6th |
+| 4 | bare alpha-beta (seed) | 0.481 | 8.694256 | **1st** |
+| 5 | alpha-beta + hash reuse | 0.475 | 8.609310 | 3rd |
+| 6 | UCT-style MCTS | 0.472 | 0.003873 | 10th |
+| 7 | capture extension | 0.470 | 8.694256 | 1st= |
+| 8 | table reduction | 0.468 | 8.694256 | 1st= |
+| 9 | UCT MCTS (blend) | 0.465 | 0.005090 | 8th |
+| 10 | depth-one | 0.419 | 0.778889 | 4th |
+
+**Spearman −0.200 over the full ladder**, confirming the 5-program result rather than resting on it.
+
+**The pattern in the winners is the finding.** The top three — proof-number search and both
+iterative-deepening variants — are all programs that SEARCH MORE. The surrogate's top three — bare
+alpha-beta, capture extension, table reduction, all tied at 8.694 — are the cheap ones, and they
+finish 4th, 7th and 8th.
+
+So `mates/Mcost` does not merely mis-rank: **it systematically punishes exactly the property that
+wins games, which is spending more search.** That is why 26 generations of the search track produced
+nothing — every candidate that could have helped was ranked below the seed by construction.
+
+**This converges with `absolute_ruler_RESULT.md` from the other side.** The ruler puts the NNUE
+champion at ~1182 Elo and flat, i.e. an engine whose problem is large rather than subtle. The ladder
+says the programs that beat the seed are the ones that search deeper. Both point at search volume as
+the binding constraint, reached by completely independent routes — one an external Elo anchor on the
+eval track, the other a round robin on the search track.
+
 ## Harness note — the first run of this experiment was worthless and looked perfect
 
 I first passed `cost_per_move = 0`, believing 0 meant "no ceiling". `Interp::cost_cap` defaults to
