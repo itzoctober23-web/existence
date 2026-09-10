@@ -41,9 +41,35 @@ sign-reversal band AND too coarse for the effect size that remains.
 * **Head-to-head against a saved ancestor is now the only instrument that works**, which is why the
   loop saves a ladder rung at every control (added today — `{out}.gen{N}.net`). Before that the
   champion's history was overwritten by every accept.
-* **A claim about the recent window needs SEEDS, not pairs.** The interval at 200 pairs is ±0.029
-  and the between-seed sd is 0.047, so more pairs on one seed buys precision the seed noise
-  swamps. ~14 seeds for 80% power on a 0.035 effect.
+* **A claim about the recent window needs SEEDS, not pairs** — the interval at 200 pairs is ±0.029
+  while the between-seed sd is 0.047, so more pairs on one seed buys precision the seed noise
+  swamps. How many seeds depends on which sd, and `netmatch` deliberately uses the most
+  conservative of four measured estimates:
+
+  | sd | source | seeds for 80% power |
+  |---|---|---|
+  | 0.047 | 2 estimates — kept high ON PURPOSE as a guard | ~14 |
+  | 0.043 | 4 estimates, canonical in STATE.md | ~12 |
+  | 0.039 | 3 estimates | ~10 |
+  | 0.0285 | measured DIRECTLY across five seeds, 2026-09-09 | ~5 |
+
+  The `~14` the tool prints is the safe end. Even at the directly-measured 0.0285 it is ~5, which
+  is still more than the one in hand.
+
+* **BUT SEEDS ARE THE EXPENSIVE ROUTE. Buy effect size with GENERATIONS instead.** The seed
+  requirement scales as `(2.8·sd/effect)²`, and for a WITHIN-LINEAGE trend the effect grows with
+  the window while the seed noise does not:
+
+  | window | expected gain at +24 Elo/100 | score | effect | one seed enough? |
+  |---|---|---|---|---|
+  | 100 gens | +24 | 0.534 | 0.034 | no — below sd |
+  | **200 gens** | **+48** | **0.569** | **0.069** | **yes — clears 0.047** |
+  | 300 gens | +72 | 0.602 | 0.102 | yes, comfortably |
+
+  At ~1200 generations/hour a 200-generation window costs about **10 minutes of loop time**, against
+  five to fourteen full re-runs for the seed route. **Next measurement: gen500 against gen300.** If
+  it resolves, the trend is real at one seed; if it does not, that is evidence the trend has stopped
+  — decisive either way, which the 100-generation window was not.
 
 **Not claimed:** that the deceleration will continue, or that it reflects a ceiling. Two points
 (+154 over 271 generations, +24 over the last 100) are a trend of two, and the second is marginal.
