@@ -998,3 +998,49 @@ TT-specific.
 on, with 19 generations of accumulated state. The session rule is to match evidence to blast radius,
 and "never edit under a running job" is the rule that has cost this project the most. The measurement
 stands on its own; the change is a decision for a clean start, not a hot patch.
+
+## Minimal PROBE-carriers score ZERO on the arms' metric — and that contradicts the rank data
+
+`evolve ttsupply 20000 1 60`, after the harness fix (the first version measured a COST ratio; the arms
+order on `mates*1e6/cost`, `evolve.rs:501`):
+
+    seed baseline: mates 6, cost 2,364,204,022, rate 0.002538
+
+    minimal PROBE-carriers  n=60   median rel-rate 0.000000x   mates 0   cost-only 0.197017x
+    minimal STORE-carriers  n=60   median rel-rate 0.993933x   mates 6   cost-only 0.993933x
+
+**The median minimal probe-carrier finds NO MATES AT ALL.** That is the zero-injection mechanism
+arriving in the fitness function itself: `Tt::probe` returns `Slot::default()` on a miss, `Field(Slot,
+Score)` is therefore the constant 0, and a search that returns 0 where a mate score belongs stops
+detecting mates. The three earlier datasets showed the probe corrupting the ANSWER; this shows what
+that costs on the metric selection reads. It also explains the 0.197x cost-only figure: a search whose
+bounds are poisoned by zeros prunes far worse and does ~5x the work.
+
+Store-carriers keep all 6 mates at ~1.0x cost, exactly as "a store nothing reads is pure overhead"
+predicts -- overhead, but harmless.
+
+### The contradiction, stated plainly rather than explained away
+
+    measured here    stores rate 0.994x, probes rate 0.000x  ->  selection should KEEP stores, KILL probes
+    measured in logs population is 3:1 PROBE-carriers, and stores rank LAST (p = 0.00008)
+
+**These cannot both describe the same population.** The pre-registered reading for this arm was
+"stores rank BETTER or equal -> retention cannot explain it; audit selection", and stores rank far
+better, so that is where it points. But this is the THIRD harness problem on this single question, and
+the standing rule is that two in a row indicts the harness, not the subject. So the audit starts with
+two known differences between what I measured and what the arms do:
+
+1. **CONDITIONING.** The arms' pool contains only children that pass `f >= guard_floor` (mates), so
+   every 0-mate probe-carrier is filtered out BEFORE the rate ordering. My distributions are
+   unconditional and include them. The right comparison is conditional on passing the guard.
+2. **PARENT.** `ttsupply` mutates the SEED. The arms mutate whatever is currently in the population,
+   which after several generations is not the seed. A `P1K1F1` tag in a live log is not necessarily
+   the same program as a `P1K1F1` built here.
+
+Either difference could produce the whole discrepancy, and neither is exotic. **Both are countable**,
+so the next step is to measure rather than to pick between them: report the rate distributions
+CONDITIONAL on `mates >= guard_floor`, and generate from a population member rather than the seed.
+
+**NOT concluding "the selection path is buggy" on this evidence.** That claim would rest on comparing
+two distributions that are conditioned differently, which is the same class of error as the cost-ratio
+mistake it just replaced.
