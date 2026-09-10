@@ -832,3 +832,64 @@ selection path itself needs auditing.
 
 **0 of 20,000 single edits produce BOTH halves** (95% upper bound 0.015%). This document has assumed
 throughout that the union requires crossover; that assumption is now measured rather than argued.
+
+## The STORE half is the binding constraint, and the whole chain is now measured
+
+The `ttk[...]` field is printed from `popn`, which `evolve.rs` builds as:
+
+    pool.sort_by(|a, b| b.2.partial_cmp(&a.2))   // by RATE, DESCENDING
+    pool.retain(|x| x.2 >= top * (1.0 - EPS));   // the EPS band
+    pool.retain(dedup);
+    pool.truncate(MU);                            // elitist: keep the top MU
+
+**So the tag array is in RATE ORDER, and every arm log has been recording each carrier's rank all
+along.** No new run was needed; the quantity was already on disk.
+
+    rank position within the population (0 = best rate, 1 = worst)
+      probe-carriers   n=33   mean 0.630   median 0.667
+      store-carriers   n=11   mean 0.933   median 1.000
+
+      store-carriers in the BOTTOM HALF : 100%
+      probe-carriers in the BOTTOM HALF :  70%
+      store-carriers ranked LAST        :  64%
+
+      Mann-Whitney U   z = +3.94   p = 0.00008     RESOLVED
+
+**Every store-carrier that has ever appeared in these populations sat in the bottom half, and
+two-thirds of them were dead last.** Selection sorts by rate and truncates to MU, so they are the
+first thing removed.
+
+### The chain, end to end, with the evidence for each link
+
+    1. SUPPLY of the two halves is balanced        1812 vs 1768 of 20,000    ratio 1.02 : 1
+    2. minimal STORE-carriers rank systematically worst   100% bottom half   p = 0.00008
+    3. selection is elitist                        sort by rate desc, truncate(MU)
+    4. => stores are culled                        33 probes vs 11 carriers   p = 0.001306
+    5. => 6 of 14 generations hold NO store-carrier  the union is IMPOSSIBLE, not improbable, in 43%
+    6. => the union rate loses ~3.1x               P(pair) 0.090 observed vs 0.281 balanced
+
+**The store half -- not the probe half, not crossover, not the validity guard -- is the binding
+constraint on the hash-reuse rung.** A store that nothing reads is pure overhead by construction
+(this document's own words, near the top), so it is always the worst member present, so elitist
+selection removes it before a probe-carrier can ever be crossed with it.
+
+### And it explains the contradiction rather than leaving it
+
+The valley table measures **store-only 0.997x against probe-only 0.991x** -- the store half is the
+CHEAPER of the two, which predicts the opposite skew. That table measures the HAND-BUILT halves at 10
+and 5 call sites. **The minimal halves invert the order**, and the rank data is what shows it. This is
+the third time in this document that a hand-built/minimal difference has overturned a conclusion drawn
+from the hand-built numbers (the PATH-1 rate 5.50% -> 1.08%, the soundness funnel, and now this).
+
+**Standing correction:** the valley table's ratios describe `ab_probe_only`/`ab_store_only`. They do
+NOT describe what the population carries, and no argument about population dynamics should be built
+on them again.
+
+### What this makes actionable, stated without recommending a change
+
+The barrier is not expressiveness, not reachability, not crossover, and not the guard. It is that
+**elitist truncation removes the store half faster than crossover can use it.** Anything that keeps a
+store-carrier alive for one more generation attacks the actual constraint: a non-elitist slot, a
+diversity-preserving retention rule, or explicitly protecting minority TT kinds. Which of those is
+legitimate under MASTER_PLAN is a separate question from which one would work, and this section only
+establishes the second.
