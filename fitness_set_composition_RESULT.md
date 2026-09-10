@@ -161,3 +161,62 @@ stratum, and it needs self-play games to walk back FROM — which at iteration z
 **Consequence, stated plainly:** the ladder is buildable to MATE-3 today, and MATE-3 additionally
 needs the cost ceiling raised (5 plies, ~90e9 per position extrapolated). The fourth stratum waits on
 self-play, which is a dependency the spec implies and nothing in this repo had made explicit.
+
+## ⚠ 2026-09-09 23:3x — CORRECTION: the codebase already ran this experiment, and already refuted the fix
+
+Before launching an arm on "n1 down, MATE-2/3 up" I went looking for where to wire it in and found
+**`forced_mate_set` (`evolve.rs:200`) — an existing mate-in-2 builder**, excluding mate-in-1
+positions and labelled with the forcing move. That is `mate_set_n(_, 2)` with a different name. Its
+doc comment states this document's opening finding, with a better measurement:
+
+> *"On a mate-in-ONE-only set no amount of shallowness can lose a mate, so the 'must not lose mates'
+> guard could never bite and the optimiser was free to drive cost to zero. It did: the first
+> restarted run went 0.03 -> 8.73 mates/Mcost in ONE type-preserving edit, **333x cheaper** at an
+> unchanged node count. So the repair is the SET, not the rule: the rule was always right and had
+> nothing to enforce."*
+
+**That is exactly the 2934.933x result above, found earlier and stated better.** My contribution here
+is a replication, not a discovery, and the honest framing is that I re-derived a documented finding
+because I designed the measurement before reading the function I was proposing to change.
+
+**And the next comment down refutes the fix I was about to deploy** (`disagreement_set`, `:259`):
+
+> *"The forced-mate-in-2 set was added to stop a candidate from simply searching less, and it worked
+> at fitness depth 2. At fitness depth 3 it has no teeth: that set is solved 40/40 AT DEPTH 2
+> (measured -- the forcing move is also the eval-best move), so cutting 3 -> 2 costs nothing on it.
+> The search track promptly found exactly that: `Const(0)` -> `Const(1)` in the horizon guard, one
+> ply shallower, 11x cheaper, all 20 mates intact. A depth guard must require the FULL fitness
+> depth, and a mate-in-N does not imply N plies of search. **Disagreement does, by construction.**"*
+
+### Reconciling the two results, because BOTH are true
+
+| candidate | what it does | MATE-2 stratum | `disagreement_set` |
+|---|---|---|---|
+| child #30 | null search, 2732x cheaper | **CAUGHT** (12/24) | caught |
+| `Const(0)`->`Const(1)` | ONE ply shallower, 11x cheaper | **BLIND** (40/40 at depth 2) | caught by construction |
+
+A MATE-N stratum catches **gross** truncation and is blind to a **one-ply** cut, because mate-in-N
+does not require N plies of search — the forcing move is often also the eval-best move. My ladder
+measurement used a candidate so broken it fails any depth test at all, which made the stratum look
+decisive when it is not.
+
+**`disagreement_set` is strictly better for the failure mode that actually occurs**, and is
+self-calibrating: it selects positions where the SEED answers differently at D-1 and D, so it
+follows the fitness depth automatically instead of needing a new stratum each time depth changes.
+
+### What survives, and what I am NOT doing
+
+**Survives:** the mate-in-1 majority is the weakness (measured twice now, independently), and
+`n2`/`n3` UP is the right direction — which is what the depth-heavy 5/10/10 arm tested and what the
+codebase already endorses by having built `disagreement_set` at all.
+
+**NOT doing:** wiring a MATE-2/3 ladder into the live loop, and not relaunching an arm on it. It
+duplicates `forced_mate_set`, and at fitness depth 3 it is measured toothless against the candidate
+class the search track actually produces. **`mate_within`/`mate_set_n`/`ttgraft --ladder` stay as
+instruments** — they are how the above table was produced, and `mate_within` is exact-N and
+disjoint where `forced_mate_set` is mate-in-2 only — but they are not the fitness set.
+
+**The process lesson, which is the expensive part:** I measured before reading. `git grep mate_set`
+would have shown `forced_mate_set` in one command, and its comment answers the question the
+experiment was designed to ask. Two of tonight's other corrections have the same shape — the answer
+was already in the repo, written down, by me or by an earlier pass.
