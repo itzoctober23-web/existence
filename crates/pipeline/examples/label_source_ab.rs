@@ -92,10 +92,40 @@ fn main() {
         std::process::exit(2);
     }
 
+    // HELD-OUT SPLIT. Both ruler arms landed below the champion (self ~1030, sf ~1079 against 1216),
+    // which means they share a limit the game comparison cannot see -- and "+49 Elo, intervals
+    // +/-58 and +/-69" is unresolved either way. So the games alone cannot say whether the SF label
+    // failed to help or was never LEARNED in the first place. This split answers that without
+    // spending a single game: if the SF arm predicts held-out SF eval much better than the self arm
+    // does, the label transferred and the bottleneck is downstream of the label; if it does not, the
+    // training run was too short and the whole control is void.
+    //
+    // Split on a hash of the FEN, not on position in the file: consecutive rows are plies of the
+    // SAME GAME, so a prefix/suffix split would leak the tail of every training game into the
+    // holdout and report a flattering number.
+    let hash = |s: &str| -> u64 {
+        let mut h = 1469598103934665603u64;
+        for b in s.as_bytes() { h ^= *b as u64; h = h.wrapping_mul(1099511628211); }
+        h
+    };
+    let is_holdout = |fen: &str| hash(fen) % 10 == 0;
+
+    let split = |d: &Vec<Sample>| -> (Vec<Sample>, Vec<Sample>) {
+        let mut tr = Vec::new();
+        let mut ho = Vec::new();
+        for s in d { if is_holdout(&s.fen) { ho.push(s.clone()) } else { tr.push(s.clone()) } }
+        (tr, ho)
+    };
+    let (self_tr, self_ho) = split(&self_data);
+    let (sf_tr, sf_ho) = split(&sf_data);
+    eprintln!("  split: {} train / {} holdout (by FEN hash, so no game leaks across the split)",
+              self_tr.len(), self_ho.len());
+
     // blend 1.0: target is the ROOT term alone, so `z` plays no part and the comparison is purely
     // label-source. Identical trainer, identical lr, identical init seed for both arms.
     let tr = Trainer::new(lr, 1.0);
-    for (name, data, out) in [("self", &self_data, &out_self), ("sf", &sf_data, &out_sf)] {
+    let mut nets = Vec::new();
+    for (name, data, out) in [("self", &self_tr, &out_self), ("sf", &sf_tr, &out_sf)] {
         let mut net = Net::random(width, seed);
         let mut last = 0.0;
         for e in 0..epochs {
@@ -106,6 +136,22 @@ fn main() {
                                data.len()),
             Err(e) => eprintln!("  ARM {name}: save failed: {e}"),
         }
+        nets.push((name, net));
     }
+
+    // An UNTRAINED net is the reference both arms must beat. Without it a held-out MSE is a bare
+    // number with nothing to be better than -- the same gap the absolute ruler existed to close.
+    nets.push(("untrained", Net::random(width, seed ^ 0xFFFF)));
+
+    let sf_ref: Vec<&Sample> = sf_ho.iter().collect();
+    let self_ref: Vec<&Sample> = self_ho.iter().collect();
+    println!("\n  HELD-OUT MSE ({} positions), lower is better", sf_ho.len());
+    println!("  {:<12} {:>16} {:>16}", "net", "vs SF label", "vs self label");
+    for (name, net) in &nets {
+        println!("  {:<12} {:>16.5} {:>16.5}", name, tr.loss(net, &sf_ref), tr.loss(net, &self_ref));
+    }
+    println!("\n  READING: the SF arm should fit the SF column best and the self arm the self column.");
+    println!("  If neither beats `untrained` by much, the arms are undertrained and the ruler");
+    println!("  comparison above is void rather than negative.");
     println!("  Both nets are DIAGNOSTIC artefacts. Measure them on sf_ruler.py; never ship or gate them.");
 }

@@ -31,6 +31,7 @@
 use grammar::ast::*;
 use grammar::mutate::{self, Op};
 use grammar::reference;
+use grammar::typecheck;
 use std::collections::BTreeSet;
 
 fn kind(n: &Node) -> &'static str {
@@ -295,11 +296,60 @@ fn crossover_can_move_primitives_between_lineages() {
         "crossover now moves `Loop` between lineages, which it previously could not. Good news: \
          update this assertion and note what changed."
     );
+    // ⚠ THIS ASSERTION WAS INVERTED ON 2026-09-10, and the reason is a measurement, not a
+    // concession. It previously read `!moved_back.is_empty()` and PASSED, carrying {"Max", "Set"}
+    // from alpha-beta into UCT. Enforcing `typecheck::scope_check` dropped it to {}.
+    //
+    // Those grafts were never real. In alpha-beta, `Max` and `Set` exist only in terms of its own
+    // accumulators — `Set("a", Max(Var("a"), Var("vv")))` — and UCT has no `a` and no `vv`. The
+    // spliced program type-checked solely because an unbound `Var` inferred as `Ty::Unit` and
+    // `want()` accepts Unit anywhere, then RAN reading `Value::Unit` for the missing names. So the
+    // old pass measured "crossover produces programs with holes in them", not "hybrids on the MCTS
+    // seed are reachable". Selecting donors by free variables (`mutate.rs`) does not recover it,
+    // because no alpha-beta subtree containing Max or Set is closed over anything UCT supplies:
+    // the direction is genuinely empty, not unluckily sampled.
+    //
+    // Recorded in the same form this file already uses for `Loop`: current state, asserted so that
+    // an improvement surfaces as a FAILURE instead of passing silently.
+    //
+    // WHAT WOULD FIX IT is named and is not crossover's job: moving an accumulator-shaped subtree
+    // across lineages requires INTRODUCING the binding it reads, which is precisely GRAMMAR 4's two
+    // declared-but-missing operators, `add-arg` and `add-fn`. See GRAMMAR §4.
     assert!(
-        !moved_back.is_empty(),
-        "crossover is one-directional: it carries kinds into alpha-beta but not into UCT. A \
-         hybrid built on the MCTS seed would be unreachable and the asymmetry would be silent."
+        moved_back.is_empty(),
+        "crossover now carries {moved_back:?} from alpha-beta into UCT, which it could not do once \
+         scope was enforced. Good news: something made accumulator-shaped subtrees graftable. \
+         Update this assertion and record what changed."
     );
+}
+
+/// THE INVARIANT THAT REPLACES THE OLD BIDIRECTIONALITY CLAIM: crossover must never emit a program
+/// that reads a variable nothing binds.
+///
+/// Before `typecheck::scope_check`, it did — see the note above. This is the property actually
+/// worth protecting, and unlike a directional kind-count it does not freeze today's reachability
+/// into a law.
+#[test]
+fn crossover_never_produces_a_holed_program() {
+    let progs = reference::all();
+    let mut made = 0usize;
+    for (_, recip) in &progs {
+        for (_, donor) in &progs {
+            for s in 0..24u64 {
+                let mut rng = mutate::Rng::new(s * 7919 + 13);
+                if let Some(out) = mutate::crossover(recip, donor, &mut rng) {
+                    made += 1;
+                    assert!(
+                        typecheck::scope_check(&out).is_ok(),
+                        "crossover emitted a program reading an unbound variable: {:?}",
+                        typecheck::scope_check(&out).err().map(|e| e.what)
+                    );
+                }
+            }
+        }
+    }
+    assert!(made > 0, "no crossover succeeded anywhere -- the check above would be vacuous");
+    println!("crossover produced {made} programs, none with an unbound read");
 }
 
 /// Can crossover carry the TT rung's primitives from the MCTS lineage into alpha-beta — and can a

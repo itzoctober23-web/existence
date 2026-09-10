@@ -30,7 +30,150 @@ pub fn check_program(p: &Program) -> Result<(), TypeError> {
         let mut env: Env = f.params.iter().cloned().collect();
         check(&f.body, p, &mut env)?;
     }
+    scope_check(p)?;
     Ok(())
+}
+
+/// Reject programs that READ A VARIABLE NOTHING BINDS.
+///
+/// `check()` cannot catch this, and not by oversight — three fallbacks conspire:
+///
+/// ```text
+///   typecheck  Var(name) => *env.get(name).unwrap_or(&Ty::Unit)   unbound -> Unit
+///   typecheck  want(got, expect) accepts got == Ty::Unit          Unit    -> fits anywhere
+///   typecheck  Foreach/Argmax/Sort/Sample insert their binder and NEVER remove it,
+///              so the loop variable stays live for the rest of the function
+///   interp     lookup(..).unwrap_or(Value::Unit)                  unbound -> Unit at RUNTIME
+/// ```
+///
+/// The result is a program with a hole in it that type-checks, runs, and silently computes with
+/// Unit where a real value belongs. It is not rejected and it is not visibly broken.
+///
+/// MEASURED, `tests/scope_escape.rs`: `Op::WrapIfPred` produced one in **26 of 50 applications
+/// (52%)**, and all 26 passed `check_program`. It hardcodes `Var("m")` and `Var("p")` and never
+/// asks whether `m` is in scope at the wrap site, so wrapping any statement outside a
+/// `Foreach(_, "m", _)` reads an unbound move. The `If` condition then evaluates on Unit and is
+/// effectively constant, making the candidate either inert-but-larger or silently statement-
+/// disabling. Under FITNESS 3 (mates per COST) both are guaranteed-worse candidates.
+///
+/// GRAMMAR 3 states the economics exactly: *"ill-typed candidates are discarded at generation time
+/// (cheap) rather than at gate time (expensive)."* Those 26 were reaching the gate and being paid
+/// for in GAMES. This is the tree walk that stops them.
+///
+/// CONSERVATIVE ON `Set`, STRICT ON LEXICAL BINDERS. `Interp::assign` updates an existing slot or
+/// PUSHES a new one, so whether a `Set`-bound name is live depends on execution order and no static
+/// walk can settle it. Every `Set` target in a function is therefore treated as bound throughout
+/// that function. `Let`/`Foreach`/`Argmax`/`Sort`/`Sample` binders get true lexical scope — they
+/// cover their body and nothing else. That direction can only miss an escape, never invent one,
+/// and it is what makes this safe to enforce: all 10 reference programs pass it unchanged.
+pub fn scope_check(p: &Program) -> Result<(), TypeError> {
+    for (fi, f) in p.funcs.iter().enumerate() {
+        let mut scope: Vec<String> = f.params.iter().map(|(n, _)| n.clone()).collect();
+        collect_set_targets(&f.body, &mut scope);
+        if let Some(name) = find_unbound(&f.body, &mut scope) {
+            return Err(TypeError {
+                what: format!("function {fi} (`{}`) reads unbound variable `{name}`", f.name),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Names a subtree READS but does not itself bind — what a graft of this subtree would need the
+/// destination to supply. `crossover` uses it to pick donors that can legally land.
+pub fn free_vars(n: &Node) -> Vec<String> {
+    let mut scope: Vec<String> = Vec::new();
+    // A `Set` inside the subtree creates its own name, so it is not a requirement on the site.
+    collect_set_targets(n, &mut scope);
+    let mut out = Vec::new();
+    gather_free(n, &mut scope, &mut out);
+    out
+}
+
+fn gather_free(n: &Node, scope: &mut Vec<String>, out: &mut Vec<String>) {
+    use Node::*;
+    match n {
+        Var(name) => {
+            if !scope.iter().any(|s| s == name) && !out.iter().any(|s| s == name) {
+                out.push(name.clone());
+            }
+        }
+        Let(name, val, body) => {
+            gather_free(val, scope, out);
+            scope.push(name.clone());
+            gather_free(body, scope, out);
+            scope.pop();
+        }
+        Foreach(list, v, body) | Argmax(list, v, body) | Sort(list, v, body) | Sample(list, v, body) => {
+            gather_free(list, scope, out);
+            scope.push(v.clone());
+            gather_free(body, scope, out);
+            scope.pop();
+        }
+        _ => for c in kids(n) { gather_free(c, scope, out) },
+    }
+}
+
+/// Names guaranteed live at EVERY position of a function: its parameters, plus every `Set` target
+/// (which `Interp::assign` will push if absent). Deliberately excludes lexical binders — a loop
+/// variable is live only inside its own body, so a graft site chosen anywhere in the function
+/// cannot rely on it.
+pub fn always_in_scope(f: &Func) -> Vec<String> {
+    let mut s: Vec<String> = f.params.iter().map(|(n, _)| n.clone()).collect();
+    collect_set_targets(&f.body, &mut s);
+    s
+}
+
+fn kids(n: &Node) -> Vec<&Node> {
+    use Node::*;
+    match n {
+        Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => vec![],
+        Moves(a) | Terminal(a) | Key(a) | Eval(a) | Ret(a) | Probe(a) | Field(a, _) | Set(_, a) => vec![a],
+        Apply(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) | Cmp(a, b, _)
+        | Pred(a, b, _) | Loop(a, b) => vec![a, b],
+        Store(a, _, b) => vec![a, b],
+        Mix(a, b, c) => vec![a, b, c],
+        Foreach(a, _, b) | Argmax(a, _, b) | Sort(a, _, b) | Sample(a, _, b) | Let(_, a, b) => vec![a, b],
+        If(c, t, e) => match e { Some(e) => vec![c, t, e], None => vec![c, t] },
+        Call(_, args) | Arith(_, args) | TRead(_, args) => args.iter().collect(),
+    }
+}
+
+fn collect_set_targets(n: &Node, out: &mut Vec<String>) {
+    if let Node::Set(name, _) = n {
+        if !out.iter().any(|s| s == name) { out.push(name.clone()); }
+    }
+    for c in kids(n) { collect_set_targets(c, out); }
+}
+
+fn find_unbound(n: &Node, scope: &mut Vec<String>) -> Option<String> {
+    use Node::*;
+    match n {
+        Var(name) => {
+            if scope.iter().any(|s| s == name) { None } else { Some(name.clone()) }
+        }
+        // The bound expression is evaluated OUTSIDE the binding; the body is inside it.
+        Let(name, val, body) => {
+            if let Some(b) = find_unbound(val, scope) { return Some(b) }
+            scope.push(name.clone());
+            let r = find_unbound(body, scope);
+            scope.pop();
+            r
+        }
+        Foreach(list, v, body) | Argmax(list, v, body) | Sort(list, v, body) | Sample(list, v, body) => {
+            if let Some(b) = find_unbound(list, scope) { return Some(b) }
+            scope.push(v.clone());
+            let r = find_unbound(body, scope);
+            scope.pop();
+            r
+        }
+        _ => {
+            for c in kids(n) {
+                if let Some(b) = find_unbound(c, scope) { return Some(b) }
+            }
+            None
+        }
+    }
 }
 
 /// Score and Int are both signed integers (GRAMMAR 1); Score is the mover-relative one.

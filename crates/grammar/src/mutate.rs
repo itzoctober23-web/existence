@@ -484,6 +484,25 @@ pub fn crossover(recipient: &Program, donor: &Program, rng: &mut Rng) -> Option<
         let mut dk = rng.below(dsize);
         let sub = match get_nth(&donor.funcs[dfi].body, &mut dk) { Some(x) => x, None => continue };
         let rfi = rng.below(recipient.funcs.len());
+        // SELECT A DONOR THAT CAN LEGALLY LAND, rather than splicing blind and hoping.
+        //
+        // Most alpha-beta subtrees read its own internals (`a`, `b`, `vv`). Grafted into the MCTS
+        // seed, which has no such names, they used to produce a program that type-checked and RAN
+        // while silently reading Unit -- `typecheck::scope_check` documents the three fallbacks
+        // that made that invisible. With scope enforced those grafts are correctly rejected, and
+        // blind sampling then found nothing in 96 tries: `reachability.rs` measured alpha-beta ->
+        // UCT collapse from {"Max", "Set"} to {} the moment holed programs stopped being accepted.
+        //
+        // So the fix is not more retries, it is choosing donors whose free variables the
+        // destination can actually supply. `always_in_scope` is the site-independent guarantee
+        // (params + Set targets); a subtree needing only those is graftable at ANY position of the
+        // recipient function. This narrows what crossover attempts and cannot admit a hole --
+        // `check_program` below remains the final authority.
+        let need = crate::typecheck::free_vars(&sub);
+        if !need.is_empty() {
+            let have = crate::typecheck::always_in_scope(&recipient.funcs[rfi]);
+            if !need.iter().all(|n| have.iter().any(|h| h == n)) { continue; }
+        }
         let rsize = count_nodes(&recipient.funcs[rfi].body);
         let mut rk = rng.below(rsize);
         let mut applied = false;

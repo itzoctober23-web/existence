@@ -217,6 +217,54 @@ the search succeed; it says the ladder's third rung and all multi-function progr
 the current operator set can construct, which is a fact about the Given column rather than about
 any run.
 
+**⚠ THE OPERATORS COULD PRODUCE PROGRAMS WITH HOLES IN THEM — measured and FIXED 2026-09-10,
+`tests/scope_escape.rs`.**
+
+A program that reads a variable nothing binds used to type-check, run, and silently compute with
+`Unit` in place of the missing value. Four fallbacks conspired to hide it:
+
+```text
+  typecheck  Var(name) => *env.get(name).unwrap_or(&Ty::Unit)      unbound -> Unit
+  typecheck  want(got, expect) accepts got == Ty::Unit             Unit    -> fits anywhere
+  typecheck  Foreach/Argmax/Sort/Sample insert their binder and NEVER remove it,
+             so a loop variable stays live for the rest of the function
+  interp     lookup(..).unwrap_or(Value::Unit)                     unbound -> Unit at RUNTIME
+```
+
+| | before | after `typecheck::scope_check` |
+|---|---|---|
+| `Op::WrapIfPred` applications that read an unbound var | **26 of 50 (52%)** | **0** |
+| ...of those, how many passed `check_program` and reached the GATE | **26** | 0 |
+| all operators, escapes / applications | 26 / 823 (3.2%) | **0 / 797** |
+| reference programs affected | 0 of 10 | 0 of 10 |
+
+`WrapIfPred` hardcodes `Var("m")` and `Var("p")` and never asks whether `m` is in scope at the wrap
+site, so wrapping any statement outside a `Foreach(_, "m", _)` reads an unbound move. The `If`
+condition then evaluates on `Unit` and is effectively constant, making the candidate either
+inert-but-larger or silently statement-disabling — under FITNESS 3 (mates per COST) both are
+guaranteed-worse. GRAMMAR 3 states the economics exactly: *"ill-typed candidates are discarded at
+generation time (cheap) rather than at gate time (expensive)."* Those 26 were being paid for in
+GAMES. The operator is not disabled — it still applies at its 24 legal sites.
+
+**The first version of that measurement reported 0 escapes and was a BROKEN PROBE**, recorded because
+the failure is instructive: it counted a name as bound if it appeared anywhere in the function as a
+binder, and the reference programs reuse loop variables, so a subtree lifted OUT of the `Foreach`
+binding `m` still looked bound whenever any other `Foreach` also bound `m` — precisely the case being
+hunted. A positive control (`escape_is_detectable`) now guards the predicate.
+
+**CONSEQUENCE FOR CROSSOVER, and it is a Given-column fact rather than a bug.** `reachability.rs`
+previously measured crossover carrying `{"Max", "Set"}` from alpha-beta into UCT, and that assertion
+PASSED. It was measuring holed programs. In alpha-beta those constructs exist only in terms of its own
+accumulators — `Set("a", Max(Var("a"), Var("vv")))` — and UCT has no `a` and no `vv`. With scope
+enforced the direction is **empty**, and selecting donors by free variables does not recover it: no
+alpha-beta subtree containing `Max` or `Set` is closed over anything UCT supplies. The direction is
+genuinely unreachable, not unluckily sampled.
+
+What would fix it is named, and it is not crossover's job: moving an accumulator-shaped subtree across
+lineages requires INTRODUCING the binding it reads — which is exactly the two declared-but-missing
+operators above, `add-arg` and `add-fn`. The missing operators and the one-directional crossover are
+the same gap seen from two sides.
+
 ## 5. Seeds
 ### 5.1 Purity lineage seed (depth-one), 8 nodes
 ```
