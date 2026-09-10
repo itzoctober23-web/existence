@@ -893,3 +893,58 @@ store-carrier alive for one more generation attacks the actual constraint: a non
 diversity-preserving retention rule, or explicitly protecting minority TT kinds. Which of those is
 legitimate under MASTER_PLAN is a separate question from which one would work, and this section only
 establishes the second.
+
+### Mode 3 (flag TEST) — the prediction FAILED. The validity-marker hypothesis, as tested, is REFUTED.
+
+`evolve ttunion 600 3 3`. Third half required to carry a flag read that is an operand of a `Cmp`/`Pred`
+or an `If` condition -- a genuine TEST, not the bare read mode 2 supplied.
+
+    third half built by single mutation: P1K1F1, 1 flag read, 1 of them TESTED
+
+                        both halves   play IDENTICALLY   PATH-1 cheaper
+    2-way minimal (1000)     74         17  (23.0%)           10
+    + bare flag READ (600)   63         10  (15.9%)           10
+    + flag TEST      (600)   52         13  (25.0%)            8
+
+    flag TEST vs 2-way baseline : Fisher p = 0.8337
+    flag TEST vs bare READ      : Fisher p = 0.2488
+    flag TEST vs POOLED others  : Fisher p = 0.4309
+
+**The pre-registered prediction was "soundness rises materially above BOTH 23.0% and 15.9%, or the
+validity-marker hypothesis is wrong and this section says so."** It reads 25.0% against a 23.0%
+baseline at p = 0.83. That is not a weak effect, it is NO effect. **The section says so.**
+
+### The limitation is real, and it is stated as a limitation, not as a rescue
+
+The third half is crossed in at a RANDOM site. So the experiment supplies a flag test SOMEWHERE in the
+program, not a flag test GATING THE PROBE the probe-half installed. `ab_hash` does not merely contain a
+flag test; it contains `If(flag != 0, If(depth >= d, <use the stored score>))` **wrapped around the
+use site**. That is a structural relationship between three parts, not a bag of three parts.
+
+**I am recording that as the limitation of this experiment rather than as the reason the hypothesis
+survives.** The hypothesis as I stated it -- "the missing ingredient is a validity test" -- predicted
+that supplying one would help. It did not. If the real claim is "the missing ingredient is a validity
+test IN THE RIGHT STRUCTURAL POSITION", that is a different and weaker claim, and it was not what was
+pre-registered.
+
+### What it would take to test the structural version
+
+Crossover composes PARTS. The `+104 nodes` finding recorded near the top of this file, and the
+`ab_hash_parts` reading above, both say the rung is a nested guard STRUCTURE. So the discriminator is
+not another third half -- it is whether ANY crossing of these halves ever produces a guard that
+dominates the probe's use site. That is a structural query over the child ASTs (does a `Cmp` on
+`Field(Probe(..), Flag)` dominate the `Field(Probe(..), Score)` that feeds the return?), countable
+without playing a single game.
+
+**Named and NOT built**, for the reason the session memory records: the actionable conclusion has not
+moved. The store half is the binding constraint (100% of store-carriers in the bottom half,
+p = 0.00008), and that is true whether or not the guard is structurally reachable -- if the store half
+never survives to be crossed, the guard question never arises.
+
+### Zero-injection, reproduced a fourth time
+
+    sound   (plays identically):  8 of 13 never hit at all
+    unsound (changes the answer): 32 of 39 never hit at all
+
+Thirty-two children that never record a single hit, and still change the answer. Fourth independent
+dataset showing `Field(Slot::default(), Score) == 0` is what makes an arbitrary probe unsound.
