@@ -118,3 +118,51 @@ to vary with the node being searched.
 baked into the output, contradicted by the very first run. Corrected in place. **Asserting the
 expected finding in a tool's output is how a tool stops being able to surprise you**, and this one
 surprised me only because the numbers were printed beside it.
+
+## ⚠ 2026-09-10 — SECOND correction, same instrument: the memo-cell reading is refuted too
+
+I replaced "the pairs never hit" with "the pairs form a memo cell — one key stored, read back
+repeatedly". Adding a store counter refuted that as well.
+
+    ab_hash (working TT) :   124,203 probes/pos,     8,901 stores/pos  ->  14.0 probes/store
+    both-halves mutants  : 1,244,619 probes/pos, 1,269,477 stores/pos  ->   1.0 probes/store
+
+A memo cell stores rarely and probes constantly. **These store MORE than they probe** — 76.2M stores
+against 74.7M probes. That is the opposite signature.
+
+### What is MEASURED, and it is now a decent picture
+
+| | value |
+|---|---|
+| mutants (of 300, 3 edits) carrying both halves | 10 |
+| ...that execute a probe | 10 |
+| ...that ever hit | 8 |
+| hit rate | 62.1% (ab_hash: 1.0%) |
+| probes per store | 1.0 (ab_hash: 14.0) |
+| table ops per position | 2,514,096 |
+| table traffic as cost | ~30.2M units/position, **8% of the seed's entire 397.2M search** |
+
+**Controls held on both runs**: `ab_hash` registers hits and stores; the seed reads 0/0/0.
+
+### What is NOT established: the mechanism
+
+**Three mechanisms proposed, two refuted by this same instrument:**
+
+1. *"an arbitrarily placed pair never hits"* — **REFUTED**, 8 of 10 hit.
+2. *"it is a memo cell, few stores read back often"* — **REFUTED**, 1.0 probes/store.
+3. **None offered.** I am not proposing a third without a test for it in the same breath.
+
+That is the honest state. The pattern in my own reasoning is the finding worth recording: each time
+I explained the previous measurement, the explanation was a story that fit the numbers I had and died
+against the next number. `probes/store` was not a hypothesis I held — it was a discriminator I built
+because the memo-cell story predicted something specific, and it came back the other way.
+
+**What can be said without a mechanism:** these programs perform ~2.5M table operations per position,
+about **8% of a full seed search in table traffic alone**, and get nothing for it — the pair is
+installed, the table is used heavily, and the result is still rejected on both cost and correctness.
+Whatever the arrangement is, it is not one that converts table traffic into saved search.
+
+**Next discriminator, if one is wanted:** a real TT's value is reading a slot written at a DIFFERENT,
+earlier node. Counting hits whose stored key was written at a different tree depth would separate
+genuine reuse from self-inflicted hits. That is one more counter — and unlike the two stories above,
+it is a measurement before it is a claim.
