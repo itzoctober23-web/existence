@@ -300,6 +300,11 @@ fn main() {
     //
     // 0 = off, preserving the previous behaviour exactly for any caller that does not ask.
     let rung_every = arg("--rung-every", 0);
+    // Keep every Nth REJECTED candidate paired with the champion it lost to, so the depth-1 gate's
+    // false-reject rate can be measured at depth 4 instead of argued about. See the use site.
+    let rej_every = arg("--save-rejects-every", 0);
+    let rej_dir = a.iter().position(|x| x == "--save-rejects")
+        .and_then(|i| a.get(i + 1)).cloned().unwrap_or_default();
     let out = a.iter().position(|x| x == "--out").and_then(|i| a.get(i + 1)).cloned()
         .unwrap_or_else(|| "champion.net".to_string());
     // Resume from a saved champion instead of starting at iteration zero. See the use site.
@@ -942,6 +947,39 @@ fn main() {
             surrogate: vec![("mcnemar_z", mcnemar), ("train_loss", loss as f64), ("llr", llr),
                             ("pool", replay.len() as f64), ("train_n", subset.len() as f64)],
         });
+
+        // SAVE A SAMPLE OF REJECTED CANDIDATES, so the gate's error rate can be MEASURED.
+        //
+        // Measured today on two rungs: the later net beats the earlier by +0.043 at depth 1 and
+        // +0.139 at depth 4 (448 pairs, same files and seed, only depth differing). The gate runs
+        // at the datagen depth -- 1 by default -- so it sees roughly a THIRD of the improvement it
+        // is selecting on. The obvious consequence is that it rejects candidates which are real
+        // gains at the depth strength is judged at.
+        //
+        // That is an inference, and this project's rule is to build the discriminator rather than
+        // the paragraph. The discriminator needs the rejected nets, and the loop currently drops
+        // them on the floor -- `cand` is overwritten next generation and is gone. So: keep every
+        // Nth reject, paired with the champion it lost to AT THAT MOMENT, which is the only valid
+        // opponent for it (the champion moves, so a later one would be a different question).
+        //
+        // Then offline: play each pair at depth 4. The fraction of rejects that WIN there is the
+        // gate's false-reject rate, in units of real strength. If it is small the depth-1 gate is
+        // vindicated cheaply; if it is large, that is the cost of the 200x saving, quantified.
+        //
+        // Sampled every Nth rather than all, because a w16 net is 50KB and a run does ~1800
+        // generations/hour -- keeping every reject would write ~85MB/hour to fill a disk with
+        // near-duplicates. 0 = off, so no existing caller changes behaviour.
+        if !better && rej_every > 0 && !rej_dir.is_empty() && g % rej_every == 0 {
+            let c = format!("{rej_dir}/rej_g{g}_cand.net");
+            let h = format!("{rej_dir}/rej_g{g}_champ.net");
+            if let Err(e) = std::fs::create_dir_all(&rej_dir) {
+                eprintln!("      WARNING: could not create {rej_dir}: {e}");
+            } else if let Err(e) = cand.save(&c).and_then(|_| champion.save(&h)) {
+                eprintln!("      WARNING: could not save reject pair at gen {g}: {e}");
+            } else {
+                println!("      reject sample saved: {c}");
+            }
+        }
 
         if better {
             // The new champion's anchor score is re-measured lazily on the next generation that
