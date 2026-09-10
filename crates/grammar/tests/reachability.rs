@@ -100,7 +100,17 @@ fn constructible() -> BTreeSet<&'static str> {
 }
 
 #[test]
-fn the_operators_cannot_introduce_a_primitive_the_seed_lacks() {
+// RENAMED 2026-09-10. This was `the_operators_cannot_introduce_a_primitive_the_seed_lacks`, which
+// asserts the OPPOSITE of what the body now checks -- `assert!(unreachable.is_empty())`, i.e. every
+// declared rung IS constructible. The body has been correct since ProbeRead/StoreHere landed on
+// 2026-09-08 and says so at length; only the NAME still carried the old world.
+//
+// A green test whose name states a negative claim is that claim in its most authoritative form: it
+// shows up in `cargo test` output as `..._cannot_introduce_a_primitive_... ok`, which reads as the
+// repo CONFIRMING unreachability on every run. It cost a full analysis on 2026-09-10 -- the file's
+// header said the same thing, I believed it, and built a conclusion about an "expressiveness gap"
+// that this test's own output refutes.
+fn every_declared_rung_is_constructible() {
     let seed = prog_kinds(&reference::bare_alpha_beta());
     let buildable = constructible();
 
