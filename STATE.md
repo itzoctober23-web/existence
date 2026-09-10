@@ -5052,3 +5052,33 @@ not a property of `HARD_FITNESS`; it is a property of a gate with a 14% ceiling.
 a read-out the gate does not bottleneck — the structural counters (`dsl`, `ttk`, distinct shapes,
 union events) already in the log, or a head-to-head against a fixed opponent, which is what
 `netmatch` does for P1 and what settled the saturation question there today.
+
+## 2026-09-10 — P1 throughput, final: 81 → 1824 generations/hour (22.5x today)
+
+Three separate sinks, each found by re-measuring after fixing the previous one:
+
+| change | before | after |
+|---|---|---|
+| origin control 1000 pairs every 10 gens → 400 every 40 | 81 | ~550 |
+| ARCH every 5 → OFF (11 attempts, 0 accepted, sign never flipped) | 551 | 1267 |
+| datagen `--threads 1 → 2` | 1267 | **1824** |
+
+**The threads number came from reading what the log actually prints.** The `[2s]` on each generation
+line is `t_gen` — DATAGEN ONLY (`main.rs:585,1257`), not the whole generation. Against a 2.84s
+wall-clock generation that put ~70% inside a single-threaded game loop while three of four allotted
+cores sat idle.
+
+**Determinism checked before changing it.** `datagen.rs` guarantees byte-identical output *for a
+fixed thread count* — per-worker seeds are `seed ^ ((t+1)*K)`, so changing the count changes which
+games are played. That is fine for a learning loop (different self-play data is equally valid) and
+would NOT be fine for a controlled A/B, which is the distinction worth writing down.
+
+**Core budget respected:** 281% of the 400% available on cores 12-15, with both evolve arms still
+progressing at 63% and 72%. 4PC datagen is pinned to 0-11 and untouched.
+
+**Not claimed: that 22.5x more generations means 22.5x more learning.** `p1_deceleration_RESULT.md`
+measures the gain decelerating — +154 Elo over gens 29-300, but only +27 over a 200-generation
+window, and the rate is not resolved. More generations of a configuration whose every documented
+lever (width, depth, blend, horizon, draws) is already closed buys less than it did. What the
+throughput definitely buys is time-to-measurement: the 5-seed replication that the deceleration
+question actually needs is now ~1 hour of box time instead of ~5.
