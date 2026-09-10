@@ -524,3 +524,30 @@ without inheriting a bar from a rejected program.
 **NOT changed yet, and deliberately so.** Four arms are mid-run, the A/B on `HARD_FITNESS` weight is
 the question currently being answered, and changing the acceptance dynamics underneath it would
 confound both. Recorded here as the next repair, with its evidence attached.
+
+### PRE-REGISTERED consequence of removing the ratchet
+
+Written before the fixed arms have produced a single gate.
+
+With `best_rate` no longer rising on rejection, it stays at the CHAMPION's rate — and the champion
+has never moved in any standard arm. The population, meanwhile, persists across generations and holds
+members above that rate. So the pick should now find a non-gated candidate above the bar in most
+generations, where previously an inherited bar suppressed it.
+
+**Prediction: the fraction of lineage-generations that reach a gate should RISE materially from the
+measured baseline of 99/234 = 42.3%.** If it does not move, the ratchet was not what was suppressing
+gate calls and the account above is wrong.
+
+Two things this is NOT:
+
+- **Not a claim that more gates is progress.** More gates means more DATA, not more strength. The
+  accept count is still 0 and only an accept changes that.
+- **Not unbounded.** `gated` accumulates, so a lineage whose population is exhausted of untried
+  members above the bar will stop gating on its own. That is the intended stopping behaviour, not a
+  failure.
+
+**Cost consequence, stated so it is not a surprise.** A gated generation is dominated by VERIFY (96
+pairs = 192 games) plus the gate itself, and measured at roughly 40 minutes. If the gating fraction
+goes from ~42% toward ~100%, generations get correspondingly slower in wall-clock. A 25-generation
+run becomes an overnight job rather than an afternoon one. That is the right trade — the previous
+speed came from skipping measurements, not from being efficient.
