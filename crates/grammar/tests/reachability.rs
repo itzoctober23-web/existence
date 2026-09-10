@@ -263,3 +263,62 @@ fn crossover_can_move_primitives_between_lineages() {
          hybrid built on the MCTS seed would be unreachable and the asymmetry would be silent."
     );
 }
+
+/// Can crossover carry the TT rung's primitives from the MCTS lineage into alpha-beta — and can a
+/// SINGLE graft deliver both halves at once?
+///
+/// WHY THIS IS THE DECIDING QUESTION. This file's header records that no mutation operator can
+/// introduce `Probe`/`Key`/`Field`/`Store`, so hash reuse "is not reachable at any edit count". That
+/// is true of MUTATION and says nothing about CROSSOVER, which is a separate route
+/// (`evolve.rs:1586` runs it on one candidate in four). Measured 2026-09-09, `uct_mcts` tags
+/// `P10S5K15F10` — byte-identical to `ab_hash`. The second lineage seed already contains a full TT
+/// complement at every call site, and `donors` (`evolve.rs:1561`) flat-maps over EVERY lineage's
+/// population, so a MAIN recipient can draw an MCTS donor.
+///
+/// `crossover_can_move_primitives_between_lineages` above asserts only that the moved set is
+/// NON-EMPTY. It never names these four kinds, so it passes just as happily if the only thing
+/// crossover ever carries is `Avg`.
+///
+/// The valley is CONJUNCTIVE — probe-only 0.991x, store-only 0.997x, both 1.024x — so a child
+/// carrying `Probe` without `Store` is on the valley floor and cannot be accepted. Whether ONE graft
+/// can deliver both is therefore the difference between "the rung needs a lucky pair of retained
+/// halves plus a second crossover" and "the rung is one graft away from the seed".
+#[test]
+fn crossover_can_carry_the_tt_rung_from_mcts() {
+    let ab = reference::bare_alpha_beta();
+    let uct = reference::uct_mcts();
+    let ab_kinds = prog_kinds(&ab);
+    let tt_kinds = ["Probe", "Store", "Key", "Field"];
+
+    // Non-vacuity, asserted rather than assumed: the recipient must LACK what the donor HAS.
+    for k in tt_kinds {
+        assert!(!ab_kinds.contains(k), "alpha-beta already contains {k} — this test proves nothing");
+        assert!(prog_kinds(&uct).contains(k), "UCT lacks {k} — it cannot donate what it does not have");
+    }
+
+    let (mut any_tt, mut both_halves, mut children) = (0usize, 0usize, 0usize);
+    let mut arrived: BTreeSet<&str> = BTreeSet::new();
+    for k in 0..4000u64 {
+        let mut rng = mutate::Rng::new(k ^ 0x7EA_5EED);
+        let Some(child) = mutate::crossover(&ab, &uct, &mut rng) else { continue };
+        children += 1;
+        let ck = prog_kinds(&child);
+        let got: Vec<&str> = tt_kinds.iter().copied().filter(|k| ck.contains(k)).collect();
+        if !got.is_empty() { any_tt += 1; for g in &got { arrived.insert(g); } }
+        if ck.contains("Probe") && ck.contains("Store") { both_halves += 1; }
+    }
+
+    println!("crossover ab<-uct: {children} well-typed children of 4000 attempts");
+    println!("  carrying >=1 TT kind : {any_tt} ({:.1}%)", 100.0 * any_tt as f64 / children.max(1) as f64);
+    println!("  carrying Probe AND Store (the united rung, in ONE graft): {both_halves} ({:.1}%)",
+             100.0 * both_halves as f64 / children.max(1) as f64);
+    println!("  TT kinds that ever arrived: {arrived:?}");
+
+    assert!(
+        any_tt > 0,
+        "crossover never carried a single TT primitive from UCT into alpha-beta in {children} \
+         well-typed children. Then the rung is unreachable by BOTH routes -- mutation cannot build \
+         these kinds (see this file's header) and crossover cannot move them -- and every claim \
+         about EPS retaining 'halves' is moot, because no half can ever appear."
+    );
+}

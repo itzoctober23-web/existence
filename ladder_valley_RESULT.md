@@ -212,3 +212,48 @@ at generation 1-5. The measurement above comes from `gate_veto_arm_noverify.log`
 generation that is two to three hours out. Every reading taken before then is from a regime where
 the interesting structure has not yet appeared — which is worth stating plainly, because four arms
 producing "REJECT, resolved worse" at gens 3-4 looks like a settled answer and is not one.
+
+## 2026-09-09 22:20 — THE RUNG IS ONE GRAFT FROM THE SEED. Reachability was never the constraint.
+
+`crossover_can_carry_the_tt_rung_from_mcts` (`crates/grammar/tests/reachability.rs`), 4000 crossover
+attempts with `bare_alpha_beta` as recipient and `uct_mcts` as donor:
+
+    4000 well-typed children of 4000 attempts        (100% type-check rate)
+      carrying >=1 TT kind ................ 1959     (49.0%)
+      carrying Probe AND Store, ONE graft ..  224     ( 5.6%)
+      TT kinds that ever arrived: {Field, Key, Probe, Store}
+
+**This refutes the reachability half of this document.** The header of `reachability.rs` records
+that no MUTATION operator can introduce `Probe`/`Key`/`Field`/`Store`, and concluded hash reuse "is
+not reachable at any edit count". That is true of mutation and irrelevant to crossover, which
+`evolve.rs:1586` runs on one candidate in four with donors drawn from **every** lineage
+(`evolve.rs:1561`). `uct_mcts` tags `P10S5K15F10` — byte-identical to `ab_hash`. **The second
+lineage seed has been carrying a complete transposition table this whole time.**
+
+**The valley argument survives; the "can never be assembled" conclusion does not.** The valley is
+still conjunctive and each half is still below 1.000x, so neither half can be ACCEPTED. What changes
+is that the pair does not have to be assembled one edit at a time at all — 5.6% of crossover children
+arrive with both halves already present.
+
+**Order-of-magnitude, stated as arithmetic and not as a claim.** At lambda 8, `i % 4 == 3` gives 2
+crossover candidates per lineage-generation; donors are half MCTS by count, and 5.6% of those carry
+both halves. That is roughly 5-6% per generation, so over a 25-generation run a Probe+Store child
+appearing at least once is likelier than not. **This is a back-of-envelope on the PRISTINE seed, not
+a measurement of the live runs.**
+
+**What is NOT established, explicitly:**
+- **That such a child keeps its mates.** Well-typed is not correct. `mutate.rs:437` records 90 of 106
+  well-typed candidates rejected by the correctness oracle, and grafting a UCT subtree into
+  alpha-beta is a far more violent edit than the 1-3 mutations that produced those rejects.
+- **That it scores above `best_rate`.** `ab_hash` is 1.024x, but that is the HAND-BUILT rung with the
+  pattern applied at 10 call sites. A single graft delivers `P1S1...`-scale coverage, and the valley
+  table gives no reason to think one call site pays what ten do.
+- **That the 5.6% holds for EVOLVED recipients.** The test grafts into the pristine seed. Live
+  recipients are mutated programs whose subtree shapes differ.
+
+**What this reframes.** The search track's failure has been read all evening as a SELECTION problem
+(gate bounds, guard tolerance, set size, surrogate role) and then as a SUPPLY problem (lambda 32).
+This says the supply of the one known rung is fine — **it is 5.6% of one candidate in four** — and
+moves the suspicion to the correctness oracle and the cost model, which is where the next measurement
+belongs. The cheap next step is to score those 224 children on the valley set and report how many
+keep 25/25 mates and what they cost. That is a direct measurement, not another arm.
