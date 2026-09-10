@@ -2049,7 +2049,23 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                     //
                     // PRINT-ONLY: consumes no RNG and touches no state, so an arm built with this
                     // must reproduce its trajectory exactly. That is checked on restart.
-                    println!("  gen {g:>3} {:<5} gate {} {:.3}+/-{:.3} ({} games W-D-L {}-{}-{})  hard {hlo}-{hhi}  surrogate \
+                    // `mates {f}` IS THE DIRECT TEST OF THE SATURATION MECHANISM, and it costs one
+                    // format argument because `f` is already bound by `if let Some((c, f, rate))`.
+                    //
+                    // The whole diagnosis is numerator-vs-denominator: a surrogate gain is either a
+                    // real mate gain (numerator) or a cost cut (denominator), and only the second is
+                    // suspected of costing strength. Until now the gate line printed the RATE, which
+                    // cannot tell them apart, so every attribution had to be inferred arithmetically
+                    // from the seed's rate -- and for MCTS, whose seed is 15/23 and NOT saturated,
+                    // that inference is genuinely ambiguous. A surrogate of 0.001506 is consistent
+                    // BOTH with f=16 at unchanged cost (16/15 = 1.067) and with f=15 at a 6.7%
+                    // cheaper cost. Those are opposite findings under this hypothesis, and that
+                    // reading happens to be the only VERIFY above 0.500 on record (0.505).
+                    //
+                    // For MAIN this is expected to read a constant 23 -- that IS the saturation, made
+                    // visible instead of argued. If it ever reads anything else, the premise this
+                    // whole document rests on is wrong and should fail loudly.
+                    println!("  gen {g:>3} {:<5} gate {} {:.3}+/-{:.3} ({} games W-D-L {}-{}-{})  mates {f}  hard {hlo}-{hhi}  surrogate \
 {rate:.6}  ABOVE:{above}  needed >{:.3}",
                              lineages[li].name,
                                match sprt_verdict {
