@@ -3079,8 +3079,36 @@ pool = select_survivors(pool, MU, dslots_cfg());
             // fitness is wrong; fix those" -- localised in the fitness.
             //
             // Env-gated: unset is byte-identical to today, so the two are A/B comparable.
+            // EXISTENCE_PICK=lowrate -- pick the LOWEST-rate guard-passer instead of the highest.
+            //
+            // Both existing rules pick the highest-rate candidate: `popn` is sorted by rate
+            // descending and both use `find`, so strict takes the top one above the bar and spec
+            // takes the top one above 0.9x. They differ in THRESHOLD, not in direction. That is why
+            // the 2026-09-10 A/B of the two produced 0 accepts in 19 gates on BOTH arms.
+            //
+            // The direction is the problem, and it is measured. The full 10-program reference ladder
+            // (surrogate_inverts_RESULT.md, 45 matches, 0 forfeits) ranks by GAMES:
+            //     proof-number search   game 0.593   rate 0.006739   <- strongest, near-lowest rate
+            //     iterative deepening   game 0.584   rate 0.307478
+            //     bare alpha-beta       game 0.481   rate 8.694256   <- HIGHEST rate, mid-table
+            //     depth-one             game 0.419   rate 0.778889
+            // Spearman -0.200. High rate means CHEAP, and cheap means it stopped searching. The two
+            // shipped rules therefore select preferentially against the programs that win.
+            //
+            // So among candidates that already clear the mates guard, take the CHEAPEST-scoring one
+            // rather than the dearest. Same guard, same game gate, same anti-re-proposal set -- only
+            // the direction of the tie-break changes.
+            //
+            // STATED AS A HYPOTHESIS, not a fix: the inversion is measured on ten HAND-WRITTEN
+            // programs spanning paradigms, and mutants of one seed may not behave the same way. This
+            // is env-gated and unset is byte-identical to today, so it is an A/B and not a rewrite.
+            let pick_lowrate = std::env::var("EXISTENCE_PICK").as_deref() == Ok("lowrate");
             let spec_filter = std::env::var("EXISTENCE_SPEC_FILTER").is_ok();
-            let pick = if spec_filter {
+            let pick = if pick_lowrate {
+                popn.iter().rev().find(|(pr, _, r)| {
+                    *r >= 0.9 * best_rate && !lineages[li].gated.contains(&format!("{pr:?}"))
+                }).cloned()
+            } else if spec_filter {
                 popn.iter().find(|(pr, _, r)| {
                     *r >= 0.9 * best_rate && !lineages[li].gated.contains(&format!("{pr:?}"))
                 }).cloned()
