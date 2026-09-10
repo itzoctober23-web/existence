@@ -429,3 +429,42 @@ posts 1.29x, which any rate-based rule would reward. The two classes are disting
 whether the different moves are BETTER — which is playing strength, which is games. Every route out
 of this loop now terminates at the same place, and at the same measured price of ~1,650 pairs per
 generation.
+
+---
+
+## UPDATE 2026-09-09 — the count, deduplicated, and the premise that has since changed
+
+**0 accepts in 99 INDEPENDENT gate calls.** Deduplicated by
+`(run_seed, guard_tolerance, hard_fitness, lineage, generation)` over every arm log on disk:
+
+    unique lineage-generations : 234
+    of those, produced a pick  :  99   (42.3%)
+    ACCEPTED                   :   0
+
+**The raw counts were 510 and 215 — a 2.17x inflation from duplicate trajectories.** Arms with
+identical configuration replay the identical run, so the same lineage-generation appears in several
+logs. That is the same error I made earlier today reporting "4 of 4 MAIN candidates"; it is recorded
+here because the raw number is the one a casual `grep -c` produces. Reassuringly the *rate* is robust
+to it (42.2% raw vs 42.3% deduped) — only the denominator moves.
+
+**The search is NOT failing to find surrogate improvements.** It finds one in 42.3% of
+lineage-generations. What fails is the conversion: `fitness_saturation_RESULT.md` measures 3 of 3
+MAIN candidates that improved the surrogate as RESOLVED WORSE by a 96-pair independent-seed VERIFY,
+while MCTS — whose seed is 15/23 and therefore not saturated — is 0 of 3. So this document's account
+stands, with the emphasis moved: the problem is not a barren search, it is a surrogate whose gains do
+not transfer.
+
+**A measurement trap, recorded because I walked into it first.** I initially counted "max candidate
+rate > 1.000x" across gen lines and got **0 of 270**, which looks like a dramatic finding and is
+tautological: a GATED generation prints VERIFY and gate lines and no `rates` field at all, so every
+line carrying a `rates` span is by construction one where nothing was picked. Any statistic drawn
+from the `..none` lines alone measures the selection, not the search.
+
+**PREMISE CHANGE, so the numbers above do not match the top of this file.** This document opens with
+"the set has 25 positions and the seed scores 25/25". That was the old guard set. The current runs
+use the forced-mate set and report **`23/23 mates (floor 19)`** — the repair described in
+`evolve.rs:43-56`, which swapped a mate-in-1 set (where no amount of shallowness can lose a mate) for
+one where shallowness does lose mates. **The conclusion is unchanged because 23/23 is still
+saturated**: the numerator is at its maximum, so `mates/Mcost` can still only be improved by cutting
+cost. The repair moved the number, not the defect. That is what `EXISTENCE_HARD_FITNESS=1` is now
+being A/B'd against.
