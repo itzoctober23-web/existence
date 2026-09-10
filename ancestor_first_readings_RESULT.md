@@ -41,6 +41,12 @@ instrument that could produce it.
 
 1. **Raise `--ancestor-pairs`.** 160 pairs cannot resolve what is plausibly a small per-window gain.
    The cost is linear and the reading is every 200 generations, so this is cheap to tighten.
-2. **Shorten `--ancestor-lag`.** A 400-generation window conflates "no gain" with "gain that
-   saturates early". A 100-generation lag against the same rung cadence would show the shape.
-3. Neither is run here. Both are one flag.
+2. ~~**Shorten `--ancestor-lag`.**~~ **WRONG, corrected before acting on it.** If the loop gains
+   *g* per generation, a 400-generation window accumulates 400*g* and a 200-generation window only
+   200*g*. Shortening the lag HALVES the effect while leaving the interval unchanged, so it makes a
+   small gain harder to detect, not easier. It would answer a different question — the SHAPE of the
+   gain — and only once a gain is detectable at all, which it is not yet. For detection the lag
+   should if anything be LENGTHENED.
+3. Only (1) is worth doing now, and it is what was done: `--ancestor-pairs 160 → 400` at the same
+   400-generation lag, taking ci95 from ~0.052 to ~0.037. Same window, better resolution, and the
+   cost is one match per 200 generations.
