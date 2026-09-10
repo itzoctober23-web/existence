@@ -1323,9 +1323,85 @@ fn tt_kinds_control() {
     println!("  PASS: probe={probe}  store={store}  hash={both}  (halves are distinguishable)");
 }
 
+/// Score REAL crossover children that carry both TT halves, on the valley set.
+///
+/// WHY. `crossover_can_carry_the_tt_rung_from_mcts` measured that 5.6% of `ab <- uct` grafts arrive
+/// with `Probe` AND `Store`, which settles REACHABILITY and settles nothing else. Well-typed is not
+/// correct, and correct is not fitter: `mutate.rs:437` records 90 of 106 well-typed candidates
+/// rejected by the correctness oracle, and a UCT subtree grafted into alpha-beta is a far more
+/// violent edit than the 1-3 mutations that produced those rejects.
+///
+/// The three outcomes are genuinely different findings and the run reports all three:
+///   * children LOSE mates          -> the oracle is what stops the rung, not the surrogate
+///   * children keep mates, ratio<1 -> a single graft does not pay what the 10-call-site hand-built
+///                                    `ab_hash` pays; coverage is the missing ingredient
+///   * children keep mates, ratio>1 -> the rung is reachable AND acceptable, and the search's
+///                                    failure to find it is a question about the LIVE run, not the
+///                                    grammar
+///
+/// Same `fitness`, same `mate_set`/`disagreement_set`/`window_sensitive_set`, same net and depth as
+/// `valley`, so the ratios are directly comparable to the table at the top of
+/// `ladder_valley_RESULT.md` rather than being a second harness with its own biases.
+fn tt_graft() {
+    let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
+    let (want, n1, n2, n3, depth) =
+        (a(2, 40) as usize, a(3, 15) as usize, a(4, 5) as usize, a(5, 5) as usize, a(6, 3));
+    let net = Net::random(32, 20260907);
+    let mut set = mate_set(n1);
+    set.extend(disagreement_set(n2, depth, &net, 4_000));
+    set.extend(window_sensitive_set(n3, depth, &net, 8, 4_000));
+
+    let ab = reference::bare_alpha_beta();
+    let uct = reference::uct_mcts();
+    let (base_found, base_cost, base_rate) = fitness(&ab, &set, &net, depth, 16);
+    println!("=== TT graft scoring: {} positions at depth {depth}, {want} both-halves children ===",
+             set.len());
+    println!("  seed: {base_found} mates, cost {base_cost}, rate {base_rate:.6}");
+    println!("  reference hand-built rung `ab_hash` scores 1.024x on this set (10 call sites).\n");
+    println!("  {:<5} {:>6} {:>7} {:>16} {:>10}  {}", "#", "nodes", "mates", "cost", "vs seed", "ttk");
+
+    let (mut tried, mut kept_mates, mut fitter, mut scored) = (0usize, 0usize, 0usize, 0usize);
+    let mut best: Option<(f64, String)> = None;
+    for k in 0..200_000u64 {
+        if scored >= want { break; }
+        tried += 1;
+        let mut rng = mutate::Rng::new(k ^ 0x9E37_79B9);
+        let Some(child) = mutate::crossover(&ab, &uct, &mut rng) else { continue };
+        let c = tt_counts(&child);
+        if c[0] == 0 || c[1] == 0 { continue; }          // need BOTH halves, not one
+        scored += 1;
+        let (found, cost, rate) = fitness(&child, &set, &net, depth, 16);
+        let ratio = rate / base_rate.max(1e-12);
+        if found >= base_found { kept_mates += 1; }
+        if found >= base_found && ratio > 1.0 {
+            fitter += 1;
+            if best.as_ref().is_none_or(|(b, _)| ratio > *b) {
+                best = Some((ratio, tt_kind_tag(&child)));
+            }
+        }
+        println!("  {scored:<5} {:>+6} {found:>7} {cost:>16} {ratio:>9.3}x  {}",
+                 child.size() as i64 - ab.size() as i64, tt_kind_tag(&child));
+    }
+
+    println!("\n  === summary ===");
+    println!("  attempts to collect {scored} both-halves children : {tried}");
+    println!("  kept all {base_found} mates          : {kept_mates} / {scored}");
+    println!("  kept mates AND rate > seed  : {fitter} / {scored}");
+    match &best {
+        Some((r, tag)) => println!("  best fitter child: {r:.3}x  ttk {tag}"),
+        None => println!("  NO child was both mate-preserving and fitter."),
+    }
+    println!("\n  Read this against the three pre-registered outcomes in the doc comment: mates lost");
+    println!("  indicts the ORACLE, mates kept with ratio<1 indicts single-site COVERAGE, and any");
+    println!("  fitter child moves the question to why the LIVE search has not found one.");
+}
+
 fn main() {
     if std::env::args().nth(1).as_deref() == Some("ttk") {
         return tt_kinds_control();
+    }
+    if std::env::args().nth(1).as_deref() == Some("ttgraft") {
+        return tt_graft();
     }
     if std::env::args().nth(1).as_deref() == Some("valley") {
         return valley();
