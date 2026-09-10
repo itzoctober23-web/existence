@@ -1765,3 +1765,39 @@ drift at zero gate cost), and that pair is running now.
 comparison over gens 1-6 plus the outcome comparison over all 25 completes the A/B. The treatment's
 own result above stands on its own — 0 of 25 needs no control to be disappointing — but the control is
 what will say whether the reserve changed the TRAJECTORY even though it did not change the outcome.
+
+## The diversity A/B is COMPLETE, and the two arms are indistinguishable on every outcome
+
+Both cells finished their full 25 generations. Same binary (`1529d29f3a98dd21`), same seed 0, same
+`4+10+10` set, same fixed 6-pair gate — differing only in `EXISTENCE_DIVERSITY_SLOTS=2`.
+
+    arm                          gens  gates  ACCEPT  ties  worse   final MAIN            final MCTS
+    gate_diversity_s1  (dsl 25)   25     24      0      22     2    0.002762 / 71 nodes   0.000737 / 131
+    gate_diversity_PAIRED_off      25     24      0      22     2    0.002762 / 71 nodes   0.000737 / 131
+
+**Identical on every count that matters**, and the final programs in both arms are the seeds
+themselves — 71 and 131 nodes, the seed sizes, at the seed rates. The reserve engaged 25 times
+(`dsl` climbing 0 -> 25 against the control's flat `dsl0`) and changed nothing measurable.
+
+**This is a clean, complete NULL, and it is trustworthy for reasons established today.** Outcome
+counts are the seed-robust class: the `composition_s1`/`s2` pair showed trajectories are entirely
+seed-dependent while outcomes are not. So "0 acceptances, final = seed" reproduces; it is not one
+seed's luck. And the comparison is valid only because the pairing was repaired this morning — before
+that the control ran a DIFFERENT BINARY built five hours apart, and any difference or non-difference
+would have been uninterpretable.
+
+**What it settles.** A diversity reserve on the survivor selector does not unfreeze this search. Not
+"probably does not" — 25 generations, 25 engagements, 24 gate calls each, and every outcome number
+equal to the control's.
+
+**What it does NOT settle, and today's later findings explain why it could not.** The reserve supplies
+variety to a selector that then requires RESOLVED BETTER to accept anything, and the gate resolved 0
+of 78 calls as better across every arm. **Feeding more candidates into a rule that accepts none of
+them cannot change an outcome.** The reserve was never the binding constraint; it was operating
+upstream of one.
+
+**Consequence for the factorial.** `gate_diversity_PAIRED_off` completing is worth more than its own
+result: it is the shared control for `gate_gateveto` (acceptance rule) and `gate_set_mateheavy` (set
+composition), and both now have a FULL 25-generation control to compare against rather than a partial
+one. Those two arms test mechanisms upstream and downstream of the acceptance rule respectively, which
+is where this null says the constraint actually lives.
