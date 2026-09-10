@@ -108,11 +108,10 @@ So the three readings are:
 - **Treatment MAIN still resolved worse AND `hf` stayed 0** → **UNINTERPRETABLE.** The fix never
   engaged. Not evidence either way.
 
-**And the third case cannot currently be distinguished from the second**, because of the structural
-gap recorded above: gated generations print no `hard` field, and `hf` is dropped at the population
-boundary. That is what would make the tuple-widening refactor worth its cost — not the secondary
-mechanism question, but the fact that a negative result is otherwise unreadable. Deferred while the
-arms have produced no gated generation; the trigger to pay for it is a negative treatment reading.
+**The third case is now distinguishable from the second**, as of the instrumentation above: the gate
+line carries `hard {hlo}-{hhi}`, and `hhi == 0` marks the run where the fix never engaged. Before
+that change a negative treatment reading would have been unreadable — which is why it was worth
+doing immediately rather than after the result arrived.
 
 One reason to expect engagement anyway: with `HARD_FITNESS=1` a candidate scoring `hf > 0` gets a
 numerator boost, so it is MORE likely to win its generation and reach the gate. Historically 93 of
@@ -126,14 +125,23 @@ whether their surrogate rose via the hard set or merely via cost -- and it canno
 arithmetically, because the guard pins `f` at 23 and `rate = (23+hf)/(cost+hard_cost)` leaves two
 unknowns in one equation.
 
-**The gap is STRUCTURAL, not a missing `println!`.** `hf` is computed at `evolve.rs:1656`, which
-builds `(prog, f, rate, hf)` -- and then dropped at the population boundary, because
-`popn: Vec<(Program, u32, f64)>` (`evolve.rs:1387`) is a THREE-tuple. Every downstream site
-destructures three fields (`pick` at 1756/1764, the `pool` sort/retain at 1726-1732). Carrying `hf`
-to the gate line therefore means widening that tuple and updating each site, then rebuilding and
-restarting -- a refactor of a running experiment's source for a SECONDARY confirmation, while the
-arms are 40+ minutes into their first gated generation. Not worth paying now, and recorded precisely
-so the cost is known rather than re-derived.
+**RESOLVED 2026-09-09 19:35 — and my pricing of it was wrong.** I recorded this as "structural, not
+a missing `println!`": `hf` is built at `evolve.rs:1656` and dropped at the population boundary,
+since `popn: Vec<(Program, u32, f64)>` is a three-tuple, so carrying it to the gate supposedly needed
+that tuple widened and every destructuring site updated.
+
+Checking the SCOPE rather than inferring it from the tuple types shows otherwise. `let (hlo, hhi)`
+at `evolve.rs:1674` is a plain binding in the generation-loop body, and the `};` at 1700 closes the
+inner `let hist = {...}` block, not the enclosing scope — so `hlo`/`hhi` were in scope at the gate
+`println!` the whole time. **One line, not a refactor.** The winner's own `hf` genuinely is dropped,
+but the RANGE over guard-passing candidates is what the reading needs: `hhi == 0` means no candidate
+scored, so the winner had `hf = 0` too, which identifies the uninterpretable case outright.
+
+Deployed: the gate line now carries `hard {hlo}-{hhi}`. Cost of acting was near zero because both
+treatment arms had produced ZERO gated generations and gens 1-2 cost ~3.5 min each. The controls on
+cores 13/15 were NOT restarted and still run `xt_sprt2`. The change is print-only — no RNG consumed,
+no state touched — and that was **verified rather than assumed**: the restarted seed-1 arm reproduces
+its pre-instrumentation log byte-for-byte (kept as `gate_hardfit_s1.log.preinstr`).
 
 **If the treatment arm reads clean, the honest claim is "the fix worked", not "saturation was why".**
 The distinction is recorded here so it cannot be quietly dropped later.
