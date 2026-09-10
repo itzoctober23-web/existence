@@ -4200,3 +4200,44 @@ against 42% on the depth-heavy one — the OPPOSITE of what "more depth-requirin
 to achieve. The depth-heavy set makes MCTS's seed WEAKER relative to the set, which is more headroom
 in principle; but the measured outcome is that the mate-heavy arms surface better-searching candidates
 far more often. Whether that survives with the binary held fixed is what this arm answers.
+
+## 2026-09-10 — seed variance measured, and it separates which single-arm claims are safe
+
+`gate_composition_s1` and `s2` are the SAME configuration on different seeds (1 and 2), which makes
+them a direct measurement of seed variance — something every single-arm claim in this file implicitly
+depends on and none had checked.
+
+    arm                seed  gen  gates  ACCEPT  nonzero-hard  spread
+    composition_s1      1     14    9      0        2          0.002745-0.002762
+    composition_s2      2     13    8      0        1          0.002749-0.002762
+
+    surrogate, generation by generation:
+      s1  0.000785 0.000785 0.000785 0.001117 0.001117 0.001117 0.001202 0.001202
+      s2  0.000947 0.000947 0.001349 0.001349 0.001384 0.001384 0.001616 0.001623
+      -> DIFFERENT at every generation
+
+**The trajectories share nothing. The outcomes are identical.** Both reach 0 acceptances, both leave
+MAIN pinned at the seed's 0.002762, both gate a similar number of times, both surface 1-2 nonzero
+hard scores. Seed determines the PATH completely and the DESTINATION not at all — at least over 13-14
+generations.
+
+**Which claims this makes safe, and which it does not:**
+
+* **SAFE — outcome claims from a single arm.** "The diversity arm reached 0 acceptances in 25
+  generations, both lineages ending as their own seeds" is the kind of statement that reproduces
+  across seeds. The two composition arms agree on exactly this class.
+* **NOT SAFE — trajectory claims from a single arm.** Any statement of the form "at generation N the
+  surrogate was X" or "the population climbed to Y by generation Z" is seed-specific. I have been
+  careful to quote outcomes rather than trajectories, but the distinction was assumed, not measured.
+
+**And it validates the hard-set finding against the obvious objection.** The measured seed spread on
+nonzero-hard counts is 1 vs 2 (out of ~26 gate lines each) — so on the 4+10+10 composition the rate
+is 2-8% with seed noise of about one count. The 12+6+5 arms sit at 43-63%. **The gap is roughly an
+order of magnitude larger than the seed-to-seed variation**, which is the first quantitative reason to
+think it is not noise. It does not remove the binary confound — only `gate_set_mateheavy` can do that
+— but it removes "you are reading one seed's luck".
+
+**Method note worth keeping.** This measurement cost nothing: two arms already running the same
+config on different seeds had been treated as two data points for the composition question, when they
+are also a free control for seed variance. **A seed pair is an error bar, not just a replicate** —
+worth looking for before quoting any single-arm number.
