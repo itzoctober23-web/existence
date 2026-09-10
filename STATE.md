@@ -3444,3 +3444,41 @@ nothing — rather than list-following: the list was already done.
 `reachability.rs`'s "operators cannot introduce a primitive"). Every one was a true statement that
 later work invalidated and nobody went back to soften. A task list is a hypothesis about the repo's
 state; on a repo moving this fast it needs re-checking before it is followed.
+
+### Item 5 (register bytecode): DEFERRED, and the reason is not "it would be slow to build"
+
+It is the only open task on the standing list, so it deserves an explicit decision rather than
+silence.
+
+**What it would buy, bounded by the cost model.** The calibrated per-node table is
+`Moves 2232, Apply 1959, Terminal 703, Eval 165` against `_ => 2` for every control-flow node. A
+bytecode VM removes tree-walk DISPATCH, which is what those 2-unit nodes represent. Even generously,
+the control-flow share of a search dominated by movegen and make-move is a low single-digit
+percentage of semantic cost.
+
+**That bound is honestly incomplete, and I am not going to pretend otherwise.** The cost model prices
+SEMANTIC work; it charges 2 per control node regardless of how the interpreter walks the tree, so it
+cannot capture dispatch overhead by construction. I tried to bound it by comparing predicted against
+actual wall clock and the measurement was worthless: the `valley` run scores SIX programs and builds
+three position sets, and the calibration anchor in the source (`1365 units = 293 ns`) predates the
+recalibration that took `Eval` from 1365 to 165. A ratio from that is a number, not a measurement.
+[[microbenchmark-bounds-not-predicts]] applies anyway — an isolated interpreter timing would be an
+upper bound, and a measured 12% has become a wall-clock LOSS on this project before.
+
+**The decisive argument needs none of that.** Tonight measured, across four arms and 120 scored
+candidates:
+
+* 0 accepts in every arm, through generation 6
+* 0 of 100 behaviour-preserving single edits are cheaper — PATH 1 is open, correct, aimed at a
+  qualifying target, and receives nothing
+* 0 of 40 crossover children preserve behaviour
+* the control's four gates all resolved 0.398-0.435, decisively worse
+
+**A faster interpreter finds nothing faster.** Doubling throughput doubles the rate at which this
+loop produces candidates that are rejected — it does not change the fraction that are acceptable,
+which is the measured problem. Item 5 is a real optimisation of a search whose bottleneck is not
+speed, and the brief itself already grades it "now a PERF task, not a survival one".
+
+**When it becomes worth doing:** the moment an arm ACCEPTS something that VERIFIES above 0.5. At that
+point throughput converts into progress and the calculation inverts. Until then it is polish on a
+mechanism that has never produced a keeper.
