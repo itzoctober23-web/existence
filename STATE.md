@@ -3705,3 +3705,46 @@ running and only the control was missing.
 should be IDENTICAL until the filter first changes a selection — the same guard that made the
 diversity pair interpretable. Divergence before that point would mean `SPEC_FILTER` does something
 outside the selection rule and the comparison is void.
+
+## 2026-09-10 — the SPEC_FILTER pair runs the fitness set the record calls the weakness
+
+`fitness_set_composition_RESULT.md` reaches two conclusions that survive its own corrections:
+
+* **"the mate-in-1 majority is the weakness"** — measured twice independently. On a mate-in-1-only
+  set no amount of shallowness can lose a mate, so the "must not lose mates" guard cannot bite and the
+  optimiser is free to drive cost to zero. It did: `0.03 -> 8.73 mates/Mcost` in ONE type-preserving
+  edit, **333x cheaper at an unchanged node count**.
+* **"`n2`/`n3` UP is the right direction"** — `disagreement_set` selects positions where the SEED
+  answers differently at D-1 and D, so it follows the fitness depth automatically. A MATE-N stratum
+  catches GROSS truncation but is blind to a ONE-PLY cut, because mate-in-N does not require N plies
+  of search: the forcing move is often also the eval-best move. (That is also why the same document
+  declines to wire a MATE-2/3 ladder in, and why I am not building one either — the feasibility numbers
+  are recorded there too: MATE-1 0.001 s/pos, MATE-2 0.05-0.11, MATE-3 3.17-5.34, MATE-4 >840s with
+  zero found, so §3's fourth stratum needs the retrograde walk and therefore self-play that does not
+  exist at iteration zero.)
+
+**The running arms are split across exactly that axis, and nothing said so:**
+
+    diversity_s1 / diversity_PAIRED_off   args 25 8 4 10 3 10   set  4+10+10=24  mate-in-1 17%
+    composition_s1 / composition_s2       args 25 8 4 10 3 10   (build predates the set line)
+    specfilter_s1 / specfilter_CONTROL    args 25 8 12 6 3      set 12+6+5=23   mate-in-1 52%
+    sprt30_s1                             args 25 8 12 6 3      (build predates the set line)
+
+**The SPEC_FILTER pair — the experiment `fitness_spec_gap_FINDING.md` calls upstream of everything —
+runs on the 52% mate-in-1 set**, i.e. the composition the record identifies as the weakness, while the
+diversity and composition pairs run the depth-heavy 17% one.
+
+**This is not a defect in the pair.** Treatment and control share the binary, the seed and the set, so
+the comparison is internally valid and `SPEC_FILTER` remains the only difference. It is a READING
+caveat, and arguably the fair test: §3's filter exists precisely to stop cheapness from winning, and
+the mate-in-1-heavy set is where cheapness wins hardest. A filter that helps there is being tested
+against its strongest adversary.
+
+**What it does mean:** a null result from this pair must NOT be generalised to "the filter does not
+help", because it will have been measured on one set composition only — and the effect the filter
+suppresses (cost outbidding the numerator) is set-dependent by construction. If it comes back null,
+the follow-up is the same pair at `4 10 3 10`, not abandonment.
+
+**All three pairs are now image-verified**, which was not true earlier today: diversity was repaired
+after a mid-experiment rebuild unpaired it, and specfilter had no control at all until one was launched
+from its exact binary. `sprt30_s1` remains a singleton and is not a control for anything.
