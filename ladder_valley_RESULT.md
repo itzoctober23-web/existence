@@ -600,3 +600,66 @@ making these children faster is the problem.
 
 **The published 19% becomes 4.0%.** The arms are chasing a real event, roughly five times rarer than
 this document claimed an hour ago.
+
+---
+
+## The rung is a THREE-part conjunction, not two (2026-09-10)
+
+`evolve ttunion 600 3 1`, splitting the table stats by whether the child preserves behaviour. The
+split was built because the pooled numbers could not distinguish two opposite explanations of the 23%
+that ARE sound: a table that genuinely reuses, versus a pair that never fires. Those predict opposite
+hit rates, so the measurement settles what an argument cannot.
+
+    sound   (plays identically): 812,454 hits / 1,664,245 probes = 48.8%,  5 of 8  NEVER HIT AT ALL
+    unsound (changes the answer): 24,435,203 / 226,550,469 = 10.8%,       24 of 36 NEVER HIT AT ALL
+
+**The second line is the result.** 24 of 36 children that change the answer never record a single
+hit. A table that never hits should be pure overhead and behaviourally inert -- it cannot change what
+the search returns. These do.
+
+### Why: a MISS is not a no-op, it injects the constant 0
+
+Traced through the interpreter rather than inferred:
+
+    Tt::probe()  -> on miss returns `Slot::default()`            (interp/src/lib.rs:352)
+    Slot         -> `#[derive(Default)]`, every field 0, incl. `score` AND `flag`   (:242)
+    Node::Field(Slot, Score) -> `Value::Num(sl.score)`           (:846)
+
+So `Field(Probe(Key(p)), Score)` on a miss evaluates to **0**, and any program that uses that value
+in place of a real score has silently substituted a constant. That is why a never-hitting union is
+unsound: it is not inert, it is a zero-injector.
+
+**This is the SAME bug the repo already documented in `ab_hash`** (`reference.rs:255`): *"the program
+returned `score` from an empty slot, i.e. the constant 0, without ever calling `eval`"*, measured
+then at ZERO evaluations at every depth. The fix recorded there is the missing ingredient here:
+*"1. A VALIDITY marker. `flag != 0` distinguishes a stored entry from an empty slot; the old code had
+no way to, which is the whole bug."*
+
+### What this reframes
+
+**Hash reuse is not `Probe + Store`. It is `Probe + Store + a validity test`, and the `Slot` type
+already carries the field for it (`flag`).** The hand-built halves are both derived from `ab_hash`,
+which CONTAINS the flag check -- so crossing them re-supplies the third ingredient for free. The
+minimal halves do not carry it at all.
+
+That single fact explains every number in this document that was previously only described:
+
+* why the minimal rate (1.08%) is ~5x below the hand-built rate (5.5%, p = 0.00018) -- the hand-built
+  crossing is solving a 2-part problem, the live population a 3-part one;
+* why SOUNDNESS is decisive (65.4% vs 22.8%, p = 0.00009) while CHEAPNESS is exactly null
+  (64.7% vs 61.9%, p = 1.00000) -- the missing piece is a correctness guard, and guards do not
+  make things faster;
+* why 77% of unions change the answer.
+
+**The valley is deeper than this document has been assuming all night.** GRAMMAR 9 asks for a path of
+single fitter mutations; the measurements here have been treating the target as two edits. It is at
+least three, and the third one (`flag != 0`) pays NOTHING on its own and nothing in pairs -- it only
+pays in the presence of both others.
+
+### Pre-registered next test, NOT yet run
+
+If the validity test is the missing ingredient, then a union that also carries a `flag`-guard should
+be sound at a much higher rate than 22.8%. Build a third minimal half that tests `flag != 0` and
+measure the three-way crossing. **Prediction: soundness rises toward the hand-built 65%; the PATH-1
+rate rises with it.** If soundness does NOT rise, the validity marker is not the missing ingredient
+and this section is wrong -- which is the point of writing the prediction down first.
