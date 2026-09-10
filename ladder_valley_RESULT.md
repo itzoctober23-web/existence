@@ -1162,3 +1162,43 @@ replace.
 **Cost:** one additional process on cores 12-15. The four existing arms slow by roughly a quarter;
 their metric is cost-model based rather than wall-clock, so their RESULTS are unaffected, only their
 rate of progress.
+
+## FIRST SIGHTING: a fused minimal member, `P1S1K2F1`, in the diversity arm
+
+`gate_diversity_s1` (`EXISTENCE_DIVERSITY_SLOTS=2`), generations 3 and 4:
+
+    gen 3 MAIN  pop 3  tt[0, 0, 5]  ttk["-", "-", "P1S1K2F1"]
+    gen 4 MAIN  pop 3  tt[0, 0, 5]  ttk["-", "-", "P1S1K2F1"]
+
+**One member holding a Probe AND a Store at once** -- 1 Probe, 1 Store, 2 Keys, 1 Field. This is the
+union event this document has been tracking all session, and the exact tag named earlier as the
+near-miss to watch for. It also PERSISTED across a generation rather than appearing and dying.
+
+**It has never happened in the baseline arms.** Counting fused minimal tags, excluding the
+`P10S5K15F10` MCTS seed lineage which was born with a table:
+
+    gate_composition_s1   0 fused minimal tags
+    gate_composition_s2   0 fused minimal tags
+
+### What it does NOT license
+
+**It is one event.** The naive count -- 2 of 2 carrier-generations with the flag on against 0 of 14
+with it off -- gives Fisher p = 0.0083 and is WRONG: gens 3 and 4 hold the SAME member persisting,
+which is pseudo-replication. Counted correctly as one event:
+
+    1/1 (flag ON) vs 0/14 (flag OFF)   Fisher exact p = 0.0667   NOT RESOLVED
+
+**And it is not acceptable.** Its rate is 0.986521x, below the seed, so PATH 1 cannot take it -- fully
+consistent with the measured ~1% PATH-1 rate among minimal unions. A union OCCURRING and a union being
+ACCEPTED are different events, and only the first has been observed.
+
+### Why it is still worth recording now
+
+The pre-registered prediction for this arm was about COMPOSITION -- that the reserve would keep
+store-carriers alive long enough to be crossed. A fused member is the downstream consequence of
+exactly that, and it appeared in the arm's first carrier-generations rather than after twenty. The
+baseline arms have run far longer with far more carrier-generations and produced none.
+
+**The falsifier stands unchanged:** if the probe:store ratio in this arm settles near the baseline
+3:1, the reserve is not doing the work and this sighting was luck. The arm continues; the composition
+table goes in below when it has enough generations to compare.
