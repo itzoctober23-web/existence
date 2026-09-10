@@ -161,3 +161,33 @@ already running: 77 positions at 3.5x, which is affordable and already tightens 
 from 17.4% to 5.2%. If per-N costs turn out heavily skewed toward MATE-1 being cheap, a
 stratified 500x4 may cost far less than 91x and become reachable — which is a measurement worth
 making before the set size is decided either way.
+
+
+## RUNNING 2026-09-09 21:28 — the spec filter, after three dial repairs were refuted
+
+Three repairs were tried tonight and each was refuted by the arm launched to test it: saturation
+(`mates 19` — the numerator is sold, not stuck), guard tolerance 0 (`mate-ok 0` — it freezes), and a
+bigger set (`mate-ok 0` at a 5.2% licence — the loss is fractional, so no size helps). All three tried
+to make `mates/Mcost` RANK better. §3 says it should not rank at all.
+
+**Verified before launching, on real numbers, that the filter actually bites:**
+
+    gen 1 MAIN, guard-passing candidate at rates 0.999 of best_rate
+      strict rule  r >  best_rate      0.999 > 1.000  -> no pick, no gate
+      spec filter  r >= 0.9*best_rate  0.999 >= 0.900 -> PICK, and the GAME GATE decides
+
+That is precisely why PATH 1 has fired 8 times under `SPEC_FILTER` and 0 times under the strict rule.
+
+**And it is NOT a bypass of the mate guard.** Offspring are filtered on `guard_floor` before the pick
+(`evolve.rs:1762`, "this line is the ACTUAL selection filter"), so a candidate that sells too many
+mates is still excluded. The filter changes only the RATE rule — which candidate among the
+guard-passers is sent to the games.
+
+**What has never been run.** SPEC_FILTER previously operated against a 6-pair fixed gate that could
+not accept anything in 99 calls, so admitting more candidates just produced more unresolvable
+matches. The gate now RESOLVES — verified tonight, accepting at llr +3.08 in 26 pairs and rejecting
+at llr -3.18 in 18. **Loose filter plus a working ladder is a combination this project has not
+tried**, and it is exactly the division of labour §3 describes.
+
+Live on core 12, verified: `SPEC_FILTER=1` in the process environment, header reading the standard
+23-position set at tolerance 4 so nothing else differs from the control on core 15.
