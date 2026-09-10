@@ -104,6 +104,13 @@ fn paired_sign(champ: &Net, cand: &Net, held: &[&Sample]) -> (u32, u32) {
     (b_only, a_only)
 }
 
+/// Plies of RECORDED play per datagen game (the random opening is unrecorded and separate).
+///
+/// Named because it is the real ceiling on `Sample::plies_to_end`, and therefore the point at which
+/// the training horizon stops filtering anything. It was an unlabelled `160` at the call site while
+/// `--horizon-cap` defaulted to 1000, so nothing connected the knob to the bound it could not cross.
+const MAX_PLIES: usize = 160;
+
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let arg = |k: &str, d: usize| -> usize {
@@ -322,7 +329,32 @@ fn main() {
     // capped arm wins on 43% FEWER samples, so it is data QUALITY and not quantity. The
     // default now rests on evidence that survives the n>=3 standard, and the loop-based
     // re-run is unnecessary -- the loop has 25x worse resolution for this question.
-    let horizon_cap = arg("--horizon-cap", 1000) as u32;
+    // DEFAULT 1000 -> MAX_PLIES. The FILTERING is identical; the LOGGED NUMBER changes.
+    //
+    // Precisely: past gen 31 both caps admit every position, so no training set changes and no
+    // decision changes. What differs is the horizon recorded in the log and ledger -- 160 rather
+    // than a number climbing to 855. That is the point: the old value described a filter width
+    // that had not existed since gen 31.
+    //
+    // The horizon filter keeps positions with `plies_to_end <= horizon`, and datagen plays at most
+    // MAX_PLIES plies per game, so `plies_to_end` cannot exceed MAX_PLIES - 1. A cap of 1000 could
+    // therefore never bind: it looked like a limit and was dead code, the same shape as `histCap`
+    // at 2000 in the sibling 4PC project (a clamp above the largest value being clamped).
+    //
+    // THE SCHEDULE ITSELF SATURATES, and that is the finding this default was hiding.
+    // `horizon = (10 + (g-1)*5).min(horizon_cap)` reaches MAX_PLIES at **generation 31**, after
+    // which the filter admits EVERY position of every game and the "widening schedule" is no
+    // longer a schedule. In the 170-generation ledger_long4 run, 140 of 170 generations (82%) ran
+    // with the filter inert, while the schedule kept incrementing to 855 -- five times a ceiling
+    // it had passed 139 generations earlier.
+    //
+    // NOT CLAIMED: that this harmed anything. Accept rate either side of gen 31 is 0.267 +/- 0.158
+    // vs 0.229 +/- 0.070, a difference of -0.038 +/- 0.173 -- NOT resolved -- and MASTER_PLAN is
+    // explicit that "acceptance rate is not a proxy for strength" anyway. What is established is
+    // structural: MASTER_PLAN calls this schedule a hyperparameter that should be LEARNED and
+    // widen "with strength", and as written it is declared, linear, and saturated by gen 31.
+    // Passing --horizon-cap below MAX_PLIES still works and is how the 2x2 arms were run (45).
+    let horizon_cap = arg("--horizon-cap", MAX_PLIES) as u32;
     // DEPTH SCHEDULE. Depth 1 gives ~47x the labels per second and bootstraps the net out of
     // randomness, but at depth 1 the search is barely stronger than the raw eval, so the data
     // stops being better than the net that made it and acceptance stalls (measured: accepted
@@ -548,7 +580,7 @@ fn main() {
         let dgen_depth = if g >= deepen_at { deep } else { depth };
         let t0 = std::time::Instant::now();
         let (data, dec) = datagen::play_games(
-            &champion, dgen_depth, rng.next(), games, 4, 160, threads);
+            &champion, dgen_depth, rng.next(), games, 4, MAX_PLIES, threads);
         let drawn = games - dec;
         let t_gen = t0.elapsed().as_secs_f64();
 
