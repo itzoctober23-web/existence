@@ -616,3 +616,88 @@ so nearly every perturbation of it is a strictly worse program — and 8 candida
 against a ~92% failure rate yields well under one viable candidate per generation. That is a
 population-size and operator-bias question, not a fitness question, and it is the first thing tonight
 that none of the four running arms addresses.
+
+## 2026-09-10 — the account completed: it is the ACCEPTANCE RULE, and the one rule that would fire was never run
+
+This file's 2026-09-08 account is that mates are saturated and cost is blocked, so the fitness cannot
+discriminate. A day of measurement closes it. Six findings, in the order they force each other.
+
+### 1. The bottom line, as a COUNT: 0 of 78 gate calls ever resolved BETTER
+
+Classifying every gate call discretely — RESOLVED WORSE (`rate+ci95 < 0.5`), TIE, RESOLVED BETTER
+(`rate-ci95 > 0.5`) — across every arm running today:
+
+    arm                        cell               worse   tie   better
+    gate_diversity_PAIRED_off  div OFF filt OFF      2      20      0
+    gate_diversity_s1          div ON  filt OFF      2      22      0
+    gate_filter_only           div OFF filt ON       0       4      0
+    gate_div_x_filter          div ON  filt ON       0       5      0
+    gate_specfilter_s1         12+6+5  filt ON       2       5      0
+    gate_sprt30_s1             12+6+5  filt OFF      2      14      0
+                                                    ------------------
+                                                     8      70      0
+
+Six arms, both fitness compositions, both selection rules, both gate types, three binaries, three
+seeds. **88-100% ties. Zero better.**
+
+### 2. Why the ratio makes selling mates mandatory, measured
+
+Every gated candidate sits at the guard floor — MAIN 14 of 14 at 19-20 (seed 23, floor 19), MCTS 16 of
+24 at exactly 6 (seed 10, floor 6). Not a spread with some sellers; a pile-up at the boundary. The
+exchange rate says why:
+
+    mates 19: cost -29.7%, mates -17.4%  ->  ratio 1.71
+    mates 20: cost -28.9%, mates -13.0%  ->  ratio 2.22
+    mates 20: cost -31.1%, mates -13.0%  ->  ratio 2.38      mean 2.10
+
+**Selling 1% of mates buys ~2% of cost.** Under `found/cost` that is strictly profitable every time
+until the guard forbids the next sale — and structurally so, because the marginal mate is the one the
+seed works hardest for, so dropping it saves disproportionate cost. **No tolerance value changes this;
+the dial sets where selling stops, never whether it pays.**
+
+### 3. There is NO neutral-step path in the code
+
+    if same_play && rate > best_rate { ... champ = c }   // PATH 1: strictly cheaper only
+    if same_play                     { ... continue }    // no-op VETO: DISCARDED
+    resolved_up = pent_rate - ci95 > 0.5                 // PATH 2: RESOLVED BETTER only
+
+A candidate that plays identically at equal cost — the definition of a neutral step — is thrown away.
+(I first read the VETO line as admitting drift; it does not. The comment above PATH 1 records that
+promoting on equal rate was a BUG, fixed.) `ladder_valley_RESULT.md` measures the nearest known rung
+at **~59 nodes of neutral-or-worse territory**. A search that discards every neutral step cannot cross
+that, whatever the selection rule.
+
+### 4. Exactly one rule accepts a neutral step, and no arm was running it
+
+    None if veto_only => gsc.pent_rate() + gsc.ci95() >= 0.5,   // accepts TIES
+    None              => gsc.pent_rate() - gsc.ci95() >  0.5,   // shipped: needs BETTER
+
+`EXISTENCE_GATE_VETO` accepts everything not resolved worse. **It accepts 70 of the 78.** Checked from
+`/proc/PID/environ`: it was set in none of the nine arms running. `gate_gateveto` is now running it
+against `gate_diversity_PAIRED_off` — same binary, args, seed and gate, flag the only difference.
+
+### 5. `HARD_FITNESS` was retired on a set-dependent premise
+
+Retired here with *"`hard 0-0`, so HARD_FITNESS has not engaged"*. Measured by composition: 2% nonzero
+on 4+10+10, but **45-62% on 12+6+5**. The premise holds where it was measured and fails on the other
+set. `harder_set` is the only construction that rewards searching BETTER (seed scores 0/8 by
+construction), candidates already solve 1-2 of those positions, and the surrogate discards it.
+
+### 6. Two measurement corrections that invalidated three of my own readings today
+
+* **Seed pairs are error bars.** `composition_s1` vs `s2` — identical config, different seed — differ
+  by **2.41 se** on `distinct` and **3.72 se** on gate rate. Trajectories are entirely seed-dependent;
+  outcomes are not. Any single-arm rate comparison must be checked against this floor first.
+* **Gate rates are autocorrelated.** `acf1 = +0.50` for MCTS: 24 gate calls carry the information of 8,
+  so nominal intervals are too narrow by **x1.7**. Correcting both a candidate effect (+3.89 -> +2.26
+  se) and the noise floor (+3.72 -> +2.80 se) showed the effect was *below* the floor.
+
+**Counts survived both corrections; rates did not.** Every conclusion above rests on counts.
+
+### What this changes about this file's thesis
+
+The 2026-09-08 account said the fitness cannot discriminate, and that stands. What is added is that
+**even a fitness that did discriminate would not help while the acceptance rule requires RESOLVED
+BETTER and the gate resolves 0 of 78.** The selection rule chooses which non-improvement to spend games
+on. `GATE_VETO` is the first mechanism tested that changes what can be accepted at all rather than what
+gets ranked first.
