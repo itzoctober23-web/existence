@@ -220,3 +220,47 @@ disjoint where `forced_mate_set` is mate-in-2 only — but they are not the fitn
 would have shown `forced_mate_set` in one command, and its comment answers the question the
 experiment was designed to ask. Two of tonight's other corrections have the same shape — the answer
 was already in the repo, written down, by me or by an earlier pass.
+
+## 2026-09-10 00:0x — LIVE PAIRED RESULT: the composition set rejects the mate-seller BEFORE the gate
+
+`gate_composition_s1.log` (n1=4 n2=10 n3=10, 17% mate-in-1) against `gate_sprt30_s1.log`
+(n1=12 n2=6 n3=5, 52% mate-in-1). Same `EXISTENCE_EVOLVE_SEED=1`, same gate settings.
+
+**The trajectories are the same programs.** At gens 1-2 the two arms report
+`rates 0.999-0.998700x` and `0.999-0.998708x`, and `0.497-0.496934x` against `0.497-0.496943x` —
+differing in the fifth decimal only, which is what the SAME program scored on a DIFFERENT set. That
+is the evidence the comparison is paired rather than two unrelated runs.
+
+**Then they diverge, and the divergence is the whole point:**
+
+| gen | control, 52% mate-in-1 | composition, 17% mate-in-1 |
+|---|---|---|
+| 3 | **gated** -> VERIFY 0.422, REJECT llr −3.18, **mates 19** of 23 | **mate-ok 0** — no candidate passed the guard |
+| 4 | **gated** -> VERIFY 0.430, REJECT llr −3.03, **mates 20** of 23 | mate-ok 1, rates 0.999, `..none` |
+| 5 | **gated** -> VERIFY 0.398, REJECT llr −2.97, **mates 20** of 23 | (not yet reached) |
+
+The control's gen-3 candidate **sold 4 of 23 mates** for a cost cut, cleared the tolerance-4 guard,
+consumed a 96-pair VERIFY and a 36-game gate, and resolved at **0.422 — decisively worse**. On the
+composition set the same generation yields `mate-ok 0`: **the set refuses it outright.**
+
+**What this does and does not claim.**
+
+* **Claimed:** the depth-heavy composition rejects, at the guard, a candidate class that the shipped
+  composition admits and that then measurably loses. That is the mechanism `fitness_set_composition
+  _RESULT.md` predicted, now observed in the live loop rather than on grafted children.
+* **Claimed:** it is cheaper. Each avoided gate saves 96 VERIFY pairs plus ~30 games, spent to learn
+  something the set could have said for free.
+* **NOT claimed: that this is progress toward a stronger program.** The pre-registration in
+  `relaunch_composition.sh` says exactly this — "FEWER accepts than the control is EXPECTED and is
+  NOT failure... the question is whether what it admits is better, which only VERIFY answers." The
+  composition arm has admitted NOTHING so far. A set that rejects everything is trivially free of
+  bad accepts.
+* **NOT claimed:** that the gens-3/4/5 candidates are byte-identical across arms. The near-identical
+  rates make it near-certain at gens 1-2; by gen 3 the populations may have diverged, since retention
+  depends on the rates the set produces.
+
+**The reading that matters comes later.** `search_has_no_choice_RESULT.md` measures that 94% of
+generations offer ≤1 distinct fitness, so a stricter set risks pushing the choice count from ~1 to 0
+— which is what `mate-ok 0` at gen 3 looks like. Whether this composition eventually admits something
+that VERIFIES ABOVE 0.5, or simply starves the search, is the open question, and gen 6 is where the
+earlier `tt` work says the interesting structure appears.
