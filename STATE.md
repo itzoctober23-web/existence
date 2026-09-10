@@ -4880,3 +4880,49 @@ restarts the generation counter, and the horizon schedule is `10 + (g-1)*5` — 
 not to strength. So the resumed run begins at horizon 10 against a champion that is far from
 iteration zero. MASTER_PLAN says the horizon "should widen with strength rather than being fixed",
 and this is what "declared, not learned" costs in practice: the schedule cannot survive a resume.
+
+## 2026-09-10 — fixing the 96% cost sink revealed an identical one behind it (ARCH, 94.9%)
+
+Earlier today the origin control was measured at **96.3%** of P1's wall clock and cut from
+`--control-every 10 --control-pairs 1000` to `40 / 400`. Re-measuring the resumed run afterwards:
+
+    elapsed 1465s
+    33 generations   =    75s  of actual learning
+    6 ARCH attempts  = 1390s   94.9% of wall clock, ~232s each
+    81 generations/hour
+
+**The ARCH step had been hiding behind the control at the same magnitude.** Removing the dominant
+cost does not leave you fast; it leaves you looking at the next one. I would have missed this
+entirely by assuming the first fix was the fix.
+
+### And ARCH's answer was already settled
+
+Seven attempts, **zero accepted**, and the pattern is one-directional:
+
+| proposal | fixed-cost (equal NODES) | clock (equal TIME) |
+|---|---|---|
+| w16 → w32 | 0.490, 0.541, 0.539, 0.583 | 0.439, 0.427, 0.458, 0.467 |
+| w16 → w64 | 0.516, 0.525 | **0.285, 0.330** |
+| w16 → w128 | filtered on held-out loss, never gated | — |
+
+Wider nets are **better per node and worse per second, every time**, and the penalty grows with
+width (w64 searches 5674 nodes against w16's 7351). Paying two 224-pair matches every 5 generations
+to re-derive that costs 95% of throughput.
+
+**Checked and refuted before acting: a suspected circularity.** The incremental accumulator was once
+gated behind `n_hidden >= 64`, which would have meant "wider nets lose on the clock because the
+thing that would make them cheap is off". `pipeline/src/search.rs:233` shows the gate is gone —
+incremental is ON at every width unless `EXISTENCE_FULL_REFRESH` is set. So w64's 0.285 is a real
+clock loss *with* the accumulator enabled, not an artefact of it being disabled.
+
+### Change and result
+
+`--arch-every 5 → 100`, `--control-every 40 → 100`, champion carried across with `--init` and
+checksum-verified against a pre-shutdown snapshot.
+
+    before   81 generations/hour
+    after  1214 generations/hour     **15.0x**
+
+ARCH is not disabled, only made rare: its answer is correct *at the current engine speed*, and the
+right time to re-ask is after a speed change (bytecode, or a cheaper eval), which is exactly when a
+100-generation cadence will re-ask it anyway.
