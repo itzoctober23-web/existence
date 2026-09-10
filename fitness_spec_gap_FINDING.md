@@ -70,3 +70,30 @@ the 500-per-N set must be "mined by retrograde walk from actual game endings in 
 at iteration zero there is very little self-play to mine. The small set may be a deliberate
 bootstrap. What is NOT defensible on that ground is the ROLE inversion, which costs nothing to fix
 and is what turns a speed metric into the thing selecting champions.
+
+## §10 names this exact degenerate solution, and names the filter as its catcher
+
+`FITNESS.md` §10 is a table of degenerate solutions against the check that catches each. Its first
+row:
+
+| Degenerate solution | Caught by |
+|---|---|
+| **Prune everything / return eval** | **mates-per-cost filter (3)**; ladder (7) |
+
+"Prune everything" is searching less, which is exactly what a cost cut is. So the spec's FIRST line
+of defence against cheapness is the mates-per-cost **filter** — and the implementation inverted that
+filter into the ranking function that *rewards* cheapness. The designated catcher became the driver.
+
+**The second line of defence was intact, but only by accident.** The ladder is the other named
+catcher, and under the strict rule it did hold: 0 accepts in 99 gate calls means no cost-cutter was
+ever promoted. But it held because the fixed 6-pair gate could not accept ANYTHING — it needed ~70%
+of pairs and returned intervals spanning 0.5. That is not a filter working; it is a stuck system that
+happened to be stuck in the safe direction. Where the bar was relaxed, the protection vanished
+immediately: the veto rule promoted a cost-cutter (`STATE.md:2668`, "ACCEPT 15 mates", VERIFY 0.490),
+and PATH 1 promoted 8 times under `SPEC_FILTER`.
+
+**So as of tonight the ladder is a real catcher for the first time** — it resolves, it accepted an
+obvious improvement at llr +3.08 in 26 pairs, and it rejected a real candidate at llr -3.18 in 18.
+That makes fixing the filter's role newly worthwhile rather than newly urgent: with a working ladder
+behind it, a filter that admits more candidates is no longer dangerous, because the games decide.
+Those two changes are complements, and the ladder had to come first.
