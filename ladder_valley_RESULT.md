@@ -702,3 +702,36 @@ file, which is the exact trap this project keeps paying for.
 None of that changes the +104-node conclusion. It explains WHY the 104 nodes cannot be approached
 piecewise: the guards pay nothing individually, and without them the probe actively corrupts the
 answer rather than merely costing time.
+
+### Mode 2 (bare flag READ) — the CONTROL arm, and it is a null
+
+`evolve ttunion 600 3 2`. A third half carrying a `Field(_, Flag)` READ is crossed into the
+probe-store child. This exists to answer a question the treatment arm cannot answer alone: does merely
+having the flag PRESENT change anything, or does it have to be TESTED?
+
+    third half built by single mutation: P1K1F1 with 1 flag read
+
+                              2-way minimal (n=1000)   + bare flag READ (n=600)
+    carrying BOTH halves              74                      63
+    ...play IDENTICALLY               17  (23.0%)             10  (15.9%)
+    ...AND cheaper (PATH-1)           10                      10
+    sound children that NEVER HIT      -                       6 of 10
+    unsound children that NEVER HIT    -                      46 of 53
+
+**Soundness: 23.0% -> 15.9%, Fisher p = 0.3895. NOT resolved.** The point estimate falls but this run
+cannot distinguish that from noise, so the honest reading is that **a bare flag read neither helps nor
+hurts measurably**. It does not raise soundness, which is what the validity-marker hypothesis
+predicts — a read used as a VALUE just substitutes one number for another, it gates nothing — but a
+null is weaker evidence than a fall, and it is reported as a null.
+
+**The zero-injection signature is reproduced independently here:** 46 of 53 unsound children never
+record a single hit, and still change the answer. That is the third dataset showing it.
+
+**Why this control was necessary.** Without it, a positive result in mode 3 would be ambiguous: adding
+ANY third program to the crossing changes program size, node counts and mutation surface, so an
+improvement could come from the extra material rather than from the guard. Mode 2 supplies the extra
+material WITHOUT the guard. If mode 3 rises above both, the guard is doing the work.
+
+Mode 3 (`ttunion 600 3 3`, third half required to TEST the flag — an operand of a `Cmp`/`Pred` or an
+`If` condition) is running. **Pre-registered:** soundness rises materially above BOTH 23.0% and 15.9%,
+or the validity-marker hypothesis is wrong and this section says so.
