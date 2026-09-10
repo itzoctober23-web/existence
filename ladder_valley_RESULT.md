@@ -16,7 +16,7 @@
 | 6 | Minimal-halves PATH-1 rate **1.08%** (13/1200), against the hand-built **5.50%** | Fisher **p = 0.00018** |
 | 7 | Projection over the two confirmed host arms: **6.5%** across 31 remaining generation-trials | 0.20 x 0.0108 per generation |
 | 8 | A fused union `P1S1K2F1` **has been observed once** — under PLAIN truncation, with the reserve inactive | `gate_diversity_s1_uninstrumented.log` gens 3-4 |
-| 9 | **The structural space is TINY: 9 distinct node-kind shapes** across 3,316+ single mutations, 6 of them non-carrier | `ttsupply` shape count |
+| 9 | **9 distinct KIND-PROFILES** across 3,316+ single mutations (6 non-carrier) — but 86 distinct store-carrier PROGRAMS collapse into ~1 of them. The operators RELOCATE within a kind profile rather than introducing new kinds | `ttsupply`; corrected below — "narrow search space" was an overstatement |
 | 10 | The diversity reserve's premise **holds** — it cannot be swamped by novel-shaped neutral twins, because there are only 6 of them | follows from #9; a store-carrier's shape is always novel (only thing with a `Store`) |
 
 **What is built but NOT yet tested live:** `EXISTENCE_DIVERSITY_SLOTS` — a generic structure-keyed
@@ -32,6 +32,8 @@ only when `pool.len() > MU`, and `dsl{n}` on each generation line now reports wh
 * *"three-part conjunction"* UNDERSTATES it — see #1.
 * The **validity-marker hypothesis, as tested, was REFUTED** (flag TEST arm, p = 0.83).
 * *"0 of 40"* used the wrong guard; *"the reserve produced a union"* was wrong — it was never active.
+* *"the search is exploring a narrow structural space"* — OVERSTATED. 9 is a kind-profile count;
+  store-only mutations alone yield 86 distinct programs from 348 draws.
 * A simulation predicted the reserve's effect and was **untrustworthy on its own terms** (3-category
   shape model); it earned its keep by exposing premise #10, which was then measured.
 
