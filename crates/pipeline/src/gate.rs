@@ -70,6 +70,23 @@ impl Score {
     /// opening bias, so the variance is the spread of pair outcomes rather than a binomial on
     /// individual games.
     pub fn ci95(&self) -> f64 {
+        // NO GAMES AT ALL IS NOT A MEASUREMENT, and this is the same lesson as the zero-variance
+        // case below, one step earlier. `Score::default()` is written on the no-match short-circuit
+        // in `main.rs` (a generation `--gate-every` skips), and for it the binomial fallback below
+        // computes `1.96*sqrt(0*(1-0)/1) = 0.0`. Combined with `rate() = 0/1 = 0.0`, the caller's
+        // `resolved_down = rate + ci95 < 0.5` was TRUE: a match that was never played read as
+        // RESOLVED, and resolved in the WORSE direction.
+        //
+        // That flag is written into the ledger as `GateEvidence.resolved`, and the ledger is the
+        // queryable record for every quantitative claim about this loop. Counting resolved accepts
+        // in `ledger.jsonl` returned 22 when the honest answer is 0 -- all 22 played zero games.
+        // It did not merely omit information, it manufactured it.
+        //
+        // 1.0 spans the entire [0,1] score range, so NOTHING resolves either way against it, which
+        // is exactly what "no evidence" should mean.
+        if self.games() == 0 {
+            return 1.0;
+        }
         let n: u32 = self.pent.iter().sum();
         if n < 2 {
             // no pairs recorded: fall back to the binomial rather than report a fake interval

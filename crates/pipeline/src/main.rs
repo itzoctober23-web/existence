@@ -825,7 +825,11 @@ fn main() {
                 pent: sc.pent,
                 rate: sc.pent_rate(),
                 ci95: sc.ci95(),
-                resolved: gate_can_resolve,
+                // BELT AND BRACES. `Score::ci95()` now returns 1.0 for a zero-game record, so
+                // `gate_can_resolve` is already false here. This flag is the one COUNTED out of
+                // the ledger months later, though, and it should be impossible to set from a match
+                // that never happened even if the interval logic moves again.
+                resolved: sc.games() > 0 && gate_can_resolve,
             }],
             // `pool` is recorded so post-hoc analysis can correlate HOW MUCH HISTORY the
             // trainer saw with what the gate decided. It goes to the log line already, but the
