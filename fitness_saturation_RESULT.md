@@ -118,6 +118,31 @@ numerator boost, so it is MORE likely to win its generation and reach the gate. 
 287 gen-lines carry a non-zero hard score, so the dimension does vary — it simply has not yet in
 these two arms.
 
+## WHEN the fix can engage — measured, so `hard 0-0` early is not alarming
+
+`hard > 0` is not uniform across generations. Counted over every arm log on disk:
+
+    gen   gens seen   with hard>0
+      1          31             0      0%
+      2          38             1    2.6%
+      3          34             9     26%
+      4          20            10     50%
+      5          22            11     50%
+      6          27            12     44%
+      7          17             4     24%
+
+**A hard-set solve essentially never appears before gen 3, and peaks around 50% at gens 4-6.** The
+treatment arms currently read `hard 0-0` at gens 1-2, which is exactly what every other arm does and
+therefore carries no information at all. The experiment cannot begin to engage until gen 3, and the
+informative window is gens 4-6. **Do not read an early `hard 0-0` as "the fix does not work".**
+
+**Selection caveat, in the conservative direction.** This distribution is built from lines that PRINT
+the `hard` field, and before today's instrumentation only NON-GATED generations did. Gated
+generations — those where a candidate actually won — are therefore missing from the counts above.
+Those are precisely the generations where a candidate scored highly, which under `HARD_FITNESS` is
+correlated with `hf > 0`. So these figures **understate** the engagement rate in the generations that
+matter. The new `hard {hlo}-{hhi}` on the gate line closes that hole going forward.
+
 **LIMIT OF THIS RUN, stated before the result arrives.** It can answer the OUTCOME and not the
 MECHANISM. A gated generation prints only the VERIFY and gate lines; the `hard h-h` field is printed
 only on non-gated `..none` lines. So for exactly the candidates that reach a gate, nothing records
