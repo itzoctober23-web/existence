@@ -285,3 +285,39 @@ a gated generation is ~90 min.
 VERIFY runs unconditionally after every gate call, including rejects. That is NOT waste to be
 optimised away -- it is the instrument that produced the 3/3-vs-0/3 reading above, and it is the
 falsifier for the HARD_FITNESS arm. It stays.
+
+## CONFIRMED FROM EXISTING RECORDS — cost outbids the numerator even where the numerator is FREE
+
+The under-power prediction above was arithmetic. `STATE.md:2668` already contains the measured case,
+and it settles the MCTS ambiguity I added `mates {f}` to the gate line to resolve:
+
+```
+veto:  gen 4 MCTS  ACCEPT  15 mates  0.001848 (133 nodes, was 0.001406)  gate 0.500
+```
+
+**`15 mates` — unchanged from the seed's 15/23.** So that +31.4% surrogate gain was a **pure cost
+cut**. Its VERIFY reads **0.490 +/-0.018**: below parity, not resolved.
+
+This is the sharpest version of the diagnosis available, because **MCTS is NOT saturated**. Its
+numerator had room — 15 of 23 — so a mate gain was genuinely available and the search did not take
+it:
+
+    a mate gain to f=16 would pay  +6.7%
+    the cost cut actually paid    +31.4%     -> cost outbid the numerator 4.7x
+
+So the problem is not only that MAIN's numerator is *stuck* at 23/23. It is that **the cost term pays
+several times better than the numerator term wherever both are available**, which is exactly the
+imbalance `EXISTENCE_HARD_WEIGHT` exists to correct. The weight-1 arm offers at most +8.7%, against a
+cost lever that has been observed paying +31.4% in this very lineage. Weight 4 offers +34.8% at
+`hf=2`, which is the first setting that can compete with what the search demonstrably prefers.
+
+**And it strengthens rather than weakens the account of what the veto rule buys.** STATE.md is careful
+that its 8 of 17 promotions "are all ties" and that "promoting ties is not the same as improving".
+This adds the mechanism: the ties are ties *because* they are cost cuts that preserve mates and
+change nothing about play except how much search paid for it — and VERIFY at 0.490 says the change is
+mildly negative rather than neutral.
+
+**MASTER_PLAN's own kill criterion prescribes this repair.** `MASTER_PLAN.md:277-282` sets P2's kill
+as *"no program improves on the seed by eval ~1800 -> grammar or fitness is wrong; fix those"*, and
+`STATE.md:2690` records that the condition has FIRED — 0 promotions in 17 game-gate calls. Rebalancing
+the fitness is the prescribed response, not an improvisation.
