@@ -4618,3 +4618,54 @@ cannot traverse that, and no amount of reordering the candidate pool changes it.
 semantics. The word VETO in the output does not say whether the champion moved, and I assumed the
 generous reading. **Checking the branch cost one grep and would have prevented four cycles of building
 on it.**
+
+## 2026-09-10 — `EXISTENCE_GATE_VETO` is the ONLY neutral-step path, and no arm was running it
+
+The retraction above established that nothing in the current code accepts a neutral step: PATH 1
+promotes only on `same_play && rate > best_rate`, the no-op VETO discards, and PATH 2's shipped rule
+demands the candidate be RESOLVED BETTER. Searching for any exception found exactly one:
+
+    let resolved_up = match sprt_verdict {
+        Some(gate::Sprt::Accept) => true,
+        Some(_)                  => false,
+        None if veto_only => gsc.pent_rate() + gsc.ci95() >= 0.5,   // <- accepts TIES
+        None              => gsc.pent_rate() - gsc.ci95() > 0.5,    // shipped: needs BETTER
+    };
+
+`EXISTENCE_GATE_VETO=1` flips the acceptance test from "resolved better" to "not resolved worse". That
+is the neutral-step path, and it is the only one.
+
+**It was set in none of the nine running arms.** Checked from `/proc/PID/environ`, not from memory of
+how they were launched: `GATE_VETO=0` for all of `specfilter_s1`, `specfilter_CONTROL`,
+`composition_s1`, `composition_s2`, `diversity_PAIRED_off`, `div_x_filter`, `filter_only`,
+`set_mateheavy`, `sprt30_s1`.
+
+**And today's count says exactly how much it would change.** Of 78 gate calls across all arms,
+**70 were TIES** and 8 resolved worse. The shipped rule accepts none of the 70. The veto rule accepts
+all 70. That is not a marginal difference in a threshold — it is the difference between a search that
+can move and one that cannot.
+
+**This completes a chain that took the whole session to assemble:**
+
+1. `ladder_valley_RESULT.md`: the nearest known rung sits ~59 nodes of neutral-or-worse territory from
+   the seed, which a strict hill climb cannot cross.
+2. Today: no acceptance path in the code takes a neutral step (retraction above).
+3. Today: 0 of 78 gate calls ever resolved BETTER, so the strict rule can never fire.
+4. `EXISTENCE_GATE_VETO` is the one rule that would fire, on 70 of those 78.
+5. No arm has been running it.
+
+**Launched `gate_gateveto`**: `evolve_PINNED` (`1529d29f3a98dd21`, verified from `/proc` after launch),
+args `25 8 4 10 3 10`, seed 0, `EXISTENCE_GATE_VETO=1` and nothing else. `GATE_SPRT` is unset, so
+`sprt_verdict` is `None` and the veto branch is the one that executes — checked, because the flag is
+inert under SPRT, which is how it could have been set and done nothing. Binary confirmed to contain
+the flag string.
+
+Its matched control already exists and needs no new arm: **`gate_diversity_PAIRED_off`** — same binary,
+same args, same seed, same fixed 6-pair gate, `GATE_VETO=0`, and already 21 generations in with 0
+acceptances and 20 ties.
+
+**Pre-registered reading.** If `gate_gateveto` accepts where the control does not, the bottleneck is
+confirmed as the acceptance RULE and the fix is identified. If it accepts freely and the population
+still ends at the seed's rate, the ties are genuinely neutral and admitting them buys nothing — which
+would send the diagnosis back to the operators. Either outcome is informative; the current state,
+where the only candidate mechanism is untested, is not.
