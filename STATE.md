@@ -3947,3 +3947,44 @@ from `evolve_PINNED` (`1529d29f`), which all four factorial cells share. A mid-e
 exactly what voided the diversity pairing this morning. The fix belongs in the NEXT build, after the
 factorial completes, and is recorded here so it is not lost: **print `dsl` on every per-generation line
 type, not just the one where nothing happened.**
+
+## 2026-09-10 — CORRECTION: "the ranking rule selects nothing" is true of MAIN only, not of MCTS
+
+I recorded, from the specfilter pair, that *"the ranking rule is fast because it does nothing. Its log
+line is `..none[above 0, gated-skip 0]` at every generation: no candidate clears strict
+`rate > best_rate`, so no candidate is gated and no games are played."*
+
+That was generalised from **two generations of one arm**. The completed factorial cells contradict it:
+
+    gate_diversity_PAIRED_off (ranking rule, 18 generations)
+      "above 0" lines: 19
+      gates:           16   -- ALL 16 from the MCTS lineage
+    gate_specfilter_CONTROL (ranking rule, 2 generations)
+      "above 0" lines:  4   -- 2 generations x 2 lineages
+      gates:            0
+
+**The correct statement is per-lineage.** MAIN never selects anything: every one of its generations
+reads `above 0`. MCTS selects and gates freely — 16 times in 18 generations — and still accepts
+nothing. The specfilter control had only reached generation 2, where both lineages happen to be
+`above 0`, so the sample I generalised from could not distinguish the two cases.
+
+**And the per-lineage split is exactly what the record already explains.** `MAIN's seed is 23/23
+mates, MCTS's is 15/23, and only MAIN degrades.` MAIN is SATURATED on the fitness set: nothing can
+beat 23/23 on the numerator, so `rate > best_rate` can only be cleared by cutting cost, and the guard
+blocks the candidates that do. MCTS at 15/23 has headroom, so candidates clear the bar and reach the
+gate. Two lineages, two different failure modes, and I had collapsed them into one.
+
+**This makes the gate result STRONGER, not weaker.** "The gate never fires" would be a claim about
+plumbing. What actually happens is that **MCTS reaches the gate 16 times in 18 generations and accepts
+zero** — the gate fires, plays its games, and rejects every time. Combined with the 96-pair VERIFY
+evidence (MAIN 8/8 resolved WORSE, MCTS 6/6 genuine ties), the picture is not "nothing gets tested" but
+"everything that gets tested is a tie or worse".
+
+**What survives from the original entry:** the ~10x compute asymmetry between filter and non-filter
+arms is unaffected — that was measured from CPU time, not from this claim — and the no-op VETO path
+costing 0 games is unaffected, being a direct observation of the filter arms' own output.
+
+**Method note.** The tell was available and I did not look: a claim about "every generation" was
+supported by a log containing four such lines. **Before generalising from an arm, check how many
+generations it has actually produced** — `gate_specfilter_CONTROL` had 2, while a completed 25-
+generation arm of the same rule sat in the same directory.
