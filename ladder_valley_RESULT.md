@@ -1,3 +1,38 @@
+# The hash-reuse valley — CURRENT STATE (2026-09-10 05:1x)
+
+> **READ THIS BLOCK FIRST. The body below is CHRONOLOGICAL, 1,300+ lines, and contains six
+> corrections. Several early conclusions are superseded by later measurement. Where the head and the
+> body disagree, the head is current — and every superseded claim is marked in place.**
+
+**What is measured and standing:**
+
+| # | finding | evidence |
+|---|---|---|
+| 1 | The rung is **+104 nodes**: probe + store + a validity test + a depth test + 3-way bound dispatch. No proper subset pays. | `reference.rs:315`, and the +104 figure recorded near the top of this file |
+| 2 | **Supply of the two halves is balanced** — 1.02 : 1 | `ttsupply`, 1812 vs 1768 of 20,000 draws |
+| 3 | **The STORE half is the binding constraint.** Guard-passing probe-carriers outrate store-carriers by **0.128 percentage points**, consistently, so `truncate(MU)` puts every store below every probe | 0.995213x vs 0.993933x; live arms 100% bottom-half, 64% last, Mann-Whitney **p = 0.00008** |
+| 4 | **EPS can never fix it.** Both halves sit INSIDE the EPS band; the band is 16x the gap. A THRESHOLD cannot fix a RANKING | floor 0.9800 vs 0.9939 / 0.9952 |
+| 5 | **A miss injects the constant 0.** `Tt::probe` returns `Slot::default()`, so `Field(Slot,Score)` is 0 — an arbitrary probe corrupts the answer rather than merely costing time | 4 independent datasets; median probe-carrier finds **0 mates** |
+| 6 | Minimal-halves PATH-1 rate **1.08%** (13/1200), against the hand-built **5.50%** | Fisher **p = 0.00018** |
+| 7 | Projection over the two confirmed host arms: **6.5%** across 31 remaining generation-trials | 0.20 x 0.0108 per generation |
+| 8 | A fused union `P1S1K2F1` **has been observed once** — under PLAIN truncation, with the reserve inactive | `gate_diversity_s1_uninstrumented.log` gens 3-4 |
+
+**What is built but NOT yet tested live:** `EXISTENCE_DIVERSITY_SLOTS` — a generic structure-keyed
+reserve, default OFF, seven selftest checks green, priced at **3.00x** on the union rate. It engages
+only when `pool.len() > MU`, and `dsl{n}` on each generation line now reports whether it fired.
+
+**Superseded or corrected below — do not quote these without reading their corrections:**
+
+* *"the pair can never be assembled one edit at a time"* — true of ACCEPTANCE, but the crossover path
+  was later shown open and then measured.
+* The **19%** projection became 4.0% and then 6.5%; the 5.50% it rested on was hand-built halves at
+  10 and 5 call sites, not the minimal ones the population carries.
+* *"three-part conjunction"* UNDERSTATES it — see #1.
+* The **validity-marker hypothesis, as tested, was REFUTED** (flag TEST arm, p = 0.83).
+* *"0 of 40"* used the wrong guard; *"the reserve produced a union"* was wrong — it was never active.
+
+---
+
 # The one verified rung is behind a VALLEY, and the valley is structural
 
 `crates/interp/examples/evolve.rs valley 15 5 5 3` — deterministic, re-run reproduces the integers.
