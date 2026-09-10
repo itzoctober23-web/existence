@@ -1929,6 +1929,13 @@ fn tt_union() {
     }
     let (mut wt, mut both, mut same, mut acceptable) = (0usize, 0usize, 0usize, 0usize);
     let (mut tc, mut th, mut ts) = (0u64, 0u64, 0u64);
+    // SPLIT THE TABLE STATS BY SOUNDNESS. The pooled numbers cannot answer the question the n=1000
+    // result raised: 77% of unions change the answer, and the ones that do NOT could be sound for
+    // either of two opposite reasons -- their table works, or their probe never hits and the pair is
+    // inert. Those predict opposite hit rates, so the split settles it and an argument cannot.
+    let (mut sc, mut sh, mut ss_) = (0u64, 0u64, 0u64); // sound (plays identically)
+    let (mut uc, mut uh, mut us) = (0u64, 0u64, 0u64); // unsound (changes the answer)
+    let (mut n_sound_nohit, mut n_unsound_nohit) = (0usize, 0usize);
     for k in 0..n {
         let mut r = Rng::new((k as u64) << 12 ^ 0x5E11);
         let (rec, don) = if minimal {
@@ -1948,7 +1955,15 @@ fn tt_union() {
         tc += cc; th += hh; ts += ss;
         let (_, cost, _) = fitness(&child, &set, &net, depth, 16);
         let sp = plays_same(&child);
-        if sp { same += 1; if cost < bc { acceptable += 1; } }
+        if sp {
+            sc += cc; sh += hh; ss_ += ss;
+            if hh == 0 { n_sound_nohit += 1; }
+            same += 1;
+            if cost < bc { acceptable += 1; }
+        } else {
+            uc += cc; uh += hh; us += ss;
+            if hh == 0 { n_unsound_nohit += 1; }
+        }
     }
     println!("\n  well-typed children      : {wt} of {n}");
     println!("  carrying BOTH halves     : {both}");
@@ -1958,6 +1973,18 @@ fn tt_union() {
         println!("  table behaviour across them: {tc} probes, {th} hits ({:.1}%), {ts} stores, {:.1} probes/store",
                  100.0 * th as f64 / tc.max(1) as f64, tc as f64 / ts.max(1) as f64);
         println!("  compare ab_hash, a working table: ~1% hits, ~14 probes/store");
+        // The discriminator, both arms on the same lines so they read against each other.
+        let pct = |h: u64, c: u64| 100.0 * h as f64 / c.max(1) as f64;
+        let per = |c: u64, s: u64| c as f64 / s.max(1) as f64;
+        println!("\n  SPLIT BY SOUNDNESS (the question: do the sound ones REUSE, or merely not fire?)");
+        println!("    sound   (plays identically): {sh} hits / {sc} probes = {:.1}%,  {:.1} probes/store,  {n_sound_nohit} of {same} never hit at all",
+                 pct(sh, sc), per(sc, ss_));
+        println!("    unsound (changes the answer): {uh} hits / {uc} probes = {:.1}%,  {:.1} probes/store,  {n_unsound_nohit} of {} never hit at all",
+                 pct(uh, uc), per(uc, us), both - same);
+        println!("    READING: sound ~0% hits  -> they are sound because the pair is INERT, and PATH-1");
+        println!("             would be accepting no-ops. Sound hits ~= unsound hits -> soundness is");
+        println!("             about WHAT is stored, not whether it is read, and a validity/bound");
+        println!("             marker is the missing ingredient (ab_hash needs flag != 0 + bound type).");
     }
 }
 
