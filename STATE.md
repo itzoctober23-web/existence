@@ -4669,3 +4669,52 @@ confirmed as the acceptance RULE and the fix is identified. If it accepts freely
 still ends at the seed's rate, the ties are genuinely neutral and admitting them buys nothing — which
 would send the diagnosis back to the operators. Either outcome is informative; the current state,
 where the only candidate mechanism is untested, is not.
+
+## 2026-09-10 — systematic flag sweep: 8 mechanisms untested, and one has a FALSE retirement premise
+
+`GATE_VETO` was found by chasing one thread. Doing it deliberately: every `EXISTENCE_*` flag the code
+reads, cross-referenced against every running arm's `/proc/PID/environ`.
+
+    READ BY THE CODE (17):  COST_CAP DIVERSITY_SLOTS EPS EVOLVE_SEED GATE_ELO0 GATE_ELO1
+                            GATE_MAXPAIRS GATE_SPRT GATE_VERIFY GATE_VETO GUARD_TOL HARD_FITNESS
+                            HARD_N HARD_WEIGHT MATE2 MCTS_SEED SPEC_FILTER
+
+    SET BY SOME ARM (9):    DIVERSITY_SLOTS EVOLVE_SEED GATE_ELO0 GATE_ELO1 GATE_MAXPAIRS
+                            GATE_SPRT GATE_VERIFY GATE_VETO SPEC_FILTER
+
+    NEVER SET (8):          COST_CAP EPS GUARD_TOL HARD_FITNESS HARD_N HARD_WEIGHT MATE2 MCTS_SEED
+
+Most are already accounted for — `GUARD_TOL` was swept and both ends measured to fail, `EPS` is the
+retention band the valley result showed a threshold cannot fix. **`HARD_FITNESS` is different: its
+retirement rests on a premise that today's data contradicts.**
+
+`fitness_saturation_RESULT.md:89` retires it with *"Also confirmed as predicted: `hard 0-0`, so
+`HARD_FITNESS` has not engaged"* — the argument being that no candidate scores on the hard set, so
+folding it into the surrogate weights a term that is always zero. Measured today, by set composition:
+
+    gate_diversity_s1          4+10+10    nonzero hard   1 of 50  =  2%
+    gate_diversity_PAIRED_off  4+10+10    nonzero hard   1 of 49  =  2%
+    gate_specfilter_s1         12+6+5     nonzero hard   5 of  8  = 62%
+    gate_sprt30_s1             12+6+5     nonzero hard  10 of 22  = 45%
+
+**On the 4+10+10 set the premise holds (2%). On 12+6+5 it does not (45-62%).** The retirement was
+measured on the depth-heavy composition and generalised to both. On the mate-heavy set, candidates
+score on the hard set routinely — and `HARD_FITNESS` would weight exactly that.
+
+**Why this matters against today's bottleneck.** 0 of 78 gate calls ever resolved BETTER; the surrogate
+proposes ties and worse, never better. `harder_set` is the ONLY construction in the tree that rewards
+searching better rather than cheaper — the seed scores 0/8 on it by construction. Candidates are
+already solving 1-2 of those positions and **the surrogate currently ignores it entirely**, because
+`HARD_FITNESS` is off. That is a signal being generated and discarded.
+
+**Not launching it now.** Ten arms are already sharing four cores at ~39% cpu-stall while a 4PC gate
+holds cores 0-11, and `gate_gateveto` — the higher-priority mechanism, since it addresses acceptance
+rather than ranking — started minutes ago. Queued as the next Existence arm, with its shape already
+determined: **`EXISTENCE_HARD_FITNESS=1` at args `25 8 12 6 3`** (the mate-heavy set, because that is
+where the term is non-zero) against `gate_set_mateheavy` as its matched control — same binary, same
+args, same seed, differing only in the flag. That control is already running.
+
+**Method note.** The flag sweep took one command and found a mechanism whose retirement was
+set-dependent. **A conclusion measured in one regime and recorded without that qualifier is the same
+defect as the depth-6 node counts** that ranked two 4PC parameters backwards today — and it is the
+third instance of that shape in one session.
