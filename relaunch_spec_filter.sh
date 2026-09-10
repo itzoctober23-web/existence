@@ -36,7 +36,7 @@
 # moves here is expected and is NOT by itself evidence of strength — the ladder decides that, which
 # is exactly §3's point. What matters is whether VERIFY on those promotions stops reading below 0.5.
 set -u
-BIN=/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad/xt_r/release/examples/evolve
+BIN=/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad/xt_sf/release/examples/evolve
 cd /home/maswabe/existence || exit 1
 [ -x "$BIN" ] || { echo "missing binary: $BIN" >&2; exit 1; }
 [ -f gate_specfilter_s1.log ] && mv -f gate_specfilter_s1.log gate_specfilter_s1.log.prev

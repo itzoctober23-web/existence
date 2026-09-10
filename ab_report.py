@@ -53,6 +53,10 @@ EPS_RE    = re.compile(r'EPS=([0-9.]+)')
 # Fourth instance tonight of a dedup key too coarse to separate the thing being varied.
 SETN_RE   = re.compile(r'lineage MAIN.*?-> *(\d+)/(\d+) mates')
 LAM_RE    = re.compile(r'lambda=(\d+)')
+# SPEC_FILTER is arm identity as well. Without it the spec-filter arm and its own control print
+# byte-identical headers and POOL -- the sixth dimension tonight that a key could not express.
+# Absent field means off, which is correct for every log written before evolve.rs printed it.
+SF_RE     = re.compile(r'SPEC_FILTER (on|off)')
 LLR_RE    = re.compile(r'llr\s+([-+0-9.]+)')
 # Added to the gate line on 2026-09-09 and, until now, NOT PARSED HERE -- the fields existed in the
 # log and the reader was blind to them, which would have surfaced at the exact moment they mattered.
@@ -71,6 +75,7 @@ def parse(path):
     eps  = float(m.group(1)) if (m := EPS_RE.search(txt)) else None
     setn = int(m.group(2)) if (m := SETN_RE.search(txt)) else None
     lam  = int(m.group(1)) if (m := LAM_RE.search(txt)) else None
+    sf   = (m.group(1) == 'on') if (m := SF_RE.search(txt)) else False
     # PREFER THE EXPLICIT HEADER. Arms now print "HARD_FITNESS on weight N" / "HARD_FITNESS off".
     #
     # The old heuristic below inferred the FLAG from the seed's own surrogate (0.002490 without the
@@ -114,10 +119,10 @@ def parse(path):
             mt = int(mm.group(1)) if (mm := MATES_RE.search(line)) else None
             hm = HARD_RE.search(line)
             hlo, hhi = (int(hm.group(1)), int(hm.group(2))) if hm else (None, None)
-            rows.append(dict(seed=seed, tol=tol, eps=eps, setn=setn, lam=lam, hard=hard, hw=hw, gen=key[0], lin=key[1],
+            rows.append(dict(seed=seed, tol=tol, eps=eps, setn=setn, lam=lam, sf=sf, hard=hard, hw=hw, gen=key[0], lin=key[1],
                              verify=v, ci=ci, surro=s, verdict=m.group(3), llr=lr,
                              mates=mt, hlo=hlo, hhi=hhi))
-    return dict(seed=seed, tol=tol, eps=eps, setn=setn, lam=lam, hard=hard, hw=hw, hdr=hdr, gens=gens), rows
+    return dict(seed=seed, tol=tol, eps=eps, setn=setn, lam=lam, sf=sf, hard=hard, hw=hw, hdr=hdr, gens=gens), rows
 
 def main():
     # NOTE: `gate_hardw*` must be here. It was missed when the weight-4 arm was added, which would
@@ -138,24 +143,24 @@ def main():
     for p in paths:
         meta, rows = parse(p)
         hf = ('HARD_FITNESS w=%g' % meta['hw']) if meta['hard'] else ('surrogate-only' if meta['hard'] is False else '?')
-        print(f"    {p:<32} seed {meta['seed']} tol {meta['tol']} EPS {meta['eps']} set {meta['setn']} lam {meta['lam']}  {hf}  ({len(rows)} gated)")
+        print(f"    {p:<32} seed {meta['seed']} tol {meta['tol']} EPS {meta['eps']} set {meta['setn']} lam {meta['lam']} {'SF' if meta['sf'] else '  '} {hf}  ({len(rows)} gated)")
         for r in rows:
             # DEDUPLICATE: identical config replays the identical trajectory.
-            k = (r['seed'], r['tol'], r['eps'], r['setn'], r['lam'], r['hard'], r['hw'], r['lin'], r['gen'], r['surro'])
+            k = (r['seed'], r['tol'], r['eps'], r['setn'], r['lam'], r['sf'], r['hard'], r['hw'], r['lin'], r['gen'], r['surro'])
             if k in seen:
                 continue
             seen.add(k); allrows.append(r)
         if meta['hdr']:      # post-ratchet-fix arms ONLY -- see the note in parse()
             for (gn, lin, gated) in meta['gens']:
-                gseen[(meta['seed'], meta['tol'], meta['eps'], meta['setn'], meta['lam'], meta['hard'], meta['hw'], lin, gn)] = gated
+                gseen[(meta['seed'], meta['tol'], meta['eps'], meta['setn'], meta['lam'], meta['sf'], meta['hard'], meta['hw'], lin, gn)] = gated
 
     strata = {}
     for r in allrows:
-        strata.setdefault((r['tol'], r['eps'], r['setn'], r['lam'], r['hard'], r['hw']), []).append(r)
+        strata.setdefault((r['tol'], r['eps'], r['setn'], r['lam'], r['sf'], r['hard'], r['hw']), []).append(r)
 
-    for (tol, eps, setn, lam, hard, hw), rows in sorted(strata.items(), key=lambda kv: tuple((x or 0) if not isinstance(x,bool) else int(x) for x in kv[0])):
+    for (tol, eps, setn, lam, sf, hard, hw), rows in sorted(strata.items(), key=lambda kv: tuple((x or 0) if not isinstance(x,bool) else int(x) for x in kv[0])):
         hf = ('HARD_FITNESS weight %g' % hw) if hard else ('surrogate only' if hard is False else 'unknown')
-        print(f"\n  === tol {tol} | EPS {eps} | set {setn} | lambda {lam} | {hf} | {len(rows)} unique gated gens ===")
+        print(f"\n  === tol {tol} | EPS {eps} | set {setn} | lam {lam} | {"SPECFILT" if sf else "strict"} | {hf} | {len(rows)} gated ===")
         print("    seed gen lin    surrogate   VERIFY            gate")
         for r in sorted(rows, key=lambda r: (r['lin'], r['seed'] or 0, r['gen'])):
             v = f"{r['verify']:.3f}+/-{r['ci']:.3f}" if r['verify'] is not None else "   --        "
@@ -179,10 +184,10 @@ def main():
         print(f"\n  === GATING RATE per stratum (pre-registered: should RISE from 42.3%) ===")
         print(f"    baseline WITH the ratchet: 99/234 = 42.3%")
         by = {}
-        for (seed, tol, eps, setn, lam, hard, hw, lin, gn), gated in gseen.items():
-            by.setdefault((tol, eps, setn, lam, hard, hw), []).append(gated)
+        for (seed, tol, eps, setn, lam, sf, hard, hw, lin, gn), gated in gseen.items():
+            by.setdefault((tol, eps, setn, lam, sf, hard, hw), []).append(gated)
         for k in sorted(by, key=lambda k: tuple((x or 0) if not isinstance(x, bool) else int(x) for x in k)):
-            tol, eps, setn, lam, hard, hw = k
+            tol, eps, setn, lam, sf, hard, hw = k
             v = by[k]; g = sum(1 for x in v if x)
             hf = ('HF w=%g' % hw) if hard else 'plain'
             note = ""
@@ -190,7 +195,7 @@ def main():
                 note = "   <- frozen BY DESIGN, not comparable"
             elif len(v) < 12:
                 note = f"   <- n={len(v)}, too few"
-            print(f"    tol {tol} EPS {eps} set {setn} lam {lam} {hf:<8}"
+            print(f"    tol {tol} EPS {eps} set {setn} lam {lam} {'SF' if sf else '  '} {hf:<8}"
                   f"  {g}/{len(v)} = {100*g/len(v):5.1f}%{note}")
 
     treat = [r for r in allrows if r['hard'] and r['lin'] == 'MAIN' and r['verify'] is not None]

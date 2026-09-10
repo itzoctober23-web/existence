@@ -1464,6 +1464,13 @@ fn main() {
     // the seed scores hf=0 and w*0 = 0 at every weight. A weight-1 and a weight-4 arm therefore have
     // byte-identical headers and would be pooled as one condition. That is the same class of error
     // as counting duplicate trajectories as independent observations.
+    // SPEC_FILTER MUST BE IN THE HEADER TOO. Without it a spec-filter arm and a strict-rule arm
+    // print byte-identical headers, so `ab_report.py` pools them and the comparison vanishes into
+    // an average. That is the SIXTH time tonight a key could not express a varied dimension; the
+    // fix is the same each time -- if the header cannot say it, ADD A FIELD, do not infer it from
+    // a filename. Absent field == off, which is correct for every arm that predates this line.
+    let sf_cfg = if std::env::var("EXISTENCE_SPEC_FILTER").is_ok() { ", SPEC_FILTER on" }
+                 else { ", SPEC_FILTER off" };
     let hard_cfg = if std::env::var("EXISTENCE_HARD_FITNESS").is_ok() {
         let w: f64 = std::env::var("EXISTENCE_HARD_WEIGHT")
             .ok().and_then(|s| s.parse().ok()).unwrap_or(1.0);
@@ -1471,7 +1478,7 @@ fn main() {
     } else {
         ", HARD_FITNESS off".to_string()
     };
-    println!("  population MU={MU}, lambda={pop}, EPS={EPS:.3}, guard tolerance {guard_tolerance}{hard_cfg} \
+    println!("  population MU={MU}, lambda={pop}, EPS={EPS:.3}, guard tolerance {guard_tolerance}{hard_cfg}{sf_cfg} \
 (deepest measured valley half is 0.009)");
 
     // RECORD panics, do not silence them. The first version of this hook discarded the message
