@@ -86,9 +86,25 @@ The prediction to falsify: if saturation is the cause, the treatment arm's MAIN 
 stop being resolved-worse by VERIFY. If they are still resolved worse, saturation is NOT the
 mechanism and this document is wrong.
 
-## Cost note (measured, not assumed)
+## Cost note — one figure MEASURED, one still an ESTIMATE
 
-VERIFY runs 96 pairs = 192 games BEFORE each gate decision, so it dominates a generation: the
-fixed-gate control took ~45 min/gen with a 6-pair (12-game) gate. The sequential gate at a median 55
-pairs adds ~9-16 min on top, i.e. roughly +25% per decision, not the 67x the raw cap suggests. A
-25-generation run is therefore an overnight job, which is affordable.
+**Measured.** Generations that produce no gate call cost ~3.5 min each (the two new arms both cleared
+gens 1-2 in 6-7 min). The fixed-gate control averaged ~47 min/gen over its first four generations,
+two of which were gated. Solving those together puts a GATED generation near ~90 min, and the gate
+itself is only 12 games there -- so the cost is VERIFY (96 pairs = 192 games) plus the fitness
+evaluation of 8 candidates, not the gate.
+
+**Estimate, not measured.** An earlier version of this note claimed the sequential gate adds "~9-16
+min, roughly +25%". That rests on a per-game cost of 5-9 s that was never pinned down: the smoke
+binary is the only clean sample and it had logged >=9 min CPU for <=112 games when last observed
+before exit, which is a LOWER bound of ~4.8 s/game with no upper bound. The +25% is therefore an
+estimate and is labelled as one.
+
+**The exact number arrives on its own.** Each arm's gen-3 VERIFY is a known 192-game unit of work
+bounded by two log-line timestamps; that gives s/game directly, with no new load and no new harness.
+Until then the affordability claim stands only as: the gate is a minority of a gated generation, and
+a gated generation is ~90 min.
+
+VERIFY runs unconditionally after every gate call, including rejects. That is NOT waste to be
+optimised away -- it is the instrument that produced the 3/3-vs-0/3 reading above, and it is the
+falsifier for the HARD_FITNESS arm. It stays.
