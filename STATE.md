@@ -4030,3 +4030,45 @@ Understanding why that selection failed to bite is the prerequisite for the next
 factorial arms are currently the box's committed work. Recorded so the next attempt starts from
 "build a set the seed scores 40-70% on, verified by measuring the seed on it BEFORE running an arm",
 rather than from "reduce mate-in-1 share", which has now been tried and measured.
+
+## 2026-09-10 — the set the record calls "the weakness" produces FAR more better-searching candidates
+
+`harder_set` is the one construction in this tree that rewards searching BETTER rather than cheaper:
+it records the seed's answer one ply DEEPER than the fitness depth, so **the seed scores 0/8 by
+construction** and only a candidate that genuinely resolves more can score. Its own comment says so:
+*"A capture extension resolves a tactical line the flat-depth seed truncates, so it can convert here;
+a program that just prunes more cannot."*
+
+Counted how often any candidate scores nonzero on it, per arm:
+
+    arm                     set        nonzero hard   of      rate
+    gate_specfilter_s1      12+6+5      5             8       63%
+    gate_sprt30_s1          12+6+5      9            21       43%
+    gate_composition_s1     4+10+10     2            26        8%
+    gate_diversity_s1       4+10+10     1            50        2%
+    gate_diversity_PAIRED_off 4+10+10   0            37        0%
+
+**The 12+6+5 arms — the mate-in-1-heavy composition the record calls "the weakness" — produce
+better-searching candidates 5-30x more often than the depth-heavy 4+10+10 arms.** The hard set is the
+same 8 positions everywhere (same builder, same depth 3, same net), so this is not a difference in
+what is being scored.
+
+**Stated with its confound, because the arms differ in more than the set.** The 12+6+5 arms also run
+SPRT (to 400 pairs, ELO0=0/ELO1=30) on binaries `dd2c919b`/`cd29871d`, while the 4+10+10 arms run the
+fixed 6-pair gate on `1529d29f`/`549fceeb`. Set composition is confounded with gate type and binary,
+so this is **an observation that demands an experiment, not a conclusion**. It is exactly the shape of
+error found twice today — `sprt30` looked like `specfilter`'s control because their env differed by one
+variable while their binaries differed by five hours.
+
+**Why it is worth flagging anyway.** `fitness_set_composition_RESULT.md`'s surviving recommendation is
+*"the mate-in-1 majority is the weakness, and n2/n3 UP is the right direction"*, and the factorial now
+running is built on the 4+10+10 composition BECAUSE of that recommendation. If the pattern above is
+real rather than confounded, the factorial is running on the composition that produces the fewest
+better-searching candidates — which would not invalidate it (all four cells share the set, so the
+comparison stands) but would mean it is being run in the least informative regime.
+
+**The clean experiment is cheap and specific:** one arm at `25 8 12 6 3` on `evolve_PINNED` — the
+factorial's own binary — with the fixed 6-pair gate. That isolates SET composition with binary and
+gate held fixed, which no existing pair does. Not launched now: the box is committed to `gate_iir`
+plus 8 arms, and adding a 9th while a gate runs is the resource rule's whole point. Queued as the
+next Existence arm when a slot frees.
