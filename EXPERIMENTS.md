@@ -1317,12 +1317,31 @@ behind the bogus "0.14x" interpreter reading. Fixed; seed now 10/10.
   ever accepted.** With the gate cleared, VERIFY (96 pairs, independent seed) says: under the
   standard guard, MAIN **3/3 resolved WORSE** (0.422+/-0.027, 0.430+/-0.030, 0.430+/-0.031) while
   MCTS is **0/3** (0.490, 0.492, 0.505). Mechanism, with a natural experiment: MAIN's seed is
-  **23/23 mates -- saturated** -- so "keep every mate, get cheaper" can only be satisfied by
-  searching less, and cheapness is the axis that costs strength; MCTS's seed is **15/23**, not
-  saturated, and does not degrade. `evolve.rs:1639` already stated the saturation; the known repair
-  (swap mate-in-1 for a forced-mate set) is INCOMPLETE because 23/23 is still saturated. Acting on
-  it via `EXISTENCE_HARD_FITNESS=1`, which was implemented, pre-justified, defaulted OFF, and had
-  never once been enabled by any arm. A/B running on two seeds; falsifier pre-registered.
+  **23/23 mates**, MCTS's is 15/23, and only MAIN degrades.
+
+  **⚠ THE MECHANISM I GAVE HERE IS REFUTED — corrected 2026-09-09 20:50, same day.** I wrote that
+  MAIN's numerator is SATURATED, so the surrogate could only improve via cost. The `mates {f}` field
+  added to the gate line refuted that on its first line: `mates 19`, against a seed of 23. MAIN's
+  guard floor is **19, not 23** (`23/23 mates (floor 19)`), so the numerator was never pinned. The
+  winning candidate **SOLD 4 of 23 forced mates** for a 29.7% cost cut, and the surrogate paid it
+  +17.4% for the trade (f 23->19 = 0.826, cost 0.703, rate 1.174). VERIFY 0.422 follows, because a
+  program missing 4 forced mates is genuinely weaker rather than merely cheaper.
+
+  So `mates/Mcost` is not a saturated ratio degenerating into `1/cost`. It is an **EXCHANGE RATE**,
+  and `guard_tolerance` sets the price. The relaxed-guard arm is the same curve at a wider licence,
+  not a separate condition: tolerance 7 / floor 16 reached +85.5% surrogate and VERIFY **0.258**.
+
+  **Consequence for the repair, which is the part that matters for a do-not-regress list.**
+  `EXISTENCE_HARD_FITNESS` raises what the numerator is WORTH; it does not stop the numerator being
+  SOLD, so it raises the price without closing the market. The repair the evidence points at is
+  **`EXISTENCE_GUARD_TOL=0`** (floor 23, no mate may be dropped), which is what `evolve.rs:45` says
+  the rule already is — *"keep every mate, get cheaper"*. A floor of 19 does not keep every mate.
+  Running on core 12; `mates` must read 23 on every gate line or the arm is not doing what is claimed.
+
+  **Direction unchanged, mechanism wrong.** Every measured number above still stands: the surrogate
+  rewards cheapness, candidates that improve it are resolved worse, cost outbids the numerator. Only
+  the account of HOW was wrong, and it was wrong in the direction that made the fix look harder than
+  it is.
 
 - **MY OWN ERROR, recorded because the do-not-regress list is also for method.** I first reported
   "4 of 4 MAIN resolved worse" plus a Spearman over n=7. Both wrong. Arms with identical
