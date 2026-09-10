@@ -63,6 +63,7 @@ fn main() {
     // spread is wide says so instead of returning one lucky number.
     let reps: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(9);
     let mut ratios: Vec<f64> = Vec::with_capacity(reps);
+    let (mut best_ref, mut best_int) = (f64::INFINITY, f64::INFINITY);
     let (mut nodes, mut t_ref, mut t_int, mut cost, mut ev_i, mut ev_r) = (0u64, 0.0, 0.0, 0u64, 0u64, 0u64);
     let mut mv = board::types::MOVE_NONE;
     for _ in 0..reps {
@@ -90,6 +91,8 @@ fn main() {
         t_int = t1.elapsed().as_secs_f64();
         cost = it.cost;
         ev_i = it.evals;
+        if t_ref < best_ref { best_ref = t_ref; }
+        if t_int < best_int { best_int = t_int; }
         ratios.push(t_ref / t_int);
     }
     ratios.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -102,11 +105,19 @@ fn main() {
     println!();
     println!("  EQUIVALENCE CHECK  evals: hand {} vs interp {}  -> {}", ev_r, ev_i,
         if ev_r == ev_i { "same tree" } else { "DIFFERENT TREES - ratio is meaningless" });
-    println!("  wall-clock ratio (interp/hand): MEDIAN {:.3}x  [min {:.3}, max {:.3}]  acceptance >= 0.50", med, lo, hi);
+    // BEST-OF-N IS THE FIGURE TO QUOTE. Contention noise is ONE-SIDED: another process stealing a
+    // core can only make a run slower, never faster. So each arm's MINIMUM observed time is its
+    // least-contended sample, and the ratio of minima estimates the true ratio far better than a
+    // median of ratios does on a loaded box. This is why the median above swings 1.5-1.7x here while
+    // the best-of ratio barely moves: the median is measuring the box's load, not the interpreter.
+    let best_ratio = best_ref / best_int;
+    println!("  wall-clock ratio (interp/hand):");
+    println!("    BEST-OF-{reps}  {best_ratio:.3}x    <- quote this one; contention is one-sided");
+    println!("    median      {med:.3}x  [{lo:.3}, {hi:.3}]");
+    println!("    acceptance >= 0.50  ->  {}", if best_ratio >= 0.50 { "PASS" } else { "FAIL" });
     if hi / lo > 1.25 {
-        println!("  ⚠ SPREAD {:.2}x ACROSS REPS -- the box is contended or the run is too short.", hi / lo);
-        println!("    The PASS/FAIL is still sound (the bound is 0.50); the third digit is not. Do not");
-        println!("    quote this median as a precise figure or compare it to another one digit by digit.");
+        println!("  note: median spread {:.2}x across reps -- the box is contended. That affects the", hi / lo);
+        println!("        median, not the best-of, which is why the best-of is the reported figure.");
     }
     println!("  NOTE: stage-1 tree-walker; bytecode is the target, so this is a LOWER BOUND.");
 }

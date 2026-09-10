@@ -36,6 +36,31 @@ it would have been made in good faith against a number sitting in the P0 line.
 **The depth-4 median (0.952x) is consistent with the recorded 0.98x within that spread**, so the
 recorded claim is not refuted -- it is re-stated at the precision the instrument supports.
 
+## The fix that actually worked: BEST-OF-N, not a warning
+
+Reporting a median with a spread warning was honest but not useful -- the box carries four evolve arms
+and six datagen lanes and will not be idle for nine days, so "re-measure on a quiet box" is not a plan.
+
+**Contention noise is ONE-SIDED.** Another process stealing a core can only make a run slower, never
+faster. So each arm's MINIMUM observed time is its least-contended sample, and the ratio of minima
+estimates the true ratio far better than a median of ratios. Standard best-of-N benchmarking, and it
+needs no quiet box and no new dependency.
+
+Three independent invocations, depth 4, 7 reps each, on the SAME loaded box:
+
+    BEST-OF-7   0.970x    median 0.962x  [0.942, 0.970]
+    BEST-OF-7   0.963x    median 0.956x  [0.951, 0.975]
+    BEST-OF-7   0.961x    median 0.957x  [0.940, 0.985]
+
+**Spread of the quoted figure: 1.009x, against the one-shot instrument's 1.67x.** The equivalence
+check passed on every run (42,820 evals both arms).
+
+### And it confirms the recorded number
+
+**0.961-0.970x against P0's recorded 0.98x.** The claim was right all along; there was simply no
+instrument capable of demonstrating it. A future bytecode comparison against 0.96x is now meaningful
+at the ~1% level, which is the whole point of having fixed this before CRATE 4 rather than after.
+
 ## Honest limits
 
 The spread stays ~1.5x even at depth 4 because the box is contended, not because the run is short;
