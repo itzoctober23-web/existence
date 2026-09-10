@@ -1,3 +1,49 @@
+# ⚠ SATURATION IS REFUTED — the candidate SELLS mates for cost. Corrected 2026-09-09 20:50
+
+**The instrument I added to test this premise refuted it on its first line.** The gate line now
+prints the winner's mate count, and `evolve.rs:2092`'s comment stated the test explicitly: *"For MAIN
+this is expected to read a constant 23 — that IS the saturation, made visible instead of argued. If
+it ever reads anything else, the premise this whole document rests on is wrong and should fail
+loudly."*
+
+    gen 3 MAIN gate REJECT llr -3.18 0.444+/-0.063 (36 games W-D-L 2-28-6)  mates 19  hard 0-0
+
+**It reads 19, not 23.** The guard floor for MAIN is 19, not the seed's 23 — the header says so:
+`23/23 mates (floor 19)`. So the numerator is NOT pinned. A candidate may DROP to 19 and still pass
+the guard, and this one did:
+
+    seed       f=23  rate 0.002490  cost 9,236,947,791
+    candidate  f=19  rate 0.002924  cost 6,497,948,016
+
+    mates      19/23 = 0.826    LOST 17.4% of its mates
+    cost                0.703    29.7% CHEAPER
+    surrogate           1.174    +17.4%   <- the surrogate PAID it for the trade
+
+**The mechanism is worse than saturation, not milder.** I claimed `mates/Mcost` degenerates into
+`1/cost` with the numerator stuck at its ceiling. It does not. It is an active EXCHANGE RATE:
+guard tolerance 4 lets a candidate sell up to 4 mates, and the cost term buys them. VERIFY reads
+**0.422 +/-0.027** — resolved worse — because a program that has lost 4 of 23 forced mates is
+genuinely weaker, not merely cheaper.
+
+**This also explains the relaxed-guard arm, which I had quarantined as a different condition.**
+`gate_guardtol_s2` runs tolerance 7 / floor 16, its candidate reached surrogate 0.004618 (+85.5%),
+and VERIFY read **0.258**. Same mechanism, wider licence: more mates sellable, worse play. That is
+now a data point IN this account rather than an outlier beside it — the tolerance IS the exchange
+rate, and the two arms are two points on one curve.
+
+**What survives.** The direction of every measured result is unchanged: the surrogate rewards
+cheapness, candidates that improve it are resolved worse, and cost outbids the numerator. What
+changes is the mechanism and therefore the repair. `EXISTENCE_HARD_WEIGHT` raises what the numerator
+pays — but if the numerator can be SOLD, adding weight to it raises the price without closing the
+market. **The repair that closes it is guard tolerance 0** (`f >= best_found`, no drop permitted),
+which is what `evolve.rs:45` says the rule was: *"keep every mate, get cheaper"*. The shipped floor
+of 19 does not keep every mate.
+
+**Also confirmed as predicted:** `hard 0-0`, so `HARD_FITNESS` has not engaged, and the falsifier
+correctly reports 2/2 still-worse as UNDECIDED rather than a refutation.
+
+---
+
 # The gate was never the bottleneck — the surrogate is
 
 **Headline.** With the sequential gate now VERIFIED (it accepts a real improvement in 26 pairs), the
