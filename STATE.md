@@ -5199,3 +5199,91 @@ the one-directional crossover are one gap seen from two sides.
   are 8 datagen lanes. Re-verified by `/proc/PID/exe` with the observer excluded.
 * **Pre-existing, not from these changes**: `shipped_configuration_admits_no_known_exploit` fails
   identically with the changes stashed (the documented `guard_tolerance_worst_of_both` condition).
+
+---
+
+## 2026-09-10, 17:50-18:30 — the two levers, and a blocker under both of them
+
+Redirected off the audit and onto two named levers: datagen depth, and inference speed → search
+depth. Both are now measured. One of them had a blocker nobody had spotted.
+
+### LEVER 2: the engine could not spend a speedup AT ALL
+
+`crates/engine/src/main.rs` hardcoded `depth: u32 = 4` and never read `movetime`, `wtime` or
+`btime`. **A 2× faster engine searched the identical tree in half the time and scored identically.**
+That retroactively explains three "dead" results — `target-cpu=native` at 0.3%, 11 widening attempts
+whose sign never turned, and the +6.3% nps shipped this morning, which was worth exactly 0 Elo.
+MASTER_PLAN line 43 specifies the gate at fixed TIME; the engine played fixed DEPTH.
+
+**Fixed.** `go movetime`/`wtime`/`btime`/`nodes` convert to a NODE budget, and the depth is derived
+from that budget. Time becomes nodes rather than a clock check inside the search, so a game stays
+deterministic from its seed (FITNESS 10). A bare `go` is byte-identical to the old behaviour
+(depth 4, 12,469 nodes), so every prior measurement still reproduces. `sf_ruler.py --movetime` reads
+strength on a clock.
+
+This is the Given column's `iterate to budget`, not a new technique: no ordering, no hash reuse, no
+deepening, no pruning. Only when to stop.
+
+### LEVER 2, sized: quantization is ~5 Elo, not a ply
+
+| measured | |
+|---|---|
+| eval share of a leaf | **25.4%** (247.2 ns of 972.2 ns, `node_profile`) |
+| ceiling on ANY eval optimisation | **1.34×** (only if eval were free) |
+| cost of one ply | **9.2× nodes** (13.8× in the midgame — two independent instruments) |
+| implied | **27.8 Elo per doubling of nps** |
+| int16 quantization | **~5 Elo** — 0.20 of a ply, not one |
+| all of training, for comparison | ~235 Elo |
+
+The lever's *direction* is right — 89 Elo/ply and the curve has not flattened by depth 5. The
+proposed *mechanism* is off by ~8× in speedup terms. What would actually buy plies is
+branching-factor reduction, and MASTER_PLAN line 38 puts ordering/hash reuse/pruning in the Given
+column as things that **must be discovered** — so that road runs through P2. `node_profile` prices
+that choice: shuffle + buffer copy is 238.2 ns/node, 24.5% of a leaf, spent denying the movegen
+ordering prior.
+
+`elo_vs_time.sh` will measure Elo-per-doubling directly rather than by the model above.
+
+### LEVER 1: datagen depth — in flight, with its limit named in advance
+
+Arms at datagen depth 1 / 3 / 6, equal wall clock, judged on the ABSOLUTE ruler rather than the
+frozen origin `depth_RESULT.md` used at 0.850–0.875 (inside the band where
+`instrument_saturation_RESULT.md` records that metric reversing sign twice).
+
+The cost trade is already stark: **468+ generations at depth 1, 5 at depth 3, and depth 6 cannot
+complete a single generation in 30 minutes.** `depth_ruler_PREREG.md` records, before reading any
+result, that depth 1 will probably win and that this would be a statement about the BUDGET rather
+than about labels — both arms use `--games 2400`, so the measured trade is "468 training steps vs 5".
+`depth_ruler2.sh` is the corrected design: generations held equal (~100 each) with
+games-per-generation absorbing the 94× cost ratio, derived from round 1's measured rates.
+
+Also wired `--datagen-nodes`: datagen at a NODE budget instead of a fixed depth, which is the unit
+"thousands of nodes per move" is actually stated in. The abort is guarded — `best_move_capped`
+returns −INF when the budget runs out before any root move completes, and that value would have gone
+straight into `Sample.root` as `tanh(-32000/600) = -1.0`, a confidently-lost label on a position
+nobody evaluated.
+
+### GRAMMAR 4 finished earlier in the window
+
+`Op::AddFn` implemented and PARKED — 569 applications, every one raising `funcs.len()`, which
+`shape_reachability.rs` measured at 0 of 858. It threads free variables as parameters and refuses to
+lift a `Ret` (which would change which frame returns). It also settles an unwritten dependency:
+`add-arg` cannot apply to a 1-function program at all, since `check_program` pins the entry to
+`choose(Pos, Int)`.
+
+### 4PC
+
+Champion fingerprints re-verified against the live binary at `Threads=1`, net via `EvalFile`:
+**net-only 137493, 19-option recipe 61722, 17-option 155734 — all exact.** The 155734 → 61722
+differential proves `SP_iir*` BIND on this binary, which is the check whose absence caused the
+teacher defect earlier today. `champion_base.json` (29 entries, no `corr*`) is the SPSA base and NOT
+the shipped recipe — that is `shipped_baseline_opts.txt`, 19 options.
+
+### Two self-inflicted errors this window
+
+1. **I rebuilt `learn` while three `learn` arms were running**, which my own standing rule forbids.
+   Linux kept them on their original inode so the experiment is uncontaminated, but it was luck, not
+   design.
+2. That rebuild made `readlink /proc/PID/exe` return `".../learn (deleted)"`, which my exact-suffix
+   matcher did not match — **it reported 0 running arms while 3 were running**, and I nearly read a
+   half-trained net as a finished result. Matching must tolerate the ` (deleted)` suffix.
