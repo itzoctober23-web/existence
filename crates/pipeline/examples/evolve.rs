@@ -939,6 +939,17 @@ fn ref_match() {
 fn step_diff() {
     let n: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(200);
     let depth: i64 = std::env::args().nth(3).and_then(|s| s.parse().ok()).unwrap_or(3);
+    // EDIT COUNT, arg 4. Was hardcoded to 1, which answers "what can ONE step do" -- the wrong
+    // question for a conjunctive valley.
+    //
+    // Corrected 2026-09-10: Op::ProbeRead emits Field(Probe(Key(Var "p")), f) in a SINGLE edit and
+    // Op::StoreHere emits a Store, so hash reuse is TWO well-placed edits, inside the loop's own 1-3
+    // budget. Each half alone is worse (probe 0.991x, store 0.997x) and only the pair pays (1.024x),
+    // so a 1-edit probe can only ever measure the valley FLOOR. Whether a 2-edit mutant installs both
+    // halves at once and lands PATH-1 acceptable has never been measured, and it is the difference
+    // between "the valley is impassable" and "the loop's own edit budget already jumps it".
+    let edits: usize = std::env::args().nth(4).and_then(|s| s.parse().ok()).unwrap_or(1);
+    println!("  edits per candidate: {edits}");
     let net = Net::random(32, 20260907);
     let seed = reference::bare_alpha_beta();
 
@@ -983,16 +994,21 @@ fn step_diff() {
     let (_, seed_guard_cost, _) = fitness(&seed, &guard, &net, depth, 16);
     let mut identical_cheaper = 0usize;
     let (mut ill, mut broken, mut identical, mut different) = (0usize, 0usize, 0usize, 0usize);
+    let mut both_halves = 0usize;
     let mut guard_ok_diff = 0usize;
     let mut diff_ops: std::collections::BTreeMap<String, usize> = Default::default();
     let mut lost: std::collections::BTreeMap<u32, usize> = Default::default();
     for k in 0..n {
         let mut r = Rng::new((k as u64) << 12 ^ 0xA5A5);
         // ONE edit, not the loop's usual 1-3: the question is what a SINGLE step can do.
-        let (cand, ops) = match mutate::mutate_program_n(&seed, &mut r, 1) {
+        let (cand, ops) = match mutate::mutate_program_n(&seed, &mut r, edits) {
             Some(x) => x,
             None => { ill += 1; continue }
         };
+        // BOTH halves of the rung? Probe without Store (or the reverse) is the valley floor by
+        // construction; only the pair can pay.
+        let ttc = tt_counts(&cand);
+        if ttc[0] > 0 && ttc[1] > 0 { both_halves += 1; }
         let mut same = true;
         let mut ok = true;
         for (p, b) in set.iter().zip(&base) {
@@ -1051,6 +1067,7 @@ DIFFERENT {different} (guard-ok {guard_ok_diff})", k + 1);
     println!("=== single-edit mutants of the seed, {n} attempts, {} positions at depth {depth} ===",
              set.len());
     println!("  ill-typed / inapplicable : {ill}");
+    println!("  carrying BOTH TT halves (Probe AND Store) : {both_halves}");
     println!("  BROKEN    (no move)      : {broken}");
     println!("  IDENTICAL (same play)    : {identical}   of which CHEAPER: {identical_cheaper}");
     println!("      ^ cheaper AND identical = the speedup path. Zero means that path is dead code.");
