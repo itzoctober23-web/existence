@@ -1391,6 +1391,157 @@ fn alpha_sensitive_set(n: usize, depth: i64, net: &Net, raised: i8, cap: usize)
 /// needs is `flag != 0` GATING the use of the stored score. Supplying a bare read and finding no
 /// improvement would refute the validity-marker hypothesis for the wrong reason -- the instrument
 /// would have withheld the thing under test.
+/// A GENERIC structural signature: the multiset of node KINDS a program contains.
+///
+/// Deliberately knows nothing about transposition tables. It would preserve a minority `Loop`, a
+/// minority `Mix` or a minority anything just as readily, which is what keeps
+/// `EXISTENCE_DIVERSITY_SLOTS` on the legitimate side of MASTER_PLAN:54. That line binds the PROGRAM
+/// ("all of these must be DISCOVERED as program edits"), not the machinery that discovers it -- the
+/// loop already exposes EPS, MU, population size and crossover rate as knobs. Protecting members
+/// BECAUSE they carry Probe/Store would encode the answer in the selector and is the "gadget
+/// operator" this project rejects; protecting minority STRUCTURE does not.
+fn shape_sig(p: &Program) -> String {
+    fn kind(n: &Node) -> &'static str {
+        use Node::*;
+        match n {
+            Budget => "Budget", Const(_) => "Const", Var(_) => "Var", OutcomeLit(_) => "OutcomeLit",
+            Nop => "Nop", Moves(_) => "Moves", Terminal(_) => "Terminal", Key(_) => "Key",
+            Eval(_) => "Eval", Ret(_) => "Ret", Probe(_) => "Probe", Field(..) => "Field",
+            Set(..) => "Set", Apply(..) => "Apply", Max(..) => "Max", Min(..) => "Min",
+            Avg(..) => "Avg", ScoreOf(..) => "ScoreOf", Cmp(..) => "Cmp", Pred(..) => "Pred",
+            Loop(..) => "Loop", Store(..) => "Store", Mix(..) => "Mix", Foreach(..) => "Foreach",
+            Argmax(..) => "Argmax", Sort(..) => "Sort", Sample(..) => "Sample", Let(..) => "Let",
+            If(..) => "If", Call(..) => "Call", Arith(..) => "Arith", TRead(..) => "TRead",
+        }
+    }
+    fn walk(n: &Node, m: &mut std::collections::BTreeMap<&'static str, usize>) {
+        use Node::*;
+        *m.entry(kind(n)).or_insert(0) += 1;
+        match n {
+            Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => {}
+            Moves(a) | Terminal(a) | Key(a) | Eval(a) | Ret(a) | Probe(a) | Field(a, _)
+            | Set(_, a) => walk(a, m),
+            Apply(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) | Cmp(a, b, _)
+            | Pred(a, b, _) | Loop(a, b) | Store(a, _, b) => { walk(a, m); walk(b, m) }
+            Mix(a, b, c) => { walk(a, m); walk(b, m); walk(c, m) }
+            Foreach(a, _, b) | Argmax(a, _, b) | Sort(a, _, b) | Sample(a, _, b)
+            | Let(_, a, b) => { walk(a, m); walk(b, m) }
+            If(c, t, e) => { walk(c, m); walk(t, m); if let Some(x) = e { walk(x, m) } }
+            Call(_, args) | Arith(_, args) | TRead(_, args) => { for a in args { walk(a, m) } }
+        }
+    }
+    let mut m = std::collections::BTreeMap::new();
+    for f in &p.funcs { walk(&f.body, &mut m); }
+    m.iter().map(|(k, v)| format!("{k}{v}")).collect::<Vec<_>>().join(",")
+}
+
+/// Read the diversity-slot knob. Separate from `select_survivors` so the selection logic itself is
+/// pure and testable without touching the environment.
+/// Deterministic control for `select_survivors`. Run: `evolve selftest`.
+///
+/// Driving this through the evolve loop was tried FIRST and was useless: at any config cheap enough
+/// to run, the population collapses to `pop 1`, so `pool.len() > MU` is never true, the diversity
+/// branch is never reached, and "identical output" says nothing about the flag. A pure function with
+/// a hand-built pool exercises the branch every time.
+fn selftest() {
+    let mu = 8usize;
+    // Rate-sorted pool: 10 copies of one shape at high rates, then ONE minority shape below the
+    // cutoff. This is the measured situation -- guard-passing probe-carriers outrate the store half
+    // by ~0.13%, so the store lands beneath every slot a plain truncate would fill.
+    let common = reference::bare_alpha_beta();
+    let minority = reference::ab_store_only();
+    let mut pool: Vec<(Program, u32, f64)> = Vec::new();
+    for i in 0..10 { pool.push((common.clone(), 6, 1.0 - i as f64 * 1e-4)); }
+    pool.push((minority.clone(), 6, 0.5));            // strictly worst -> dropped by rate alone
+    let min_sig = shape_sig(&minority);
+    let com_sig = shape_sig(&common);
+    let mut fail = 0;
+
+    print!("  shapes differ (the reserve has something to preserve) ... ");
+    if min_sig != com_sig { println!("PASS"); } else { println!("FAIL — identical signatures"); fail += 1; }
+
+    print!("  dslots=0 is byte-identical to truncate(mu) ....... ");
+    let a = select_survivors(pool.clone(), mu, 0);
+    let mut b = pool.clone(); b.truncate(mu);
+    if format!("{a:?}") == format!("{b:?}") { println!("PASS"); } else { println!("FAIL"); fail += 1; }
+
+    print!("  dslots=0 DROPS the minority shape ................ ");
+    let kept0 = a.iter().any(|x| shape_sig(&x.0) == min_sig);
+    if !kept0 { println!("PASS (reproduces the measured failure)"); } else { println!("FAIL"); fail += 1; }
+
+    print!("  dslots=2 KEEPS the minority shape ................ ");
+    let c = select_survivors(pool.clone(), mu, 2);
+    let kept2 = c.iter().any(|x| shape_sig(&x.0) == min_sig);
+    if kept2 { println!("PASS (the flag BITES)"); } else { println!("FAIL — flag is inert"); fail += 1; }
+
+    print!("  population size unchanged at mu ................. ");
+    if c.len() == mu { println!("PASS ({} members)", c.len()); } else { println!("FAIL — {} != {mu}", c.len()); fail += 1; }
+
+    // NOT asserting "no duplicates in survivors": this hand-built pool deliberately contains
+    // repeats, which the real caller removes with `pool.retain(dedup)` before calling. What must
+    // hold is that survivors are a SUBSET of the pool -- the function invents nothing.
+    print!("  survivors are a subset of the pool .............. ");
+    let poolset: std::collections::HashSet<String> = pool.iter().map(|x| format!("{:?}", x.0)).collect();
+    if c.iter().all(|x| poolset.contains(&format!("{:?}", x.0))) { println!("PASS"); }
+    else { println!("FAIL — survivor not present in the input pool"); fail += 1; }
+
+    println!("\n  {}", if fail == 0 { "ALL PASS" } else { "*** FAILURES ABOVE — do not commit" });
+}
+
+fn dslots_cfg() -> usize {
+    std::env::var("EXISTENCE_DIVERSITY_SLOTS").ok().and_then(|v| v.parse().ok()).unwrap_or(0)
+}
+
+/// Cut a rate-sorted pool down to `mu` survivors, optionally reserving `dslots` places for members
+/// whose generic STRUCTURE is not represented among the rate-selected ones.
+///
+/// WHY THIS EXISTS. MEASURED 2026-09-10: a plain rate-ordered truncate removes the STORE half of the
+/// TT rung before crossover can use it. Guard-passing probe-carriers outrate store-carriers by a
+/// consistent ~0.13% (0.995213x vs 0.993933x), which with `mu` slots puts EVERY store below EVERY
+/// probe -- 100% of store-carriers in the bottom half of the live populations, 64% ranked last,
+/// Mann-Whitney p = 0.00008. That is NOT a bug: a store nothing reads is pure overhead BY
+/// CONSTRUCTION, so it is correctly rated worst right until a probe is crossed into it. Any
+/// conjunctive rung whose halves cost asymmetrically before they pay has this shape, which is why
+/// the reserve is keyed on generic structure and never on TT. Priced at 3.00x on the union rate.
+///
+/// `dslots == 0` MUST be byte-identical to `pool.truncate(mu)`. That is asserted by `evolve selftest`.
+///
+/// PRECONDITION: `pool` is rate-sorted DESCENDING and already deduplicated -- the caller runs
+/// `pool.retain(|x| seen.insert(...))` immediately before this. The function never shrinks the
+/// population below `min(mu, pool.len())`.
+fn select_survivors(mut pool: Vec<(Program, u32, f64)>, mu: usize, dslots: usize)
+    -> Vec<(Program, u32, f64)> {
+    if dslots == 0 || pool.len() <= mu {
+        pool.truncate(mu);
+        return pool;
+    }
+    let keep = mu.saturating_sub(dslots).max(1).min(pool.len());
+    // Track survivors by INDEX. The first version tracked them by program Debug-string and could not
+    // tell two equal programs apart, so the top-up refused to refill and shrank mu 8 -> 7. Indices
+    // are exact and make the two passes trivially disjoint.
+    let mut taken: Vec<bool> = vec![false; pool.len()];
+    for t in taken.iter_mut().take(keep) { *t = true; }
+
+    // Pass 1: reserve slots for structures the rate-selected head does not already contain.
+    let mut shapes: std::collections::HashSet<String> =
+        pool[..keep].iter().map(|x| shape_sig(&x.0)).collect();
+    let mut n = keep;
+    for i in keep..pool.len() {
+        if n >= mu { break; }
+        if shapes.insert(shape_sig(&pool[i].0)) { taken[i] = true; n += 1; }
+    }
+    // Pass 2: top up by RATE so the population never shrinks. pool is rate-sorted, so this takes
+    // the best remaining. No dedup check: the caller deduped immediately above (see PRECONDITION).
+    for i in keep..pool.len() {
+        if n >= mu { break; }
+        if !taken[i] { taken[i] = true; n += 1; }
+    }
+    let out: Vec<(Program, u32, f64)> = pool.iter().zip(taken.iter())
+        .filter(|(_, t)| **t).map(|(x, _)| x.clone()).collect();
+    debug_assert!(out.len() == mu.min(pool.len()), "select_survivors must not shrink the population");
+    out
+}
+
 fn flag_tests(p: &Program) -> usize {
     fn is_flag(n: &Node) -> bool {
         matches!(n, Node::Field(_, f) if *f == grammar::ast::FieldId::Flag)
@@ -2237,6 +2388,9 @@ fn main() {
     if std::env::args().nth(1).as_deref() == Some("ttsupply") {
         return tt_supply();
     }
+    if std::env::args().nth(1).as_deref() == Some("selftest") {
+        return selftest();
+    }
     if std::env::args().nth(1).as_deref() == Some("tthits") {
         return tt_hits();
     }
@@ -2813,7 +2967,12 @@ fn main() {
             pool.retain(|x| x.2 >= top * (1.0 - EPS));
             let mut seen = std::collections::HashSet::new();
             pool.retain(|x| seen.insert(format!("{:?}", x.0)));
-            pool.truncate(MU);
+            // DIVERSITY SLOTS -- default 0, i.e. the plain elitist truncate this has always been.
+// The logic lives in `select_survivors` so it can be tested directly: driving it through the
+// evolve loop was tried first and was USELESS as a control, because at any config cheap enough
+// to run the population collapses to `pop 1` and `pool.len() > MU` is never true, so the branch
+// is never reached and an "identical" result says nothing.
+pool = select_survivors(pool, MU, dslots_cfg());
             lineages[li].popn = pool;
 
             let popn = &lineages[li].popn;
