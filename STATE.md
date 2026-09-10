@@ -4175,3 +4175,28 @@ line that reports the interesting event. **Fix for the next build, alongside pri
 line type: carry the winner's `hf` through `popn` and print it on the gate line.** Deferred for the
 same reason — rebuilding `evolve` now would break the four factorial cells that share
 `evolve_PINNED`.
+
+### `gate_set_mateheavy` verified, and the set builders reproduce across binaries
+
+    treatment  gate_set_mateheavy         set 12+6+5=23 (52% mate-in-1)  MAIN 23/23  MCTS 15/23
+    control    gate_diversity_PAIRED_off  set 4+10+10=24 (17% mate-in-1) MAIN 24/24  MCTS 10/24
+
+Both `SPEC_FILTER off`, both `HARD_FITNESS off`, both seed 0 default trajectory, both depth 3, both
+`evolve_PINNED` — verified from the arms' own headers rather than from how I launched them.
+
+**A useful side-observation.** `gate_set_mateheavy`'s seed scores (MAIN 23/23, MCTS 15/23) are
+IDENTICAL to `gate_specfilter_s1`'s, and those two run different binaries (`1529d29f` vs `dd2c919b`).
+So the set builders are deterministic across builds: the same `n1/n2/n3` produces the same positions
+and the same seed scores regardless of which binary constructs them.
+
+That tightens the earlier confound analysis. The cross-binary comparison was confounded in what the
+arms DID with the positions — different gate types, different selection rules — but not in WHICH
+positions they were scored on. The sets themselves were never the variable; only the machinery around
+them was.
+
+**The remaining difference between the two compositions is now stated precisely:** MAIN is saturated
+in both (23/23 and 24/24), so nothing changes for it. MCTS has 65% headroom on the mate-heavy set
+against 42% on the depth-heavy one — the OPPOSITE of what "more depth-requiring positions" was meant
+to achieve. The depth-heavy set makes MCTS's seed WEAKER relative to the set, which is more headroom
+in principle; but the measured outcome is that the mate-heavy arms surface better-searching candidates
+far more often. Whether that survives with the binary held fixed is what this arm answers.
