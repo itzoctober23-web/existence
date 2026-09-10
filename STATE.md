@@ -3823,3 +3823,51 @@ and that remains the part with a mechanism behind it.
 **No-op vetoes are the cheap half and are worth separating in any future accounting:** a no-op veto
 advances the population without playing a single game, while a real gate costs up to 400 pairs to
 return a rejection. If the filter helps, the mechanism is likely the free half, not the expensive one.
+
+## 2026-09-10 — a 2x2 on ONE binary: diversity x spec-filter
+
+The diversity treatment arm finished with **0 acceptances in 25 generations**, both lineages ending as
+their own seeds, having engaged the reserve 25 times. The recorded reading was that this does not
+condemn the reserve outright, because *every acceptance path in that arm was closed*: the ranking rule
+admits only `rate > best_rate`, and the all-drawn 6-pair gate printed `needed > 0.750`. The reserve was
+feeding diversity into a selector that could not use it.
+
+`EXISTENCE_SPEC_FILTER` is a selector that CAN accept — measured directly this session, it admits
+no-op drift at **0 games spent** where the ranking rule selects nothing at all. So the direct test is
+the combination, and `evolve_PINNED` supports both flags, which makes a clean factorial possible on a
+single binary and a single seed:
+
+    [diversity OFF, filter OFF]  gate_diversity_PAIRED_off   running, gen 16/25
+    [diversity ON,  filter OFF]  gate_diversity_s1           DONE, 0 accepts
+    [diversity ON,  filter ON ]  gate_div_x_filter           launched now
+    [diversity OFF, filter ON ]  not run -- see below
+
+Launched the combination: `evolve_PINNED`, args `25 8 4 10 3 10`, seed 0 (no override, matching the
+other cells), `EXISTENCE_DIVERSITY_SLOTS=2 EXISTENCE_SPEC_FILTER=1`. Verified after launch that its
+sha is `1529d29f3a98dd21`, identical to the two existing cells.
+
+**Why the fourth cell is not simply `gate_specfilter_s1`.** That arm runs `SPEC_FILTER` on a DIFFERENT
+binary (`xt_veto`, `dd2c919b`), different args (`25 8 12 6 3`), a different fitness set (12+6+5,
+mate-in-1 52% vs 4+10+10 at 17%) and a different gate (SPRT to 400 pairs vs the fixed 6-pair gate).
+It is a valid experiment against its own control and is NOT a cell of this factorial. Treating it as
+one would repeat exactly the mistake found earlier today, where `sprt30` looked like specfilter's
+control because their env differed by one variable while their binaries differed by five hours.
+
+### The check that nearly went the other way
+
+Before launching I asked whether the `xt_veto` binary supports the diversity flag, and
+`strings | grep -c "^EXISTENCE_DIVERSITY_SLOTS$"` said **ABSENT**. It also said `EXISTENCE_SPEC_FILTER`
+was absent — from the binary that is *currently running with SPEC_FILTER on and printing
+`SPEC_FILTER on` in its own header*. The anchored match cannot work: Rust packs string literals into
+one blob, so `strings` emits them concatenated with their neighbours and `^...$` never matches.
+
+The positive control is what caught it — each binary must show the flag it is KNOWN to use, and
+neither did. Re-run as a substring match, the answer is real and useful:
+
+    xt_veto        SPEC_FILTER present, DIVERSITY_SLOTS ABSENT
+    evolve_PINNED  both present
+
+and the behavioural test settles it: `EXISTENCE_DIVERSITY_SLOTS=2` on `xt_veto` prints a header
+IDENTICAL to no flag at all. **Had I launched the combination on that binary, diversity would have
+been a silent no-op and the arm would have been a duplicate of specfilter-only wearing a different
+name** — a null result that looked like a refutation of the combination hypothesis.
