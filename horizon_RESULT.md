@@ -48,9 +48,35 @@ being lost to it.
 ## What is still open, narrowly
 
 Whether a horizon between 10 and 160 beats no horizon at all. Both measured points are extremes:
-10 (loses) and ≥160 (wins, = no filtering). Nothing has tested, say, 45 or 80. The gap is worth one
-run *only if* something cheap suggests it; on current evidence the schedule's job is done by
-`min(..., MAX_PLIES)` and the honest simplification is to delete the ramp rather than tune it.
+10 (loses at 20 generations) and ≥160 (wins, = no filtering). Nothing has tested, say, 45 or 80.
+
+## ⚠ CORRECTION, same day, to this file's own recommendation
+
+This section first read: *"the honest simplification is to delete the ramp rather than tune it."*
+**That is wrong, and it would have thrown away a measured benefit.** The two results describe
+DIFFERENT REGIMES and both are real:
+
+| regime | narrow (≤10) | wide / uncapped |
+|---|---|---|
+| iteration zero (MASTER_PLAN, near-random play) | **0.543** sign acc | 0.441 |
+| 20 generations from a champion (this file) | 0.774 vs origin | **0.838** |
+
+Narrow wins at bootstrap, wide wins after. So `10 + (g-1)*5` is CORRECT IN SHAPE — it is narrow
+when narrow is right and saturates into wide when wide is right. Deleting it would put a random net
+straight into the configuration measured at 0.441.
+
+**The defect is the VARIABLE, not the ramp.** It ramps on the GENERATION COUNTER, which resets on
+every resume, so a run started with `--init` from a strong champion spends its first 30 generations
+at the bootstrap horizon — the wrong configuration for a net that is not random. Observed directly
+on 2026-09-10: three runs of this loop, all starting at `h10`, two of them resumed from a champion
+scoring 0.798 against the origin.
+
+**Fixed** in `main.rs`: when `--init` is supplied the ramp is skipped and the horizon starts at
+`horizon_cap`. A resume is the one moment when strength is known without measuring it — the champion
+was inherited, not initialised — which is as close to MASTER_PLAN's "widen with strength" as
+anything available without a cheap strength proxy, and `decisiveness_RESULT.md` records that the
+obvious proxy is refuted. Controlled both ways: a fresh run still prints `h 10, h 15`; a resumed run
+prints `h160, h160`.
 
 **Do NOT re-run the 10-vs-uncapped comparison.** It is resolved, at +0.064 ± 0.034, and re-running a
 resolved question is how three attempts became four.

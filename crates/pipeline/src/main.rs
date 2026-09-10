@@ -591,7 +591,29 @@ fn main() {
         // data. Far-from-terminal labels are anti-signal while both players are near-random.
         // The horizon WIDENS with generation, because the label becomes informative further
         // back as play improves.
-        let horizon = (10 + (g as u32 - 1) * 5).min(horizon_cap);
+        // A RESUMED RUN IS NOT AT ITERATION ZERO, so it must not re-enter bootstrap mode.
+        //
+        // The ramp is CORRECT IN SHAPE and both ends are measured. At iteration zero, narrow wins:
+        // training on all decided positions gives sign accuracy 0.441 against 0.543 for <=10 plies,
+        // because with near-random play the result barely depends on a position 40 plies back. Past
+        // bootstrap, WIDE wins: horizon_RESULT.md records capped-at-10 scoring 0.774 +/- 0.025
+        // against the origin where uncapped scores 0.838 +/- 0.023 -- +0.064 +/- 0.034, resolved,
+        // about +72 Elo. So narrow-then-wide is right, and `10 + (g-1)*5` delivers exactly that.
+        //
+        // What it gets wrong is the VARIABLE. It ramps on the GENERATION COUNTER, which resets on
+        // every resume, so a run started with --init from a strong champion spends its first 30
+        // generations at the BOOTSTRAP horizon -- the configuration measured as worse for a champion
+        // that is not random. Observed on this very loop 2026-09-10: three runs, all starting at
+        // h10, two of them resumed from a champion scoring 0.798 against the origin.
+        //
+        // MASTER_PLAN asks for a horizon that widens "with strength rather than being fixed", and a
+        // resume is the one moment when strength is KNOWN without measuring it: the champion was
+        // inherited, not initialised. So skip the ramp entirely when resuming.
+        let horizon = if init_net.is_some() {
+            horizon_cap
+        } else {
+            (10 + (g as u32 - 1) * 5).min(horizon_cap)
+        };
         let pool: Vec<Sample> = data.iter()
             // --include-draws KEEPS z == 0 samples. Default OFF, so every result measured so far
             // stays comparable and this is A/B-able rather than silently swapped in.
