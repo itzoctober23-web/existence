@@ -4359,3 +4359,46 @@ removes every candidate. Neither changes the incentive, because the incentive is
 change what the surrogate rewards, not where it clamps — which is precisely FITNESS §3's filter role
 (`>= 0.9x champion` and you reach the ladder, cheapness buys nothing beyond the bar) rather than the
 ranking role the code implements. That is what `gate_filter_only` and `gate_div_x_filter` are testing.
+
+## 2026-09-10 — the exchange rate: a mate is worth ~2x its own weight in cost, so selling is DOMINANT
+
+The pile-up at the guard floor says every gated candidate sells the full tolerance. This says why.
+Computed from the arms' own numbers (seed MAIN on the 12+6+5 set: 23 mates, rate 0.002490, hence
+cost 9,237 Mcost):
+
+     gen  mates      rate        cost   dMates    dCost    dRate
+       3     19   0.002924      6,498      -4    -29.7%   +17.4%
+       4     20   0.003045      6,568      -3    -28.9%   +22.3%
+       5     20   0.003141      6,367      -3    -31.1%   +26.1%
+
+Per candidate, the fraction of COST saved divided by the fraction of MATES sold:
+
+    mates 19  ->  1.71        mates 20  ->  2.22        mates 20  ->  2.39        mean 2.11 (n=3)
+
+**Selling 1% of the mates buys roughly 2% of the cost.** Under `found / cost` that is not a trade-off
+at all — it is strictly profitable, every time, until the guard forbids the next sale. The pile-up at
+19-20 is not the optimiser being greedy; it is the optimiser being CORRECT about the objective it was
+given.
+
+**The mechanism is structural, and it is worth stating because it means no tuning fixes it.** Mates
+are found by SEARCHING, and the marginal mate — the last one the seed still finds — is by construction
+the most expensive one. Dropping it therefore saves disproportionate cost. So `found/cost` will always
+rank "drop the hardest mate" above "keep it", at every tolerance, for any set where difficulty varies.
+
+That closes the tolerance dilemma properly:
+* **tolerance 0** — no sale is permitted, so no candidate can beat `best_rate`, so nothing is selected.
+  The search freezes. (Measured: `mate-ok 0` at gen 3, 0 of 8 candidates.)
+* **tolerance 4** — every sale up to the floor is profitable, so every survivor takes all four.
+  The search degrades. (Measured: 14 of 14 gated candidates at 19-20, VERIFY 0.398-0.435, resolved
+  WORSE.)
+* **any tolerance** — the dial sets WHERE selling stops, never WHETHER it is profitable. There is no
+  value that makes keeping a mate the better move.
+
+**So the fix cannot be a clamp.** §3's FILTER role is the only structural change on offer: at
+`>= 0.9x champion` you reach the ladder and further cheapness buys NOTHING, which removes the gradient
+that makes selling profitable rather than bounding how far it runs. `gate_filter_only` and
+`gate_div_x_filter` are testing exactly that, and this measurement is why they are the right
+experiment rather than another tolerance sweep.
+
+**Caveat: n=3 distinct candidates**, from one arm's MAIN lineage. The pile-up itself is 14 of 14
+across two arms and two binaries, so the PHENOMENON is replicated; the exchange RATIO is not yet.
