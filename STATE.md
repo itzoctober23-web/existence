@@ -4107,3 +4107,35 @@ reward searching BETTER rather than cheaper, and the whole diagnosis of why noth
 rests on candidates never being better. If one set composition surfaces such candidates 5-8x more
 often, that bears directly on the P2 kill criterion — and the current recommendation points the other
 way.
+
+### Launched `gate_set_mateheavy` — the last confound on the hard-set finding
+
+    control    gate_diversity_PAIRED_off   args 25 8 4 10 3 10   set 4+10+10 (mate-in-1 17%)
+    treatment  gate_set_mateheavy          args 25 8 12 6 3      set 12+6+5  (mate-in-1 52%)
+
+Both on `evolve_PINNED` (`1529d29f3a98dd21`, verified from `/proc` after launch), both with **zero**
+`EXISTENCE_*` variables set — so plain ranking rule, fixed 6-pair gate, seed 0, depth 3. They differ
+in `n1/n2/n3` and nothing else. That is the comparison no existing pair could make: the two
+compositions were previously only observable across arms that also differed in gate type and binary.
+
+**Prerequisite verified first, not assumed.** The claim this rests on is that the HARD set is the same
+8 positions everywhere. Checked every arm's own header — all seven print
+`HARD set: 8 positions the seed FAILS by construction; seed scores 0/8` — and every arm's depth
+argument from `/proc/PID/cmdline`, all **depth 3**. `harder_set` takes `(count, depth, net, cap)` with
+a hardcoded rng seed, so same count, same depth, same net gives the same positions. Had the depths
+differed, the hard-set scores would not have been comparable at all and the whole observation would
+have been an artefact.
+
+**Pre-registered reading, written before it produces data:**
+* If `gate_set_mateheavy` shows nonzero `hard` scores at a materially higher rate than
+  `PAIRED_off`'s **0 of 37**, set composition is confirmed as the cause and the standing "n2/n3 UP"
+  recommendation is wrong about which direction helps.
+* If both stay near zero, the earlier 43-63% rates belong to the BINARY or to SPRT-specific
+  behaviour, and the observation is retired.
+* A null here is a real result either way, because it removes the last alternative explanation.
+
+**Cost honesty.** This is a 9th arm, started while `gate_iir`'s chain is draining datagen. Arms are
+nice 19 on cores 12-15 and cost-budgeted, so contention costs them speed and not validity — the same
+shape that has run alongside 10 datagen lanes all day. It does add to the memory-bandwidth pressure
+already measured as slowing datagen from 4.9 to ~5.9 days, and that is a real if modest cost booked
+against a finding that bears on the P2 kill criterion.
