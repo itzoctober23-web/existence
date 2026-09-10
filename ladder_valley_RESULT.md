@@ -34,6 +34,9 @@ only when `pool.len() > MU`, and `dsl{n}` on each generation line now reports wh
 * *"0 of 40"* used the wrong guard; *"the reserve produced a union"* was wrong — it was never active.
 * *"the search is exploring a narrow structural space"* — OVERSTATED. 9 is a kind-profile count;
   store-only mutations alone yield 86 distinct programs from 348 draws.
+* *"0 of 20,000 single edits produce both halves"* — TAUTOLOGICAL. One operator per edit
+  (`mutate.rs:450`), and none emits both. Valuable as a GADGET GUARD, vacuous as difficulty evidence.
+  The empirical figure is `editcount_RESULT.md`'s 0.15-0.35 both-halves candidates per generation.
 * A simulation predicted the reserve's effect and was **untrustworthy on its own terms** (3-category
   shape model); it earned its keep by exposing premise #10, which was then measured.
 
@@ -1445,3 +1448,35 @@ store-carriers might collapse to fewer distinct forms and be culled by `pool.ret
 opposite is true -- it is PROBES that collapse. Dedup, if it biases anything, biases against probes,
 which is the wrong direction to explain the observed skew. Candidate 3 is dead, and was never needed:
 conditioning already explained the whole discrepancy.
+
+### ⚠ "0 of 20,000 single edits produce BOTH halves" is TAUTOLOGICAL — and I cited it as evidence
+
+`mutate.rs:447-465`:
+
+    for _ in 0..edits.max(1) {
+        let op = ALL_OPS[rng.below(ALL_OPS.len())];
+
+**One operator per edit.** With `edits = 1`, exactly one operator is applied, and no operator emits
+both halves -- `Op::ProbeRead` emits `Field(Probe(Key(Var p)))`, `Op::StoreHere` emits a `Store`. So a
+single mutation CANNOT produce both. The measured 0 of 20,000 is a structural certainty, not an
+empirical discovery, and it would read 0 no matter how the search behaved.
+
+**I used it repeatedly tonight as though it said something about difficulty** -- most recently one
+section above, framing it as explained by operators that "rarely" introduce two kinds. They do not
+rarely do it; they cannot.
+
+**What the number IS worth, and it is not nothing.** It confirms **no operator is a gadget that emits
+probe and store together**. MASTER_PLAN forbids exactly that -- this file's own option 3, *"NOT an
+operator that inserts probe+store as one edit ... that is hand-coding the answer"* -- so a run
+returning even one both-halves child at `edits = 1` would mean a gadget had crept into `ALL_OPS`. As a
+GUARD it is meaningful. As evidence about search difficulty it is vacuous.
+
+**The number that actually bears on difficulty is at edits >= 2**, and this file already has it:
+`editcount_RESULT.md` measured *"roughly 0.15-0.35 both-halves candidates per generation"*. That one
+is empirical, and it is the one to cite.
+
+**Pattern worth naming.** This is the third overstatement in three sections -- "narrow search space",
+"the operators rarely introduce two kinds", and now this. All three came from reading a number
+correctly and then reaching for a bigger claim than it supports. The tell each time was a number that
+could not have come out any other way: 9 shapes from a signature that ignores placement, 0 both-halves
+from a process that applies one operator.
