@@ -52,24 +52,42 @@ fn main() {
     // Collect gen numbers from rej_g<N>_cand.net, keeping only those with a matching _champ.net.
     // An unpaired candidate is silently useless -- the champion it lost to is the ONLY valid
     // opponent, since the champion moves on every accept.
-    let mut gens: Vec<u64> = Vec::new();
+    // ACCEPTS BOTH NAMINGS: rej_g<N>_cand.net and the tagged rej_<tag>_g<N>_cand.net.
+    //
+    // The trainer gained --run-tag so that a relaunch (its generation counter restarts at 1) cannot
+    // overwrite a previous run's samples. That silently broke this parser, which keyed on the
+    // literal prefix "rej_g": tagged files match nothing, and the tool would have printed "no
+    // complete reject pairs" -- which reads as "the trainer saved none", not "the reader is wrong".
+    // Exactly the trap this project keeps writing down: a pattern that finds nothing is usually
+    // broken, not evidence of absence.
+    //
+    // The STEM is kept rather than reconstructed, so the champion file is the one that actually
+    // pairs with this candidate instead of a name rebuilt from parts that might not round-trip.
+    let mut found: Vec<(u64, String)> = Vec::new();
     let rd = match std::fs::read_dir(&dir) {
         Ok(r) => r,
         Err(e) => { eprintln!("cannot read {dir}: {e}"); std::process::exit(2); }
     };
     for ent in rd.flatten() {
         let name = ent.file_name().to_string_lossy().to_string();
-        if let Some(rest) = name.strip_prefix("rej_g") {
-            if let Some(numtxt) = rest.strip_suffix("_cand.net") {
-                if let Ok(g) = numtxt.parse::<u64>() {
-                    if std::path::Path::new(&format!("{dir}/rej_g{g}_champ.net")).exists() {
-                        gens.push(g);
-                    }
-                }
+        let core = match name.strip_prefix("rej_").and_then(|c| c.strip_suffix("_cand.net")) {
+            Some(c) => c,
+            None => continue,
+        };
+        // "g140" (untagged) or "r7_g140" (tagged). rsplit so a tag containing "_g" cannot confuse it.
+        let numtxt = match core.rsplit_once("_g") {
+            Some((_, n)) => n,
+            None => match core.strip_prefix('g') { Some(n) => n, None => continue },
+        };
+        if let Ok(g) = numtxt.parse::<u64>() {
+            if std::path::Path::new(&format!("{dir}/rej_{core}_champ.net")).exists() {
+                found.push((g, core.to_string()));
             }
         }
     }
-    gens.sort_unstable();
+    found.sort_unstable();
+    let gens: Vec<u64> = found.iter().map(|(g, _)| *g).collect();
+    let stems: std::collections::HashMap<u64, String> = found.iter().cloned().map(|(g, c)| (g, c)).collect();
 
     if gens.is_empty() {
         println!("no complete reject pairs in {dir} -- nothing to audit.");
@@ -85,8 +103,9 @@ fn main() {
     let mut rates: Vec<(u64, f64)> = Vec::new();
 
     for g in &gens {
-        let cand = match Net::load(&format!("{dir}/rej_g{g}_cand.net")) { Ok(n) => n, Err(e) => { eprintln!("  gen {g}: {e}"); continue } };
-        let champ = match Net::load(&format!("{dir}/rej_g{g}_champ.net")) { Ok(n) => n, Err(e) => { eprintln!("  gen {g}: {e}"); continue } };
+        let stem = &stems[g];
+        let cand = match Net::load(&format!("{dir}/rej_{stem}_cand.net")) { Ok(n) => n, Err(e) => { eprintln!("  gen {g}: {e}"); continue } };
+        let champ = match Net::load(&format!("{dir}/rej_{stem}_champ.net")) { Ok(n) => n, Err(e) => { eprintln!("  gen {g}: {e}"); continue } };
         // Seed varies per candidate so the openings are not identical across rejects -- otherwise
         // every reject is measured on the same handful of positions and the pooled interval is a
         // lie about how much independent evidence there is.

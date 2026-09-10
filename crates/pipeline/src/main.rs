@@ -1000,10 +1000,17 @@ fn main() {
         // generations/hour -- keeping every reject would write ~85MB/hour to fill a disk with
         // near-duplicates. 0 = off, so no existing caller changes behaviour.
         if !better && rej_every > 0 && !rej_dir.is_empty() && g % rej_every == 0 {
-            let c = format!("{rej_dir}/rej_g{g}_cand.net");
-            let h = format!("{rej_dir}/rej_g{g}_champ.net");
+            // TAGGED for the same reason the rungs are: the generation counter restarts every
+            // launch, so an untagged rej_g100 from run 7 overwrites run 6's, and reject_audit would
+            // then pool candidates from different lineages into one "gate error rate".
+            let stem = if run_tag.is_empty() { format!("rej_g{g}") } else { format!("rej_{run_tag}_g{g}") };
+            let c = format!("{rej_dir}/{stem}_cand.net");
+            let h = format!("{rej_dir}/{stem}_champ.net");
             if let Err(e) = std::fs::create_dir_all(&rej_dir) {
                 eprintln!("      WARNING: could not create {rej_dir}: {e}");
+            } else if std::path::Path::new(&c).exists() {
+                eprintln!("      WARNING: reject sample {c} already exists -- NOT overwriting. \
+                           Pass --run-tag to keep this run's samples distinct.");
             } else if let Err(e) = cand.save(&c).and_then(|_| champion.save(&h)) {
                 eprintln!("      WARNING: could not save reject pair at gen {g}: {e}");
             } else {
