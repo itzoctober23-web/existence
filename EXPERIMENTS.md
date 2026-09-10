@@ -1351,3 +1351,30 @@ behind the bogus "0.14x" interpreter reading. Fixed; seed now 10/10.
   arms. Corrected to 3/3 and 0/3, Spearman withdrawn as uninterpretable at n=3. `ab_report.py` now
   does the dedup and stratification, reads the guard and the HARD_FITNESS flag from each log's own
   HEADER rather than its filename, and was validated against the corrected hand count before use.
+
+## 2026-09-09 late — seven experiments, and the DO-NOT-REGRESS list they produced
+
+Logged here because the RESULT files each hold one link and this is the canonical "what was tried and
+why it died" record. Four of these re-derived something the repo already knew; that is marked.
+
+| # | experiment | verdict | WHY |
+|---|---|---|---|
+| 1 | **EPS 0.10** (widen retention) | **INERT — stopped** | Retention keeps `x.2 >= top*(1-EPS)`. EPS 0.02 keeps the `>=.98` band; 0.10 additionally keeps `.90-.98`. Summed over 78 gen-lines that band holds **0 of 60** candidates. It ran 3.5h and could not have changed the population it selects. Confirmed configured (`EPS=0.100` in its own header), so inert, not broken. |
+| 2 | **SET COMPOSITION** n1=4 n2=10 n3=10 | **RUNNING** | Paired against the control at the same seed. At gen 3 the control gated a candidate that had **sold 4 of 23 mates**, spent 96 VERIFY pairs + 36 games, and resolved **0.422**. The composition arm reports `mate-ok 0` on the same generation: the set refuses it outright. NOT yet a win — it has admitted nothing, and a set that admits nothing is trivially free of bad accepts. |
+| 3 | **ttgraft** (score real crossover children) | **INFORMATIVE** | 5.6% of `ab<-uct` grafts carry BOTH TT halves, so reachability is solved. But **0 of 40 kept all 25 mates**. Against the LIVE guard (tolerance 4, floor 21) **4 of 40 would be ACCEPTED** — all mate-sellers at 1.15-1.19x, *higher* than the genuine rung's 1.024x. |
+| 4 | **`EXISTENCE_COST_CAP`** | **REAL BUG FOUND** | `Interp::new` defaults `cost_cap` to **2e9 per position** and `fitness` never overrode it while other call sites use 20e9. The seed scored 24/24 at depth 3 and **2/24 at depth 4** — not a broken seed, a TRUNCATED one. At cap 20e9 depth 4 returns 24/24. Default left unchanged; control reproduces `24 mates / cost 11534432615` exactly. |
+| 5 | **MATE-1..4 ladder** (`mate_within`, `mate_set_n`) | **BUILT, then REFUTED as a fitness fix** | Mining cost 0.001 / 0.05 / 3.2-5.3 s per position for MATE-1/2/3; **MATE-4 infeasible** (>840s, 0 of 3 found), so §3's retrograde walk is not optional. But the ladder is the WRONG fix: `forced_mate_set` already builds mate-in-2, and `disagreement_set`'s comment records it "has no teeth" at fitness depth 3, solved 40/40 AT DEPTH 2. **RE-DERIVATION** — both my finding and its refutation were already in the source. |
+| 6 | **rung 7 / table reduction** | **ARCHITECTURALLY BLOCKED** | Written (`table_reduction()`), but `TRead(3,[d,i])` reads **0**: `tables_nd` is never populated and every caller passes a 3-element `tables`. Deeper: `Program { funcs, lineage }` has **no table field** — tables are an `Interp::new` argument, so no mutation can ever reach them. §9's "the loop DISCOVERS it" is not satisfiable without a genome extension. |
+| 7 | **the funnel** (`search_has_no_choice`) | **THE STANDING SUSPECT** | 580 candidates -> 61 pass the mate guard (10.5%) -> 46 distinct rates. **5 of 79 generations (6%) offer more than ONE distinct fitness.** Selection cannot select from a set of size <=1, which is why every knob above operates on a choice that is not offered. |
+
+### DO NOT REGRESS — each of these is measured, not argued
+
+1. **Do NOT widen `guard_tolerance`.** Tolerance 0 freezes the search (`mate-ok 0` at gen 3, measured). Tolerance 4 admits 10% mate-sellers; tolerance 6 admits 22.5%. And `search_track_WHY_NOTHING.md` already measured the killer: the **ALPHA exploit loses exactly 2** guard positions, the same minimum a genuine change loses, so tolerance 2 re-admits it at **1.29x** and the search degenerates instantly. There is no threshold that admits the rung and not the sale.
+2. **Do NOT add MATE-2/3 strata as a fitness repair.** Blind to the ONE-PLY cut the search actually finds; `disagreement_set` catches that by construction and is self-calibrating to the fitness depth.
+3. **Do NOT enlarge the position set while holding the mate-in-1 fraction.** Size was never the axis — a null search costing 0.0366% of the seed scores **2934.933x** on a mate-1-heavy set. Composition is the axis.
+4. **Do NOT widen EPS.** The band is empty (0 of 60).
+5. **Do NOT hand-fill rung 7's table.** It would produce a working rung and a vacuous discovery claim, the trade MASTER_PLAN line 53 forbids.
+
+### The process finding, which cost the most
+
+**Four of the seven re-derived something already written in this repo** — the mate-ladder refutation, the `None`-label bug (documented four lines above the code I broke), the 2934x/333x mate-in-1 result, and the "0 of 33" all-or-nothing guard number. In each case I designed and ran a measurement before reading the function I proposed to change. `git grep <concept>` costs seconds. The tell to watch for is the feeling *"I have found the thing this project has been missing"* — on a mature codebase that is usually a rediscovery, and the previous pass generally left a comment explaining why the obvious fix fails.
