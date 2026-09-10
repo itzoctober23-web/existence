@@ -310,3 +310,56 @@ one depth on one set is a small sample, and the best kept 23 of 25 mates, which 
 is narrower and firmer: **a single unconstrained subtree graft is not a viable route to this rung**,
 and the next question is whether a graft restricted to semantically compatible sites does better.
 That is a real design question about crossover, not another arm of the same experiment.
+
+### ⚠ CORRECTION, 22:38 — "0 of 40" used the WRONG GUARD. The live loop would ACCEPT 4 of them.
+
+The section above scored "kept mates" as **strictly 25**. The live loop does not do that. It uses
+`f >= guard_floor` where `guard_floor = f.saturating_sub(guard_tolerance)`, and MAIN runs
+tolerance 4 — so the real bar is **21**, not 25. Re-scoring the same 40 children against the rule
+`evolve` actually applies:
+
+    tolerance 0 (floor 25):  0 pass guard,  0 also fitter
+    tolerance 2 (floor 23):  1 pass guard,  1 also fitter
+    tolerance 4 (floor 21):  4 pass guard,  4 also fitter   <- THE LIVE SETTING
+    tolerance 6 (floor 19):  9 pass guard,  9 also fitter
+
+**Four of forty — 10% — would be ACCEPTED by the running loop**, and all four carry the identical
+minimal united tag `P1S1K2F1`:
+
+    #3   22 mates  cost 7,598,468,488  1.150x  P1S1K2F1
+    #4   22 mates  cost 7,598,470,314  1.150x  P1S1K2F1
+    #9   22 mates  cost 7,599,115,805  1.150x  P1S1K2F1
+    #31  23 mates  cost 7,688,872,004  1.188x  P1S1K2F1
+
+So "the correctness oracle is what stops the rung" is **wrong as stated**. The STRICT oracle stops
+it; the guard the loop actually runs lets 10% through, at ratios of 1.15-1.19x — **higher than the
+hand-built `ab_hash` rung's 1.024x.**
+
+**But look at WHAT gets through, because this is the whole point:**
+
+    ab_hash    25 mates, cost 9,698,559,036   -2.4% cost, ZERO mates lost  -> 1.024x
+    child #3   22 mates, cost 7,598,468,488  -23.5% cost, 3 mates lost     -> 1.150x
+
+**A working transposition table buys 2.4% and loses nothing. These buy 23% and lose 2-3 forced
+mates.** That is not a TT working — it is a search that stops earlier, and `mates/Mcost` pays more
+for the truncation than it charges for the missed mates. The graft did not deliver the rung; it
+delivered a cheaper broken search wearing the rung's node kinds.
+
+**The real finding, and it is sharper than the one it replaces.** `guard_tolerance` does not make
+the valley crossable. **It converts an unreachable rung into a reachable MATE SALE** — and the thing
+it admits scores BETTER on the surrogate than the genuine improvement does. This is the same pattern
+measured six times tonight (5x `mates 19`, 1x `mates 20`, every one resolving worse under VERIFY),
+now caught at its source with the mechanism visible: the sellers are not near-misses at finding a
+TT, they are a different and easier thing that the surrogate ranks above it.
+
+**Which makes the dose-response above the most important table on this page.** Tolerance 0 admits
+the truth (nothing) and freezes the search — measured directly tonight, `mate-ok 0` at gen 3.
+Tolerance 4 admits 10% mate-sellers. Tolerance 6 admits 22.5%. There is no setting that admits the
+rung and not the sale, **because on this fitness the sale scores higher than the rung.** The knob was
+never the problem. `mates/Mcost` cannot rank a 2.4%-for-free improvement above a 23%-for-3-mates
+truncation, and no guard threshold repairs that ordering.
+
+**What this predicts, pre-registered:** if any live arm ever accepts a candidate carrying `ttk` with
+both `P` and `S`, it will read ~1.15x on the surrogate, will have SOLD 2-3 mates, and will resolve
+BELOW 0.5 under VERIFY — like every other seller. An accept is not a discovery here, and the `ttk`
+field now makes the distinction visible on the gate line itself.
