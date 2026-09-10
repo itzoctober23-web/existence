@@ -4316,3 +4316,46 @@ against `composition_s1` vs `composition_s2` on that same metric first. That pai
 noise floor and it is cheap to consult. The `dsl` blind spot therefore stands — the fix (print `dsl` on
 every per-generation line type) is not substitutable by a proxy, because the proxy's resolution is
 worse than the thing being measured.
+
+## 2026-09-10 — mate-selling MEASURED: every gated candidate sits at the guard floor
+
+`fitness_saturation_RESULT.md` describes the tolerance dilemma qualitatively — *"tolerance 0: nothing
+passes, the search stops; tolerance 4: things pass by SELLING mates, the search degrades"*. The
+distribution of mate counts among candidates that actually reached a gate turns that into a number.
+
+**MAIN lineage** (seed 23/23, guard floor 19, i.e. tolerance 4):
+
+    gate_specfilter_s1    1x mates 19    4x mates 20
+    gate_sprt30_s1        1x mates 19    8x mates 20
+
+**Fourteen of fourteen gated candidates scored 19 or 20. Not one preserved 21, 22 or 23.** The
+optimiser does not trade a mate here and there — it spends the ENTIRE tolerance, every time, and stops
+exactly where the guard stops it.
+
+**MCTS lineage** (seed 10/24, floor 6) shows the same shape independently:
+
+    16x mates 6     <- exactly the floor
+     7x mates 8
+     1x mates 9
+
+Sixteen of twenty-four sat precisely at the floor.
+
+**Why this is stronger than the existing description.** "Candidates pass by selling mates" is
+consistent with a spread across 19-23 where some sell and some do not. The measurement shows a
+PILE-UP at the boundary: the guard floor is not a safety net that occasionally catches something, it is
+an attractor. `mates/Mcost` rewards cost reduction without limit, mates are the cheapest thing to
+spend, so every survivor spends down to the last allowed unit. That is why both ends of the tolerance
+dial fail — the dial does not control HOW MUCH is sold, only WHERE the selling stops.
+
+**Replicated across binaries.** The two MAIN arms run different builds (`dd2c919b`, `cd29871d`) and
+different gate types (SPRT both, but different seeds and pair counts) and produce the same
+distribution: one candidate at 19, the rest at 20. This is not one arm's trajectory — and per today's
+seed-variance measurement, trajectory claims are exactly what a single arm cannot support, while this
+one has two.
+
+**What it implies for the fix.** Raising the tolerance moves the attractor down; lowering it to 0
+removes every candidate. Neither changes the incentive, because the incentive is in the RATIO:
+`found / cost` makes a mate and a unit of cost interchangeable at a fixed exchange rate. A fix has to
+change what the surrogate rewards, not where it clamps — which is precisely FITNESS §3's filter role
+(`>= 0.9x champion` and you reach the ladder, cheapness buys nothing beyond the bar) rather than the
+ranking role the code implements. That is what `gate_filter_only` and `gate_div_x_filter` are testing.
