@@ -142,14 +142,14 @@ Two things this settles rather than assumes:
 
 **TWO OF THE TEN DECLARED OPERATORS DO NOT EXIST — measured 2026-09-10, `tests/shape_reachability.rs`.**
 
-The table above declares ten operators. `mutate::ALL_OPS` implements eleven names, which reads like
+The table above declares ten operators. `mutate::ALL_OPS` implements twelve names (eleven before 2026-09-10), which reads like
 a superset and is not: `replace`/`insert` ship as the narrower `ReplaceConst`/`InsertMax`, three
 memory operators were added later (`ProbeRead`, `StoreHere`, `WrapIfPred`), and the last two rows of
 the table have no implementation under any spelling.
 
 | declared | status | measured consequence |
 |---|---|---|
-| `add-arg` — "add an Int/Score parameter and thread a value at each call site" | **absent** | no operator lengthens any argument list. Seed TRead arities `[0]`, newly constructible `[]` |
+| `add-arg` — "add an Int/Score parameter and thread a value at each call site" | **still absent** | no operator adds a FUNCTION PARAMETER. (`Op::TReadIndex`, added 2026-09-10, lengthens a tread's index list — a different move, see the correction below) |
 | `add-fn` — "split a subtree into a new function and call it" | **absent** | **0 of 823** applied mutations changed `funcs.len()`, across all 10 reference programs |
 
 Two consequences follow, and both were previously open:
@@ -166,7 +166,26 @@ The measured fact is unchanged and is what the test asserts — *no operator len
 list* — but the two gaps need two different operators, and implementing `add-arg` as declared
 would NOT make rung 7 reachable. Recorded because the imprecise version was committed first.
 
-1. **Rung 7 of the ladder is UNREACHABLE, now proven.** `table_reduction` needs `TRead(3, [d, i])`.
+**⚠ CLOSED THE SAME DAY — `Op::TReadIndex` landed and rung 7 is now REACHABLE.** Read the two
+points below as the diagnosis that motivated the operator, not as current state. What changed:
+
+| | before | after `Op::TReadIndex` |
+|---|---|---|
+| TRead arities constructible in ONE edit | `[]` | **`[1]`** |
+| `TRead/2`, which rung 7 needs | unreachable at any edit count | **reachable in TWO edits — measured** by composing the operator with itself, not assumed |
+| function count changed by a mutation | 0 of 823 | **0 of 858 — still zero**, `add-fn` remains absent |
+
+The operator appends ONE in-scope Int as a tread index and never picks the table id, so reaching
+`TRead(3, [d, i])` still costs two edits plus finding table 3. That is deliberate: MASTER_PLAN:53
+requires the technique be DISCOVERED, and `mutate.rs:205` already refused an operator that emitted
+probe-and-store together as making the discovery vacuous. It adds no primitive — §2.7 #26 declares
+`tread : Tab x Int... -> Int` variadic already.
+
+Nothing here claims the search will now climb rung 7. Reachability was a PRIOR blocker, and the
+valley (`ladder_valley_RESULT.md`) is a separate one; `reachability.rs`'s header records that hash
+reuse became reachable and is still blocked by a conjunctive valley.
+
+1. **Rung 7 of the ladder was UNREACHABLE, and this is how it was proven.** `table_reduction` needs `TRead(3, [d, i])`.
    The seed contains `TRead(0, [])` and `TRead(1, [])`, so the kind-granularity check in
    `reachability.rs` correctly reported "nothing missing" and recorded the rung as NOT PROVEN
    EITHER WAY. At shape granularity the missing element is exactly `("TRead", 2)` and no operator

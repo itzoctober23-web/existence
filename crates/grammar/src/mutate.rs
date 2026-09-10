@@ -64,12 +64,39 @@ pub enum Op {
     /// than silently wrong ones -- checked before adding this, because an unbound variable that
     /// merely evaluates to Unit at runtime would have been a silent corruption.
     WrapIfPred,
+    /// Append ONE in-scope Int expression as a `tread` INDEX: `TRead(t, [..]) -> TRead(t, [.., x])`.
+    ///
+    /// WHY. `tests/shape_reachability.rs` proves rung 7 is otherwise outside the search space.
+    /// `table_reduction` needs `TRead(3, [d, i])`; the seed has `TRead(0, [])` and `TRead(1, [])`,
+    /// and MEASURED 2026-09-10 no operator lengthens ANY argument list (0 of 823 applied
+    /// mutations). At kind granularity the gap is invisible — `TRead` is already in the seed —
+    /// which is why this went unnoticed while two other rungs were being fixed.
+    ///
+    /// NO NEW PRIMITIVE. GRAMMAR 2.7 #26 declares `tread : Tab x Int... -> Int`, already variadic.
+    /// This operator supplies nothing the Given column did not already grant.
+    ///
+    /// NOT `add-arg`. GRAMMAR 4's `add-arg` adds a FUNCTION PARAMETER and threads it through call
+    /// sites. Rung 7 needs neither: `d` is `ab`'s existing depth parameter and `i` an existing
+    /// local. The two are different operators and only this one makes rung 7 reachable.
+    ///
+    /// IT MUST NOT SUPPLY THE ALGORITHM. MASTER_PLAN:53 requires the technique be DISCOVERED, and
+    /// mutate.rs:205 already refused an operator that emitted probe-and-store together as making
+    /// the discovery vacuous. So this appends exactly ONE index and never picks the table id:
+    /// reaching `TRead(3, [d, i])` still needs two applications plus finding table 3, which is
+    /// search, not a handout.
+    ///
+    /// SCOPE AND TYPE ARE THE CHECKER'S JOB, as for `WrapIfPred`'s `Var("m")`. Emitting `Var("d")`
+    /// where no `d` is bound types as `Ty::Unit`, and `tread index` now requires `Ty::Int`
+    /// (typecheck.rs, tightened the same day and for this reason), so the candidate is discarded
+    /// at generation time. Before that tightening this operator could have produced a program that
+    /// was KEPT and silently mis-evaluated.
+    TReadIndex,
 }
 
-pub const ALL_OPS: [Op; 11] = [
+pub const ALL_OPS: [Op; 12] = [
     Op::Tweak, Op::WrapIf, Op::WrapLoop, Op::Delete,
     Op::Dup, Op::SwapSiblings, Op::InsertMax, Op::ReplaceConst,
-    Op::WrapIfPred, Op::ProbeRead, Op::StoreHere,
+    Op::WrapIfPred, Op::ProbeRead, Op::StoreHere, Op::TReadIndex,
 ];
 
 /// Collect mutable positions as a flat index, so an operator can address "the k-th node".
@@ -167,6 +194,25 @@ fn apply_op(n: &Node, op: Op, r: u64) -> Option<Node> {
         Op::InsertMax => match n {
             Node::Const(_) | Node::Arith(..) | Node::Max(..) | Node::Min(..) => {
                 Some(Node::Max(Box::new(n.clone()), Box::new(Node::Const((r % 9) as i8 - 4))))
+            }
+            _ => None,
+        },
+        // Append ONE index to a tread. Capped at 2 indices: `TRead(3, [d, i])` is the widest read
+        // any reference program performs, and an uncapped operator would grow argument lists
+        // without bound, spending candidates on arity rather than on structure.
+        Op::TReadIndex => match n {
+            Node::TRead(t, args) if args.len() < 2 => {
+                let mut a = args.clone();
+                // Three index sources, and the mix is deliberate. Budget and Const are ALWAYS
+                // well-typed, so the operator is never a guaranteed waste; `Var("d")` is the one
+                // that can actually reach rung 7, and it is discarded by the type checker wherever
+                // no Int `d` is in scope. That is the same trade WrapIfPred makes with Var("m").
+                a.push(match r % 3 {
+                    0 => Node::Budget,
+                    1 => Node::Const((r % 9) as i8 - 4),
+                    _ => Node::Var("d".into()),
+                });
+                Some(Node::TRead(*t, a))
             }
             _ => None,
         },

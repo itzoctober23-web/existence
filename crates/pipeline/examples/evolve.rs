@@ -2153,9 +2153,13 @@ fn mate_ladder() {
 /// How often do N edits produce a candidate carrying BOTH TT halves? Mutation only, NO fitness.
 ///
 /// WHY SEPARATE FROM `stepdiff`. The both-halves rate is the one number in that sweep that n=40
-/// cannot resolve: `ALL_OPS` has 11 operators drawn uniformly, so P(a run of 2 edits includes both
-/// ProbeRead and StoreHere) = 2*(1/11)^2 = 0.0165, giving an expected 0.66 hits in 40 -- a zero
+/// cannot resolve: `ALL_OPS` is drawn uniformly, so P(a run of 2 edits includes both ProbeRead
+/// and StoreHere) = 2*(1/|ALL_OPS|)^2 -- at the 11 operators of 2026-09-08 that was 0.0165 and an
+/// expected 0.66 hits in 40; at the 12 of 2026-09-10 (Op::TReadIndex) it is 0.0139 and 0.56. A zero
 /// there measures the sample size, not the search space (`editcount_power_PREREG.md`).
+///
+/// The count is written as |ALL_OPS| rather than a literal because this derivation is quoted as a
+/// POWER argument, and a stale denominator silently overstates the power of every run that cites it.
 ///
 /// The fix is not a longer stepdiff. Its cost is entirely the FITNESS evaluation, ~13.5s per
 /// candidate; the mutation and the kind-count are microseconds. Dropping fitness makes n=5000
@@ -2163,7 +2167,7 @@ fn mate_ladder() {
 /// correctness/cost questions it is actually powered for.
 ///
 /// Reports the ceiling too: mutations that produce a PROBE-side and a STORE-side separately. If the
-/// pair rate matches 2*(1/11)^2 the operators compose freely and only DRAW limits them; if it is
+/// pair rate matches 2*(1/|ALL_OPS|)^2 the operators compose freely and only DRAW limits them; if it is
 /// far below, placement is refusing the combination and that is a different problem.
 fn tt_reach() {
     let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);

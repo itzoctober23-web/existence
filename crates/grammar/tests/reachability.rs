@@ -152,13 +152,22 @@ fn every_declared_rung_is_constructible() {
     //
     // Assert only the two that are proven. A shape-level reachability check is the follow-up.
     //
-    // ⚠ SETTLED 2026-09-10 by `tests/shape_reachability.rs`, the follow-up named on the line above.
-    // At shape (kind + arity) granularity, rung 7's missing element is exactly `("TRead", 2)`:
-    // seed TRead arities `[0]`, newly constructible `[]`. So table reduction IS unreachable, and
-    // "very likely" has become measured. That file also settles the second thing this granularity
-    // hides: 0 of 823 applied mutations changed `Program::funcs.len()`, so the two GRAMMAR 4
-    // operators that would move either dimension -- `add-arg` and `add-fn` -- are absent, not rare.
-    // This test is left asserting only what IT can prove; the shape file carries the rest.
+    // ⚠ SETTLED, THEN FIXED, BOTH ON 2026-09-10. `tests/shape_reachability.rs` -- the follow-up
+    // named on the line above -- measured at shape (kind + arity) granularity that rung 7's missing
+    // element was exactly `("TRead", 2)`: seed TRead arities `[0]`, newly constructible `[]`. So
+    // "very likely unreachable" became MEASURED unreachable.
+    //
+    // `Op::TReadIndex` then closed it. TRead/1 is now constructible in one edit and TRead/2 in two
+    // (measured by composing the operator with itself, not assumed), so table reduction is inside
+    // the search space. Reachability was only ever a PRIOR blocker: the valley is separate, and
+    // this file's own header records hash reuse as reachable-but-still-blocked by one.
+    //
+    // Still open, and the shape file asserts it: 0 of 858 applied mutations change
+    // `Program::funcs.len()`, so GRAMMAR 4's `add-fn` remains absent and every program the search
+    // can reach has exactly one function, against a type checker that admits 1..4.
+    //
+    // This test is left asserting only what IT can prove at kind granularity; the shape file
+    // carries the rest.
     let names: Vec<&str> = unreachable.iter().map(|(n, _)| *n).collect();
 
     // STATE AS OF 2026-09-08, after Op::ProbeRead and Op::StoreHere landed. Every declared rung is

@@ -152,21 +152,50 @@ fn shape_level_reachability_of_the_two_undeclared_operators() {
              func_count_changes.len());
     for (n, a, b) in &func_count_changes { println!("    {n}: {a} -> {b}"); }
 
-    // THIS TEST DOCUMENTS THE CURRENT, DEFECTIVE STATE ON PURPOSE, exactly as its sibling does.
-    // When `add-arg` and `add-fn` land, these assertions FAIL, and each failure is the signal that
-    // a declared operator became real. Do not "fix" this by relaxing it.
+    // ---- SECOND-ORDER: does TRead/2 arrive in TWO edits? -----------------------------------
+    // The sweep above applies ONE mutation, and Op::TReadIndex appends ONE index, so TRead/2 is
+    // out of its reach BY CONSTRUCTION -- "missing [(TRead, 2)]" above is a statement about edit
+    // DEPTH, not about reachability. Compose the operator with itself rather than asserting the
+    // two-edit path exists because it sounds obvious.
+    let mut second_order: BTreeSet<(&'static str, usize)> = BTreeSet::new();
+    for (_, prog) in reference::all() {
+        for fi in 0..prog.funcs.len() {
+            for k in 0..400 {
+                let mut rng = mutate::Rng::new((k as u64) << 8 ^ fi as u64 ^ 0xABCD);
+                let Some(once) = mutate::mutate_at(&prog, mutate::Op::TReadIndex, &mut rng, fi, k)
+                    else { continue };
+                for fj in 0..once.funcs.len() {
+                    for k2 in 0..400 {
+                        let mut r2 = mutate::Rng::new((k2 as u64) << 12 ^ fj as u64 ^ 0x1234);
+                        if let Some(twice) =
+                            mutate::mutate_at(&once, mutate::Op::TReadIndex, &mut r2, fj, k2)
+                        {
+                            for sh in prog_shapes(&twice) { second_order.insert(sh); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let tread2_in_two_edits = second_order.contains(&("TRead", 2));
+    println!("\nTWO edits of TReadIndex reach TRead/2: {tread2_in_two_edits}");
+
+    // ---- ASSERTIONS ------------------------------------------------------------------------
+    // These encode the CURRENT state on purpose, as the sibling does. When `add-fn` lands the last
+    // one FAILS, and that failure is the signal.
     //
-    // The sibling could only say table reduction was "very likely" unreachable. At shape
-    // granularity it is decided: no operator emits a TRead with a non-empty argument list, so
-    // TRead/2 cannot be built from a seed that only contains TRead/0.
+    // HISTORY, kept because the transition is the point. Until Op::TReadIndex landed (2026-09-10)
+    // this file asserted that NO operator could build a TRead with arguments, and the sibling
+    // recorded rung 7 as NOT PROVEN EITHER WAY at kind granularity. Both are now settled.
     assert!(
-        !buildable.iter().any(|(k, a)| *k == "TRead" && *a > 0),
-        "an operator now builds a TRead with arguments -- add-arg has landed. \
-         Update reachability.rs:145, which records rung 7 as NOT PROVEN EITHER WAY, and this test."
+        buildable.contains(&("TRead", 1)),
+        "Op::TReadIndex no longer builds a TRead index. If it was removed, rung 7 goes back to \
+         being unreachable and reachability.rs:145 must say so again."
     );
     assert!(
-        !needed_shapes.is_empty(),
-        "table reduction became shape-reachable; the ladder's third rung is climbable now."
+        tread2_in_two_edits,
+        "TRead/2 is not reachable in two applications of TReadIndex, so rung 7 is still outside \
+         the search space and the operator does not do what it was added for."
     );
 
     // The stronger of the two results. Mutation cannot change the function count, and neither can
