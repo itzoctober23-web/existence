@@ -1773,46 +1773,51 @@ fn tt_hits() {
     let seed = reference::bare_alpha_beta();
     let set = mate_set(6);
 
-    let run = |prog: &Program| -> (u64, u64) {
-        let (mut c, mut h) = (0u64, 0u64);
+    let run = |prog: &Program| -> (u64, u64, u64) {
+        let (mut c, mut h, mut st) = (0u64, 0u64, 0u64);
         for (p, _) in &set {
             let mut it = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
             it.cost_cap = 20_000_000_000;
             let _ = it.run(prog, p, 16);
-            let (cc, hh) = it.probe_stats();
-            c += cc; h += hh;
+            let (cc, hh, ss) = it.probe_stats();
+            c += cc; h += hh; st += ss;
         }
-        (c, h)
+        (c, h, st)
     };
 
     println!("=== do installed TT primitives ever HIT? {n} mutants at {edits} edits, depth {depth} ===");
-    let (sc, sh) = run(&reference::ab_hash());
-    println!("  CONTROL ab_hash (hand-built, working TT): {sc} probes, {sh} HITS  ({:.1}% hit rate)",
-             100.0 * sh as f64 / sc.max(1) as f64);
+    let (sc, sh, ss) = run(&reference::ab_hash());
+    println!("  CONTROL ab_hash (hand-built, working TT): {sc} probes, {sh} HITS ({:.1}%), {ss} stores, {:.1} probes/store",
+             100.0 * sh as f64 / sc.max(1) as f64, sc as f64 / ss.max(1) as f64);
     if sh == 0 {
         println!("  *** CONTROL FAILED: a known-working table registered zero hits.");
         println!("  *** probe_stats is wired wrong; every number below is meaningless.");
         return;
     }
-    let (bc, bh) = run(&seed);
-    println!("  seed bare_alpha_beta (no TT at all)     : {bc} probes, {bh} hits  (must be 0/0)");
+    let (bc, bh, bs) = run(&seed);
+    println!("  seed bare_alpha_beta (no TT at all)     : {bc} probes, {bh} hits, {bs} stores  (must be 0/0/0)");
 
     let (mut both, mut probed, mut any_hit, mut tot_c, mut tot_h) = (0usize, 0usize, 0usize, 0u64, 0u64);
+    let mut tot_s = 0u64;
     for k in 0..n {
         let mut r = Rng::new((k as u64) << 12 ^ 0x77AA ^ (edits as u64) << 40);
         let Some((cand, _)) = mutate::mutate_program_n(&seed, &mut r, edits) else { continue };
         let c = tt_counts(&cand);
         if c[0] == 0 || c[1] == 0 { continue; }
         both += 1;
-        let (cc, hh) = run(&cand);
-        tot_c += cc; tot_h += hh;
+        let (cc, hh, ss) = run(&cand);
+        tot_c += cc; tot_h += hh; tot_s += ss;
         if cc > 0 { probed += 1; }
         if hh > 0 { any_hit += 1; }
     }
     println!("\n  mutants carrying BOTH halves      : {both} of {n}");
     println!("  ...that actually EXECUTE a probe  : {probed}");
     println!("  ...that ever get a HIT            : {any_hit}");
-    println!("  total across them                 : {tot_c} probes, {tot_h} hits");
+    println!("  total across them                 : {tot_c} probes, {tot_h} hits, {tot_s} stores");
+    println!("  PROBES PER STORE                  : {:.1}   (ab_hash control: {:.1})",
+             tot_c as f64 / tot_s.max(1) as f64, sc as f64 / ss.max(1) as f64);
+    println!("  A real TT stores about as often as it probes -- each new node probes, misses,");
+    println!("  searches, stores. A memo cell stores a few times and probes millions.");
     // CLOSING TEXT CORRECTED 2026-09-10, BY THIS TOOL'S OWN FIRST RUN. It previously read "A pair
     // that never hits is not a transposition table", which is what I expected and is FALSE: 8 of 10
     // both-halves mutants DO hit, at a 62.1% hit rate against ab_hash's 1.0%. Asserting the expected

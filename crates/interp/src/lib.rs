@@ -294,6 +294,16 @@ struct Tt {
     /// the inference into an observation.
     pub probe_calls: u64,
     pub probe_hits: u64,
+    /// STORE accounting, added 2026-09-10 to test a SECOND inference rather than write it up.
+    ///
+    /// The hit measurement refuted "the pairs never hit": 8 of 10 both-halves mutants hit, at 62.1%
+    /// against ab_hash's 1.0%. The replacement explanation was that the probe keeps returning the
+    /// SAME slot -- a memo cell rather than a transposition table -- which is again an inference.
+    ///
+    /// It has a decisive signature. A real TT stores roughly as often as it probes: each new node
+    /// probes once, misses, searches, stores. A memo cell stores a few times and probes millions.
+    /// So probes-per-store separates them directly.
+    pub store_calls: u64,
 }
 
 impl Tt {
@@ -306,6 +316,7 @@ impl Tt {
             collisions: 0,
             probe_calls: 0,
             probe_hits: 0,
+            store_calls: 0,
         }
     }
     #[inline]
@@ -335,6 +346,7 @@ impl Tt {
         }
     }
     fn entry(&mut self, key: u64) -> &mut Slot {
+        self.store_calls += 1;
         let i = Self::idx(key);
         if self.stamp[i] != self.cur || self.keys[i] != key {
             self.keys[i] = key;
@@ -535,7 +547,9 @@ impl<'a> Interp<'a> {
     /// Probe and a Store together in 1.8% of 2-edit candidates -- the rate pure operator draw
     /// predicts -- yet none is ever cheaper or guard-passing. "The placement must be wrong" explained
     /// that, but explaining is not measuring. Hits measure it.
-    pub fn probe_stats(&self) -> (u64, u64) { (self.hash.probe_calls, self.hash.probe_hits) }
+    pub fn probe_stats(&self) -> (u64, u64, u64) {
+        (self.hash.probe_calls, self.hash.probe_hits, self.hash.store_calls)
+    }
 
     pub fn new(net: &'a Net, tables: Vec<i64>) -> Self {
         Interp {
