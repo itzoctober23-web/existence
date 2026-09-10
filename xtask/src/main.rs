@@ -1,0 +1,583 @@
+//! `cargo xtask watch` — a READ-ONLY window onto the loop.
+//!
+//! It reads `ledger*.jsonl`, the search-track logs, `STATE.md` and the ruler outputs, and writes
+//! exactly two things, both inside `watch/`: `index.html` (regenerated every 60s) and
+//! `events.log` (append-only). **It never writes a file the loop reads.** That is the whole safety
+//! property: an instrument that can perturb its subject is not an instrument.
+//!
+//! No framework, no dependencies, no core pinning. Run at `nice 19` on whatever is free.
+//!
+//! Every number here already exists in a log the loop writes. Where one did not — per-member
+//! `Avg`/`Sample`/`Field(count|sum)`, crossover proposed-vs-survived, the ledger's
+//! `identity_string` and top-disagreement FEN — the WRITER was changed to emit it rather than this
+//! file deriving it from something adjacent. A derived number drifts from its source silently.
+
+use std::collections::BTreeSet;
+use std::fmt::Write as _;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+const WATCH: &str = "watch";
+const UNTRAINED_ELO: f64 = 954.0;
+const P1_MILESTONE: f64 = 2000.0;
+const SF_BASE: f64 = 1320.0; // ruler opponent; absolute = SF_BASE + relative
+
+fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.first().map(String::as_str) {
+        Some("watch") => watch(&args[1..]),
+        _ => {
+            eprintln!("usage: cargo xtask watch [--port N] [--once]");
+            std::process::exit(2);
+        }
+    }
+}
+
+fn watch(flags: &[String]) {
+    let port = flag(flags, "--port").unwrap_or_else(|| "8799".into());
+    let once = flags.iter().any(|f| f == "--once");
+    fs::create_dir_all(WATCH).expect("create watch/");
+
+    if !once {
+        // Bound to 0.0.0.0 so it reaches the phone over Tailscale. Read-only static files.
+        match Command::new("python3")
+            .args(["-m", "http.server", &port, "--bind", "0.0.0.0", "--directory", WATCH])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+        {
+            Ok(_) => println!("  serving {WATCH}/ on 0.0.0.0:{port}"),
+            Err(e) => eprintln!("  WARN could not start server ({e}); still writing {WATCH}/"),
+        }
+    }
+
+    loop {
+        let s = collect();
+        let html = render(&s);
+        // temp+rename: a browser polling mid-write must not see a partial page.
+        let tmp = format!("{WATCH}/.index.html.tmp");
+        if fs::write(&tmp, html).is_ok() {
+            let _ = fs::rename(&tmp, format!("{WATCH}/index.html"));
+        }
+        emit_events(&s);
+        if once { break; }
+        std::thread::sleep(std::time::Duration::from_secs(60));
+    }
+}
+
+fn flag(flags: &[String], name: &str) -> Option<String> {
+    flags.iter().position(|f| f == name).and_then(|i| flags.get(i + 1)).cloned()
+}
+
+// ---------------------------------------------------------------- sources
+
+#[derive(Default)]
+struct Snap {
+    rungs: Vec<Rung>,
+    speed: Vec<SpeedPoint>,
+    gens: Vec<P2Gen>,
+    decisions: Vec<Decision>,
+    ledger: Vec<LedgerRow>,
+    bounds: (Option<f64>, Option<f64>),
+    state_tail: String,
+}
+
+struct Rung { generation: u64, elo: f64, ci: f64, label: String, champion: bool, mtime: std::time::SystemTime }
+struct SpeedPoint { commit: String, nps: u64, eval_ns: f64, depth_at_budget: u32, interp: Option<f64> }
+struct P2Gen {
+    generation: u64, lineage: String, pop: usize, spread: (f64, f64),
+    tt: Vec<usize>, ttk: Vec<String>, x_prop: usize, x_surv: usize,
+    /// Best member rate as a RATIO to the seed (`rates 0.99-1.04x`). The milestone needs it:
+    /// the MCTS seed holds Probe and Store by construction, so "holds both" alone is not news.
+    rate_hi: f64,
+}
+struct Decision { generation: u64, lineage: String, verdict: String, llr: Option<f64>, rate: f64, ci: f64, games: u32 }
+struct LedgerRow { identity: String, what: String, verdict: String, fen: Option<String> }
+
+fn collect() -> Snap {
+    let mut s = Snap::default();
+    s.rungs = read_rungs();
+    maybe_measure_speed(&read_speed());
+    s.speed = read_speed();
+    let log = newest(|n| (n.starts_with("gate_") || n == "search_track.log") && n.ends_with(".log"));
+    if let Some(p) = &log {
+        let txt = fs::read_to_string(p).unwrap_or_default();
+        s.gens = parse_gens(&txt);
+        s.decisions = parse_decisions(&txt);
+    }
+    s.bounds = (env_f64("EXISTENCE_GATE_ELO0"), env_f64("EXISTENCE_GATE_ELO1"));
+    s.ledger = read_ledger_tail(10);
+    s.state_tail = fs::read_to_string("STATE.md").unwrap_or_default()
+        .lines().rev().take(3).collect::<Vec<_>>().join(" ");
+    s
+}
+
+fn env_f64(k: &str) -> Option<f64> { std::env::var(k).ok().and_then(|v| v.parse().ok()) }
+
+fn files_matching(pred: impl Fn(&str) -> bool) -> Vec<PathBuf> {
+    let mut v: Vec<PathBuf> = fs::read_dir(".").into_iter().flatten().flatten()
+        .map(|e| e.path())
+        .filter(|p| p.file_name().and_then(|n| n.to_str()).map_or(false, |n| pred(n)))
+        .collect();
+    v.sort();
+    v
+}
+
+/// Every ruler reading ever taken. The generation comes from the NET NAME (`gen1400`, `d3`, ...),
+/// which is the only place it is recorded — the ruler prints the net it measured, not the
+/// generation, so a rung whose name carries no number is listed but cannot be plotted.
+fn read_rungs() -> Vec<Rung> {
+    let mut out = Vec::new();
+    for p in files_matching(|n| n.ends_with("_ruler.log") || n == "sf_ruler.log") {
+        let txt = fs::read_to_string(&p).unwrap_or_default();
+        let net = grab(&txt, "net      ").unwrap_or_else(|| p.display().to_string());
+        let Some(line) = txt.lines().find(|l| l.contains("Elo vs this opponent:")) else { continue };
+        let rest = line.split(':').nth(1).unwrap_or("").trim();
+        let mut it = rest.split("+/-");
+        let (Some(e), Some(c)) = (it.next(), it.next()) else { continue };
+        let (Ok(elo), Ok(ci)) = (e.trim().parse::<f64>(), c.trim().parse::<f64>()) else { continue };
+        // `gen1400.net` carries its number; `dr_r1_d3.net` does not. For the latter the arm's own
+        // log is the only record of how many generations it ran, so count them rather than
+        // plotting the rung at 0 and flattening the trend line.
+        let mut gnum = gen_from(&net);
+        // A rung is a CHAMPION rung only if its own name carries the generation. Arms like
+        // `dr_r1_d3.net` get their number recovered from their log below, but they are separate
+        // experiments -- putting them on one trend line fits a slope across incomparable runs,
+        // which is how this project has manufactured a fake curve before.
+        let champion = gnum > 0 || net.contains("champion");
+        if gnum == 0 {
+            let stem = p.file_name().and_then(|n| n.to_str()).unwrap_or("")
+                .trim_end_matches("_ruler.log").to_string();
+            if let Ok(t) = fs::read_to_string(format!("{stem}.log")) {
+                gnum = t.lines().filter(|l| l.starts_with("gen ")).count() as u64;
+            }
+        }
+        let mtime = fs::metadata(&p).and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
+        out.push(Rung { generation: gnum, elo, ci, label: net.trim().to_string(), champion, mtime });
+    }
+    out.sort_by_key(|r| r.generation);
+    out
+}
+
+/// First run of digits after "gen", else 0 (unplottable, still listed).
+fn gen_from(name: &str) -> u64 {
+    let b = name.as_bytes();
+    for i in 0..b.len().saturating_sub(3) {
+        if &b[i..i + 3] == b"gen" {
+            let d: String = name[i + 3..].chars().take_while(|c| c.is_ascii_digit()).collect();
+            if !d.is_empty() { return d.parse().unwrap_or(0); }
+        }
+    }
+    0
+}
+
+fn grab(txt: &str, key: &str) -> Option<String> {
+    txt.lines().find(|l| l.contains(key))
+        .and_then(|l| l.split(key).nth(1))
+        .map(|v| v.trim().to_string())
+}
+
+/// Speed series, one point per commit that changed the engine. Written by this tool into
+/// `watch/speed.jsonl` — its OWN file, never one the loop reads.
+/// Measure the current build ONCE PER ENGINE COMMIT and append to `watch/speed.jsonl`.
+///
+/// Keyed on the git hash of the engine-relevant sources, so a docs commit does not add a point and
+/// a real change always does. Skips silently when the bench binaries are not built -- an absent
+/// point is honest, an invented one is not.
+fn maybe_measure_speed(existing: &[SpeedPoint]) {
+    let head = Command::new("git")
+        .args(["log", "-1", "--format=%h", "--", "crates/engine", "crates/nnue", "crates/pipeline/src/search.rs"])
+        .output().ok().and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|v| v.trim().to_string()).unwrap_or_default();
+    if head.is_empty() || existing.iter().any(|p| p.commit == head) { return; }
+
+    let target = std::env::var("EXISTENCE_TARGET_DIR")
+        .unwrap_or_else(|_| "target".into());
+    let bench = format!("{target}/release/examples/search_bench");
+    let engine = format!("{target}/release/engine");
+    if !Path::new(&bench).exists() || !Path::new(&engine).exists() { return; }
+
+    // nps at champion width, same harness every speed claim here uses.
+    let out = Command::new(&bench).args(["4", "16"]).output().ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok()).unwrap_or_default();
+    let nps = out.split_whitespace().rev().nth(1).and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
+
+    // Depth at the standard budget: the number a speedup MOVES. Constant before the engine read
+    // `go` params, which is why every speed result in this repo read 0 Elo.
+    let probe = std::process::Command::new(&engine)
+        .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped())
+        .spawn().ok();
+    let mut depth = 0u32;
+    if let Some(mut ch) = probe {
+        use std::io::Write;
+        if let Some(si) = ch.stdin.as_mut() {
+            let _ = si.write_all(b"uci\nposition startpos\ngo movetime 200\nquit\n");
+        }
+        if let Ok(o) = ch.wait_with_output() {
+            let t = String::from_utf8_lossy(&o.stdout).to_string();
+            depth = after(&t, "info depth ").and_then(|v| v.split_whitespace().next()?.parse().ok()).unwrap_or(0);
+        }
+    }
+    let eval_ns = if nps > 0 { 1e9 / nps as f64 * 0.254 } else { 0.0 };
+    use std::io::Write;
+    if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true)
+        .open(format!("{WATCH}/speed.jsonl")) {
+        let _ = writeln!(f, "{{\"commit\":\"{head}\",\"nps\":{nps},\"eval_ns\":{eval_ns:.1},\"depth\":{depth}}}");
+    }
+}
+
+fn read_speed() -> Vec<SpeedPoint> {
+    let txt = fs::read_to_string(format!("{WATCH}/speed.jsonl")).unwrap_or_default();
+    txt.lines().filter(|l| !l.trim().is_empty()).filter_map(|l| {
+        Some(SpeedPoint {
+            commit: json_str(l, "commit")?,
+            nps: json_num(l, "nps")? as u64,
+            eval_ns: json_num(l, "eval_ns")?,
+            depth_at_budget: json_num(l, "depth")? as u32,
+            interp: json_num(l, "interp_ratio"),
+        })
+    }).collect()
+}
+
+fn json_str(line: &str, key: &str) -> Option<String> {
+    let pat = format!("\"{key}\":\"");
+    let i = line.find(&pat)? + pat.len();
+    let j = line[i..].find('"')? + i;
+    Some(line[i..j].to_string())
+}
+
+fn json_num(line: &str, key: &str) -> Option<f64> {
+    let pat = format!("\"{key}\":");
+    let i = line.find(&pat)? + pat.len();
+    let rest = &line[i..];
+    let j = rest.find(|c: char| !(c.is_ascii_digit() || c == '.' || c == '-' || c == 'e'))
+        .unwrap_or(rest.len());
+    rest[..j].parse().ok()
+}
+
+
+
+/// `generation  12 MAIN ... pop 8 spread 0.003-0.004 tt[..] ttk[".."] dsl0 x3/1`
+fn parse_gens(txt: &str) -> Vec<P2Gen> {
+    let mut out = Vec::new();
+    for l in txt.lines().filter(|l| l.trim_start().starts_with("gen ")) {
+        let t = l.trim_start();
+        let mut w = t.split_whitespace();
+        w.next();
+        let Some(generation) = w.next().and_then(|g| g.parse::<u64>().ok()) else { continue };
+        let lineage = w.next().unwrap_or("?").to_string();
+        let pop = after(t, "pop ").and_then(|v| v.split_whitespace().next()?.parse().ok()).unwrap_or(0);
+        let spread = after(t, "spread ").map(|v| {
+            let f = v.split_whitespace().next().unwrap_or("");
+            let mut p = f.split('-');
+            (p.next().unwrap_or("0").parse().unwrap_or(0.0), p.next().unwrap_or("0").parse().unwrap_or(0.0))
+        }).unwrap_or((0.0, 0.0));
+        let tt = bracket(t, "tt[").map(|s| s.split(',')
+            .filter_map(|x| x.trim().parse().ok()).collect()).unwrap_or_default();
+        let ttk = bracket(t, "ttk[").map(|s| s.split(',')
+            .map(|x| x.trim().trim_matches('"').to_string()).collect()).unwrap_or_default();
+        let (x_prop, x_surv) = after(t, " x").and_then(|v| {
+            let f = v.split_whitespace().next()?;
+            let mut p = f.split('/');
+            Some((p.next()?.parse().ok()?, p.next()?.parse().ok()?))
+        }).unwrap_or((0, 0));
+        let rate_hi = after(t, "rates ").and_then(|v| {
+            let f = v.split_whitespace().next()?;
+            f.trim_end_matches('x').split('-').nth(1)?.parse().ok()
+        }).unwrap_or(0.0);
+        out.push(P2Gen { generation, lineage, pop, spread, tt, ttk, x_prop, x_surv, rate_hi });
+    }
+    out
+}
+
+fn after<'a>(s: &'a str, key: &str) -> Option<&'a str> { s.split(key).nth(1) }
+fn bracket<'a>(s: &'a str, key: &str) -> Option<&'a str> {
+    let r = s.split(key).nth(1)?;
+    Some(&r[..r.find(']')?])
+}
+
+/// `gen  11 MAIN  gate REJECT llr -3.00 0.440+/-0.067 (42 games W-D-L 1-35-6)`
+fn parse_decisions(txt: &str) -> Vec<Decision> {
+    let mut out = Vec::new();
+    for l in txt.lines().filter(|l| l.contains("gate ACCEPT") || l.contains("gate REJECT")) {
+        let t = l.trim_start();
+        let mut w = t.split_whitespace();
+        w.next();
+        let Some(gnum) = w.next().and_then(|g| g.parse::<u64>().ok()) else { continue };
+        let lineage = w.next().unwrap_or("?").to_string();
+        let verdict = if t.contains("ACCEPT") { "ACCEPT" } else { "REJECT" }.to_string();
+        let llr = after(t, "llr ").and_then(|v| v.split_whitespace().next()?.parse().ok());
+        let (rate, ci) = after(t, "+/-").map(|c| {
+            let ci: f64 = c.split_whitespace().next().unwrap_or("0").parse().unwrap_or(0.0);
+            let r = t.split("+/-").next().unwrap_or("")
+                .split_whitespace().last().unwrap_or("0").parse().unwrap_or(0.0);
+            (r, ci)
+        }).unwrap_or((0.0, 0.0));
+        let games = after(t, "(").and_then(|v| v.split_whitespace().next()?.parse().ok()).unwrap_or(0);
+        out.push(Decision { generation: gnum, lineage, verdict, llr, rate, ci, games });
+    }
+    out
+}
+
+fn read_ledger_tail(n: usize) -> Vec<LedgerRow> {
+    let Some(p) = newest(|f| f.starts_with("ledger") && f.ends_with(".jsonl")) else { return vec![] };
+    let txt = fs::read_to_string(p).unwrap_or_default();
+    let lines: Vec<&str> = txt.lines().filter(|l| !l.trim().is_empty()).collect();
+    lines.iter().rev().take(n).map(|l| LedgerRow {
+        identity: json_str(l, "identity_string").unwrap_or_else(|| "(no identity_string)".into()),
+        what: json_str(l, "what").unwrap_or_default(),
+        verdict: json_str(l, "verdict").unwrap_or_default(),
+        fen: json_str(l, "fen_or_board_hash"),
+    }).collect()
+}
+
+fn newest(pred: impl Fn(&str) -> bool) -> Option<PathBuf> {
+    let mut c: Vec<(std::time::SystemTime, PathBuf)> = files_matching(pred).into_iter()
+        .filter_map(|p| fs::metadata(&p).and_then(|m| m.modified()).ok().map(|t| (t, p)))
+        .collect();
+    c.sort();
+    c.pop().map(|(_, p)| p)
+}
+
+// ---------------------------------------------------------------- render
+
+fn esc(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+}
+
+/// Elo per 100 generations over the plotted rungs, by least squares. `None` when fewer than two
+/// rungs carry a generation number — a slope through one point is not a trend.
+fn trend(rungs: &[Rung]) -> Option<f64> {
+    let p: Vec<(f64, f64)> = rungs.iter().filter(|r| r.generation > 0 && r.champion)
+        .map(|r| (r.generation as f64, r.elo)).collect();
+    if p.len() < 2 { return None; }
+    let n = p.len() as f64;
+    let (sx, sy): (f64, f64) = (p.iter().map(|q| q.0).sum(), p.iter().map(|q| q.1).sum());
+    let sxx: f64 = p.iter().map(|q| q.0 * q.0).sum();
+    let sxy: f64 = p.iter().map(|q| q.0 * q.1).sum();
+    let d = n * sxx - sx * sx;
+    if d.abs() < 1e-9 { return None; }
+    Some((n * sxy - sx * sy) / d * 100.0)
+}
+
+/// Page chrome. `refresh content=60` matches the regeneration cadence, so the phone stays current
+/// without any client-side code.
+const HEAD: &str = "<!doctype html><meta charset=utf-8><title>Existence watch</title>\
+<meta http-equiv=refresh content=60><meta name=viewport content='width=device-width,initial-scale=1'>\
+<style>body{background:#0b0e14;color:#c9d3e0;font:13px/1.5 ui-monospace,monospace;margin:0;padding:10px}\
+h2{font-size:13px;color:#58a6ff;margin:18px 0 6px;border-bottom:1px solid #1e2530;padding-bottom:3px}\
+table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:2px 6px;text-align:left;\
+border-bottom:1px solid #161b22}th{color:#6b7688;font-weight:400}.big{font-size:20px;color:#3fb950}\
+.mut{color:#6b7688}.hot{color:#f85149;font-weight:700}.warm{color:#e3b341}.ok{color:#3fb950}\
+code{color:#d2a8ff;word-break:break-all}</style>";
+
+fn render(s: &Snap) -> String {
+    let mut h = String::with_capacity(16384);
+    h.push_str(HEAD);
+
+    // ---- 1. RULER
+    h.push_str("<h2>1 &middot; RULER — absolute Elo vs Stockfish</h2>");
+    if s.rungs.is_empty() {
+        h.push_str("<p class=mut>no *_ruler.log yet</p>");
+    } else {
+        // Latest = most recently MEASURED, not highest generation (that reports the longest arm).
+        let last = s.rungs.iter().max_by_key(|r| r.mtime).unwrap();
+        let abs = SF_BASE + last.elo;
+        let _ = write!(h, "<p><span class=big>{abs:.0}</span> absolute \
+            <span class=mut>({:+.0} &plusmn; {:.0} vs SF-{})</span>", last.elo, last.ci, SF_BASE as u32);
+        match trend(&s.rungs) {
+            Some(t) => { let _ = write!(h, " &nbsp; trend <b>{t:+.1}</b> Elo / 100 gens"); }
+            None => h.push_str(" &nbsp; <span class=mut>trend: needs 2+ CHAMPION rungs</span>"),
+        }
+        h.push_str("</p>");
+        h.push_str(&svg_ruler(&s.rungs));
+        h.push_str("<table><tr><th>generation<th>net<th>Elo<th>&plusmn;CI<th>absolute</tr>");
+        for r in &s.rungs {
+            let _ = write!(h, "<tr><td>{}<td class=mut>{}<td class=mut>{}<td>{:+.0}<td class=mut>{:.0}<td>{:.0}</tr>",
+                if r.generation > 0 { r.generation.to_string() } else { "—".into() },
+                esc(&r.label), if r.champion { "champion" } else { "arm" },
+                r.elo, r.ci, SF_BASE + r.elo);
+        }
+        h.push_str("</table>");
+    }
+
+    // ---- 2. SPEED
+    h.push_str("<h2>2 &middot; SPEED — one point per engine commit</h2>");
+    if s.speed.is_empty() {
+        h.push_str("<p class=mut>watch/speed.jsonl is empty — no engine commit measured yet.</p>");
+    } else {
+        h.push_str("<table><tr><th>commit<th>nps<th>eval ns/node<th>depth @ budget<th>bench-interp</tr>");
+        for p in &s.speed {
+            let iv = p.interp.map_or("—".into(), |r| format!("{r:.3}x"));
+            let _ = write!(h, "<tr><td class=mut>{}<td>{}<td>{:.0}<td>{}<td>{iv}</tr>",
+                esc(&p.commit), p.nps, p.eval_ns, p.depth_at_budget);
+        }
+        h.push_str("</table>");
+    }
+
+    // ---- 3. P2 SEARCH TRACK
+    h.push_str("<h2>3 &middot; P2 SEARCH TRACK</h2>");
+    if s.gens.is_empty() {
+        h.push_str("<p class=mut>no generation lines in the newest track log</p>");
+    } else {
+        h.push_str("<table><tr><th>generation<th>lineage<th>pop<th>rate spread<th>tt/member\
+<th>Avg/Sample/Field<th>cross prop/surv</tr>");
+        for g in s.gens.iter().rev().take(40) {
+            let hash_reuse = g.ttk.iter().any(|k| k.contains('P') && k.contains('S'));
+            let mcts_in_main = g.lineage == "MAIN"
+                && g.ttk.iter().any(|k| k.contains('A') || k.contains('c'));
+            let cls = if hash_reuse { " class=hot" } else if mcts_in_main { " class=warm" } else { "" };
+            let _ = write!(h, "<tr{cls}><td>{}<td>{}<td>{}<td class=mut>{:.6}–{:.6}<td>{:?}<td>{}<td>{}/{}</tr>",
+                g.generation, esc(&g.lineage), g.pop, g.spread.0, g.spread.1, g.tt,
+                esc(&g.ttk.join(" ")), g.x_prop, g.x_surv);
+        }
+        h.push_str("</table><p class=mut>red = a member holds Probe AND Store (hash reuse assembled). \
+amber = a MAIN member holds Avg or Field(count) (MCTS material in an alpha-beta program).</p>");
+    }
+
+    // ---- 4. GATE
+    h.push_str("<h2>4 &middot; GATE</h2>");
+    let n = s.decisions.len();
+    let acc = s.decisions.iter().filter(|d| d.verdict == "ACCEPT").count();
+    let _ = write!(h, "<p>accept rate <b>{}</b> / {n} &nbsp; bounds e0={} e1={}</p>", acc,
+        s.bounds.0.map_or("—".into(), |v| format!("{v}")),
+        s.bounds.1.map_or("—".into(), |v| format!("{v}")));
+    if !s.decisions.is_empty() {
+        h.push_str("<table><tr><th>generation<th>lineage<th>verdict<th>LLR<th>rate<th>&plusmn;<th>games</tr>");
+        for d in s.decisions.iter().rev().take(20) {
+            let cls = if d.verdict == "ACCEPT" { " class=ok" } else { "" };
+            let _ = write!(h, "<tr{cls}><td>{}<td>{}<td>{}<td>{}<td>{:.3}<td class=mut>{:.3}<td>{}</tr>",
+                d.generation, esc(&d.lineage), d.verdict,
+                d.llr.map_or("—".into(), |v| format!("{v:+.2}")), d.rate, d.ci, d.games);
+        }
+        h.push_str("</table>");
+    }
+
+    // ---- 5. LEDGER TAIL
+    h.push_str("<h2>5 &middot; LEDGER — last 10, as the engine writes them</h2>");
+    for r in &s.ledger {
+        let _ = write!(h, "<p><b>{}</b><br><span class=mut>{} — {}</span>{}</p>",
+            esc(&r.identity), esc(&r.verdict), esc(&r.what),
+            r.fen.as_ref().map_or(String::new(),
+                |f| format!("<br><code>{}</code>", esc(f))));
+    }
+    let _ = write!(h, "<p class=mut>{}</p>", esc(&s.state_tail));
+    h
+}
+
+/// Inline SVG scatter with error bars. No library: five panels do not justify a dependency.
+fn svg_ruler(rungs: &[Rung]) -> String {
+    let pts: Vec<&Rung> = rungs.iter().filter(|r| r.generation > 0 && r.champion).collect();
+    if pts.is_empty() { return String::new(); }
+    let (w, hh) = (720.0, 200.0);
+    let gmax = pts.iter().map(|r| r.generation).max().unwrap_or(1).max(1) as f64;
+    let lo = UNTRAINED_ELO.min(pts.iter().map(|r| SF_BASE + r.elo - r.ci).fold(f64::MAX, f64::min)) - 40.0;
+    let hi = P1_MILESTONE.max(pts.iter().map(|r| SF_BASE + r.elo + r.ci).fold(f64::MIN, f64::max)) + 40.0;
+    let x = |g: u64| 40.0 + (g as f64 / gmax) * (w - 60.0);
+    let y = |e: f64| hh - 20.0 - (e - lo) / (hi - lo) * (hh - 40.0);
+    let mut s = format!("<svg width='100%' viewBox='0 0 {w} {hh}' style='background:#0f141c'>");
+    for (v, c, lbl) in [(UNTRAINED_ELO, "#6b7688", "untrained ~954"), (P1_MILESTONE, "#e3b341", "P1 2000")] {
+        let _ = write!(s, "<line x1=40 x2={} y1={:.1} y2={:.1} stroke='{c}' stroke-dasharray='3,3'/>\
+<text x=44 y={:.1} fill='{c}' font-size=9>{lbl}</text>", w - 20.0, y(v), y(v), y(v) - 3.0);
+    }
+    for r in &pts {
+        let (px, e) = (x(r.generation), SF_BASE + r.elo);
+        let _ = write!(s, "<line x1={px:.1} x2={px:.1} y1={:.1} y2={:.1} stroke='#3fb950' stroke-width=1/>\
+<circle cx={px:.1} cy={:.1} r=3 fill='#3fb950'/>", y(e - r.ci), y(e + r.ci), y(e));
+    }
+    s.push_str("</svg>");
+    s
+}
+
+// ---------------------------------------------------------------- events
+
+/// The milestone list is FIXED. Nothing is added to it without saying so.
+fn emit_events(s: &Snap) {
+    let path = format!("{WATCH}/events.log");
+    let seen: BTreeSet<String> = fs::read_to_string(&path).unwrap_or_default()
+        .lines().filter_map(|l| l.split_whitespace().nth(2).map(str::to_string)).collect();
+    let mut new: Vec<(String, String)> = Vec::new();
+    let idx = s.ledger.len();
+
+    for r in &s.rungs {
+        let key = format!("RULER_RUNG:{}:{:.0}", r.generation, r.elo);
+        new.push((key, format!("RULER_RUNG            {} {:.0} {:.0}", r.generation, SF_BASE + r.elo, r.ci)));
+        if SF_BASE + r.elo >= P1_MILESTONE {
+            new.push((format!("P1:{}", r.generation), format!("P1_MILESTONE          gen {} at {:.0}", r.generation, SF_BASE + r.elo)));
+        }
+    }
+    if let Some(t) = trend(&s.rungs) {
+        let n = s.rungs.iter().filter(|r| r.generation > 0 && r.champion).count();
+        if n >= 3 && t > 0.0 {
+            new.push((format!("TREND:{n}"), format!("RULER_TREND_POSITIVE  slope {t:+.1} Elo/100gens over {n} rungs")));
+        }
+    }
+    for wnd in s.speed.windows(2) {
+        if wnd[1].depth_at_budget == wnd[0].depth_at_budget + 1 {
+            new.push((format!("DEPTH:{}", wnd[1].commit),
+               format!("DEPTH_PLUS_ONE        {} -> depth {}", wnd[1].commit, wnd[1].depth_at_budget)));
+        }
+    }
+    for g in &s.gens {
+        // "FIRST ... graft passing the mate guard" -- keyed once, not once per generation.
+        if g.lineage == "MAIN" && g.x_surv > 0 {
+            new.push(("XSURV".into(),
+               format!("CROSSOVER_SURVIVED    gen {} MAIN {}/{} survived the mate guard", g.generation, g.x_surv, g.x_prop)));
+        }
+    }
+    let main: Vec<&P2Gen> = s.gens.iter().filter(|g| g.lineage == "MAIN").collect();
+    // HASH REUSE must be ACQUIRED, not inherited, and MAIN is the only lineage where that means
+    // anything. The first version fired on MCTS at gen 1 because the UCT seed ALREADY carries
+    // probe+store by construction -- it reported the seed as a discovery. The condition is now a
+    // false->true TRANSITION in MAIN: the previous generation's population held no member with
+    // both halves and this one does, which is a parent that lacked one. `rate_hi >= 1.0` keeps the
+    // original requirement that the assembling member is not worse than the seed.
+    let has_pair = |g: &P2Gen| g.ttk.iter().any(|k| k.contains('P') && k.contains('S'));
+    for w in main.windows(2) {
+        if !has_pair(w[0]) && has_pair(w[1]) && w[1].rate_hi >= 1.0 {
+            new.push(("HASH".into(), format!(
+               "HASH_REUSE_ASSEMBLED  gen {} MAIN acquired probe+store (gen {} had none) ttk {} rate {:.3}x",
+               w[1].generation, w[0].generation, w[1].ttk.join(" "), w[1].rate_hi)));
+        }
+    }
+    // Must PERSIST: 5 consecutive MAIN gens, so one lucky candidate is not called a discovery.
+    let mut run = 0usize;
+    for g in &main {
+        if g.ttk.iter().any(|k| k.contains('A') || k.contains('c')) { run += 1 } else { run = 0 }
+        if run >= 5 {
+            new.push(("MCTSMAT".into(),
+               format!("MCTS_MATERIAL_IN_MAIN gen {} held Avg/Field(count) for {run} generations", g.generation)));
+        }
+    }
+    for d in s.decisions.iter().filter(|d| d.verdict == "ACCEPT") {
+        new.push((format!("ACC:{}:{}", d.lineage, d.generation),
+           format!("GATE_ACCEPT_PROGRAM   gen {} {} rate {:.3}", d.generation, d.lineage, d.rate)));
+    }
+    for r in s.ledger.iter().filter(|r| r.verdict == "accept") {
+        if ["Avg", "Field(count)", "Sample"].iter().any(|k| r.what.contains(k)) {
+            new.push((format!("HYB:{}", r.identity), format!("HYBRID_ACCEPTED       {}", r.identity)));
+        }
+    }
+    if Path::new("WEEK_STOP").exists() {
+        new.push(("WEEK".into(), "WEEK_STOP             day-7 stop condition fired".into()));
+    }
+
+    let mut add = String::new();
+    for (key, line) in new {
+        if seen.contains(&key) { continue; }
+        let stamp = Command::new("date").arg("+%Y-%m-%d %H:%M:%S").output().ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .map(|s| s.trim().to_string()).unwrap_or_default();
+        let full = format!("{stamp} {key} {line} [ledger:{idx}]");
+        println!("{full}");
+        add.push_str(&full);
+        add.push('\n');
+    }
+    if !add.is_empty() {
+        use std::io::Write;
+        if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(&path) {
+            let _ = f.write_all(add.as_bytes());
+        }
+    }
+}

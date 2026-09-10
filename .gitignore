@@ -35,3 +35,7 @@ champion*.net
 # untracked file.
 *.log.*
 __pycache__/
+
+# `cargo xtask watch` output: regenerated every 60s, and events.log is a local
+# append-only stream. Artifacts of the instrument, not inputs to the loop.
+watch/

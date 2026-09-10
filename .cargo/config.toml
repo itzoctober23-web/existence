@@ -1,0 +1,4 @@
+# `cargo xtask watch` -- the observability instrument. Release so the 60s regeneration is not
+# itself a load, and `--` so flags reach xtask rather than cargo.
+[alias]
+xtask = "run --release --package xtask --"

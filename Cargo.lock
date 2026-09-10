@@ -43,3 +43,7 @@ dependencies = [
  "interp",
  "nnue",
 ]
+
+[[package]]
+name = "xtask"
+version = "0.1.0"

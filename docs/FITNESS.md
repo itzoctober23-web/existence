@@ -24,6 +24,31 @@ which surviving candidates get stage 4-5 time. Nothing skips a stage.
 | FEATURE / STAT | grammar proposers | STAT: no; FEATURE: no | as TABLE | held-out loss (FEATURE), agreement (STAT) |
 | HYPER | perturbation of a training/datagen hyperparameter | no | judged by the NET it produces | — |
 
+**THE HYPER ARM HAS ITS FIRST MOVED HYPERPARAMETER — datagen DEPTH, 2026-09-10.** This row declared
+the class and nothing had ever moved in it. `main.rs:152` set `--depth` default **1**, so every P1
+measurement in this repo — the ~1216 plateau, the deceleration curve, the width/blend/horizon sweeps,
+the 2,200-generation champion — was taken on a loop labelling its own positions with a ONE-PLY
+search.
+
+Measured at equal wall clock on the absolute ruler (`datagen_depth_RESULT.md`):
+
+| datagen depth | generations in 1800s | Elo vs SF-1320 | absolute |
+|---|---|---|---|
+| 1 | 610 | −236 ± 53 | ~1084 |
+| **3** | **6** | **−108 ± 48** | **~1212** |
+| 6 | 0 — could not complete one generation | — | — |
+
+**+128 ± 72, resolved.** Six deep generations are statistically indistinguishable from a champion
+built from ~2,200 shallow ones. Judged exactly as this row specifies: *by the NET it produces*, on
+the ruler, not by a gate.
+
+The value is now **3**, and the budget is chosen by WALL CLOCK so generations actually complete —
+depth 6 is not merely worse, it produced no net at all at 2,400 games per generation. The production
+run (`deep1.log`, 400 generations, rung snapshot every 25) is the first HYPER-class change this
+project has shipped, and `--datagen-nodes` expresses the same knob in nodes per move for when the
+knee needs finding between 3 and 6.
+
+
 ## 2. Correctness oracle (PROGRAM candidates)
 ### 2.1 Reference search
 Full-width negamax to fixed depth R, no pruning, no hash, no extensions, using the
