@@ -60,6 +60,10 @@ pub struct Searcher {
     /// Which delta implementation push_move uses. Set per-search from the environment so the two
     /// are A/B-comparable on identical trees rather than one replacing the other on an argument.
     xor_delta: bool,
+    /// Explicit path override for tests. `best_move` re-reads the environment on EVERY call, so a
+    /// test cannot pin the path by setting a field, and setting process env vars from a test is racy
+    /// under cargo's default thread-parallel harness. When this is `Some`, it wins over the env.
+    override_paths: Option<(bool, bool)>,
 }
 
 impl Searcher {
@@ -105,7 +109,13 @@ impl Searcher {
             order: Vec::new(),
             shuffle_children: true,
             xor_delta: false, // set per-search by best_move
+            override_paths: None,
         }
+    }
+
+    /// Pin the eval path explicitly, overriding the environment. Tests only.
+    pub fn set_paths(&mut self, incremental: bool, xor_delta: bool) {
+        self.override_paths = Some((incremental, xor_delta));
     }
 
     /// Fix the shuffle stream. Determinism is a gate requirement (FITNESS 10, "stochastic
@@ -217,8 +227,13 @@ impl Searcher {
         self.acc.vals.copy_from_slice(&self.stack[base..base + h]);
     }
     pub fn best_move(&mut self, pos: &mut Position, depth: u32, net: &Net) -> (Move, Score) {
-        self.incremental = std::env::var("EXISTENCE_FULL_REFRESH").is_err();
-        self.xor_delta = std::env::var("EXISTENCE_OLD_DELTA").is_err();
+        match self.override_paths {
+            Some((inc, xor)) => { self.incremental = inc; self.xor_delta = xor; }
+            None => {
+                self.incremental = std::env::var("EXISTENCE_FULL_REFRESH").is_err();
+                self.xor_delta = std::env::var("EXISTENCE_OLD_DELTA").is_err();
+            }
+        }
         self.acc.refresh(net, pos);
         self.ply = 0;
         let list = pos.legal_moves();
@@ -254,8 +269,13 @@ impl Searcher {
     pub fn best_move_capped(
         &mut self, pos: &mut Position, depth: u32, net: &Net, node_cap: u64, seed: u64,
     ) -> (Move, Score) {
-        self.incremental = std::env::var("EXISTENCE_FULL_REFRESH").is_err();
-        self.xor_delta = std::env::var("EXISTENCE_OLD_DELTA").is_err();
+        match self.override_paths {
+            Some((inc, xor)) => { self.incremental = inc; self.xor_delta = xor; }
+            None => {
+                self.incremental = std::env::var("EXISTENCE_FULL_REFRESH").is_err();
+                self.xor_delta = std::env::var("EXISTENCE_OLD_DELTA").is_err();
+            }
+        }
         self.acc.refresh(net, pos);
         self.ply = 0;
         self.nodes = 0;
