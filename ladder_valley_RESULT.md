@@ -111,3 +111,32 @@ both retained simultaneously, and crossover must pick that pair — and `+104 no
 The point is narrower and it corrects this document: the path is not closed by the acceptance rule,
 because retention and acceptance are different gates. Whether the path is TAKEN is a question about
 population size, EPS width and crossover rate — the three things the `lam32` and EPS arms vary.
+
+## The valley floor IS populated — measured, and it happens at GENERATION 6
+
+The `tt[...]` field on each gen line counts TT primitives PER POPULATION MEMBER, so it is a direct
+observable for whether both halves of the rung are alive at once. Across every arm log:
+
+    33 MAIN gen-lines, 2 contain a member with tt > 0  (6.1%)
+
+and both of those hold MULTIPLE TT-carrying members at the same time:
+
+    gen 6  MAIN  mate-ok 5, rates 0.997-0.999999x [>=.98:5, distinct:5]  tt[0,0,3,3,0,0]
+    gen 7  MAIN  mate-ok 4, rates 0.878-1.000000x [>=.98:3]              tt[0,0,0,3,3,0,0,4]
+
+**At gen 6, five candidates sat at 0.997-1.000x** — exactly the band where probe-only (0.991x) and
+store-only (0.997x) live — and the population carried **two members with 3 TT primitives each**. That
+is the crossover precondition, observed rather than argued: both halves retained simultaneously,
+neither acceptable alone.
+
+**And it happens at GENERATION 6-7, which nothing running tonight has reached.** Every live arm is
+at generation 1-5. The measurement above comes from `gate_veto_arm_noverify.log`, a longer run. So:
+
+- **The `hard` gradient switches on at gen 3 and peaks at gens 4-6** (measured earlier: 0% at gen 1,
+  26% at gen 3, ~50% at gens 4-6).
+- **The TT valley floor populates at gen 6-7.**
+
+**Do not judge any of tonight's arms before generation 6.** At roughly 40 minutes per gated
+generation that is two to three hours out. Every reading taken before then is from a regime where
+the interesting structure has not yet appeared — which is worth stating plainly, because four arms
+producing "REJECT, resolved worse" at gens 3-4 looks like a settled answer and is not one.
