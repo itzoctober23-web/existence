@@ -3909,3 +3909,41 @@ than by accident. Two regimes agreeing would be much stronger than either alone.
 generation than the non-filter arms — measured on the other pair at ~10x — because selecting nothing
 costs nothing and admitting candidates costs gates. "Which cell reaches generation 25 first" is
 therefore not the result; the result is what each cell ACCEPTS, and at what price in games.
+
+## 2026-09-10 — `dsl` is printed on ONE line type, so it vanishes exactly when a generation is interesting
+
+The `dsl{n}` counter was added this morning to make the diversity reserve observable — it exists
+because I had previously CREDITED the reserve for a fused population member it had not caused, and the
+counter proved the reserve was inactive at the time. It is printed on the `..none[above N, gated-skip
+M]` line and **nowhere else**. Verified, not assumed:
+
+    gate_div_x_filter:  3 no-op VETO lines, 0 of them carrying a dsl field
+
+Neither the `gate REJECT/ACCEPT` line nor the `no-op VETO` line prints it. Checked the completed
+diversity arm to confirm the pattern: its gate lines carry `pop`, `distinct`, `ABOVE`, `needed`,
+`mates`, `hard`, `surrogate` — and no `dsl`.
+
+**Consequence for the factorial.** `gate_div_x_filter` runs `EXISTENCE_DIVERSITY_SLOTS=2` and every
+generation so far has ended in a no-op VETO, so **there is currently no line in its log that could show
+whether the reserve engaged.** Its `SPEC_FILTER on` is confirmed from the header; its diversity is not
+yet confirmable from the output at all.
+
+**This is the shape `evolve.rs` warns about in its own comment**, quoted from the gate-line block:
+*"An observable that vanishes precisely when a candidate is interesting enough to GATE is the worst
+place for a blind spot, and it cost a comparison two seeds had already earned."* That comment was
+written about `pop`/`distinct` disappearing on gated generations. The `dsl` field I added has the same
+defect and I did not notice, because in the diversity arms most generations took the `..none` path and
+the field was visible ~every line.
+
+**Not fatal, and the resolution is bounded.** The filter arms do produce `..none` lines once a
+candidate clears without being vetoed — `gate_specfilter_s1` did at generation 5
+(`..none[above 1, gated-skip 1]`). So `div_x_filter`'s reserve becomes observable at its first such
+generation. Until then the correct statement is *"diversity is SET but not yet CONFIRMED to engage"*,
+which is what a check that cannot see something should make anyone say.
+
+**Fix deferred deliberately, and this is a resource decision not an oversight.** Printing `dsl` on the
+veto and gate lines is a two-line change, but rebuilding `evolve` would produce a binary differing
+from `evolve_PINNED` (`1529d29f`), which all four factorial cells share. A mid-experiment rebuild is
+exactly what voided the diversity pairing this morning. The fix belongs in the NEXT build, after the
+factorial completes, and is recorded here so it is not lost: **print `dsl` on every per-generation line
+type, not just the one where nothing happened.**
