@@ -1181,25 +1181,70 @@ fn alpha_sensitive_set(n: usize, depth: i64, net: &Net, raised: i8, cap: usize)
     out
 }
 
-fn tt_prims(p: &Program) -> usize {
-    fn walk(n: &Node) -> usize {
+/// TT primitives split by KIND: `[Probe, Store, Key, Field]`.
+///
+/// WHY THIS EXISTS RATHER THAN JUST A COUNT. `tt_prims` pools all four kinds into one integer, and
+/// on 2026-09-09 that pooling produced a retracted claim. Two population members each showing
+/// `tt 3` were written up as "both halves of the rung retained simultaneously, neither acceptable
+/// alone" -- a statement about COMPOSITION read off a metric that cannot express composition. `tt 3`
+/// is equally `Key+Field+Probe` (a probe half), `Key+Field+Store` (a store half), or three `Key`s.
+/// The two members may well have carried the SAME half, in which case the crossover precondition
+/// was NOT observed and the conclusion inverts. See `ladder_valley_RESULT.md`.
+///
+/// The valley is CONJUNCTIVE (probe-only 0.991x, store-only 0.997x, both 1.024x), so "which half"
+/// is the entire question. A counter that cannot answer it is decoration on the one measurement
+/// that matters.
+///
+/// ONE TRAVERSAL, shared with `tt_prims`, so the count and the composition can never disagree --
+/// duplicating these match arms would let the two fields drift silently, which is the same class of
+/// defect this function exists to fix.
+fn tt_counts(p: &Program) -> [usize; 4] {
+    fn walk(n: &Node, out: &mut [usize; 4]) {
         use Node::*;
-        let here = matches!(n, Probe(_) | Store(..) | Key(_) | Field(..)) as usize;
-        here + match n {
-            Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => 0,
+        match n {
+            Probe(_) => out[0] += 1,
+            Store(..) => out[1] += 1,
+            Key(_) => out[2] += 1,
+            Field(..) => out[3] += 1,
+            _ => {}
+        }
+        match n {
+            Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => {}
             Moves(a) | Terminal(a) | Key(a) | Eval(a) | Ret(a) | Probe(a) | Field(a, _)
-            | Set(_, a) => walk(a),
+            | Set(_, a) => walk(a, out),
             Apply(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) | Cmp(a, b, _)
-            | Pred(a, b, _) | Loop(a, b) | Store(a, _, b) => walk(a) + walk(b),
-            Mix(a, b, c) => walk(a) + walk(b) + walk(c),
+            | Pred(a, b, _) | Loop(a, b) | Store(a, _, b) => { walk(a, out); walk(b, out) }
+            Mix(a, b, c) => { walk(a, out); walk(b, out); walk(c, out) }
             Foreach(a, _, b) | Argmax(a, _, b) | Sort(a, _, b) | Sample(a, _, b)
-            | Let(_, a, b) => walk(a) + walk(b),
-            If(c, t, e) => walk(c) + walk(t) + e.as_ref().map_or(0, |x| walk(x)),
-            Call(_, args) | Arith(_, args) | TRead(_, args) => args.iter().map(walk).sum(),
+            | Let(_, a, b) => { walk(a, out); walk(b, out) }
+            If(c, t, e) => { walk(c, out); walk(t, out); if let Some(x) = e { walk(x, out) } }
+            Call(_, args) | Arith(_, args) | TRead(_, args) => { for a in args { walk(a, out) } }
         }
     }
-    p.funcs.iter().map(|f| walk(&f.body)).sum()
+    let mut out = [0usize; 4];
+    for f in &p.funcs { walk(&f.body, &mut out); }
+    out
 }
+
+/// Composition tag for one member: `P2S1K1`, or `-` when it carries no TT primitive at all.
+///
+/// Read it against the valley table: a member tagged with `P` but no `S` is a probe half, `S`
+/// without `P` is a store half, and only a member (or a crossover of two) carrying BOTH can be the
+/// +2.4% rung. That distinction is invisible in the pooled count.
+fn tt_kind_tag(p: &Program) -> String {
+    let c = tt_counts(p);
+    if c.iter().all(|&x| x == 0) { return "-".to_string(); }
+    let mut s = String::new();
+    for (ch, n) in ["P", "S", "K", "F"].iter().zip(c.iter()) {
+        if *n > 0 { s.push_str(&format!("{ch}{n}")); }
+    }
+    s
+}
+
+/// Total TT primitives. Delegates to `tt_counts` so the pooled number and the per-kind tag are the
+/// SAME traversal by construction -- a second copy of these match arms could drift from the first
+/// without any test noticing, and a silently-disagreeing pair of fields is worse than one field.
+fn tt_prims(p: &Program) -> usize { tt_counts(p).iter().sum() }
 
 fn valley() {
     let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
@@ -1242,7 +1287,46 @@ fn valley() {
     println!("  these ratios are exact for this set rather than estimates with error bars.");
 }
 
+/// POSITIVE CONTROL for the `ttk` field. An instrument that cannot separate a probe half from a
+/// store half on programs KNOWN to be one or the other is decoration, and the pooled `tt` count it
+/// replaces already produced one retracted claim by being trusted without this check.
+///
+/// Prints the tag for every reference rung and ASSERTS the two that matter: `ab_probe_only` must
+/// show `P` and no `S`, `ab_store_only` the reverse, and `ab_hash` must show both. A silent pass
+/// here is what licenses reading `ttk` off a live run.
+fn tt_kinds_control() {
+    println!("=== ttk positive control: can the tag separate the valley halves? ===");
+    let cases = [
+        ("bare alpha-beta (seed)", reference::bare_alpha_beta()),
+        ("probe only (never stores)", reference::ab_probe_only()),
+        ("store only (never probes)", reference::ab_store_only()),
+        ("hash reuse (both halves)", reference::ab_hash()),
+        ("UCT MCTS", reference::uct_mcts()),
+    ];
+    for (name, p) in &cases {
+        println!("  {:<28} tt {:>2}  ttk {}", name, tt_prims(p), tt_kind_tag(p));
+    }
+    let probe = tt_kind_tag(&reference::ab_probe_only());
+    let store = tt_kind_tag(&reference::ab_store_only());
+    let both = tt_kind_tag(&reference::ab_hash());
+    assert!(probe.contains('P') && !probe.contains('S'),
+            "probe-only tagged {probe:?} -- the tag cannot identify a probe half, so ttk is unusable");
+    assert!(store.contains('S') && !store.contains('P'),
+            "store-only tagged {store:?} -- the tag cannot identify a store half, so ttk is unusable");
+    assert!(both.contains('P') && both.contains('S'),
+            "hash-reuse tagged {both:?} -- the tag cannot identify the united rung, so ttk is unusable");
+    // The count must equal the sum of the kinds, or the two printed fields disagree on the same run.
+    for (name, p) in &cases {
+        assert_eq!(tt_prims(p), tt_counts(p).iter().sum::<usize>(),
+                   "{name}: pooled count and per-kind counts disagree");
+    }
+    println!("  PASS: probe={probe}  store={store}  hash={both}  (halves are distinguishable)");
+}
+
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("ttk") {
+        return tt_kinds_control();
+    }
     if std::env::args().nth(1).as_deref() == Some("valley") {
         return valley();
     }
@@ -1787,6 +1871,10 @@ fn main() {
             let popn = &lineages[li].popn;
             let (spread_lo, spread_hi) = (popn.last().unwrap().2, popn[0].2);
             let tt: Vec<usize> = popn.iter().map(|(p, _, _)| tt_prims(p)).collect();
+            // Per-KIND composition beside the pooled count. The count alone cannot say whether two
+            // TT-carrying members hold COMPLEMENTARY halves or the same one, and the valley is
+            // conjunctive, so "which half" is the whole question. See `tt_counts`.
+            let ttk: Vec<String> = popn.iter().map(|(p, _, _)| tt_kind_tag(p)).collect();
             // FITNESS 3 SPECIFIES A FILTER, NOT A CLIMB: "(a) a filter -- a PROGRAM candidate
             // must score >= 0.9x the champion on MATE-{1,2} and >= 0.8x on MATE-{3,4} to reach the
             // ladder". This loop requires `rate > best_rate` STRICTLY -- an IMPROVEMENT in the
@@ -2210,9 +2298,9 @@ champ_mates\tchamp_cost\tchamp_rate\tgames\tci95\tnodes\tmate1\tmate2\n");
                 let span = if rel.is_empty() { "none".to_string() }
                            else { format!("{rlo:.3}-{rhi:.6}x") };
                 println!("  gen {g:>3} {:<5} ..none ({n_scored} cand, {ill} ill, mate-ok {mate_ok}, \
-rates {span} [>=.98:{} .90-.98:{} .50-.90:{} <.50:{} distinct:{}], hard {hlo}-{hhi})  pop {} spread {:.6}-{:.6} tt{:?}",
+rates {span} [>=.98:{} .90-.98:{} .50-.90:{} <.50:{} distinct:{}], hard {hlo}-{hhi})  pop {} spread {:.6}-{:.6} tt{:?} ttk{:?}",
                          lineages[li].name, hist.0, hist.1, hist.2, hist.3, distinct,
-                         popn.len(), spread_lo, spread_hi, tt);
+                         popn.len(), spread_lo, spread_hi, tt, ttk);
             }
         }
     }

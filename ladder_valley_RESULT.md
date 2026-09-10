@@ -129,6 +129,78 @@ store-only (0.997x) live — and the population carried **two members with 3 TT 
 is the crossover precondition, observed rather than argued: both halves retained simultaneously,
 neither acceptable alone.
 
+### ⚠ CORRECTION, 22:07, same evening — that last sentence OVERREADS THE METRIC
+
+Written an hour earlier and wrong in the one way that mattered. `tt_prims` (`evolve.rs:1184`) is:
+
+```rust
+let here = matches!(n, Probe(_) | Store(..) | Key(_) | Field(..)) as usize;
+```
+
+**It pools FOUR node kinds into ONE integer.** So `tt 3` can be `Key+Field+Probe`, `Key+Field+Store`,
+`Probe+Store+Key`, or three `Key`s. **A count of 3 in two members is equally consistent with both
+members carrying the SAME half.** "Both halves retained simultaneously" is an inference about
+COMPOSITION read off a metric that cannot express composition — the exact failure mode already
+recorded for the `mates` field, where a pooled number hid that candidates were SELLING mates.
+
+**What the measurement does support, and this part stands:**
+- TT primitives are REACHED by mutation and RETAINED in a population — 2 of 33 MAIN gen-lines.
+- It happens at gens 6-7, later than anything now running.
+- Retention, not acceptance, is what keeps them (rates 0.997-1.000x are all below `> best_rate`).
+
+**What it does NOT support:** that the two members are complementary halves, and therefore that the
+crossover precondition was observed. That remains **NOT CLAIMED**, exactly as the section above it
+already said — I contradicted my own "Not claimed" paragraph one section later.
+
+**The instrument fix, since the count cannot be made to answer this.** `ttk[...]` now prints the KIND
+COMPOSITION per member (`P`robe / `S`tore / `K`ey / `F`ield) beside the count, so a probe-half and a
+store-half are distinguishable on sight. Print-only, no behaviour change. It cannot be applied to the
+runs already in flight — those keep printing counts — so **the composition question is open until an
+arm launched with the new binary reaches gen 6.**
+
+**Why this correction matters more than the finding did.** A structural claim about search
+reachability was about to rest on a four-way-pooled counter. Had `ttk` shown both members carrying
+`KFS`, the conclusion "EPS makes the rung reachable" would have been backwards, and nothing in the
+logs would have contradicted it.
+
+### The instrument's positive control, and what it already settles
+
+`evolve ttk` tags every reference rung and asserts the halves are separable. It passes:
+
+| program | tt | ttk |
+|---|---|---|
+| bare alpha-beta (seed) | 0 | `-` |
+| probe only (never stores) | 30 | `P10K10F10` |
+| store only (never probes) | 10 | `S5K5` |
+| hash reuse (both halves) | 40 | `P10S5K15F10` |
+| **UCT MCTS** | **40** | **`P10S5K15F10`** |
+
+**Two things fall out of this table that were not visible before.**
+
+**1. The observed counts are ambiguous in BOTH directions, which vindicates the retraction.** The
+cheapest reference half is store-only at `tt 10`, so `tt 3` looks at first like a mere fragment —
+3.3x too small to be a half. But the reference programs apply the pattern at 5-10 CALL SITES, while
+a mutation reaches ONE. A minimal probe is `P1+K1+F1 = 3`. A minimal *united* member is
+`P1+S1+K1+F1 = 4`. So the gen-6 pair at `tt 3` is equally "two fragments" and "two minimal probe
+halves", and **the gen-7 member at `tt 4` is equally a fragment and a minimal member carrying BOTH
+HALVES AT ONCE** — which, if true, is not the crossover precondition at all but the rung itself, in
+miniature, inside one program. The count cannot distinguish these. `ttk` can, and only on runs
+launched with the new binary.
+
+**2. UCT MCTS carries a FULL TT complement — `P10S5K15F10`, byte-identical to `ab_hash`.** The
+second lineage is not merely a source of `Avg`; it is a donor pool that already contains both halves
+of the rung, at every call site. And `donors` (`evolve.rs:1561`) flat-maps over **every lineage's**
+population, so a MAIN recipient can draw an MCTS donor. That is a materially different reachability
+story from the one this document has been telling: the halves may not need to be independently
+*discovered* in MAIN at all — they can be *carried in* from the MCTS seed by the crossover that runs
+on one candidate in four. `tests/reachability.rs:185` already proves crossover moves kinds across
+lineages; it asserts only that the moved set is non-empty, and never checks for these four kinds
+specifically.
+
+**Still not claimed:** that this happens, or that a grafted TT subtree lands anywhere useful. Both
+are now cheap to measure instead of argue — the first by `ttk` on a fresh run, the second by
+extending the reachability test to name `Probe`/`Store` explicitly.
+
 **And it happens at GENERATION 6-7, which nothing running tonight has reached.** Every live arm is
 at generation 1-5. The measurement above comes from `gate_veto_arm_noverify.log`, a longer run. So:
 
