@@ -279,6 +279,21 @@ struct Tt {
     slots: Vec<Slot>,
     cur: u32,
     pub collisions: u64,
+    /// PROBE HIT ACCOUNTING. `collisions` already existed because FITNESS 10 lists "exploit hash
+    /// collision / stale slot" as a degenerate solution and that is only checkable if counted. These
+    /// two exist for the opposite question: is the table being USED AT ALL.
+    ///
+    /// Measured 2026-09-10: mutation installs a Probe and a Store together in 1.8% of 2-edit and
+    /// 4.4% of 3-edit candidates -- exactly the rate pure operator DRAW predicts, so the kinds
+    /// compose freely -- and not one of those candidates is ever cheaper or guard-passing. The
+    /// explanation offered was SEMANTIC PLACEMENT: a probe and a store in one program is not a
+    /// transposition table unless the probe runs before the recursion, the store after, and both key
+    /// on the same position. That was an INFERENCE from two facts, not a measurement.
+    ///
+    /// A working table produces HITS. An arbitrarily-placed pair produces none. Counting them turns
+    /// the inference into an observation.
+    pub probe_calls: u64,
+    pub probe_hits: u64,
 }
 
 impl Tt {
@@ -289,6 +304,8 @@ impl Tt {
             slots: vec![Slot::default(); HASH_SLOTS],
             cur: 1,
             collisions: 0,
+            probe_calls: 0,
+            probe_hits: 0,
         }
     }
     #[inline]
@@ -308,7 +325,9 @@ impl Tt {
     }
     fn probe(&mut self, key: u64) -> Slot {
         let i = Self::idx(key);
+        self.probe_calls += 1;
         if self.stamp[i] == self.cur && self.keys[i] == key {
+            self.probe_hits += 1;
             self.slots[i]
         } else {
             if self.stamp[i] == self.cur { self.collisions += 1; }
@@ -409,6 +428,8 @@ pub struct Interp<'a> {
     /// a caller supplies one. See the TRead arm for why this exists.
     pub tables_nd: Vec<NdTable>,
     hash: Tt,
+    // Read-only accessors below expose the table's probe accounting without making the field public:
+    // `Tt` is private on purpose and should stay that way.
     /// Scratch for the narrow-width fallback in `PosAcc::score_with`, so the hot eval path
     /// allocates nothing per node. This field existed already but nothing could reach it --
     /// `score` took no buffer -- so it sat behind an #[allow(dead_code)] that hid the gap.
@@ -508,6 +529,14 @@ pub fn uct_exploration() -> i64 {
 type Env<'p> = Vec<(&'p str, Value)>;
 
 impl<'a> Interp<'a> {
+    /// Probe accounting: (calls, hits). A transposition table that is never HIT is not a table.
+    ///
+    /// Added 2026-09-10 to settle a question that was otherwise an inference. Mutation installs a
+    /// Probe and a Store together in 1.8% of 2-edit candidates -- the rate pure operator draw
+    /// predicts -- yet none is ever cheaper or guard-passing. "The placement must be wrong" explained
+    /// that, but explaining is not measuring. Hits measure it.
+    pub fn probe_stats(&self) -> (u64, u64) { (self.hash.probe_calls, self.hash.probe_hits) }
+
     pub fn new(net: &'a Net, tables: Vec<i64>) -> Self {
         Interp {
             net,

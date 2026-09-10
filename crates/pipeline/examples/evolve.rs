@@ -1754,7 +1754,74 @@ fn tt_reach() {
     println!("  different problem needing targeted operators rather than plateau tolerance.");
 }
 
+/// Do the TT primitives mutation installs ever actually HIT? `evolve tthits <n> <edits> <depth>`
+///
+/// `editcount_RESULT.md` concluded the barrier is SEMANTIC PLACEMENT: mutation installs a Probe and
+/// a Store together at exactly the rate operator draw predicts (0.0182 observed vs 0.0165 expected
+/// at 2 edits), yet none of those candidates is ever cheaper or guard-passing. The explanation --
+/// that an arbitrarily-placed probe and store are not a transposition table -- was an INFERENCE from
+/// those two facts. This measures it: a working table produces HITS, a decorative pair produces none.
+///
+/// POSITIVE CONTROL FIRST, and it is the whole point. `ab_hash` is a hand-built working TT, so it
+/// MUST register hits under this harness. If it does not, `probe_stats` is wired wrong and every
+/// zero below is meaningless -- the same trap as reading `0/12` before checking that a known-good
+/// program reads non-zero.
+fn tt_hits() {
+    let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
+    let (n, edits, depth) = (a(2, 400) as usize, a(3, 3) as usize, a(4, 3));
+    let net = Net::random(32, 20260907);
+    let seed = reference::bare_alpha_beta();
+    let set = mate_set(6);
+
+    let run = |prog: &Program| -> (u64, u64) {
+        let (mut c, mut h) = (0u64, 0u64);
+        for (p, _) in &set {
+            let mut it = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
+            it.cost_cap = 20_000_000_000;
+            let _ = it.run(prog, p, 16);
+            let (cc, hh) = it.probe_stats();
+            c += cc; h += hh;
+        }
+        (c, h)
+    };
+
+    println!("=== do installed TT primitives ever HIT? {n} mutants at {edits} edits, depth {depth} ===");
+    let (sc, sh) = run(&reference::ab_hash());
+    println!("  CONTROL ab_hash (hand-built, working TT): {sc} probes, {sh} HITS  ({:.1}% hit rate)",
+             100.0 * sh as f64 / sc.max(1) as f64);
+    if sh == 0 {
+        println!("  *** CONTROL FAILED: a known-working table registered zero hits.");
+        println!("  *** probe_stats is wired wrong; every number below is meaningless.");
+        return;
+    }
+    let (bc, bh) = run(&seed);
+    println!("  seed bare_alpha_beta (no TT at all)     : {bc} probes, {bh} hits  (must be 0/0)");
+
+    let (mut both, mut probed, mut any_hit, mut tot_c, mut tot_h) = (0usize, 0usize, 0usize, 0u64, 0u64);
+    for k in 0..n {
+        let mut r = Rng::new((k as u64) << 12 ^ 0x77AA ^ (edits as u64) << 40);
+        let Some((cand, _)) = mutate::mutate_program_n(&seed, &mut r, edits) else { continue };
+        let c = tt_counts(&cand);
+        if c[0] == 0 || c[1] == 0 { continue; }
+        both += 1;
+        let (cc, hh) = run(&cand);
+        tot_c += cc; tot_h += hh;
+        if cc > 0 { probed += 1; }
+        if hh > 0 { any_hit += 1; }
+    }
+    println!("\n  mutants carrying BOTH halves      : {both} of {n}");
+    println!("  ...that actually EXECUTE a probe  : {probed}");
+    println!("  ...that ever get a HIT            : {any_hit}");
+    println!("  total across them                 : {tot_c} probes, {tot_h} hits");
+    println!("\n  A pair that never hits is not a transposition table -- it is a read of an empty slot");
+    println!("  and a write nothing reads, which is exactly the valley's probe-only 0.991x and");
+    println!("  store-only 0.997x paid TOGETHER, with neither half's payoff.");
+}
+
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("tthits") {
+        return tt_hits();
+    }
     if std::env::args().nth(1).as_deref() == Some("ttreach") {
         return tt_reach();
     }
