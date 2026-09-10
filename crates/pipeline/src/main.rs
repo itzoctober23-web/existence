@@ -1184,7 +1184,21 @@ base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
             let (ca, cb) = arch::equal_time_caps(&champion, &origin, budget_ns, depth.max(3));
             let c = gate::match_nets_capped(&champion, &origin, gate_depth_cap, ca, cb,
                                             ctrl_pairs, seed ^ 0xC0 ^ g as u64, 4);
-            println!("      control vs origin @gen {g}: {}W-{}D-{}L  rate {:.3} +/- {:.3}{}",
+            // PRINT THE CAPS, not just the rate. These caps are DERIVED PER READING from a
+            // wall-clock probe (`equal_time_caps` -> `ns_per_node`), so the operating point is
+            // an output of the run, not a constant of it -- and until now it was never recorded.
+            // That made successive readings unfalsifiable against each other: the control reported
+            // 0.873 -> 0.871 -> 0.847 -> 0.819 across gens 100-400 and there was no way to ask
+            // whether those four numbers were even played at the same node budget.
+            //
+            // `cap_stability.rs` then measured the caps as stable to 1.9% with the nets held
+            // fixed, which REFUTES the reading that a moving budget produced that decline -- the
+            // hypothesis was mine and its threshold was declared before the run. So this line is
+            // not a fix for a live bug. It exists because the check cost one number and could not
+            // be performed at all from the log, and the decline is still unexplained: whatever
+            // does explain it, the next person should not have to rebuild the binary to rule this
+            // out a second time.
+            println!("      control vs origin @gen {g}: {}W-{}D-{}L  rate {:.3} +/- {:.3}  [{ca} vs {cb} nodes]{}",
                 c.wins, c.draws, c.losses, c.pent_rate(), c.ci95(),
                 if c.rate() - c.ci95() > 0.5 { "  *" } else { "" });
 
