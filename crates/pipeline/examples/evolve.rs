@@ -2268,6 +2268,24 @@ fn main() {
                           && !lineages[li].gated.contains(&format!("{pr:?}")))
                     .cloned()
             };
+            // WHY WAS THE PICK NONE? The log printed a bare `..none`, and that one word covers
+            // two situations with opposite meanings:
+            //
+            //   (a) nothing beat best_rate           -> the SEARCH found nothing. Real failure.
+            //   (b) something did, but it is `gated` -> already tried and REJECTED by the game
+            //                                           gate. Working as designed, not failure.
+            //
+            // Measured 2026-09-09: the control arm's gen-5 MCTS line reads `..none` with
+            // `rates 1.079-1.078679x` -- a candidate 7.9% ABOVE best_rate that passed the mate
+            // guard -- and the log gives no way to tell which case it is. The generation before
+            // gated a candidate and took `REJECT llr -3.31`, so (b) is likely; but "likely" is
+            // exactly what an instrument exists to replace. Counting is free: same predicate,
+            // split in two.
+            let n_above = popn.iter().filter(|(_, _, r)| *r > best_rate).count();
+            let n_gated_skip = popn.iter()
+                .filter(|(pr, _, r)| *r > best_rate
+                        && lineages[li].gated.contains(&format!("{pr:?}")))
+                .count();
             if let Some((c, f, rate)) = pick {
                 // ---- TWO ACCEPTANCE PATHS, because one gate cannot judge both kinds of change.
                 //
@@ -2643,7 +2661,7 @@ champ_mates\tchamp_cost\tchamp_rate\tgames\tci95\tnodes\tmate1\tmate2\n");
                 // indistinguishable from a tie, which is exactly the ambiguity `above` exists to end.
                 let span = if rel.is_empty() { "none".to_string() }
                            else { format!("{rlo:.3}-{rhi:.6}x") };
-                println!("  gen {g:>3} {:<5} ..none ({n_scored} cand, {ill} ill, mate-ok {mate_ok}, \
+                println!("  gen {g:>3} {:<5} ..none[above {n_above}, gated-skip {n_gated_skip}] ({n_scored} cand, {ill} ill, mate-ok {mate_ok}, \
 rates {span} [>=.98:{} .90-.98:{} .50-.90:{} <.50:{} distinct:{}], hard {hlo}-{hhi})  pop {} spread {:.6}-{:.6} tt{:?} ttk{:?}",
                          lineages[li].name, hist.0, hist.1, hist.2, hist.3, distinct,
                          popn.len(), spread_lo, spread_hi, tt, ttk);
