@@ -106,6 +106,37 @@ fn main() {
     println!("\n  === POOLED over {} rejects: {}W-{}D-{}L, {} games ===", rates.len(), tw, td, tl, pooled.games());
     println!("  rate {r:.4} +/- {c:.4}   interval [{:.4}, {:.4}]", r - c, r + c);
 
+    // BETWEEN-CANDIDATE SPREAD, which the pooled interval does NOT contain.
+    //
+    // Pooling treats every pair as exchangeable, so its interval measures how precisely THESE
+    // candidates were measured -- not how much candidates differ from each other. The claim being
+    // made ("the gate's rejects are weaker") generalises over candidates, so the candidate is the
+    // sampling unit and the spread across candidates is the relevant error term.
+    //
+    // This project already enforces exactly this distinction elsewhere: netmatch refuses to call a
+    // training result from one seed because between-seed sd (0.047) dwarfs within-run precision.
+    // Same trap, different axis -- a pooled interval over 4 candidates can exclude 0.5 while the
+    // candidate-to-candidate variation is far too large to support the conclusion.
+    let n = rates.len() as f64;
+    let mean = rates.iter().map(|(_, x)| x).sum::<f64>() / n;
+    if rates.len() >= 2 {
+        let var = rates.iter().map(|(_, x)| (x - mean).powi(2)).sum::<f64>() / (n - 1.0);
+        let sd = var.sqrt();
+        let sem = sd / n.sqrt();
+        let ci = 1.96 * sem;
+        println!("  candidate-level: mean {mean:.4}, sd {sd:.4} across {} candidates, \
+                  95% CI +/- {ci:.4}  [{:.4}, {:.4}]", rates.len(), mean - ci, mean + ci);
+        if mean + ci >= 0.5 && r + c < 0.5 {
+            println!("  ** NOTE: pooled excludes 0.5 but the candidate-level interval does NOT.");
+            println!("  ** The pooled reading is over-confident: it is measuring these candidates");
+            println!("  ** precisely, not measuring candidates in general. Bank more rejects.");
+        }
+    } else {
+        println!("  candidate-level: only {} candidate(s) -- no between-candidate spread available,", rates.len());
+        println!("  so the pooled interval below is a within-candidate number and CANNOT support");
+        println!("  a claim about rejects in general.");
+    }
+
     // Verdict against the three readings declared in the header, so the outcome cannot be
     // reinterpreted to suit whichever number appeared.
     println!();
