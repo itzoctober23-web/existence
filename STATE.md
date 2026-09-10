@@ -3482,3 +3482,28 @@ speed, and the brief itself already grades it "now a PERF task, not a survival o
 **When it becomes worth doing:** the moment an arm ACCEPTS something that VERIFIES above 0.5. At that
 point throughput converts into progress and the calculation inverts. Until then it is polish on a
 mechanism that has never produced a keeper.
+
+## 2026-09-10 — AUDIT of the standing task list: 5 of 6 items are already DONE
+
+Checked each item against the repo rather than against the list, after nearly re-implementing item 1
+from scratch. Every "done" below is verified by a named artefact, not by recollection.
+
+| # | task as stated | actual state |
+|---|---|---|
+| 1 | Incremental NNUE accumulator | **DONE before tonight.** Already wired in `pipeline::search::Searcher` -- the search datagen, the gate, `arch` and every example run. `engine/src/search.rs` is the separate SEED reference. Tonight: replaced its O(active) diff with an O(changed) bitboard XOR, **1.23-1.52x across widths**, removing the `n_hidden >= 64` gate that had disabled it at our default width. |
+| 2 | Faithful MCTS + PN, "GRAMMAR 6 skew UNRESOLVED" | **DONE.** `GRAMMAR.md:192` reads *"THE SKEW IS NOW RESOLVED, AND IT IS TOWARD ALPHA-BETA"*, and states the reason it was ever unresolved: MCTS and PN were sketches. Both are faithful now; `interp/tests/reference_sound.rs::proof_number_search_evaluates_nothing` guards PN. **The task list calls resolving this "a headline claim". It is already resolved and written down.** |
+| 3 | Zobrist + real TT slots, "interp FNV-hashes a FEN string" | **DONE.** No FNV or FEN hashing remains in `interp`. `Node::Key` reads `pos.key`, the incrementally maintained Zobrist key that `tests/perft.rs` checks at every node; `configs/cost.toml` records the change in place: `key = 1 # incremental field read (was 97 from-scratch)`. TT is real slots: `HASH_SLOTS = 1<<16` with separate key/generation-stamp/slot arrays. |
+| 4 | Type checker + mutation operators, then GRAMMAR 9 ladder | **DONE.** `grammar/src/typecheck.rs` with `tests/typecheck.rs`, `mutate.rs` with 11 operators and `tests/mutate.rs`, `tests/reachability.rs`. GRAMMAR 9's offline ladder check is `interp/examples/ladder.rs`, which states its own FITNESS 3 denominator choice. |
+| 5 | Register bytecode (CRATE 4) | **NOT done, deliberately.** `interp/src/lib.rs:3`: *"STAGE 1 IS A TREE-WALKER, DELIBERATELY."* The tree-walker is a LOWER BOUND on the design, and it already passed the GRAMMAR 8 gate at 0.98x, so this is a perf task -- which the task list itself now says. |
+| 6 | Wire xcheck + perft as real `#[test]`s | **DONE.** Both run under `cargo test --release --workspace` (perft 46s, xcheck 81s) and were green tonight. |
+
+**What this means for direction.** The list is not the frontier any more; it was written before items 1-4
+and 6 landed. The actual open question is the one the four live arms are running: **can the search
+DISCOVER hash reuse**, which is now a measured ~4.0% over the 19 generations remaining (see
+`ladder_valley_RESULT.md`), not an open-ended hope. The remaining engineering item (5) is throughput.
+
+**Process note.** I found this by starting to build item 1 and discovering it existed, wired, and
+measured -- the same failure shape recorded five times in the session memory. The cheap check is
+`git grep <concept>` BEFORE designing, not after. It cost ~40 minutes here and returned a 1.3x
+speedup anyway, but only because the existing implementation had a wrong CONCLUSION attached to a
+right measurement.
