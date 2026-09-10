@@ -135,11 +135,33 @@ impl Searcher {
         self.rng
     }
 
+    /// Range reduction WITHOUT a division: Lemire's multiply-shift.
+    ///
+    /// `rand() % n` is a 64-bit integer division, and this runs ~30 times per node -- once per
+    /// child, at every node. `node_profile` measures the shuffle at 213.8 ns/node against 83.2 ns
+    /// for the identical shuffle done modulo-free, so **130.6 ns of a ~1256 ns node is the division
+    /// alone**: 10.4% of all search time, spent on an operation with a two-instruction equivalent.
+    ///
+    /// The multiply-shift maps a uniform u64 into [0, n) by taking the high half of a 128-bit
+    /// product. It is not *exactly* uniform -- the bias is at most n/2^64, which for a move list of
+    /// at most a few hundred entries is order 1e-17 and cannot be observed in any number of games
+    /// this project will ever play -- and it remains fully DETERMINISTIC, which is the property the
+    /// gate actually requires (FITNESS 10: "stochastic program that passes by luck -> determinism
+    /// check; seeds fixed per game").
+    ///
+    /// The shuffle itself stays: `pipeline/src/search.rs` shuffles children deliberately, to deny
+    /// alpha-beta a move ordering the search is supposed to DISCOVER. This changes only how the
+    /// index is computed.
+    #[inline]
+    fn below(&mut self, n: u64) -> u64 {
+        ((self.rand() as u128 * n as u128) >> 64) as u64
+    }
+
     #[inline]
     fn shuffle(&mut self, v: &mut [Move]) {
         if !self.shuffle_children { return; }
         for i in (1..v.len()).rev() {
-            let j = (self.rand() % (i as u64 + 1)) as usize;
+            let j = self.below(i as u64 + 1) as usize;
             v.swap(i, j);
         }
     }
