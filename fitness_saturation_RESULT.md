@@ -78,10 +78,33 @@ gen-lines carry a non-zero hard score.
 It defaults OFF and **no arm had ever enabled it.** Now running as a one-variable A/B on TWO seeds,
 because a single run seed is a lottery and the falsifier is a small-n count:
 
-    core 12  HARD_FITNESS=1, seed 1, SPRT [0,30]   <- treatment      gate_hardfit_s1.log
-    core 14  HARD_FITNESS=1, seed 2, SPRT [0,30]   <- treatment      gate_hardfit_s2.log
-    core 15  SPRT [0,30], seed 1, no hard fitness  <- live control   gate_sprt30_s1.log
-    core 13  SPRT [0,30] + EPS 0.10, seed 1        <- directive #3   gate_sprt30_eps_s1.log
+    core 12  HARD_FITNESS weight 1, SPRT [0,30]   <- treatment, low dose   gate_hardfit_s1.log
+    core 14  HARD_FITNESS weight 4, SPRT [0,30]   <- treatment, high dose  gate_hardw4_s1.log
+    core 15  no hard fitness, SPRT [0,30]         <- control               gate_sprt30_s1.log
+    core 13  EPS 0.10, SPRT [0,30]                <- his directive #3      gate_sprt30_eps_s1.log
+
+**All four on run seed 1**, all on the same binary, all nice 19. Restarted together at 20:04 on the
+no-ratchet build (see `search_track_WHY_NOTHING.md`), because that was a BEHAVIOUR change and a split
+fleet would confound control against treatment worse than the defect did.
+
+**What each arm is for, in one line each:**
+
+- **15 vs 12** — does folding the hard set into the surrogate stop MAIN candidates being resolved
+  worse? The original question.
+- **12 vs 14** — is the fix merely UNDER-DOSED? The arithmetic predicts weight 1 cannot outbid
+  cost-cutting and weight 4 can. If 12 is inert and 14 is not, the diagnosis was right and only the
+  dose was wrong — a different repair from "saturation was the wrong mechanism".
+- **13** — his directive #3, already shown live (pop 4 vs pop 2, retaining a `tt`-carrying member).
+
+**Verified at launch, not assumed:** the no-ratchet change is inert until a REJECT (control matches
+its pre-change log line-for-line, ignoring the header), the EPS arm is currently identical to the
+control, and the two HARD_FITNESS arms differ only where their surrogate scale differs.
+
+**A note on churn.** The fleet was restarted four times on 2026-09-09 — three print-only
+instrumentation changes (`hard`, the self-describing header, `mates`) and one behaviour change (the
+ratchet). Each restart cost ~10 min per arm and every one was taken while the arms had NO gated
+generation, which is the expensive part. The instrumentation is now sufficient to read the result;
+further changes should wait for a gate.
 
 Core 14 previously held a fixed 6-pair gate as an old-gate baseline. That question is answered and no
 longer earns a core: the old gate is 0/203 historically, produced 3 more REJECTs today, and
