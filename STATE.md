@@ -4139,3 +4139,39 @@ nice 19 on cores 12-15 and cost-budgeted, so contention costs them speed and not
 shape that has run alongside 10 datagen lanes all day. It does add to the memory-bandwidth pressure
 already measured as slowing datagen from 4.9 to ~5.9 days, and that is a real if modest cost booked
 against a finding that bears on the P2 kill criterion.
+
+## 2026-09-10 — the one candidate provably better at SEARCH played resolvedly WORSE
+
+`harder_set` exists to reward searching BETTER rather than cheaper: it records the seed's answer one
+ply deeper than the fitness depth, so the seed scores 0/8 by construction and only a program that
+genuinely resolves more can score. The obvious question is whether such a candidate plays better.
+
+**The instrumentation mostly cannot answer it, and says so.** `hard {hlo}-{hhi}` is the range over
+guard-passing CANDIDATES, and `evolve.rs:3385` is explicit: *"not the winner's own hf -- that one is
+dropped at the population boundary (`popn` is a 3-tuple)."* So `hard 0-2` leaves the gated winner's
+score unknown; only a COLLAPSED range determines it.
+
+**Exactly one generation collapses**, `gate_specfilter_s1` gen 6 MAIN, where every guard-passing
+candidate scored 2 — so the winner did too:
+
+    gen 6 MAIN  gate REJECT llr -2.96  0.458+/-0.059 (36 games W-D-L 1-31-4)  mates 20  hard 2-2
+    gen 6 MAIN  VERIFY 0.435+/-0.028 (96 pairs, independent seed)  ->  [0.407, 0.463]
+
+**Resolved WORSE**, and not marginally: the 96-pair interval sits entirely below 0.5, on an
+independent seed. A candidate that provably resolved two positions the seed truncates is a resolvedly
+weaker player.
+
+**What that does and does not license.** It is ONE data point, so it cannot establish that hard-set
+skill is anti-correlated with strength. What it does establish is that the two are not the same thing,
+and that `harder_set` scoring is not a shortcut to the gate's verdict — the construction proves a
+candidate searches deeper on eight positions, and the games still say it is worse. The MAIN lineage's
+`mates 20` on that line is the likely mechanism: it dropped 4 mates from the seed's 24 while gaining 2
+hard positions, which the surrogate rewards and the board does not.
+
+**A second observability gap of the same shape as the `dsl` one.** The field that would answer this
+question in general — the winner's own `hf` — is computed and then discarded at the population
+boundary. Both gaps share a cause: a value is materialised for the population and dropped before the
+line that reports the interesting event. **Fix for the next build, alongside printing `dsl` on every
+line type: carry the winner's `hf` through `popn` and print it on the gate line.** Deferred for the
+same reason — rebuilding `evolve` now would break the four factorial cells that share
+`evolve_PINNED`.
