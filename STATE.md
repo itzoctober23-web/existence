@@ -3988,3 +3988,45 @@ costing 0 games is unaffected, being a direct observation of the filter arms' ow
 supported by a log containing four such lines. **Before generalising from an arm, check how many
 generations it has actually produced** — `gate_specfilter_CONTROL` had 2, while a completed 25-
 generation arm of the same rule sat in the same directory.
+
+## 2026-09-10 — "n2/n3 UP" did NOT de-saturate MAIN, and that explains the per-lineage split exactly
+
+`fitness_set_composition_RESULT.md`'s surviving conclusion is *"the mate-in-1 majority is the weakness,
+and n2/n3 UP is the right direction"* — swap mate-in-1 positions for `disagreement_set` and
+`window_sensitive_set` ones, which by construction require depth. Two arms run the two compositions,
+so the seed scores are directly comparable from their own headers:
+
+    set 12+6+5 = 23  (mate-in-1 52%)     MAIN 23/23   MCTS 15/23  (65%)
+    set 4+10+10 = 24 (mate-in-1 17%)     MAIN 24/24   MCTS 10/24  (42%)
+
+**MAIN is saturated on BOTH.** Tripling the depth-requiring share of the set moved MAIN from 23/23 to
+24/24 — it solves every position in either composition. The remedy was aimed at MAIN's saturation and
+does not touch it.
+
+**It did work for MCTS**, which is the half that was not broken in this way: 65% -> 42% is real
+headroom opened, and more of it on the depth-heavy set.
+
+**This explains the per-lineage behaviour measured today, without any further assumption.** In
+`gate_diversity_PAIRED_off` over 18 generations: 19 `above 0` lines, 16 gates, and **all 16 gates are
+MCTS**. MAIN is saturated, so `rate > best_rate` can only be cleared by cutting COST, and the guard
+exists precisely to block that — hence `above 0` forever. MCTS has headroom, so its candidates clear
+the bar honestly and reach the gate, where they are rejected as ties. Two lineages, two distinct
+failure modes, and the set composition predicts which one each gets.
+
+**The sharper statement of MAIN's problem.** It is not "the set is mate-in-1 heavy". The seed solves
+**every** position in the depth-heavy set too — including all 10 `disagreement_set` and all 10
+`window_sensitive_set` positions, which were chosen specifically to require depth. Meanwhile the HARD
+set (8 positions the seed fails by construction) never engages because no CANDIDATE solves them
+either: every arm reads `hard 0-0`.
+
+So the fitness landscape MAIN sees has **no middle band at all** — a set the seed solves completely,
+and a set nothing solves. A gradient needs positions where the seed scores neither 100% nor 0%, and
+neither existing set supplies them. That is a different requirement from "fewer mate-in-1 positions",
+and it is why the endorsed direction, correctly implemented, did not help.
+
+**Not proposing a build.** The obvious move — mine positions where the SEED scores partially — is
+exactly what `disagreement_set` was supposed to be, and it produced positions the seed solves anyway.
+Understanding why that selection failed to bite is the prerequisite for the next attempt, and the
+factorial arms are currently the box's committed work. Recorded so the next attempt starts from
+"build a set the seed scores 40-70% on, verified by measuring the seed on it BEFORE running an arm",
+rather than from "reduce mate-in-1 share", which has now been tried and measured.
