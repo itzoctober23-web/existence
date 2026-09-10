@@ -1492,6 +1492,8 @@ fn tt_supply() {
     }
     let med = |v: &mut Vec<f64>| { v.sort_by(|a,b| a.partial_cmp(b).unwrap()); if v.is_empty() {f64::NAN} else {v[v.len()/2]} };
     let medu = |v: &mut Vec<u32>| { v.sort(); if v.is_empty() {0} else {v[v.len()/2]} };
+    let (mate_p_raw, mate_s_raw) = (mate_p.clone(), mate_s.clone());
+    let (cost_p_raw, cost_s_raw) = (cost_p.clone(), cost_s.clone());
     let (n_p, n_s) = (cost_p.len(), cost_s.len());
     let (m_p, m_s) = (med(&mut cost_p), med(&mut cost_s));
     let (c_p, c_s) = (med(&mut raw_p), med(&mut raw_s));
@@ -1515,6 +1517,25 @@ fn tt_supply() {
         println!("    minimal PROBE-carriers  n={n_p:>3}  median rel-rate {m_p:.6}x   mates {k_p}  cost-only {c_p:.6}x");
         println!("    minimal STORE-carriers  n={n_s:>3}  median rel-rate {m_s:.6}x   mates {k_s}  cost-only {c_s:.6}x");
         println!("    (cost-only is the OLD, WRONG statistic: it ignores mates and contradicted the ranks.)");
+        // CONDITION ON THE GUARD. The arms' pool holds only children with `f >= guard_floor`
+        // (evolve.rs:2711), so every 0-mate probe-carrier is filtered out BEFORE the rate ordering.
+        // Comparing unconditional distributions against a conditioned population is the same class of
+        // error as the cost-ratio mistake this replaced, so both are printed and labelled.
+        let gt: u32 = std::env::var("EXISTENCE_GUARD_TOL").ok().and_then(|v| v.parse().ok()).unwrap_or(4);
+        let floor = base_mates.saturating_sub(gt);
+        let pass = |m: &Vec<u32>, r: &Vec<f64>| -> (usize, f64) {
+            let mut kept: Vec<f64> = m.iter().zip(r).filter(|(x, _)| **x >= floor).map(|(_, y)| *y).collect();
+            kept.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            (kept.len(), if kept.is_empty() { f64::NAN } else { kept[kept.len() / 2] })
+        };
+        let (np, mp2) = pass(&mate_p_raw, &cost_p_raw);
+        let (ns, ms2) = pass(&mate_s_raw, &cost_s_raw);
+        println!("\n  CONDITIONAL ON THE GUARD (mates >= {floor}, i.e. base {base_mates} - tol {gt}):");
+        println!("    this is what the arms' ordering actually sees -- the pool is filtered first.");
+        println!("    PROBE-carriers passing guard: {np:>3} of {n_p}   median rel-rate {mp2:.6}x");
+        println!("    STORE-carriers passing guard: {ns:>3} of {n_s}   median rel-rate {ms2:.6}x");
+        println!("    READING: if stores still rate HIGHER here, conditioning is NOT the explanation");
+        println!("             and the remaining difference is the PARENT (seed vs population member).");
         println!("    READING: stores rank WORSE on rel-rate -> retention explains the 3:1 skew.");
         println!("             stores rank BETTER or equal   -> retention cannot explain it; audit selection.");
     } else {
