@@ -584,3 +584,35 @@ hash reuse is two edits that only pay off together — a store nothing reads is 
 probe of an empty table can never hit — so a single mutation reaches neither half. That is a
 reachability question about the mutation operators, not a measurement question about the fitness,
 and it is the one thing tonight's work has NOT touched.
+
+### Reachability checked — NO spec gap, and the real constraint measured
+
+Having refuted two hypotheses I checked the third before acting on it, and it does not hold either.
+
+**The operators are spec-compliant.** `mutate_program` does `let edits = 1 + rng.below(3)`, which is
+GRAMMAR §4's *"1-3 operators per candidate, chosen uniformly"* exactly. And `evolve.rs:1579` runs
+**crossover on 1 candidate in 4** — which is precisely the designed mechanism for assembling a
+two-part improvement like hash reuse, where a store nothing reads and a probe of an empty table are
+each useless alone. So "a single mutation cannot reach a two-edit improvement" was wrong: the search
+makes multi-edit moves and recombines across parents by design.
+
+**The measured constraint, over all of today's arms:**
+
+    22 generations, 160 candidates
+      ill-typed ...................  16   10.0%
+      kept every mate .............  13    8.1%
+      WELL-TYPED BUT LOSE MATES ... 131   81.9%   <- the binding constraint
+
+Type-safety is not the problem — 90% of candidates are well-typed, which is `mutate.rs`'s own
+verified claim holding in production. **Four candidates in five are well-formed programs that
+compute something different and lose mates for it.** `mutate.rs:437` predicted exactly this: *"Three
+random edits to a program that already computes the exact minimax value will almost always break
+it"*, with 90 of 106 rejected by the oracle on the first real run.
+
+**What this rules in and out.** It rules OUT a spec deviation in the operators, and it rules OUT
+"the pipeline cannot see a good candidate" (the `ab_hash` arithmetic above shows a same-play speedup
+clears the bar by 2%). What it leaves is that the seed is a program computing an EXACT minimax value,
+so nearly every perturbation of it is a strictly worse program — and 8 candidates per generation
+against a ~92% failure rate yields well under one viable candidate per generation. That is a
+population-size and operator-bias question, not a fitness question, and it is the first thing tonight
+that none of the four running arms addresses.
