@@ -1859,6 +1859,15 @@ fn tt_hits() {
 fn tt_union() {
     let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
     let (n, depth) = (a(2, 400) as usize, a(3, 3));
+    // arg 4: MINIMAL mode. 0 (default) crosses the HAND-BUILT halves ab_probe_only (P10K10F10) and
+    // ab_store_only (S5K5). 1 crosses MUTATION-GENERATED minimal halves -- P1K1F1 and S1K1, one call
+    // site each -- which is what the LIVE population actually contains.
+    //
+    // This is the limit the hand-built run named and could not test. `gate_composition_s2` gens 4-6
+    // hold `P1K1F1` probe halves and `S1K1` store halves as separate members; ab_hash's entire 2.4%
+    // gain comes from TEN call sites at a 1% hit rate, so coverage plainly matters and a union of two
+    // one-site halves need not reproduce the hand-built 5.5%.
+    let minimal = a(4, 0) == 1;
     let net = Net::random(32, 20260907);
     let seed = reference::bare_alpha_beta();
     let set = mate_set(6);
@@ -1900,12 +1909,36 @@ fn tt_union() {
                  plays_same(&prog), cost < bc);
     }
 
+    // Build the MINIMAL halves the way the population does: single mutations off the seed, kept when
+    // they carry exactly one side. Reported so the comparison is against a stated pair, not a guess.
+    let (mut min_probe, mut min_store): (Option<Program>, Option<Program>) = (None, None);
+    if minimal {
+        for k in 0..20_000u64 {
+            if min_probe.is_some() && min_store.is_some() { break; }
+            let mut r = Rng::new(k << 12 ^ 0x3417);
+            let Some((c2, _)) = mutate::mutate_program_n(&seed, &mut r, 1) else { continue };
+            let c = tt_counts(&c2);
+            if c[0] > 0 && c[1] == 0 && min_probe.is_none() { min_probe = Some(c2); continue; }
+            if c[1] > 0 && c[0] == 0 && min_store.is_none() { min_store = Some(c2); }
+        }
+        match (&min_probe, &min_store) {
+            (Some(pp), Some(ss)) => println!("  MINIMAL halves from single mutation: probe {} / store {}",
+                                             tt_kind_tag(pp), tt_kind_tag(ss)),
+            _ => { println!("  ABORT: could not build both minimal halves by single mutation"); return; }
+        }
+    }
     let (mut wt, mut both, mut same, mut acceptable) = (0usize, 0usize, 0usize, 0usize);
     let (mut tc, mut th, mut ts) = (0u64, 0u64, 0u64);
     for k in 0..n {
         let mut r = Rng::new((k as u64) << 12 ^ 0x5E11);
-        let (rec, don) = if k % 2 == 0 { (reference::ab_probe_only(), reference::ab_store_only()) }
-                         else          { (reference::ab_store_only(), reference::ab_probe_only()) };
+        let (rec, don) = if minimal {
+            match (&min_probe, &min_store) {
+                (Some(pp), Some(ss)) if k % 2 == 0 => (pp.clone(), ss.clone()),
+                (Some(pp), Some(ss))               => (ss.clone(), pp.clone()),
+                _ => break,
+            }
+        } else if k % 2 == 0 { (reference::ab_probe_only(), reference::ab_store_only()) }
+          else               { (reference::ab_store_only(), reference::ab_probe_only()) };
         let Some(child) = mutate::crossover(&rec, &don, &mut r) else { continue };
         wt += 1;
         let c = tt_counts(&child);
