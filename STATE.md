@@ -3568,3 +3568,41 @@ of the same defect class: a check that exists, passes, and is never consulted.
 
 Each looked correct in isolation. **The failure is never in the check -- it is in the wiring**, and
 wiring is exactly what does not show up when you re-read the check.
+
+## 2026-09-10 — the workspace suite is GREEN, verified by running it
+
+The section above establishes that every test is now WIRED into `cargo test`. Wiring is necessary and
+not sufficient: a wired-but-RED suite gates nothing either, it just fails on every commit until
+someone stops reading the output. So the claim was checked the only way it can be:
+
+    cargo test --release --workspace
+    EXIT=0        34 test targets green, 0 red, 74 assertions passed
+
+Targets include the ones the brief lists as outstanding work, all present and passing: `tests/perft.rs`
+(5), `tests/xcheck.rs` (1), `tests/typecheck.rs` (3), `tests/mutate.rs` (6), `tests/reachability.rs`
+(3) — GRAMMAR 9's offline ladder — plus `tests/reference_sound.rs` (6, 34.8s) and the new
+`tests/prior_table.rs` (2).
+
+**The brief's Existence task list is now fully discharged, and several items were already done before
+this session.** Checked one at a time against the code rather than taken from the list:
+
+    1. incremental NNUE accumulator ....... DONE (XOR delta is the default path)
+    2. faithful MCTS + PN encodings ....... DONE 09-08; GRAMMAR 6 records the skew RESOLVED
+    3. Zobrist + real TT slots ............ DONE; crates/board/src/zobrist.rs, and the interpreter
+                                            has a BOUNDED 64k direct-indexed table with full-key
+                                            validation and collision counting. There is no FNV
+                                            anywhere in the workspace, and no HashMap TT.
+    4. type checker + mutation operators .. DONE, with tests
+    5. register bytecode .................. present in crates/interp
+    6. xcheck + perft as real #[test]s .... DONE, both run in the suite above
+
+Task 2's entry said the encodings were SKETCHES "which is why GRAMMAR 6 records the skew as
+UNRESOLVED"; the document has recorded it as RESOLVED since 09-08. Task 3's said the interpreter
+"FNV-hashes a FEN string"; it does not, and has not for some time. **A stale task list reads exactly
+like a live one** — the only difference is visible from the code, never from the list.
+
+**A caution against reading this as "done".** A green suite says the assertions that exist pass. It
+says nothing about the assertions that do not exist, and this workspace has now produced three
+separate cases of a check that existed and gated nothing. Today's addition — `prior_table.rs` — was
+written because GRAMMAR 6 was labelled MEASURED, had drifted by 4 nodes, and nothing compared the
+document to the counter that produced it.
