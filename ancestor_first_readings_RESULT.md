@@ -55,6 +55,15 @@ under about **0.03** (order 20 Elo) per 400 generations, not 0.05.
 **What is NOT established, and I want the restraint on record:** all three point estimates sit at or
 below 0.5 (0.464, 0.498, 0.474), which is suggestive of slight DEGRADATION rather than a plateau.
 Every one of those intervals contains 0.5, so that is a pattern in three numbers, not a result.
+
+> **⚠ AND THE FOURTH READING BROKE IT, ~40 minutes later.** r9 gen 800 vs gen 400:
+> **0.521 ± 0.034**, interval [0.487, 0.555] — *above* 0.5. The four readings are now
+> 0.464, 0.498, 0.474, **0.521**: two below, one at, one above, every interval containing 0.5.
+> **The "hint of decline" is withdrawn.** It was three numbers on one side of a line, which is what
+> four coin flips look like about 12% of the time, and the fourth landed on the other side. Hedging
+> it as a pattern rather than a finding is the only reason this costs a paragraph instead of a
+> retraction. The conclusion that survives is the flat one: **no gain, and no loss, detectable over
+> a 400-generation window.**
 Pooling them would be wrong — they come from two different runs over different windows, which is
 the pooling error this repo has recorded three times today. The honest position is: no gain
 detected, and a hint of decline that is not yet distinguishable from noise.
