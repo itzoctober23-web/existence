@@ -89,6 +89,44 @@ and it leaves capture extension reachable.
 `mate2_treat.log` and `gate_set_mateheavy.log` already exist in this repo and point the same way.
 Testing that is the next step; it is not tested here, and this file claims nothing about it.
 
+## ⚠ TESTED, SAME DAY — the set is NOT the fix. My prediction was refuted.
+
+Pre-registered in the commit that added `--hard`: *"on the hard set the numerator varies, so the
+ranking stops being decided by cost alone and Spearman rises well above −0.300 — ideally positive.
+REFUTED IF Spearman stays at or below 0."*
+
+**It fell to −0.900** — from −0.300 to almost perfect inversion. On the MATE-2 set:
+
+| program | solved | cost | per Mcost | game score |
+|---|---|---|---|---|
+| depth-one | 2/40 | 3,463,440 | **0.577 — highest** | **0.427 — worst** |
+| bare alpha-beta | 2/40 | 4,630,848 | 0.432 | 0.484 |
+| +hash reuse | 2/40 | 4,676,784 | 0.428 | 0.484 |
+| capture extension | 2/40 | 4,630,848 | 0.432 | 0.492 |
+| **+hash+ID** | **11/40** | 132,222,004 | **0.083 — lowest** | **0.612 — best** |
+
+**The numerator did exactly what I predicted and it did not help.** Variance was restored — ID
+solves **11 of 40 while every other program solves 2**, a 5.5× spread where the mate-1 set had none.
+The ranking got *worse* anyway.
+
+**The real mechanism, which "saturation" was only a special case of:** the denominator's dynamic
+range dwarfs the numerator's. Costs span **3.46M to 132M — 38×**. Accuracy spans **5.5×**. A ratio
+of the two is therefore a cost measurement with a rounding error attached, on *any* position set.
+Making the set harder raised the accuracy range from 1× to 5.5× and raised the cost range from
+28.6× to 38× at the same time, because the programs that solve more do so precisely by searching
+more.
+
+**So three proposed repairs are now dead**: lexicographic ranking (bans capture extension),
+seed-anchored floors (already in place, not the issue), and a harder set (tested, made it worse).
+They failed for one reason — each tried to fix a *ratio* whose denominator carries most of the
+variance.
+
+**What the evidence points at now, untested and stated as a lead:** stop dividing. Measure accuracy
+**at equal cost** rather than accuracy **per cost** — cap every program to the same cost budget per
+position and count what it solves. That is exactly what the GAME gate already does (same net, same
+budget both sides), and the game gate ranks these five correctly. It also leaves capture extension
+reachable, since it would be compared at equal spend rather than penalised for spending.
+
 ## Harness note — the first run of this experiment was worthless and looked perfect
 
 I first passed `cost_per_move = 0`, believing 0 meant "no ceiling". `Interp::cost_cap` defaults to
