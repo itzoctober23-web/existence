@@ -1800,10 +1800,32 @@ fn main() {
                 popn.iter().find(|(pr, _, r)| {
                     *r >= 0.9 * best_rate && !lineages[li].gated.contains(&format!("{pr:?}"))
                 }).cloned()
-            } else if popn[0].2 > best_rate {
-                Some(popn[0].clone())
             } else {
-                None
+                // STRICT RULE, now with the SAME anti-re-proposal mechanism the spec filter uses.
+                //
+                // It used to be `if popn[0].2 > best_rate { Some(popn[0].clone()) }`, with
+                // re-proposal prevented by RAISING `best_rate` to a rejected candidate's rate in the
+                // reject path. That ratchets the bar upward using programs the gate just measured as
+                // WORSE, and it demonstrably cost a gate call: after a gen-3 candidate was rejected
+                // at 0.002924 with VERIFY 0.422 (resolved worse), gen 4's candidates read 0.947x and
+                // 0.961x of that inherited bar and produced NO gate -- yet against the CHAMPION's
+                // actual 0.002490 they are 1.112x and 1.129x and would have gated.
+                //
+                // WHY IT HAD TO CHANGE NOW rather than after the current A/B: the ratchet's SIZE
+                // scales with EXISTENCE_HARD_WEIGHT. A rejected hf=2 candidate raises the bar by
+                // +8.7% at weight 1 and by +34.8% at weight 4, so the heavier arm would freeze after
+                // one rejection while the lighter one kept gating. That is a difference in gate
+                // FREQUENCY produced by the instrument rather than by selection quality -- a
+                // confound aligned exactly with the treatment variable, which is the one kind that
+                // cannot be left in.
+                //
+                // `gated` already exists and already does this correctly on the other branch; the
+                // struct comment there explains it was introduced because a bar-raise misbehaves
+                // under a tolerance filter. It never argued the bar-raise was right here.
+                popn.iter()
+                    .find(|(pr, _, r)| *r > best_rate
+                          && !lineages[li].gated.contains(&format!("{pr:?}")))
+                    .cloned()
             };
             if let Some((c, f, rate)) = pick {
                 // ---- TWO ACCEPTANCE PATHS, because one gate cannot judge both kinds of change.
@@ -1941,8 +1963,10 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                         // candidate scores as the worst possible program and the run continues.
                         println!("  gen {g:>3} {:<5} gate PANIC -- candidate cannot play, rejected",
                                  lineages[li].name);
-                        if spec_filter { lineages[li].gated.insert(format!("{c:?}")); }
-                        else { lineages[li].best_rate = rate; }
+                        // RECORD, do not raise the bar. Both branches now use `gated`: a
+                        // rejected program must not be re-proposed, and it must not become
+                        // the reference the next candidate is measured against.
+                        lineages[li].gated.insert(format!("{c:?}"));
                         continue;
                     }
                 };
@@ -2153,8 +2177,10 @@ champ_mates\tchamp_cost\tchamp_rate\tgames\tci95\tnodes\tmate1\tmate2\n");
                             let _ = fh.write_all(line.as_bytes());
                         }
                     }
-                    if spec_filter { lineages[li].gated.insert(format!("{c:?}")); }
-                    else { lineages[li].best_rate = rate; }
+                    // RECORD, do not raise the bar -- see the pick block. A gate REJECTION
+                    // used to set best_rate to the rejected candidate's rate, which is how a
+                    // program measured WORSE became the bar its successors had to clear.
+                    lineages[li].gated.insert(format!("{c:?}"));
                     continue;
                 }
                 println!("  gen {g:>3} {:<5} ACCEPT  {f} mates  {rate:.6} ({} nodes, was {:.6})  gate {:.3}",
