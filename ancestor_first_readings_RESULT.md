@@ -37,6 +37,31 @@ pooling error this repo has already recorded twice today.
 decides whether to keep spending on it or change something — and until this afternoon there was no
 instrument that could produce it.
 
+## THIRD READING, at 400 pairs — the tightest yet, and it does not move the conclusion
+
+`--ancestor-pairs 160 → 400` (run r9). gen 600 vs gen 200: **353W-52D-395L, rate 0.474 ± 0.031**,
+interval **[0.443, 0.505]**.
+
+| reading | run | pairs | rate | interval |
+|---|---|---|---|---|
+| gen600 vs gen200 | r7 | 160 | 0.464 ± 0.053 | [0.411, 0.517] |
+| gen800 vs gen400 | r7 | 160 | 0.498 ± 0.052 | [0.446, 0.550] |
+| **gen600 vs gen200** | **r9** | **400** | **0.474 ± 0.031** | **[0.443, 0.505]** |
+
+The interval narrowed by 40% and still contains 0.5. So **"no measurable gain over a
+400-generation window" is now established at better power**, and the bound tightens: any gain is
+under about **0.03** (order 20 Elo) per 400 generations, not 0.05.
+
+**What is NOT established, and I want the restraint on record:** all three point estimates sit at or
+below 0.5 (0.464, 0.498, 0.474), which is suggestive of slight DEGRADATION rather than a plateau.
+Every one of those intervals contains 0.5, so that is a pattern in three numbers, not a result.
+Pooling them would be wrong — they come from two different runs over different windows, which is
+the pooling error this repo has recorded three times today. The honest position is: no gain
+detected, and a hint of decline that is not yet distinguishable from noise.
+
+The accept audit now running is the direct test of the mechanism that would produce exactly this
+shape — accepts that are not actually stronger, so the champion random-walks or drifts down.
+
 ## What to do with it, stated as next steps and not as findings
 
 1. **Raise `--ancestor-pairs`.** 160 pairs cannot resolve what is plausibly a small per-window gain.
