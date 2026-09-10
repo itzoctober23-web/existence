@@ -43,6 +43,11 @@ GATE_RE   = re.compile(r'gen\s+(\d+)\s+(\w+)\s+gate\s+(ACCEPT|REJECT|INCONCLUSIV
 SURRO_RE  = re.compile(r'surrogate\s+([0-9.]+)')
 SEED_RE   = re.compile(r'run seed (\d+)')
 TOL_RE    = re.compile(r'guard tolerance (\d+)')
+# EPS is part of the ARM IDENTITY and must be in the dedup key. The control and the EPS 0.10
+# arm are byte-identical until a candidate lands in the 90-98%% band, so they currently share
+# every other key field -- and the moment EPS diverges its generations would collide with the
+# control's and overwrite them. Third instance today of a dedup key that was too coarse.
+EPS_RE    = re.compile(r'EPS=([0-9.]+)')
 LLR_RE    = re.compile(r'llr\s+([-+0-9.]+)')
 
 def parse(path):
@@ -50,6 +55,7 @@ def parse(path):
     txt = open(path, encoding='utf-8', errors='replace').read()
     seed = int(m.group(1)) if (m := SEED_RE.search(txt)) else None
     tol  = int(m.group(1)) if (m := TOL_RE.search(txt)) else None
+    eps  = float(m.group(1)) if (m := EPS_RE.search(txt)) else None
     # PREFER THE EXPLICIT HEADER. Arms now print "HARD_FITNESS on weight N" / "HARD_FITNESS off".
     #
     # The old heuristic below inferred the FLAG from the seed's own surrogate (0.002490 without the
@@ -58,15 +64,30 @@ def parse(path):
     # weight-4 arm looked identical and would be pooled as one condition. Same class of error as
     # counting duplicate trajectories as independent observations. Kept as a fallback so logs written
     # before the header existed still parse.
-    hard, hw = None, None
+    # `hdr` records HOW the flag was determined, which is load-bearing for the gating rate below.
+    # The explicit header was added at the same time as the no-ratchet fix, and every log that
+    # predates it was renamed out of the glob -- so among the files read here, an explicit header is
+    # exactly equivalent to "produced by the no-ratchet binary". Without this, the old ratcheting
+    # control arms share the dedup key (seed, tol, hard, hw, lin, gen) with the new control and get
+    # POOLED, which would silently mix the two sides of the very comparison being made.
+    hard, hw, hdr = None, None, False
     if (m := re.search(r'HARD_FITNESS on weight ([0-9.]+)', txt)):
-        hard, hw = True, float(m.group(1))
+        hard, hw, hdr = True, float(m.group(1)), True
     elif re.search(r'HARD_FITNESS off', txt):
-        hard, hw = False, None
+        hard, hw, hdr = False, None, True
     elif (m := re.search(r'lineage MAIN.*?([0-9]\.[0-9]{6}) mates/Mcost', txt, re.S)):
         hard = abs(float(m.group(1)) - 0.002084) < 1e-6
         hw = 1.0 if hard else None   # legacy logs predate the weight knob, which defaulted to 1
-    rows, pend = [], {}
+    rows, pend, gens = [], {}, []
+    # EVERY lineage-generation, gated or not. Needed for the gating RATE, which is a
+    # PRE-REGISTERED prediction of removing the best_rate ratchet (see
+    # search_track_WHY_NOTHING.md): it should rise materially from the measured 99/234 =
+    # 42.3%. Checked by the tool rather than by hand, so it cannot be quietly skipped.
+    GEN_ANY = re.compile(r'gen\s+(\d+)\s+([A-Z]+)\s+(\.\.none|gate )')
+    for line in txt.splitlines():
+        g = GEN_ANY.search(line)
+        if g:
+            gens.append((int(g.group(1)), g.group(2), g.group(3).startswith('gate')))
     for line in txt.splitlines():
         if (m := VERIFY_RE.search(line)):
             pend[(int(m.group(1)), m.group(2))] = (float(m.group(3)), float(m.group(4)))
@@ -75,9 +96,9 @@ def parse(path):
             v, ci = pend.pop(key, (None, None))
             s  = float(sm.group(1)) if (sm := SURRO_RE.search(line)) else None
             lr = float(lm.group(1)) if (lm := LLR_RE.search(line)) else None
-            rows.append(dict(seed=seed, tol=tol, hard=hard, hw=hw, gen=key[0], lin=key[1],
+            rows.append(dict(seed=seed, tol=tol, eps=eps, hard=hard, hw=hw, gen=key[0], lin=key[1],
                              verify=v, ci=ci, surro=s, verdict=m.group(3), llr=lr))
-    return dict(seed=seed, tol=tol, hard=hard, hw=hw), rows
+    return dict(seed=seed, tol=tol, eps=eps, hard=hard, hw=hw, hdr=hdr, gens=gens), rows
 
 def main():
     # NOTE: `gate_hardw*` must be here. It was missed when the weight-4 arm was added, which would
@@ -89,25 +110,29 @@ def main():
     if not paths:
         print("no arm logs found in", os.getcwd()); return 1
     allrows, seen = [], set()
+    gseen = {}
     print("  arm logs read:")
     for p in paths:
         meta, rows = parse(p)
         hf = ('HARD_FITNESS w=%g' % meta['hw']) if meta['hard'] else ('surrogate-only' if meta['hard'] is False else '?')
-        print(f"    {p:<30} seed {meta['seed']}  tolerance {meta['tol']}  {hf}  ({len(rows)} gated gens)")
+        print(f"    {p:<30} seed {meta['seed']}  tol {meta['tol']}  EPS {meta['eps']}  {hf}  ({len(rows)} gated gens)")
         for r in rows:
             # DEDUPLICATE: identical config replays the identical trajectory.
-            k = (r['seed'], r['tol'], r['hard'], r['hw'], r['lin'], r['gen'], r['surro'])
+            k = (r['seed'], r['tol'], r['eps'], r['hard'], r['hw'], r['lin'], r['gen'], r['surro'])
             if k in seen:
                 continue
             seen.add(k); allrows.append(r)
+        if meta['hdr']:      # post-ratchet-fix arms ONLY -- see the note in parse()
+            for (gn, lin, gated) in meta['gens']:
+                gseen[(meta['seed'], meta['tol'], meta['eps'], meta['hard'], meta['hw'], lin, gn)] = gated
 
     strata = {}
     for r in allrows:
-        strata.setdefault((r['tol'], r['hard'], r['hw']), []).append(r)
+        strata.setdefault((r['tol'], r['eps'], r['hard'], r['hw']), []).append(r)
 
-    for (tol, hard, hw), rows in sorted(strata.items(), key=lambda kv: (kv[0][0] or 0, kv[0][1] or False, kv[0][2] or 0)):
+    for (tol, eps, hard, hw), rows in sorted(strata.items(), key=lambda kv: (kv[0][0] or 0, kv[0][1] or 0, kv[0][2] or False, kv[0][3] or 0)):
         hf = ('HARD_FITNESS weight %g' % hw) if hard else ('surrogate only' if hard is False else 'unknown')
-        print(f"\n  === guard tolerance {tol} | {hf} | {len(rows)} unique gated gens ===")
+        print(f"\n  === guard tolerance {tol} | EPS {eps} | {hf} | {len(rows)} unique gated gens ===")
         print("    seed gen lin    surrogate   VERIFY            gate")
         for r in sorted(rows, key=lambda r: (r['lin'], r['seed'] or 0, r['gen'])):
             v = f"{r['verify']:.3f}+/-{r['ci']:.3f}" if r['verify'] is not None else "   --        "
@@ -120,6 +145,15 @@ def main():
                 continue
             worse = sum(1 for r in sub if r['verify'] + r['ci'] < 0.5)
             print(f"    {lin}: {worse}/{len(sub)} resolved WORSE by VERIFY")
+
+    if gseen:
+        tot = len(gseen); gated = sum(1 for v in gseen.values() if v)
+        print(f"\n  === GATING RATE (pre-registered: should RISE from 42.3% now the ratchet is gone) ===")
+        print(f"    unique lineage-generations : {tot}   (post-ratchet-fix arms only)")
+        print(f"    of those, reached a gate   : {gated}  ({100*gated/tot:.1f}%)")
+        print(f"    baseline WITH the ratchet  : 99/234 = 42.3%")
+        if tot < 30:
+            print(f"    n={tot} is too few to compare. Keep running.")
 
     treat = [r for r in allrows if r['hard'] and r['lin'] == 'MAIN' and r['verify'] is not None]
     print("\n  === FALSIFIER ===")
