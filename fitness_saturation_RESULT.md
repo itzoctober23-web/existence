@@ -321,3 +321,37 @@ mildly negative rather than neutral.
 as *"no program improves on the seed by eval ~1800 -> grammar or fitness is wrong; fix those"*, and
 `STATE.md:2690` records that the condition has FIRED — 0 promotions in 17 game-gate calls. Rebalancing
 the fitness is the prescribed response, not an improvisation.
+
+## IF BOTH WEIGHTS FAIL — the next lever, named now with its evidence
+
+Recorded before the A/B reports, so the follow-up is not invented to fit whatever number arrives.
+
+The weight knob attacks the imbalance from one side: it raises what the NUMERATOR pays. There is a
+second, already-implemented lever that attacks it from the other side — **stop letting the surrogate
+RANK at all.**
+
+`EXISTENCE_SPEC_FILTER` (`evolve.rs:1801`) picks the first candidate with
+`r >= 0.9 * best_rate` rather than the single highest-rate one. That converts the surrogate from a
+ranking function into a **floor**: anything not much worse than the champion is eligible, and the
+GAME GATE decides. Which is the correct division of labour, because the surrogate is a SPEED
+measure — `mates/Mcost` rewards searching less without bound — while strength usually requires
+searching more. A metric that pays for cheapness cannot rank for strength; it can only screen out
+the broken.
+
+**The evidence that it changes behaviour is already on disk.** PATH 1 — the same-play speedup path —
+has fired **8 times in this project's history, all 8 under SPEC_FILTER** (4 in `spec_filter_arm.log`,
+4 in `gate_spec_veto_arm.log`) and **zero times in any standard arm**. Under the strict rule the
+champion has never moved at all.
+
+**Why it is NOT being run now, stated so it does not look like an oversight.** It interacts with the
+two things already changed today. The tolerance pick is exactly the case the struct comment at
+`evolve.rs:1399` warns about — under a 0.9x filter a bar-raise ratchets the reference DOWNWARD — and
+that is why `gated` exists. Both branches now use `gated`, so that hazard is handled, but adding a
+third simultaneous change to a running A/B would confound it. **Order matters more than speed here:
+finish the weight question, then take this one.**
+
+**The pre-registered reading, so it is honest either way.** If both weights are inert AND
+SPEC_FILTER moves the champion, the conclusion is not "saturation was wrong" — it is that the
+surrogate cannot be repaired as a ranking function and should only ever screen. That is a larger
+claim than the one this document currently makes, and it needs its own arm rather than being read
+off the side of this one.
