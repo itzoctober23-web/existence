@@ -49,6 +49,14 @@ TOL_RE    = re.compile(r'guard tolerance (\d+)')
 # control's and overwrite them. Third instance today of a dedup key that was too coarse.
 EPS_RE    = re.compile(r'EPS=([0-9.]+)')
 LLR_RE    = re.compile(r'llr\s+([-+0-9.]+)')
+# Added to the gate line on 2026-09-09 and, until now, NOT PARSED HERE -- the fields existed in the
+# log and the reader was blind to them, which would have surfaced at the exact moment they mattered.
+#   mates {f}          the winner's mate count. For MAIN this should be a constant 23; that IS the
+#                      saturation, made visible. Anything else falsifies the premise.
+#   hard {hlo}-{hhi}   range over guard-passing candidates. hhi == 0 proves the winner scored 0 on
+#                      the hard set, i.e. HARD_FITNESS did not engage at all.
+MATES_RE  = re.compile(r'mates\s+(\d+)')
+HARD_RE   = re.compile(r'hard\s+(\d+)-(\d+)')
 
 def parse(path):
     """Return (meta, rows). Reads the guard tolerance and seed from the header, not the name."""
@@ -96,8 +104,12 @@ def parse(path):
             v, ci = pend.pop(key, (None, None))
             s  = float(sm.group(1)) if (sm := SURRO_RE.search(line)) else None
             lr = float(lm.group(1)) if (lm := LLR_RE.search(line)) else None
+            mt = int(mm.group(1)) if (mm := MATES_RE.search(line)) else None
+            hm = HARD_RE.search(line)
+            hlo, hhi = (int(hm.group(1)), int(hm.group(2))) if hm else (None, None)
             rows.append(dict(seed=seed, tol=tol, eps=eps, hard=hard, hw=hw, gen=key[0], lin=key[1],
-                             verify=v, ci=ci, surro=s, verdict=m.group(3), llr=lr))
+                             verify=v, ci=ci, surro=s, verdict=m.group(3), llr=lr,
+                             mates=mt, hlo=hlo, hhi=hhi))
     return dict(seed=seed, tol=tol, eps=eps, hard=hard, hw=hw, hdr=hdr, gens=gens), rows
 
 def main():
@@ -138,7 +150,9 @@ def main():
             v = f"{r['verify']:.3f}+/-{r['ci']:.3f}" if r['verify'] is not None else "   --        "
             s = f"{r['surro']:.6f}" if r['surro'] is not None else "   --   "
             llr = f" llr {r['llr']:+.2f}" if r['llr'] is not None else ""
-            print(f"    {r['seed']:>4} {r['gen']:>3} {r['lin']:<5}  {s}  {v}  {r['verdict']}{llr}")
+            mt = f" mates {r['mates']}" if r.get('mates') is not None else ""
+            hd = f" hard {r['hlo']}-{r['hhi']}" if r.get('hhi') is not None else ""
+            print(f"    {r['seed']:>4} {r['gen']:>3} {r['lin']:<5}  {s}  {v}  {r['verdict']}{llr}{mt}{hd}")
         for lin in ('MAIN', 'MCTS'):
             sub = [r for r in rows if r['lin'] == lin and r['verify'] is not None]
             if not sub:
@@ -171,14 +185,22 @@ def main():
         print("      * if hf stayed 0 -> UNINTERPRETABLE. With hf=0 the surrogate is")
         print("        (23+0)/(cost+hard_cost), improvable only by cutting cost -- identical in")
         print("        incentive to the control's 23/cost. The fix never engaged.")
-        print("    Read `hard hlo-hhi` ON THE GATE LINE to tell them apart:")
-        print("      hhi == 0  -> the fix did NOT engage. Unambiguous.")
-        print("      hlo >  0  -> every retained member scored, so the winner did. Unambiguous.")
-        print("      hlo == 0 < hhi -> AMBIGUOUS: some candidate scored, but the winner may still")
-        print("                        be a cost-cutter with hf=0, which is what the weight-1")
-        print("                        under-power prediction expects.")
-        print("    Compare the weight-1 and weight-4 arms before concluding: if weight 1 is inert")
-        print("    and weight 4 is not, the diagnosis was right and only the dose was too small.")
+        known = [r for r in treat if r.get('hhi') is not None]
+        if not known:
+            print("    `hard` not recorded on these gate lines (pre-instrumentation logs).")
+            print("    Cannot tell 'refuted' from 'never engaged'. Do not conclude.")
+        elif all(r['hhi'] == 0 for r in known):
+            print("    hhi == 0 on ALL of them -> the fix NEVER ENGAGED. UNINTERPRETABLE, not a")
+            print("    refutation: with hf=0 the surrogate is (23+0)/(cost+hard_cost), improvable")
+            print("    only by cutting cost, which is the control's incentive exactly.")
+        elif any(r['hlo'] > 0 for r in known):
+            print("    hlo > 0 somewhere -> every retained member scored, so the winner did too.")
+            print("    The fix ENGAGED and the candidate is still worse => saturation is REFUTED")
+            print("    as the mechanism, and fitness_saturation_RESULT.md must be corrected.")
+        else:
+            print("    hlo == 0 < hhi -> AMBIGUOUS. Some candidate scored but the winner may still")
+            print("    be a cost-cutter with hf=0, which is exactly what the weight-1 under-power")
+            print("    prediction expects. Compare weight 1 against weight 4 before concluding.")
     elif worse == 0:
         print("    CONSISTENT with saturation being the cause.")
         print("    NOT PROOF, and the confirming check is NOT AVAILABLE from these logs: a gated")
