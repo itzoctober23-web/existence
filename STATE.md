@@ -4785,3 +4785,33 @@ class the veto rule exists to admit and the shipped rule exists to exclude.
 
 Recorded BEFORE the arm reaches generation 2 MCTS specifically so the outcome cannot be fitted to the
 prediction afterwards.
+
+### Launched `gate_hardfit` — the fitness-side half of the diagnosis
+
+Today's account identifies two candidate fixes for "0 of 78 gate calls ever resolved BETTER", on
+opposite sides of the pipeline. Both are now under test, each against a matched control:
+
+    ACCEPTANCE side   gate_gateveto      GATE_VETO=1     vs gate_diversity_PAIRED_off (complete, 25 gens)
+    FITNESS side      gate_hardfit       HARD_FITNESS=1  vs gate_set_mateheavy        (running, gen 3)
+
+`gate_hardfit`: `evolve_PINNED` (`1529d29f3a98dd21`, verified from `/proc` after launch), args
+`25 8 12 6 3`, seed 0, `EXISTENCE_HARD_FITNESS=1` and nothing else. Binary confirmed to contain the
+flag string.
+
+**Run on 12+6+5 deliberately, and that is the whole point.** `HARD_FITNESS` folds `harder_set` into the
+surrogate, and `harder_set` is the ONLY construction in this tree that rewards searching BETTER rather
+than cheaper — the seed scores 0/8 on it by construction, so a nonzero score cannot be bought with
+cost. The flag was retired here on *"`hard 0-0`, so HARD_FITNESS has not engaged"*, which is 2% true on
+4+10+10 and **45-62% false on 12+6+5**. Running it on the depth-heavy set would have reproduced the
+original null; running it where the term is non-zero is the test that was never done.
+
+**What each arm can show.** `gateveto` changes what can be ACCEPTED (ties become admissible).
+`hardfit` changes what gets RANKED FIRST (a candidate that solves hard positions outranks one that
+merely sold mates). The exchange-rate measurement says the ranking is currently dominated by cost at
+~2:1 against mates; `HARD_FITNESS` adds a term that cost cannot buy.
+
+**Capacity accounting, since this partially reverses last turn's reallocation.** Three arms were
+stopped to accelerate the diagnosed-bottleneck test; one slot is now used for the other half of the
+same diagnosis. Net 7 arms against the earlier 9, so `gate_gateveto` still has more CPU than before
+the reallocation. That is the trade I intended: free capacity from arms whose purpose was served, spend
+it only on arms testing the open question.
