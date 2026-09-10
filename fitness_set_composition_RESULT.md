@@ -304,3 +304,51 @@ scored BELOW the seed.
 **Standing question, unchanged:** whether this set ever admits something that VERIFIES above 0.5. If
 both seeds reach gen 6 with 0 accepts, composition is not the constraint either, and the remaining
 suspect is the correctness oracle under graft — 0 of 40, measured.
+
+## 2026-09-10 — the gen-6 window: population GROWS under the depth-heavy set, in both seeds
+
+The earlier `tt` work concluded "do not judge any arm before generation 6". Both composition arms
+have now passed it.
+
+    MAIN population per generation
+      control  gate_sprt30_s1     2  2   (then unobservable -- see below)
+      composition seed 1          2  2  2  3  5  6
+      composition seed 2          1  3  3  4  7
+
+    DISTINCT fitness values among guard-passers, per generation
+      control  gate_sprt30_s1     1  1
+      composition seed 1          1  1  0  1  2  1
+      composition seed 2          0  2  0  3  4
+
+**This is the stage `search_has_no_choice_RESULT.md` identified as binding.** That measurement found
+94% of generations offering ≤1 distinct fitness and every arm collapsing to `pop 2`, and concluded
+that "selection cannot select from a set of size ≤1". Under the depth-heavy composition the
+population climbs to **6 and 7**, and seed 2 reaches **4 distinct rates** in one generation — a value
+seen in none of the 79 generations aggregated earlier. **It replicates across two independent seeds.**
+
+### ⚠ The control cannot be compared at these generations, and that is an instrument gap
+
+`gate_sprt30_s1` has **2** `..none` lines and **4** gate lines; the composition arm has **6** and
+**0**. Population and distinct-count are printed ONLY on the `..none` line — a gate line reads:
+
+    gen 6 MAIN gate REJECT llr -2.96 0.458+/-0.059 (36 games W-D-L 1-31-4) mates 20 hard 2-2 ...
+
+no `pop`, no `distinct`. So from gen 3 the control's population is **unmeasured**, not measured-as-2.
+It may well have grown too.
+
+**What is therefore claimed:** the depth-heavy composition sustains a population of 5-7 with up to 4
+distinct rates through gen 6, in two seeds. That is a departure from the pop-2 / distinct-≤1 pattern
+that dominated the 79-generation aggregate, and it is the stage the funnel identified as binding.
+
+**What is NOT claimed:** that the control does worse on this axis. It is not observable, and asserting
+it from the two early generations where both read `pop 2` would be exactly the kind of gap-filling
+that has cost me five analyses tonight.
+
+**The fix is print-only and cheap** — add `pop` and `distinct` to the gate line so the two paths
+report the same fields. Deferred only because a rebuild would land under the running edit-count
+sweep; it goes in as soon as that finishes.
+
+**And the caveat that still stands:** more diversity is not more strength. The composition arms have
+admitted NOTHING through 6 generations. A larger, more varied population that never produces an
+acceptable candidate is a better-shaped failure, not a success — and only VERIFY on an actual accept
+would change that.
