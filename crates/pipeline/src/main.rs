@@ -1188,6 +1188,32 @@ base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
                 c.wins, c.draws, c.losses, c.pent_rate(), c.ci95(),
                 if c.rate() - c.ci95() > 0.5 { "  *" } else { "" });
 
+            // KEEP A LADDER RUNG. `--out` is a single file that every accept OVERWRITES, so the
+            // run's history is destroyed as it is made and the only way to compare the champion
+            // with its own past is to have copied a file by hand at the right moment.
+            //
+            // That matters now rather than in principle. The origin control is a SATURATING
+            // measurement -- `instrument_saturation_RESULT.md` records it REVERSING SIGN twice, at
+            // 0.861 and 0.967 -- and this loop's champion reached 0.873 on 2026-09-10, i.e. inside
+            // the band where the instrument has already been wrong. Above that, "stronger" has to
+            // be settled head-to-head against a RECENT ANCESTOR, which is only possible if the
+            // ancestor still exists.
+            //
+            // Snapshotting HERE, at the control, is deliberate: every rung then carries a measured
+            // origin score at the moment it was saved, so the ladder is a series of points with
+            // both an absolute reading (while it still means something) and a playable net (after
+            // it stops). `netmatch` takes two of these directly.
+            //
+            // Cost is one 50KB file per control -- every 100 generations as currently configured.
+            if !out.is_empty() && out != "/dev/null" {
+                let rung = format!("{out}.gen{g}.net");
+                if let Err(e) = champion.save(&rung) {
+                    eprintln!("      WARNING: could not write ladder rung {rung}: {e}");
+                } else {
+                    println!("      ladder rung saved: {rung}");
+                }
+            }
+
             // CHECKPOINT AND ROLLBACK. Until now this control measured the lineage and then
             // ignored the answer -- it printed and did not even reach the ledger.
             //
