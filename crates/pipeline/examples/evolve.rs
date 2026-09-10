@@ -1378,6 +1378,70 @@ fn alpha_sensitive_set(n: usize, depth: i64, net: &Net, raised: i8, cap: usize)
 /// ONE TRAVERSAL, shared with `tt_prims`, so the count and the composition can never disagree --
 /// duplicating these match arms would let the two fields drift silently, which is the same class of
 /// defect this function exists to fix.
+/// Count reads of the VALIDITY field. `Slot::flag` is what distinguishes a stored entry from an
+/// empty one; interp's `probe()` returns `Slot::default()` on a miss, so `Field(Probe(..), Score)`
+/// silently yields the CONSTANT 0 unless something tests `flag`. That is the third ingredient the
+/// 2026-09-10 split measurement named, and this is how a child is checked for carrying it.
+/// Count flag reads that are actually TESTED -- a `Field(_, Flag)` appearing as an operand of a
+/// comparison, or as an `If` condition. This is the distinction that decides whether the three-way
+/// experiment measures what it claims.
+///
+/// `flag_reads` counts the field being READ. A read is not a guard: `Field(Probe(k), Flag)` used as
+/// a value simply substitutes one garbage number for another. The ingredient `ab_hash` actually
+/// needs is `flag != 0` GATING the use of the stored score. Supplying a bare read and finding no
+/// improvement would refute the validity-marker hypothesis for the wrong reason -- the instrument
+/// would have withheld the thing under test.
+fn flag_tests(p: &Program) -> usize {
+    fn is_flag(n: &Node) -> bool {
+        matches!(n, Node::Field(_, f) if *f == grammar::ast::FieldId::Flag)
+    }
+    fn walk(n: &Node, out: &mut usize) {
+        use Node::*;
+        match n {
+            Cmp(a, b, _) | Pred(a, b, _) => { if is_flag(a) || is_flag(b) { *out += 1; } }
+            If(c, _, _) => { if is_flag(c) { *out += 1; } }
+            _ => {}
+        }
+        match n {
+            Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => {}
+            Moves(a) | Terminal(a) | Key(a) | Eval(a) | Ret(a) | Probe(a) | Field(a, _)
+            | Set(_, a) => walk(a, out),
+            Apply(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) | Cmp(a, b, _)
+            | Pred(a, b, _) | Loop(a, b) | Store(a, _, b) => { walk(a, out); walk(b, out) }
+            Mix(a, b, c) => { walk(a, out); walk(b, out); walk(c, out) }
+            Foreach(a, _, b) | Argmax(a, _, b) | Sort(a, _, b) | Sample(a, _, b)
+            | Let(_, a, b) => { walk(a, out); walk(b, out) }
+            If(c, t, e) => { walk(c, out); walk(t, out); if let Some(x) = e { walk(x, out) } }
+            Call(_, args) | Arith(_, args) | TRead(_, args) => { for a in args { walk(a, out) } }
+        }
+    }
+    let mut n = 0usize;
+    for f in &p.funcs { walk(&f.body, &mut n); }
+    n
+}
+
+fn flag_reads(p: &Program) -> usize {
+    fn walk(n: &Node, out: &mut usize) {
+        use Node::*;
+        if let Field(_, f) = n { if *f == grammar::ast::FieldId::Flag { *out += 1; } }
+        match n {
+            Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => {}
+            Moves(a) | Terminal(a) | Key(a) | Eval(a) | Ret(a) | Probe(a) | Field(a, _)
+            | Set(_, a) => walk(a, out),
+            Apply(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) | Cmp(a, b, _)
+            | Pred(a, b, _) | Loop(a, b) | Store(a, _, b) => { walk(a, out); walk(b, out) }
+            Mix(a, b, c) => { walk(a, out); walk(b, out); walk(c, out) }
+            Foreach(a, _, b) | Argmax(a, _, b) | Sort(a, _, b) | Sample(a, _, b)
+            | Let(_, a, b) => { walk(a, out); walk(b, out) }
+            If(c, t, e) => { walk(c, out); walk(t, out); if let Some(x) = e { walk(x, out) } }
+            Call(_, args) | Arith(_, args) | TRead(_, args) => { for a in args { walk(a, out) } }
+        }
+    }
+    let mut n = 0usize;
+    for f in &p.funcs { walk(&f.body, &mut n); }
+    n
+}
+
 fn tt_counts(p: &Program) -> [usize; 4] {
     fn walk(n: &Node, out: &mut [usize; 4]) {
         use Node::*;
@@ -1867,7 +1931,10 @@ fn tt_union() {
     // hold `P1K1F1` probe halves and `S1K1` store halves as separate members; ab_hash's entire 2.4%
     // gain comes from TEN call sites at a 1% hit rate, so coverage plainly matters and a union of two
     // one-site halves need not reproduce the hand-built 5.5%.
-    let minimal = a(4, 0) == 1;
+    let mode = a(4, 0);
+    let minimal = mode >= 1;   // 1 = minimal halves, 2 = minimal + validity guard
+    let three_way = mode >= 2;
+    let need_test = mode == 3;   // 3 = third half must TEST the flag, not merely read it
     let net = Net::random(32, 20260907);
     let seed = reference::bare_alpha_beta();
     let set = mate_set(6);
@@ -1912,6 +1979,7 @@ fn tt_union() {
     // Build the MINIMAL halves the way the population does: single mutations off the seed, kept when
     // they carry exactly one side. Reported so the comparison is against a stated pair, not a guess.
     let (mut min_probe, mut min_store): (Option<Program>, Option<Program>) = (None, None);
+    let mut min_guard: Option<Program> = None;
     if minimal {
         for k in 0..20_000u64 {
             if min_probe.is_some() && min_store.is_some() { break; }
@@ -1925,6 +1993,23 @@ fn tt_union() {
             (Some(pp), Some(ss)) => println!("  MINIMAL halves from single mutation: probe {} / store {}",
                                              tt_kind_tag(pp), tt_kind_tag(ss)),
             _ => { println!("  ABORT: could not build both minimal halves by single mutation"); return; }
+        }
+        if three_way {
+            for k in 0..60_000u64 {
+                if min_guard.is_some() { break; }
+                let mut r = Rng::new(k << 12 ^ 0x9F3B);
+                let Some((c2, _)) = mutate::mutate_program_n(&seed, &mut r, 1) else { continue };
+                let ok = if need_test { flag_tests(&c2) > 0 } else { flag_reads(&c2) > 0 };
+                if ok { min_guard = Some(c2); }
+            }
+            match &min_guard {
+                Some(g) => println!("  THIRD half ({}): {} with {} flag read(s), {} of them TESTED",
+                                    if need_test { "validity TEST" } else { "bare flag read" },
+                                    tt_kind_tag(g), flag_reads(g), flag_tests(g)),
+                None => { println!("  ABORT: no single mutation produced the required flag {} in 60k draws \
+-- that ingredient is NOT single-edit reachable, which is itself the answer",
+                                   if need_test { "TEST" } else { "read" }); return; }
+            }
         }
     }
     let (mut wt, mut both, mut same, mut acceptable) = (0usize, 0usize, 0usize, 0usize);
@@ -1947,6 +2032,15 @@ fn tt_union() {
         } else if k % 2 == 0 { (reference::ab_probe_only(), reference::ab_store_only()) }
           else               { (reference::ab_store_only(), reference::ab_probe_only()) };
         let Some(child) = mutate::crossover(&rec, &don, &mut r) else { continue };
+        // THREE-WAY: fold the validity guard into the probe-store child. The split measurement says
+        // a miss injects the constant 0, so a union without a flag test is unsound by construction;
+        // this asks whether supplying the third ingredient is what raises soundness.
+        let child = if three_way {
+            match &min_guard {
+                Some(g) => match mutate::crossover(&child, g, &mut r) { Some(c) => c, None => continue },
+                None => continue,
+            }
+        } else { child };
         wt += 1;
         let c = tt_counts(&child);
         if c[0] == 0 || c[1] == 0 { continue; }
