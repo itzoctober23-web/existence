@@ -176,18 +176,43 @@ table previously listed FIVE of the nine programs the parser measures; the other
 only as prose in section 9, where they could drift from the counter without anything failing.
 Every row below is printed by that command.
 
-| Program | Nodes (MEASURED) | vs seed | Fidelity |
+| Program (named EXACTLY as `reference::all()` returns it — see note below) | Nodes (MEASURED) | vs seed | Fidelity |
 |---|---|---|---|
-| depth-one | 9 | −62 | faithful (purity seed) |
-| bare alpha-beta | **71** | +0 | faithful (main seed) |
-| capture extension (rung 6) | 80 | +9 | faithful |
+| depth-one (purity seed) | 9 | −62 | faithful (purity seed) |
+| bare alpha-beta (main seed) | **71** | +0 | faithful (main seed) |
+| capture extension (rung 6) | 84 | +13 | faithful |
 | table reduction (rung 7) | 86 | +15 | faithful |
 | alpha-beta + iterative deepening | 100 | +29 | faithful |
-| **UCT MCTS** (declared, sum selection) | **131** | **+60** | **faithful — VERIFIED BY EXECUTION, 23/23 forced mates** at K >= 600 |
-| UCT MCTS (blend selection, historical) | 132 | +61 | PARTIAL — 20/23 at best, and it CANNOT reach 23/23 at any weight. See below |
+| UCT-style MCTS | **131** | **+60** | **faithful — VERIFIED BY EXECUTION, 23/23 forced mates** at K >= 600 |
+| UCT-style MCTS (blend selection, historical) | 132 | +61 | PARTIAL — 20/23 at best, and it CANNOT reach 23/23 at any weight. See below |
 | alpha-beta + hash reuse | **175** | +104 | faithful (validity marker, depth, EXACT/LOWER/UPPER bounds) |
 | proof-number search | **175** | +104 | faithful — VERIFIED BY EXECUTION, 23/23 forced mates |
 | alpha-beta + hash + ID | 204 | +133 | faithful |
+
+**The names in the first column are the literal strings `reference::all()` returns, and
+`crates/grammar/tests/prior_table.rs` asserts EXACT equality between this table and the parser.**
+That is deliberate and slightly ugly. On 2026-09-10 this table said `capture extension (rung 6) = 80,
++9` while the parser printed **84, +13**: commit `064112f` ("rung 6 fixed to extend AT THE HORIZON")
+grew the program by 4 nodes on 09-08 20:29, and the row -- last written 09-08 17:08 -- never followed.
+Nine of the ten rows were correct, which is exactly why nobody looked.
+
+This section had already been bitten once and had already tried to fix it: four programs used to be
+quoted only as prose in section 9, "where they could drift from the counter without anything
+failing", and the fix was to move them into this table. That RELOCATED the drift without gating it --
+`cargo run --example prior` printing the truth is worthless if nothing compares its output to the
+claim. The test now does the comparison, and it fails loudly if it parses fewer rows than there are
+programs, so a heading rename cannot make it pass vacuously.
+
+Matching is exact string equality rather than an alias map, because a hand-kept list of names is the
+defect that bit this workspace three separate ways on the same day (a hardcoded arm-name alternation
+in `tick.sh` that missed a probe; a whitelist grep that dropped four alarms and had to be deleted; a
+`pgrep -x evolve` enumerator that reported 5 arms while 6 ran, because one had been renamed). A
+rename in the code must FORCE an edit here.
+
+**The correction does not touch the conclusion.** At +13 the capture extension is still far nearer
+the seed than either rival paradigm (+60 MCTS, +104 PN), so the skew direction and its rough factor
+of two are unchanged. A second test, `every_alpha_beta_variant_is_nearer_the_seed_than_either_rival_paradigm`,
+now asserts that ordering directly -- row-by-row count agreement would not have caught an inversion.
 
 **THE SKEW IS NOW RESOLVED, AND IT IS TOWARD ALPHA-BETA.** This section recorded the direction as
 UNRESOLVED for a specific and correct reason: MCTS and PN were SKETCHES, so their counts were
@@ -196,7 +221,7 @@ written out in full and executed — PN solves 23/23 forced mates, MCTS 20/23 �
 real lengths rather than floors, and the comparison is meaningful for the first time:
 
 * the seed alpha-beta is **71** nodes; MCTS is **+59** and PN is **+104** from it.
-* every alpha-beta VARIANT is nearer the seed (+9, +15, +29) than either rival paradigm is.
+* every alpha-beta VARIANT is nearer the seed (+13, +15, +29) than either rival paradigm is.
 
 So the grammar is biased toward alpha-beta-shaped programs, by roughly a factor of two in edit
 distance. That is a real cost of this Given column and it is now a measured number rather than an
