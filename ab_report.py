@@ -172,13 +172,26 @@ def main():
             print(f"    {lin}: {worse}/{len(sub)} resolved WORSE by VERIFY")
 
     if gseen:
-        tot = len(gseen); gated = sum(1 for v in gseen.values() if v)
-        print(f"\n  === GATING RATE (pre-registered: should RISE from 42.3% now the ratchet is gone) ===")
-        print(f"    unique lineage-generations : {tot}   (post-ratchet-fix arms only)")
-        print(f"    of those, reached a gate   : {gated}  ({100*gated/tot:.1f}%)")
-        print(f"    baseline WITH the ratchet  : 99/234 = 42.3%")
-        if tot < 30:
-            print(f"    n={tot} is too few to compare. Keep running.")
+        # PER STRATUM, not pooled. The pooled figure mixed the guard-tolerance-0 arm -- which is
+        # DELIBERATELY frozen and contributes gates at 0% by construction -- with normal arms, and
+        # reported 12.1% against a 42.3% baseline as though that were a measurement. Fifth pooling
+        # error tonight, and the first one inside a metric built to check a prediction.
+        print(f"\n  === GATING RATE per stratum (pre-registered: should RISE from 42.3%) ===")
+        print(f"    baseline WITH the ratchet: 99/234 = 42.3%")
+        by = {}
+        for (seed, tol, eps, setn, lam, hard, hw, lin, gn), gated in gseen.items():
+            by.setdefault((tol, eps, setn, lam, hard, hw), []).append(gated)
+        for k in sorted(by, key=lambda k: tuple((x or 0) if not isinstance(x, bool) else int(x) for x in k)):
+            tol, eps, setn, lam, hard, hw = k
+            v = by[k]; g = sum(1 for x in v if x)
+            hf = ('HF w=%g' % hw) if hard else 'plain'
+            note = ""
+            if tol == 0:
+                note = "   <- frozen BY DESIGN, not comparable"
+            elif len(v) < 12:
+                note = f"   <- n={len(v)}, too few"
+            print(f"    tol {tol} EPS {eps} set {setn} lam {lam} {hf:<8}"
+                  f"  {g}/{len(v)} = {100*g/len(v):5.1f}%{note}")
 
     treat = [r for r in allrows if r['hard'] and r['lin'] == 'MAIN' and r['verify'] is not None]
     print("\n  === FALSIFIER ===")
