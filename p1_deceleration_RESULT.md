@@ -73,3 +73,40 @@ sign-reversal band AND too coarse for the effect size that remains.
 
 **Not claimed:** that the deceleration will continue, or that it reflects a ceiling. Two points
 (+154 over 271 generations, +24 over the last 100) are a trend of two, and the second is marginal.
+
+
+---
+
+## ⚠ 2026-09-10, live: THE TWO INSTRUMENTS DISAGREED IN SIGN on the same pair
+
+The gen-300 origin control landed after the head-to-head above, and it points the other way.
+
+    control @gen 100   0.873 +/- 0.022
+    control @gen 200   0.871 +/- 0.021
+    control @gen 300   0.847 +/- 0.023      <- DOWN
+
+| instrument | gen300 − gen200 | reading |
+|---|---|---|
+| via the FROZEN ORIGIN | **−0.024 ± 0.031** | gen300 WEAKER (not resolved) |
+| HEAD-TO-HEAD at depth 4 | **+0.035 ± 0.029** | gen300 STRONGER (interval clear of 0.5) |
+
+Same two nets, same window, opposite signs. `instrument_saturation_RESULT.md` predicted exactly
+this — it records the frozen-origin metric reversing sign **twice** at the top of its range, and
+0.847–0.873 is that range. This is the first time it has been caught on a live pair rather than
+in retrospect.
+
+**Which to believe: the head-to-head.** Not because it agrees with the hoped-for answer, but
+because the project already decided this on measured grounds — `netmatch.rs` exists precisely
+because "beating a random net is a saturating measurement", and depth-4 head-to-head is the
+declared strength standard. The origin reading also has the weaker statistics of the two here: its
+difference is NOT resolved (−0.024 ± 0.031) while the direct one is (interval [0.506, 0.564]).
+
+**What it does NOT license.** The head-to-head effect is still below the between-seed sd, so
+"gen300 > gen200" remains a one-seed result. The disagreement does not promote it; it only removes
+the origin control as evidence against it. Two weak instruments pointing opposite ways is not one
+strong instrument.
+
+**Operational consequence, effective now:** stop quoting the origin control as P1's strength
+number. It is inside its documented reversal band, it lacks the resolution for the effect sizes
+that remain (±0.021 against a ~+0.015 expected move), and it has now contradicted the standard
+instrument on a live pair. It stays useful only as a coarse "has the lineage collapsed" tripwire.
