@@ -10,7 +10,7 @@
 //! from the interpreter's own accounting. No chess knowledge enters.
 use board::{Outcome, Position};
 use grammar::mutate::{self, Rng};
-use grammar::ast::Node;
+use grammar::ast::{FieldId, Node};
 use grammar::{reference, Program};
 use interp::Interp;
 use pipeline::gate;
@@ -1819,14 +1819,26 @@ fn flag_reads(p: &Program) -> usize {
     n
 }
 
-fn tt_counts(p: &Program) -> [usize; 4] {
-    fn walk(n: &Node, out: &mut [usize; 4]) {
+/// Per-member primitive census. Slots 0..4 are the TT four and their meaning is UNCHANGED --
+/// `tt_prims` sums only those, so every `tt[..]` number in the logs and docs still means what it
+/// meant. Slots 4..8 are the MCTS-material kinds the watch panel needs: an `Avg` or a
+/// `Field(Count)` appearing in a MAIN member is averaging backup showing up inside an alpha-beta
+/// program, which is the crossover result this project is watching for.
+fn tt_counts(p: &Program) -> [usize; 8] {
+    fn walk(n: &Node, out: &mut [usize; 8]) {
         use Node::*;
         match n {
             Probe(_) => out[0] += 1,
             Store(..) => out[1] += 1,
             Key(_) => out[2] += 1,
             Field(..) => out[3] += 1,
+            _ => {}
+        }
+        match n {
+            Avg(..) => out[4] += 1,
+            Sample(..) => out[5] += 1,
+            Field(_, FieldId::Count) => out[6] += 1,
+            Field(_, FieldId::Sum) => out[7] += 1,
             _ => {}
         }
         match n {
@@ -1842,7 +1854,7 @@ fn tt_counts(p: &Program) -> [usize; 4] {
             Call(_, args) | Arith(_, args) | TRead(_, args) => { for a in args { walk(a, out) } }
         }
     }
-    let mut out = [0usize; 4];
+    let mut out = [0usize; 8];
     for f in &p.funcs { walk(&f.body, &mut out); }
     out
 }
@@ -1856,7 +1868,8 @@ fn tt_kind_tag(p: &Program) -> String {
     let c = tt_counts(p);
     if c.iter().all(|&x| x == 0) { return "-".to_string(); }
     let mut s = String::new();
-    for (ch, n) in ["P", "S", "K", "F"].iter().zip(c.iter()) {
+    // P/S/K/F are the TT four; A=Avg, M=Sample, c=Field(Count), u=Field(Sum) are MCTS material.
+    for (ch, n) in ["P", "S", "K", "F", "A", "M", "c", "u"].iter().zip(c.iter()) {
         if *n > 0 { s.push_str(&format!("{ch}{n}")); }
     }
     s
@@ -1865,7 +1878,7 @@ fn tt_kind_tag(p: &Program) -> String {
 /// Total TT primitives. Delegates to `tt_counts` so the pooled number and the per-kind tag are the
 /// SAME traversal by construction -- a second copy of these match arms could drift from the first
 /// without any test noticing, and a silently-disagreeing pair of fields is worse than one field.
-fn tt_prims(p: &Program) -> usize { tt_counts(p).iter().sum() }
+fn tt_prims(p: &Program) -> usize { tt_counts(p)[..4].iter().sum() }
 
 fn valley() {
     let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
@@ -2842,7 +2855,7 @@ fn main() {
             // the hybrid, if it exists, is only reachable this way, but crossover between two
             // programs that already work is far more destructive than a single mutation, so it
             // does not get to crowd out the operator set.
-            let cands: Vec<Program> = (0..pop)
+            let cands: Vec<(Program, bool)> = (0..pop)
                 .filter_map(|i| {
                     let parent = &popsnap[i % popsnap.len()].0;
                     // seed_mix is 0 unless EXISTENCE_EVOLVE_SEED is set, so the default draw here is
@@ -2851,14 +2864,24 @@ fn main() {
                     // program at every (g, li, i) forever.
                     let mut r = Rng::new(
                         (g as u64) << 20 ^ (li as u64) << 16 ^ i as u64 ^ 0xBEEF ^ seed_mix);
-                    if i % 4 == 3 && donors.len() > 1 {
+                    // The flag rides along so the gen line can report crossover children PROPOSED
+                    // vs SURVIVED the mate guard. Without it the two are indistinguishable after
+                    // `filter_map` drops the failures and the index mapping is gone -- and
+                    // "crossover is one-directional" was measured, so how many grafts actually
+                    // survive is the number that says whether it is doing anything.
+                    let is_cross = i % 4 == 3 && donors.len() > 1;
+                    let made = if is_cross {
                         let d = &donors[(r.next() as usize) % donors.len()];
                         mutate::crossover(parent, d, &mut r)
                     } else {
                         mutate::mutate_program(parent, &mut r)
-                    }
+                    };
+                    made.map(|prog| (prog, is_cross))
                 })
                 .collect();
+            let xflags: Vec<bool> = cands.iter().map(|(_, x)| *x).collect();
+            let x_prop = xflags.iter().filter(|x| **x).count();
+            let cands: Vec<Program> = cands.into_iter().map(|(p, _)| p).collect();
             let ill = pop - cands.len();
             const THREADS: usize = 3;
             let chunk = cands.len().div_ceil(THREADS).max(1);
@@ -2985,6 +3008,13 @@ fn main() {
             });
 
             let n_scored = scored.len();
+            // Crossover children that SURVIVED the mate guard. `scored` is built by flat_map over
+            // joined handles in chunk order, so index i still refers to cands[i] and the flag is
+            // valid here. Proposed-vs-survived is the number that says whether grafting does
+            // anything -- `reachability.rs` measured the alpha-beta -> UCT direction as empty.
+            let x_surv = scored.iter().enumerate()
+                .filter(|(i, (_, f, _, _))| *f >= guard_floor && xflags.get(*i).copied().unwrap_or(false))
+                .count();
             // HARD-SET RANGE across candidates that pass the correctness guard. If this never
             // varies, the gradient does not exist and restructuring acceptance around it would
             // have achieved nothing -- which is why it is measured first.
@@ -3607,10 +3637,10 @@ champ_mates\tchamp_cost\tchamp_rate\tgames\tci95\tnodes\tmate1\tmate2\n");
                 let span = if rel.is_empty() { "none".to_string() }
                            else { format!("{rlo:.3}-{rhi:.6}x") };
                 println!("  gen {g:>3} {:<5} ..none[above {n_above}, gated-skip {n_gated_skip}] ({n_scored} cand, {ill} ill, mate-ok {mate_ok}, \
-rates {span} [>=.98:{} .90-.98:{} .50-.90:{} <.50:{} distinct:{}], hard {hlo}-{hhi})  pop {} spread {:.6}-{:.6} tt{:?} ttk{:?} dsl{}",
+rates {span} [>=.98:{} .90-.98:{} .50-.90:{} <.50:{} distinct:{}], hard {hlo}-{hhi})  pop {} spread {:.6}-{:.6} tt{:?} ttk{:?} dsl{} x{}/{}",
                          lineages[li].name, hist.0, hist.1, hist.2, hist.3, distinct,
                          popn.len(), spread_lo, spread_hi, tt, ttk,
-                         DSL_ENGAGED.load(std::sync::atomic::Ordering::Relaxed));
+                         DSL_ENGAGED.load(std::sync::atomic::Ordering::Relaxed), x_prop, x_surv);
             }
         }
     }

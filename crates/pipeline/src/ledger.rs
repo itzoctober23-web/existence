@@ -120,6 +120,13 @@ pub struct Entry {
     pub gates: Vec<GateEvidence>,
     /// Surrogate evidence: (name, value) pairs, e.g. held-out loss and the paired z.
     pub surrogate: Vec<(&'static str, f64)>,
+    /// SCHEMAS 8 `earned.e1_at_acceptance` -- "bar provably cleared; same quantity the bandit
+    /// uses". `None` where no bound was in force.
+    pub e1: Option<f64>,
+    /// SCHEMAS 8 `where_it_mattered.top_disagreements[0].fen_or_board_hash`: the position where
+    /// this candidate most changed the evaluation. `None` when the caller had no position set in
+    /// hand -- omitted rather than faked, since an invented FEN is worse than an absent one.
+    pub top_disagreement_fen: Option<String>,
 }
 
 pub struct GateEvidence {
@@ -148,13 +155,49 @@ fn num(x: f64) -> String {
     if x.is_finite() { format!("{x:.6}") } else { "null".into() }
 }
 
+/// PROQUINT of a 32-bit value -- MASTER_PLAN "Versioning", via SCHEMAS 7: `name` = proquint of the
+/// first 32 bits of `ledger_hash`. Two syllables of consonant-vowel-consonant-vowel-consonant.
+///
+/// The point of the scheme is that a champion is referred to by a pronounceable name nobody chose,
+/// derived from the hash of everything that produced it. A hand-picked name would be a claim; this
+/// is an address.
+fn proquint(mut x: u32) -> String {
+    const C: [u8; 16] = *b"bdfghjklmnprstvz";
+    const V: [u8; 4] = *b"aiou";
+    let mut out = Vec::with_capacity(11);
+    for i in 0..2 {
+        if i > 0 { out.push(b'-'); }
+        let w = (x >> 16) as u16;
+        x <<= 16;
+        out.push(C[(w >> 12 & 0xF) as usize]);
+        out.push(V[(w >> 10 & 0x3) as usize]);
+        out.push(C[(w >> 6 & 0xF) as usize]);
+        out.push(V[(w >> 4 & 0x3) as usize]);
+        out.push(C[(w & 0xF) as usize]);
+    }
+    String::from_utf8(out).expect("ascii")
+}
+
 pub struct Ledger {
     path: String,
+    /// Entry count and running hash, recovered from the file on construction so a resumed run
+    /// continues the same series rather than restarting it.
+    index: std::cell::Cell<usize>,
+    hash: std::cell::Cell<u64>,
 }
 
 impl Ledger {
     pub fn new(path: &str) -> Self {
-        Ledger { path: path.to_string() }
+        // Recover the series from disk. A fresh `Ledger` on a resumed run must not restart the
+        // index at 0, or two different champions would carry the same identity string.
+        let (mut idx, mut h) = (0usize, 0xcbf29ce484222325u64);
+        if let Ok(txt) = std::fs::read_to_string(path) {
+            for line in txt.lines().filter(|l| !l.trim().is_empty()) {
+                idx += 1;
+                for b in line.as_bytes() { h ^= *b as u64; h = h.wrapping_mul(0x100000001b3); }
+            }
+        }
+        Ledger { path: path.to_string(), index: std::cell::Cell::new(idx), hash: std::cell::Cell::new(h) }
     }
 
     /// Append one decision. Failure to write is reported but never fatal: losing the ledger
@@ -188,7 +231,28 @@ impl Ledger {
             }
             s.push(']');
         }
+        if let Some(e1) = e.e1 {
+            s.push_str(&format!(",\"earned\":{{\"e1_at_acceptance\":{}}}", num(e1)));
+        }
+        if let Some(fen) = &e.top_disagreement_fen {
+            s.push_str(&format!(
+                ",\"where_it_mattered\":{{\"top_disagreements\":[{{\"fen_or_board_hash\":\"{}\"}}]}}",
+                esc(fen)));
+        }
+        // IDENTITY STRING, rendered here and never typed (SCHEMAS 7). Appended last so it hashes
+        // over the same content every reader sees.
+        let idx = self.index.get() + 1;
+        let name = proquint((self.hash.get() >> 32) as u32);
+        let cleared = match e.e1 { Some(v) => format!(" (cleared e1={v:.1})"), None => String::new() };
+        s.push_str(&format!(",\"identity_string\":\"Existence {} {} — {}{}\"",
+                            idx, name, esc(&e.what), cleared));
         s.push_str("}\n");
+        self.index.set(idx);
+        {
+            let mut h = self.hash.get();
+            for b in s.as_bytes() { h ^= *b as u64; h = h.wrapping_mul(0x100000001b3); }
+            self.hash.set(h);
+        }
 
         match std::fs::OpenOptions::new().create(true).append(true).open(&self.path) {
             Ok(mut f) => {

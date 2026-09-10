@@ -129,6 +129,22 @@ fn rung_path(out: &str, tag: &str, g: usize) -> String {
     if tag.is_empty() { format!("{out}.gen{g}.net") } else { format!("{out}.{tag}.gen{g}.net") }
 }
 
+/// SCHEMAS 8 `where_it_mattered`: the position where this candidate most changed the evaluation.
+///
+/// Cheap by construction -- it reuses the training subset already in memory and caps the scan, so a
+/// per-generation ledger field costs a bounded eval pass rather than a new search. It is the honest
+/// answer to "where did this actually matter", which a rate and a p-value cannot give.
+fn top_disagreement(a: &Net, b: &Net, samples: &[Sample], cap: usize) -> Option<String> {
+    let mut best: Option<(i32, String)> = None;
+    let mut scratch: Vec<f32> = Vec::new();
+    for sm in samples.iter().take(cap) {
+        let Ok(pos) = Position::from_fen(&sm.fen) else { continue };
+        let d = (a.eval(&pos, &mut scratch) - b.eval(&pos, &mut scratch)).abs();
+        if best.as_ref().map_or(true, |(bd, _)| d > *bd) { best = Some((d, sm.fen.clone())); }
+    }
+    best.map(|(_, f)| f)
+}
+
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let arg = |k: &str, d: usize| -> usize {
@@ -161,6 +177,11 @@ fn main() {
     // measured in `speed_cannot_pay_RESULT.md`: without iterative deepening, a cap that fires inside
     // the first root child leaves NO completed move and the score is -INF. `datagen.rs` guards that
     // case, but a guard that fires on most moves would silently turn a deep run into a depth-1 run.
+    // SCHEMAS 8 `earned.e1_at_acceptance`. Only meaningful when a bound is in force; the
+    // fixed-depth gate in this binary has none, so it is None unless the SPRT bounds are set.
+    let gate_e1: Option<f64> = std::env::var("EXISTENCE_GATE_ELO1").ok().and_then(|v| v.parse().ok());
+    // Default for decision sites with no position set in hand; shadowed where one exists.
+    let top_fen: Option<String> = None;
     let dg_nodes = arg("--datagen-nodes", 0) as u64;
     let depth = if dg_nodes > 0 {
         pipeline::datagen::NODE_CAP.store(dg_nodes, std::sync::atomic::Ordering::Relaxed);
@@ -976,6 +997,8 @@ fn main() {
         } else {
             Reason::NoEvidence
         };
+        // Shadowed here because this is the one decision site with a position set in hand.
+        let top_fen = top_disagreement(&cand, &champion, subset, 512).or_else(|| top_fen.clone());
         ledger.record(&Entry {
             generation: g,
             class: "NET",
@@ -1005,6 +1028,8 @@ fn main() {
             // which code path produced a value without following it; the name stays literal now.
             surrogate: vec![("mcnemar_z", mcnemar), ("train_loss", loss as f64), ("llr", llr),
                             ("pool", replay.len() as f64), ("train_n", subset.len() as f64)],
+            e1: gate_e1,
+            top_disagreement_fen: top_fen.clone(),
         });
 
         // SAVE A SAMPLE OF REJECTED CANDIDATES, so the gate's error rate can be MEASURED.
@@ -1238,6 +1263,8 @@ base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
                         surrogate: vec![("heldout_loss", acand_loss),
                                         ("champion_loss", champ_loss),
                                         ("epochs", aeps as f64)],
+                        e1: gate_e1,
+                        top_disagreement_fen: top_fen.clone(),
                     });
                 } else {
                     let fixed = gate::match_nets_capped(
@@ -1297,6 +1324,8 @@ base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
                         surrogate: vec![("paired_z", z), ("heldout_loss", acand_loss),
                                         ("champion_loss", champ_loss), ("epochs", aeps as f64),
                                         ("cand_nodes", ca as f64), ("champ_nodes", cb as f64)],
+                        e1: gate_e1,
+                        top_disagreement_fen: top_fen.clone(),
                     });
                     println!("      ARCH w{:>3} -> w{:>3} ({} ep, loss {:.4} vs {:.4}, paired z {:.2})  fixed-cost {:.3}+/-{:.3}{}  clock {:.3}+/-{:.3} [{ca} vs {cb} nodes]{}  {}=> {}",
                              WIDTH_MENU[p.from_rung], p.width(), aeps, acand_loss, champ_loss, z,
