@@ -72,3 +72,33 @@ either currency** — not in cost, not in mates.
   (0 cheaper at 15, 30, 40, 55 and 70 identical), but the run is not finished.
 * This measures the SPEEDUP path only. It says nothing about whether PATH 2 (the game gate) is
   correctly calibrated — that is `gate_bounds_RESULT.md`.
+
+## The target QUALIFIES — verified directly, so the path is not merely open, it is aimed
+
+`evolve moveagree 40 3` compares each reference program's chosen move against the seed's, on 40
+random positions:
+
+| program | agree | pct | cost | class |
+|---|---|---|---|---|
+| bare alpha-beta (main seed) | 40/40 | 100.0% | 1.000x | EXACT — must be 100% |
+| **alpha-beta + hash reuse** | **40/40** | **100.0%** | **0.971x** | EXACT |
+| alpha-beta + iterative deepening | 40/40 | 100.0% | 1.075x | EXACT |
+| alpha-beta + hash + ID | 40/40 | 100.0% | 1.046x | EXACT |
+| depth-one (purity seed) | 10/40 | 25.0% | 0.000x | different paradigm |
+| UCT-style MCTS | 13/40 | 32.5% | 0.534x | different paradigm |
+
+**Hash reuse plays IDENTICALLY on every position and costs 0.971x.** That is exactly PATH 1's
+condition, `same_play && rate > best_rate` — identical play, strictly better rate. (The 0.971x here
+is a COST ratio, lower being better; the valley table's 1.024x is mates-per-cost, higher being
+better. `1/0.971 = 1.030`, so the two agree within the difference between a 40-random-position set
+and the 25-position mate/depth/window set.)
+
+**And it is the UNIQUE qualifying rung.** Iterative deepening and hash+ID also play identically —
+they are exact transformations too — but both cost MORE (1.075x, 1.046x), so PATH 1 correctly
+refuses them. Of everything in the reference set, only hash reuse is both behaviour-preserving and
+cheaper.
+
+**So the path is not merely open and correct; it is aimed at exactly one target, and that target
+qualifies.** What it never receives is a candidate. The failure is entirely upstream: 0 of 70
+single edits are identical-and-cheaper, and the one program that would satisfy the condition is
++104 nodes from the seed.
