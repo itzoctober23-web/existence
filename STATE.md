@@ -3537,3 +3537,34 @@ will run tomorrow.
   the one diagnostic written to answer "is the adjudicator crashing?" had never been run. There the
   inputs were DATA and were preserved into the corpus; here they are BUILD PRODUCTS and are not worth
   preserving, only documenting.
+
+## 2026-09-10 — every test in the workspace is now actually RUN by `cargo test`
+
+Checked after finding that `evolve selftest` -- the controls for the population selector -- was a
+SUBCOMMAND, so nothing executed it unless a human typed the command. Verified before fixing:
+`cargo test -p pipeline` ran `lib.rs`, `main.rs`, `accumulator_equivalence.rs` and `arch.rs`, **and no
+example**.
+
+Cargo does not run tests inside examples unless the example declares `test = true`. Swept the whole
+workspace for the same shape:
+
+    examples with #[test]/#[cfg(test)]   crates/pipeline/examples/evolve.rs   -> now wired (test = true)
+                                          (no other example carries any)
+    src files with #[cfg(test)]          crates/nnue/src/lib.rs               lib unittest, runs
+                                          crates/pipeline/src/arch.rs          lib unittest, runs
+                                          crates/engine/src/search.rs          bin unittest, runs
+
+Confirmed after the fix, in a PLAIN `cargo test -p pipeline` with no `--example` flag:
+
+    Running unittests examples/evolve.rs ... test result: ok. 1 passed
+
+**Why this is worth a section rather than a commit message.** It is the third instance in one session
+of the same defect class: a check that exists, passes, and is never consulted.
+
+1. `tick.sh` filtered `status4pc.sh` through a whitelist grep, silently dropping the
+   unterminated-shard check minutes after it was added.
+2. The `dsl{n}` counter was committed with a positive control I ASSERTED rather than observed.
+3. `evolve selftest` gated nothing.
+
+Each looked correct in isolation. **The failure is never in the check -- it is in the wiring**, and
+wiring is exactly what does not show up when you re-read the check.
