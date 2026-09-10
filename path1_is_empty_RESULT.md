@@ -102,3 +102,47 @@ cheaper.
 qualifies.** What it never receives is a candidate. The failure is entirely upstream: 0 of 70
 single edits are identical-and-cheaper, and the one program that would satisfy the condition is
 +104 nodes from the seed.
+
+## 2026-09-10 — NEITHER operator can produce a PATH-1 candidate. The dichotomy is complete.
+
+PATH 1 accepts with **no games at all**: identical play everywhere, and cheaper. `moveagree` showed
+the target qualifies (`ab_hash`: 40/40 identical, 0.971x). The remaining question was whether either
+operator can deliver such a child. Both have now been tested against this route specifically — which
+is NOT the same test as the mate guard, and had never been run on crossover output.
+
+    MUTATION (stepdiff, 200 single edits from the seed)
+      plays identically : 100      <- preserves behaviour readily
+      ...AND cheaper    :   0      <- never reduces cost
+
+    CROSSOVER (ttgraft, both-halves children, ab <- uct)
+      plays identically :   0 / 12 <- never preserves behaviour
+      ...AND cheaper    :   0 / 12
+
+**POSITIVE CONTROL, run before the children and printed on every run:**
+
+    CONTROL ab_hash: same-play true  cost 9698559036 vs seed 9930290911  -> PATH-1 acceptable: true
+
+A `0 / 12` is exactly the kind of clean zero that is indistinguishable from a broken comparison, and
+`moveagree` gives independent ground truth, so `ab_hash` must read same-play here or `base_moves` is
+wrong. It reads true, and correctly identifies the rung as PATH-1 acceptable. The zeros are real.
+
+### The dichotomy
+
+| operator | preserves behaviour? | reduces cost? | PATH-1 capable |
+|---|---|---|---|
+| mutation (1 edit) | **yes, 100 of 200** | **never, 0 of 100** | no |
+| crossover (both-halves graft) | **never, 0 of 12** | (moot) | no |
+
+**Mutation preserves behaviour but never reduces cost. Crossover changes cost but never preserves
+behaviour.** PATH 1 requires BOTH at once, and no operator in the grammar produces both. That is why
+the route is open, correct, aimed at a qualifying target, and permanently empty — not because of a
+threshold, a bound, or a tolerance, but because the operator set cannot express the conjunction.
+
+### Honest limits
+
+* **n = 12 crossover children** is small. A 40-child run is launched; the ratios will be updated
+  rather than re-argued. The mutation side is n = 200 and firm.
+* Crossover here is `ab <- uct` only — the graft that carries TT primitives. A crossover between two
+  MAIN-lineage members is a different distribution and is not measured.
+* "Cheaper" is on the 25-position set at depth 3 with `cost_cap` 20e9. A speedup that only pays
+  deeper is invisible, and `ab_hash` itself is a small-margin case (2.9% here).

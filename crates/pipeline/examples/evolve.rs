@@ -1540,13 +1540,51 @@ fn tt_graft() {
     let ab = reference::bare_alpha_beta();
     let uct = reference::uct_mcts();
     let (base_found, base_cost, base_rate) = fitness(&ab, &set, &net, depth, 16);
+    // PATH-1 BASELINE: the seed's chosen move on every position, computed ONCE.
+    //
+    // WHY THIS AND NOT THE MATE COUNT. `evolve` has two acceptance routes and they test different
+    // things. The mate guard (scored above) asks "did it keep the forced wins". PATH 1 asks
+    // "does it play the SAME MOVE everywhere, and cost less" -- and PATH 1 accepts with NO GAMES
+    // AT ALL. `moveagree` measured that hash reuse plays 40/40 identical at 0.971x cost, so the
+    // rung is PATH-1 shaped; `stepdiff` measured that 0 of 100 behaviour-preserving SINGLE EDITS
+    // are cheaper, so single mutation never delivers one. Crossover has never been tested against
+    // this route -- only against the mate guard, where it scored 0 of 40. Those are not the same
+    // question and a graft could in principle pass one while failing the other.
+    let base_moves: Vec<board::types::Move> = set.iter().map(|(p, _)| {
+        let mut it = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
+        it.cost_cap = 20_000_000_000;
+        it.run(&ab, p, 16)
+    }).collect();
     println!("=== TT graft scoring: {} positions at depth {depth}, {want} both-halves children ===",
              set.len());
     println!("  seed: {base_found} mates, cost {base_cost}, rate {base_rate:.6}");
     println!("  reference hand-built rung `ab_hash` scores 1.024x on this set (10 call sites).\n");
+    // POSITIVE CONTROL FOR THE PATH-1 TEST, run BEFORE any child is scored.
+    //
+    // A `0 / N` on "plays identically" is exactly the kind of clean zero that is indistinguishable
+    // from a broken comparison, and `moveagree` already establishes the ground truth independently:
+    // ab_hash plays 40/40 identical to the seed at 0.971x cost. So ab_hash MUST read same-play here.
+    // If it does not, `base_moves` is wrong and every number below is noise.
+    {
+        let hash = reference::ab_hash();
+        let mut ctl_same = true;
+        for ((pp, _), b) in set.iter().zip(&base_moves) {
+            let mut it = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
+            it.cost_cap = 20_000_000_000;
+            if it.run(&hash, pp, 16) != *b { ctl_same = false; break; }
+        }
+        let (_, hcost, _) = fitness(&hash, &set, &net, depth, 16);
+        println!("  CONTROL ab_hash: same-play {}  cost {} vs seed {}  -> PATH-1 acceptable: {}",
+                 ctl_same, hcost, base_cost, ctl_same && hcost < base_cost);
+        if !ctl_same {
+            println!("  *** CONTROL FAILED: the seed's own known-identical rung does not match.");
+            println!("  *** base_moves is wrong; ignore every PATH-1 number below.");
+        }
+    }
     println!("  {:<5} {:>6} {:>7} {:>16} {:>10}  {}", "#", "nodes", "mates", "cost", "vs seed", "ttk");
 
     let (mut tried, mut kept_mates, mut fitter, mut scored) = (0usize, 0usize, 0usize, 0usize);
+    let (mut p1_same, mut p1_cheaper) = (0usize, 0usize);
     let mut best: Option<(f64, String)> = None;
     for k in 0..200_000u64 {
         if scored >= want { break; }
@@ -1559,6 +1597,17 @@ fn tt_graft() {
         let (found, cost, rate) = fitness(&child, &set, &net, depth, 16);
         let ratio = rate / base_rate.max(1e-12);
         if found >= base_found { kept_mates += 1; }
+        // PATH-1 TEST on this child: identical play everywhere, and cheaper?
+        let mut same_play = true;
+        for ((p, _), b) in set.iter().zip(&base_moves) {
+            let mut it = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
+            it.cost_cap = 20_000_000_000;
+            if it.run(&child, p, 16) != *b { same_play = false; break; }
+        }
+        if same_play {
+            p1_same += 1;
+            if cost < base_cost { p1_cheaper += 1; }
+        }
         if found >= base_found && ratio > 1.0 {
             fitter += 1;
             if best.as_ref().is_none_or(|(b, _)| ratio > *b) {
@@ -1573,6 +1622,9 @@ fn tt_graft() {
     println!("  attempts to collect {scored} both-halves children : {tried}");
     println!("  kept all {base_found} mates          : {kept_mates} / {scored}");
     println!("  kept mates AND rate > seed  : {fitter} / {scored}");
+    println!("  --- PATH 1 (accepts with NO GAMES: identical play + cheaper) ---");
+    println!("  play IDENTICALLY to the seed : {p1_same} / {scored}");
+    println!("  ...AND cheaper (PATH-1 ACCEPTABLE) : {p1_cheaper} / {scored}");
     match &best {
         Some((r, tag)) => println!("  best fitter child: {r:.3}x  ttk {tag}"),
         None => println!("  NO child was both mate-preserving and fitter."),
