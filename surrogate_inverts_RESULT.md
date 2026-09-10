@@ -4,6 +4,30 @@
 fitness is wrong; fix those"*. It fired today: two arms, 13h and 7h, **0 accepts across 19 gate
 decisions**. This file establishes which of the two is wrong, and by what mechanism.
 
+## ⚠ HALF OF THIS WAS ALREADY WRITTEN DOWN — read `search_track_WHY_NOTHING.md` first
+
+`search_track_WHY_NOTHING.md`, dated **2026-09-08**, already states the saturation mechanism this
+file re-derives:
+
+> *"MATES IS SATURATED. The set has 25 positions and the seed scores 25/25, the maximum... Mates
+> therefore cannot discriminate between survivors — it is a pass/fail filter, never a gradient."*
+
+**I re-derived that today from scratch.** The standing rule in my own notes is to read every
+`*_RESULT.md` headline before starting, precisely because this has happened before. It cost hours.
+
+**What is genuinely new here is the half that document asks for and could not supply.** It says
+plainly that the missing measurement is games:
+
+> *"Strength itself as the fitness, via games against a fixed anchor. That is the only signal..."*
+> *"...or games against a fixed anchor, and until one of those is run, 'rung 6 differs' [is not
+> established]"*
+
+So the round robin below is that file's own prescribed next step, run for the first time. It
+converts "the fitness cannot discriminate" — a structural argument about saturation — into a
+measured **direction**: the fitness does not merely fail to rank, it ranks the strongest program
+**last**. That is a stronger and more actionable claim than saturation alone, and it is what kills
+the three repairs attempted afterwards.
+
 ## The measurement
 
 Five reference programs — deliberately different search paradigms, not one-token mutants — scored

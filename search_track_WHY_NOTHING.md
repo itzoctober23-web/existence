@@ -701,3 +701,24 @@ The 2026-09-08 account said the fitness cannot discriminate, and that stands. Wh
 BETTER and the gate resolves 0 of 78.** The selection rule chooses which non-improvement to spend games
 on. `GATE_VETO` is the first mechanism tested that changes what can be accepted at all rather than what
 gets ranked first.
+
+
+---
+
+## 2026-09-10 — the games this file asked for have now been run
+
+This account said the missing measurement was *"games against a fixed anchor"* and that until one
+was run, differences between programs were not established. That has now been done:
+`surrogate_inverts_RESULT.md`.
+
+Five reference programs, same net and same budget on both sides, 24 pairs per match, **0 forfeits in
+480 games**. The result is stronger than "the fitness cannot discriminate": it ranks
+**iterative deepening worst of five (0.304 mates/Mcost) while the games rank it best (0.612)** — a
+direct inversion, Spearman −0.300. On the harder MATE-2 set it gets worse, not better: **−0.900**,
+with ID solving 11/40 while every other program solves 2.
+
+Mechanism, consistent with this file's saturation argument but sharper: cost spans **38×** across
+these programs while accuracy spans **5.5×**, so a ratio of the two is a cost measurement with a
+rounding error attached — on *any* position set. Three repairs were tried and all failed
+(lexicographic ranking bans capture extension; a harder set made it worse; equal-cost is
+cap-dependent and the cap I chose was the flattering one).
