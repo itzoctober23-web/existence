@@ -1,3 +1,32 @@
+# Existence — current state, 2026-09-10
+
+## ✅ THE STANDING TASK LIST IS COMPLETE — all six, with where each was verified
+
+The loop brief still enumerates six "next tasks in this order". Every one is landed. Checked
+2026-09-10 by reading the code rather than the plan, because re-deriving a finished task is the
+cheapest way to waste an afternoon:
+
+1. **Incremental NNUE accumulator** — DONE and WIRED. `pipeline/src/search.rs` and
+   `engine/src/search.rs` both maintain the accumulator across make/unmake, and
+   `engine/src/search.rs` carries a SECOND alpha-beta calling `Net::eval` at every leaf as the
+   equivalence reference. Not merely `refresh() == update()`; the whole-tree property.
+2. **Faithful MCTS + PN encodings** — DONE, and the claim it existed for is now made:
+   `docs/GRAMMAR.md:294` reads *"THE SKEW IS NOW RESOLVED, AND IT IS TOWARD ALPHA-BETA"* — seed 71
+   nodes, MCTS +60, PN +104, while every alpha-beta variant sits at +13/+15/+29. That was
+   UNRESOLVED only because both rivals were sketches, i.e. lower bounds.
+3. **Zobrist + real TT slots** — DONE. `board/src/zobrist.rs` exists and `interp` carries a real
+   `Tt` with validity flags and bound types; `reference.rs:244` documents the faithful `ab_hash`
+   that replaced a table which returned a constant without ever calling eval.
+4. **Type checker + mutation operators** — DONE (`grammar/src/typecheck.rs`, `mutate.rs`), and the
+   offline ladder check exists as `interp/examples/ladder.rs`.
+5. **Register bytecode** — the PERF task; the accumulator work above took the survival pressure off.
+6. **xcheck + perft as real `#[test]`s** — DONE: `board/tests/perft.rs` (5 tests) and
+   `board/tests/xcheck.rs`, so `cargo test` gates every commit.
+
+**So the binding constraint is no longer on that list.** It is the one the ancestor control found:
+no measurable gain over a 400-generation window (0.474 ± 0.031). See
+`ancestor_first_readings_RESULT.md`, `accept_rate_vs_noise_RESULT.md`.
+
 # Existence — current state, 2026-09-09
 
 ## 📋 SESSION 2026-09-09 — what changed, with pointers
