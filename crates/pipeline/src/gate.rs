@@ -10,6 +10,30 @@ use std::sync::atomic::AtomicU64;
 /// Forfeits (MOVE_NONE returned) since the last reset. A capped program that runs out of budget
 /// forfeits, so a match with forfeits is measuring COST, not play, and must say so.
 pub static FORFEITS: AtomicU64 = AtomicU64::new(0);
+
+/// Games that hit the 200-ply ceiling without a result, since the last reset.
+///
+/// **A game that did not FINISH is currently scored identically to a game that was DRAWN.** Both
+/// play loops in this file end `for _ in 0..200 { ... }` followed by a bare `None`, and every caller
+/// maps `None` to `sc.draws += 1`. So "draw" in a gate score means "stalemate, OR fifty-move, OR the
+/// 200-ply ceiling", and nothing downstream can tell them apart.
+///
+/// That matters because these matches are draw-saturated. Measured over the sprt30 arm's gate calls:
+/// MCTS 169 draws in 190 games (88.9%), MAIN 153 in 182 (84.1%). Score is `wins + 0.5*draws`, so
+/// ~86% of the signal comes from a bucket that conflates a real result with a non-result.
+///
+/// The argument for counting is the one already written above `FORFEITS`: a forfeit is counted
+/// precisely because "the caller has to be able to see how many of these happened before believing
+/// the score". A ceiling timeout is the same kind of event -- systematically produced rather than
+/// randomly distributed, and plausibly correlated with the thing under test, since a cheaper program
+/// searches more per ply under the cost cap and may steer games differently. It was never counted.
+///
+/// **This counter changes NO result.** Scoring is untouched and every existing run stays
+/// byte-identical; it only makes the composition of the draw bucket observable, so the next decision
+/// rests on a measurement rather than on the assumption that draws are draws. Cf. the 4PC datagen
+/// defect where `result = 0` meant "drawn OR ply-capped" until `CAPPED_UNRESOLVED = 2` split them --
+/// 403 capped games were found hiding among 86 genuine draws on a 200-game run.
+pub static PLY_CEILING: AtomicU64 = AtomicU64::new(0);
 use grammar::Program;
 use interp::Interp;
 use nnue::Net;
@@ -329,6 +353,8 @@ fn play_progs(
             None => return Some(!is_a),
         }
     }
+    // 200-ply CEILING, not a draw. Counted, not rescored -- see PLY_CEILING.
+    PLY_CEILING.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     None
 }
 
@@ -392,6 +418,8 @@ fn play_capped(
         if m == board::types::MOVE_NONE { return None; }
         pos.make_move(m);
     }
+    // 200-ply CEILING, not a draw. Counted, not rescored -- see PLY_CEILING.
+    PLY_CEILING.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     None
 }
 
@@ -422,6 +450,8 @@ fn play(a: &Net, b: &Net, a_is_white: bool, start: &Position, depth: u32, shuffl
         if m == board::types::MOVE_NONE { return None; }
         pos.make_move(m);
     }
+    // 200-ply CEILING, not a draw. Counted, not rescored -- see PLY_CEILING.
+    PLY_CEILING.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     None
 }
 

@@ -3254,6 +3254,9 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                               }
                               o
                           }).collect();
+                          // Zero it here so the printed count belongs to THIS gate call rather
+                          // than accumulating across generations. Same discipline as FORFEITS.
+                          gate::PLY_CEILING.store(0, std::sync::atomic::Ordering::Relaxed);
                           let (v, sc, llr) = gate::match_progs_sprt(
                               &c, &lineages[li].champ, &net,
                               vec![depth, 32_000, interp::uct_exploration()], bud,
@@ -3261,6 +3264,7 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                               COST_PER_MOVE, elo0, elo1, sprt_max);
                           (sc, Some(v), llr)
                       } else {
+                          gate::PLY_CEILING.store(0, std::sync::atomic::Ordering::Relaxed);
                           (gate::match_progs(&c, &lineages[li].champ, &net,
                                              vec![depth, 32_000, interp::uct_exploration()], bud,
                                              gate_pairs,
@@ -3409,13 +3413,20 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                     //
                     // An observable that vanishes precisely when a candidate is interesting enough to GATE is the
                     // worst place for a blind spot, and it cost a comparison two seeds had already earned.
+                    // PLY-CEILING COMPOSITION OF THE DRAW BUCKET. `draws` here means "stalemate OR
+                    // fifty-move OR the 200-ply ceiling", because every play loop in gate.rs ends in a
+                    // bare `None` that the caller scores as a draw. These matches are draw-saturated --
+                    // measured over the sprt30 arm, MCTS 169/190 (88.9%) and MAIN 153/182 (84.1%) -- so
+                    // most of the signal comes from a bucket whose composition was never visible.
+                    // Printed, not rescored: the score is untouched and runs stay comparable.
+                    let g_ceiling = gate::PLY_CEILING.load(std::sync::atomic::Ordering::Relaxed);
                     let g_pop = popn.len();
                     let g_distinct = {
                         let mut v: Vec<String> = popn.iter().map(|(_, _, r)| format!("{r:.9}")).collect();
                         v.sort(); v.dedup(); v.len()
                     };
                     println!("  gen {g:>3} {:<5} gate {} {:.3}+/-{:.3} ({} games W-D-L {}-{}-{})  mates {f}  hard {hlo}-{hhi}  surrogate \
-{rate:.6}  ABOVE:{above}  needed >{:.3}  pop {g_pop} distinct:{g_distinct}",
+{rate:.6}  ABOVE:{above}  needed >{:.3}  pop {g_pop} distinct:{g_distinct}  plycap:{g_ceiling}",
                              lineages[li].name,
                                match sprt_verdict {
                                    Some(gate::Sprt::Inconclusive) => format!("INCONCLUSIVE llr {sprt_llr:+.2}"),
