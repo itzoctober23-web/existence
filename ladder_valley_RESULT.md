@@ -1673,3 +1673,47 @@ control rejects), not about identity. The identity check has done its job and is
 0.002725-0.002762` against a seed of 0.002762 — i.e. nothing above the seed in either arm yet. The
 valley result predicts exactly that, and MASTER_PLAN's P2 kill criterion ("no program improves on the
 seed -> grammar or fitness is wrong; fix those") is what the diversity reserve is an attempt at.
+
+## The draw bucket is NOT full of unfinished games — hypothesis refuted
+
+I suspected the gate's 84-89% draws were largely the 200-ply ceiling scored as draws, by analogy with
+the 4PC datagen defect where `result = 0` meant "drawn OR ply-capped" and 403 capped games were found
+hiding among 86 genuine draws. Instrumented it (`PLY_CEILING`, counted not rescored) and ran a gate:
+
+    gen 2 MCTS  gate REJECT 0.417+/-0.103 (12 games W-D-L 0-10-2) ... plycap:0
+
+    games 12   draws 10 (83.3%)   ply-ceiling 0   ->  0 of 10 draws are unfinished games
+
+**Refuted.** The draw rate reproduces (83.3%, against the 84-89% measured across the sprt30 arm) and
+none of it is the ceiling.
+
+**And the code says why it was structurally unlikely, which I should have read before hypothesising.**
+The loop checks the fifty-move rule on every iteration, BEFORE it can ever fall through:
+
+    for _ in 0..200 {
+        if l.is_empty()          { ... }        // mate / stalemate
+        if pos.halfmove >= 100   { return None; }   // fifty-move -- fires at ~100 plies
+        ...
+    }
+    PLY_CEILING += 1; None                      // needs 200 plies with a CONTINUALLY RESETTING clock
+
+A shuffling game — which is exactly what two random-net evaluators produce — trips the fifty-move rule
+around ply 100 and returns long before the ceiling. Reaching 200 requires captures or pawn moves to
+keep resetting the halfmove clock for the whole game. **The ceiling is nearly unreachable, so the two
+`None` paths are not comparable in frequency at all**, and the 4PC analogy does not carry: there the
+cap was the DOMINANT terminator, here it is the rarest one.
+
+**So the draws are genuine rule-based endings.** That agrees with the recorded diagnosis in
+`gate_bounds_RESULT.md` — *"ours is a random eval shuffling to a repetition"* — and removes a
+candidate explanation rather than adding one.
+
+**What the instrumentation is still worth.** The question is now permanently observable: every gate
+decision prints `plycap:N`, so if a future change (deeper budgets, a real eval, an unbalanced book)
+starts producing long decisive games, the ceiling becoming a factor will announce itself instead of
+silently inflating the draw bucket. It cost nothing — scoring is untouched and runs stay comparable.
+
+**Honest limit on this result.** The read-and-print path is proven (the field appeared). The INCREMENT
+path is code-verified at all three fall-throughs but has not yet fired, so "0" is consistent with both
+"wired and genuinely zero" and "wired but never exercised". The structural argument above is what
+makes the first reading the likely one; a fired counter would settle it, and one will only appear if
+the ceiling is ever actually reached.
