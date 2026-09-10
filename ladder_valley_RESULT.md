@@ -257,3 +257,56 @@ This says the supply of the one known rung is fine — **it is 5.6% of one candi
 moves the suspicion to the correctness oracle and the cost model, which is where the next measurement
 belongs. The cheap next step is to score those 224 children on the valley set and report how many
 keep 25/25 mates and what they cost. That is a direct measurement, not another arm.
+
+## 2026-09-09 22:30 — the ORACLE is what stops the rung. 0 of 40. Type-safety is not semantic safety.
+
+`evolve ttgraft 40 15 5 5 3`, scoring 40 real `ab <- uct` children that carry BOTH halves, on the
+same 25-position set and the same `fitness` as the table at the top of this file (control: the seed
+reproduces 25 mates / cost 9,930,290,911 / rate 0.002518 exactly).
+
+    attempts to collect 40 both-halves children : 499
+    kept all 25 mates                          : 0 / 40
+    kept mates AND rate > seed                 : 0 / 40
+
+    mates kept:   0 -> 15 children      cost:  <1e6 (barely searches) -> 11
+                 14-20 -> 21                   < seed                -> 27
+                 22-23 ->  4                   > seed (blowup)       ->  2
+                    25 ->  0
+
+**This is the first of the three pre-registered outcomes: the CORRECTNESS ORACLE stops the rung, not
+the surrogate and not the gate.** Reachability is solved — 5.6% of grafts carry both halves, and 499
+attempts produced 40 of them in under a minute. Not one was a working program.
+
+**The deeper result: 100% of these children TYPE-CHECK and 0% preserve semantics.** `crossover`
+returns only after `typecheck::check_program(&out).is_ok()`, and every one of the 4000 attempts in
+the reachability test passed. Grafting a UCT subtree into alpha-beta keeps the types — both compute
+a value from a position — while destroying the minimax recursion. **The type system is exactly as
+strong as it was designed to be and that is not strong enough to protect meaning.** GRAMMAR 4's
+type checker is doing its job; the job is smaller than the search needs.
+
+**And the surrogate alone is catastrophically gameable, which this measures rather than argues:**
+
+    child #2:  15 mates, cost 3,310,801,733, ratio 1.800x   <- 1.8x FITTER while losing 10 mates
+    best seen: ratio 2274.444x                              <- by barely searching at all
+
+`mates/Mcost` has no floor on cost, so a program that abandons the search and still stumbles onto
+some mates dominates the seed by three orders of magnitude. **The ONLY thing standing between this
+search and a 2274x degenerate solution is the `f >= best_found` mate guard** — and here it rejected
+all 40. FITNESS §10 lists "prune everything / return eval" against exactly this, and the guard is
+the mechanism. Tonight's repeated temptation to widen `guard_tolerance` to let candidates through is
+now measured as the single most dangerous knob in the loop.
+
+**Where this leaves the search track**, with the eliminations now all measured rather than argued:
+
+| suspect | verdict |
+|---|---|
+| selection (gate bounds, surrogate role, set size) | not the binding constraint |
+| supply (lambda) | not the binding constraint — 40 both-halves children in 499 tries |
+| reachability | **SOLVED** — crossover carries the rung from the MCTS seed |
+| **correctness under graft** | **THE CONSTRAINT — 0 of 40** |
+
+**What is still NOT claimed.** That no graft anywhere can work — 40 children of a pristine seed at
+one depth on one set is a small sample, and the best kept 23 of 25 mates, which is close. The claim
+is narrower and firmer: **a single unconstrained subtree graft is not a viable route to this rung**,
+and the next question is whether a graft restricted to semantically compatible sites does better.
+That is a real design question about crossover, not another arm of the same experiment.
