@@ -3507,3 +3507,33 @@ measured -- the same failure shape recorded five times in the session memory. Th
 `git grep <concept>` BEFORE designing, not after. It cost ~40 minutes here and returned a 1.3x
 speedup anyway, but only because the existing implementation had a wrong CONCLUSION attached to a
 right measurement.
+
+## ⚠ 2026-09-10 — 36 A/B scripts have DEAD DEFAULT PATHS the moment this session ends
+
+`grep -rl '/tmp/claude-' --include=*.sh` returns **36 scripts**, including ones cited by the RESULT
+docs: `run.sh`, `batch_ab.sh`, `draws_ab.sh`, `width_ab.sh`, `depth_ab.sh`, `judge_depth.sh`,
+`blend_h2h.sh`, `horizon_ab2.sh`, `compound.sh`, `plateau_depth.sh`.
+
+They default to paths under `/tmp/claude-1000/-home-maswabe/<session-uuid>/scratchpad/` --
+`xt2/release/learn`, `xt3/release/learn`, `xt4/release/examples/netmatch`, `t2`, and similar.
+
+**Those paths exist RIGHT NOW and will not survive the session that created them.** Nothing is broken
+yet, which is exactly what makes this easy to miss: every one of these scripts runs today and none
+will run tomorrow.
+
+**Not a mass edit, deliberately.** All 36 use the overridable form -- `${XTREE:=...}`,
+`${LEARN:-...}` -- and what they point at is a BUILD TREE, which is reproducible by rebuilding. A
+36-file sweep is high blast radius for something one paragraph fixes.
+
+**What a future reader needs to know instead:**
+
+* These scripts need a second/third cargo target directory, not a specific path. Build one and pass
+  it: `LEARN=/path/to/target/release/learn ./draws_ab.sh`, `XTREE=/path/to/tree ./compound.sh`.
+* The committed default being dead is not evidence the script is wrong; it is evidence the default
+  was written against a scratchpad.
+* **The tell, and it generalises:** any absolute path containing a session or run UUID is write-once.
+  It looks permanent -- committed, documented, cited in a results file -- and is already dead. The
+  same class bit the 4PC side today, where `diag_ended.py`'s input suite had vanished, which is why
+  the one diagnostic written to answer "is the adjudicator crashing?" had never been run. There the
+  inputs were DATA and were preserved into the corpus; here they are BUILD PRODUCTS and are not worth
+  preserving, only documenting.
