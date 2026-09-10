@@ -23,3 +23,15 @@ champion*.net
 *.jsonl
 *.log
 *.net
+
+# Archived arm logs. When an arm is restarted onto a new binary the old log is preserved with a
+# suffix naming what changed (.preratchet, .premates, .prehdr, .preinstr, .prev, .seed2-w1) so a
+# determinism check can diff the new run against it. They are per-run evidence exactly like the
+# *.log they came from — that rule already exists two lines up, but `*.log` does not match
+# `*.log.preratchet`, so 13 of them accumulated as untracked noise in one evening.
+#
+# This matters beyond tidiness: I have been reading `git status --porcelain | grep -v '^??'` all
+# session to skip the noise, and a status you have to filter is a status that can hide a real
+# untracked file.
+*.log.*
+__pycache__/
