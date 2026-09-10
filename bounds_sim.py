@@ -36,3 +36,22 @@ for e0,e1 in [(0,10),(0,30),(0,50),(0,100)]:
         dec=sorted(p for v,p in res if v in("ACCEPT","REJECT"))
         med=dec[len(dec)//2] if dec else -1
         print(f"  {te:>7}   [{e0},{e1}]{'':<4} {100*acc/len(res):6.1f} {100*rej/len(res):8.1f} {100*cap/len(res):6.1f}   {med}")
+
+# ---------------------------------------------------------------------------------------------
+# TRANSCRIPTION VERIFIED against crates/pipeline/src/gate.rs, 2026-09-09. Every bounds decision in
+# gate_bounds_RESULT.md rests on this file reproducing the Rust exactly, and "I typed it carefully"
+# is not a check. Line by line:
+#
+#   elo_to_score      gate.rs:444   1.0 / (1.0 + 10^(-elo/400))          identical
+#   n < 2 -> 0.0      gate.rs:457   guard on too-few pairs                identical
+#   var <= 0 -> 0.0   gate.rs:465   zero-variance guard, not a div-by-0   identical
+#   LLR_BOUND         gate.rs:441   2.944                                 identical (BOUND)
+#   ZERO_VAR_GIVE_UP  gate.rs:220   30 pairs                              identical (ZV)
+#   llr formula       gate.rs:472   (n/2var)*((mean-p0)^2-(mean-p1)^2)    identical
+#
+# 2.944 is ln(0.95/0.05) = 2.944439, i.e. alpha = beta = 0.05 -- which FITNESS 7.2 fixes as human,
+# not engine-chosen. So the STOPPING RULE here is spec-compliant; only the BOUNDS were not.
+#
+# What is NOT verified, and cannot be from this file: the draw rate 0.806 and the per-pair outcome
+# model are a MODEL of the arena, not the arena. The simulation bounds pair COUNTS; it does not
+# predict wall-clock, and every wall-clock figure quoted from it is marked as derived.
