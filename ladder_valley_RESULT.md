@@ -1367,3 +1367,36 @@ points when a 2-point tolerance cannot.
 time (an empty band) was correct but incidental. The structural reason is that the intervention was
 aimed at the wrong mechanism, and that only became visible once the two halves' rates were measured on
 the metric selection actually uses.
+
+### The reserve's premise HOLDS: only 6 distinct non-carrier shapes exist
+
+The simulation two sections up exposed an untested premise under the 3.00x pricing:
+`select_survivors` fills each reserved slot with the HIGHEST-RATED member of a novel shape, and
+neutral twins (~1.000x) outrate store-carriers (0.9939x). If ordinary candidates were structurally
+diverse, novel-shaped twins would take every reserve slot and the fix would be **inert for the half it
+exists to protect**. Reading registered before the run.
+
+    non-carrier candidates: 3,316 drawn  ->     6 DISTINCT shapes  (0.2% unique)
+    all candidates                       ->     9 distinct shapes overall
+
+**Six.** The feared regime -- hundreds of distinct twin shapes -- does not exist. Single mutations off
+this seed produce a *tiny* structural space, so the reserve cannot be swamped.
+
+**Stated precisely, because "not swamped" is not "guaranteed".** With `MU=8, dslots=2` the head takes
+`keep = 6` by rate, covering some number `k` of shapes; the reserve then admits the best member of each
+of the remaining `9 - k` shapes, in rate order. A store-carrier's shape is necessarily novel (it is
+the only thing containing a `Store` node), so it wins a slot whenever fewer than two higher-rated
+novel shapes sit above it. With only 9 shapes in total that is a small, bounded competition -- not the
+open-ended one the simulation warned about.
+
+**So the 3.00x pricing is not undermined**, and the premise it rested on is now measured rather than
+assumed.
+
+### A second finding, worth its own line
+
+**Nine distinct structures across 3,316+ single mutations.** That is a statement about the search
+space itself, not about the reserve: the mutation operators, applied to this seed, reach only nine
+node-kind multisets. It is consistent with everything else measured tonight -- 0 of 20,000 single
+edits producing both halves, and populations collapsing to `pop 1..4` for the first several
+generations. **The search is not exploring a wide structural space and being unlucky; it is exploring
+a narrow one.**
