@@ -1237,3 +1237,26 @@ not happened yet.
 reserve engaged, which is why this took a reconstruction from `pop` and `mate-ok` instead of a read.
 Adding it means rebuilding and restarting the arm, costing its 7 generations. Not worth it now; worth
 it before any arm is started to test this properly.
+
+### Restarted the diversity arm on the instrumented binary (2026-09-10)
+
+The first `gate_diversity_s1` ran 9 gen-lines and was **uninterpretable for the question it was
+launched to answer**, for two compounding reasons:
+
+* it predates the `dsl{n}` counter, so whether the reserve engaged is not visible in its log at all;
+* its MAIN population never exceeded `pop 4`, so `pool.len() > MU (8)` was never true and the reserve
+  could not have engaged even if it were visible.
+
+Kept as `gate_diversity_s1_uninstrumented.log` -- it is still the log in which the first fused
+minimal member `P1S1K2F1` was observed, and that observation stands on its own as evidence that a
+union CAN arise under plain elitist truncation.
+
+**Identified the process by ENVIRONMENT, not argv.** `gate_diversity_s1` and `gate_composition_s2`
+run byte-identical command lines (`evolve 25 8 4 10 3 10`); the only difference is
+`EXISTENCE_DIVERSITY_SLOTS=2` in the environment. Killing by argv pattern would have been a coin flip
+between the experiment and a baseline arm 10 generations further along. `/proc/<pid>/environ` is the
+discriminator, and it is checked before the kill rather than after.
+
+**Cost of the restart:** ~5 MAIN generations, roughly an hour of one core. **Bought:** an experiment
+whose log states whether its own mechanism fired. The baselines reach `pop 8` around gen 6, so the
+reserve should first engage there, and `dsl0 -> dsl1` is now a glance rather than a reconstruction.
