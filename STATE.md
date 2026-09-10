@@ -4870,6 +4870,19 @@ effect of +0.298. 400 pairs gives ~±0.025, still overwhelmingly resolved, at 40
 the top of its range (0.861 and 0.967), so buying a tighter interval on it has diminishing value
 exactly where the champion is heading.
 
+**⚠ CORRECTED 2026-09-10 by `horizon_RESULT.md`.** The section above treats the horizon saturating
+at generation 31 as a possible defect — the loop sitting in the "train on everything" configuration
+that the bootstrap measured as harmful. **The measurement already existed and says the opposite.**
+`hz_10.log` vs `hz_1000.log` (2026-09-08, 20 generations each from `champion_long.net`): capped at
+10 scores **0.774 ± 0.025** against the origin, uncapped scores **0.838 ± 0.023** — a difference of
+**+0.064 ± 0.034, resolved, ≈ +72 Elo in favour of NO CAP.**
+
+So the bootstrap finding expired exactly as its own explanation predicted ("the label becomes
+informative further back as play improves"), and saturating into "no filter" is the loop reaching
+the right configuration by accident of arithmetic. The schedule is still badly built — declared
+rather than learned, cannot survive a resume, prints 500 against a ceiling of 160 — but no strength
+is being lost to it, and the honest fix is to DELETE the ramp, not repair it.
+
 **Action.** Resumed the run with `--control-every 40 --control-pairs 400`, which cuts control cost
 per generation ~10x while keeping a resolved reading. The champion was snapshotted first and passed
 back via `--init`, so no learning was lost — verified by checksum that the snapshot equalled
