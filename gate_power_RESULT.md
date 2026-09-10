@@ -592,3 +592,82 @@ The intuitive "give up after a few pairs" would have been **10**, and it would h
 real candidate in fifty. An identical pair hits the guard with probability 1 at any N, so the only
 cost of raising it is pairs; the only cost of lowering it is discarded candidates. 30 buys a 1-in-150,000
 false-stop rate for 24 extra pairs, and saves **370 pairs (~1.6 h)** every time it fires.
+
+---
+
+# 2026-09-10 — THE SPRT FIX HAS RUN. It resolves, and it says the candidates are genuinely worse.
+
+Yesterday this file ended with "the fix is BUILT AND RUNNING". It has now run to completion on
+`gate_sprt30_s1`, so the open question — *does spending evidence sequentially actually resolve
+anything?* — has a measured answer. It does.
+
+| | 12-game fixed-n gate | sequential SPRT gate |
+|---|---|---|
+| decisions | 80 | 16 |
+| games spent | 960 | 592 (mean **37**/decision, range 20–82) |
+| reached a verdict | n/a (fixed n) | **16/16, zero INCONCLUSIVE** |
+| ACCEPTs | 0 | 0 |
+
+**Pooled over all 592 SPRT games: W-D-L 19-498-75, score 0.4527, 95% CI [0.4371, 0.4683].**
+The interval excludes 0.5, so this is *resolved*, not another non-answer: the candidates are worse,
+by roughly **−33 Elo**, winning only **19 of 94 decisive games (20.2%)**.
+
+## What this changes
+
+The whole P2 story so far has been "the gate cannot accept". That is true and this file measures it.
+But it invited an inference I made and now retract: *that good candidates were being blocked.* They
+were not. The one instrument in this project with enough power to resolve the question says the
+rejections were **correct**. The generator, not the gate, is what has no gradient.
+
+## Correction to `EXISTENCE_GATE_VETO`, including a pre-registration I wrote and lost
+
+I pre-registered that `GATE_VETO=1` would accept at gen 2 MCTS where its control rejected. **It did**,
+and the two logs are byte-identical through the preceding line, so the mechanism is confirmed:
+
+    control    gen 2 MCTS  gate REJECT 0.417+/-0.103 (12 games W-D-L 0-10-2) ... needed >0.603
+    GATE_VETO  gen 2 MCTS  ACCEPT 8 mates 0.000822 (142 nodes, was 0.000737)  gate 0.417
+
+Confirming the mechanism is not vindicating the fix. Exact power of the 6-pair rule, enumerating all
+5^6 pair-outcome sequences (no net-wins shortcut — see the caveat below):
+
+| candidate's true strength | P(ACCEPT) shipped | P(ACCEPT) under GATE_VETO |
+|---|---|---|
+| exactly equal (0 Elo) | 1.45% | **98.55%** |
+| +34 Elo | 9.90% | 99.99% |
+| wins *every* decisive game | **14.04%** | 100% |
+
+The veto accepts **98.55% of exactly-equal candidates**. Combined with the pooled −33 Elo above, a
+veto arm does not admit ties pending better evidence — it promotes measurably worse programs, which is
+what `evolved_MCTS_gen2.prog` becoming dirty in the worktree was. The arm was stopped and the artifact
+reverted. **`GATE_VETO` is not the P2 fix and must not ship.**
+
+This does not contradict the 2026-09-09 note above ("the veto is *supposed* to admit ties"). That
+defence is sound on its own terms and is exactly the problem: at 6 pairs almost nothing is ever
+*resolved* worse, so "admit everything unresolved" is very nearly "admit everything".
+
+## Two errors of my own, recorded because both were nearly published
+
+1. **"The rule accepts iff net wins >= +3."** Clean, and **false**. Acceptance depends on the realised
+   *pair multiset*, not the margin: 3-9-0 with the wins in distinct pairs gives ci 0.110 → ACCEPT,
+   while the same 3-9-0 clustered gives ci 0.167 → REJECT. Net +3 is **necessary, not sufficient**
+   (the minimum accepting rate is 0.625 = 0.5 + 3/24). The 0-of-80 record stands, since necessity is
+   all that record needs.
+2. **"50% power is unreachable at any strength."** Also false. It assumed the 87.7% draw rate is
+   fixed, but a genuinely stronger engine *converts* draws, which raises decisive count and power:
+
+   | draws | implied Elo | P(ACCEPT) shipped |
+   |---|---|---|
+   | 0.877 | +34 | 9.90% |
+   | 0.750 | +70 | 36.9% |
+   | 0.600 | **+115** | **61.2%** |
+   | 0.400 | +182 | 76.5% |
+
+   The correct statement is narrower and still decisive: **the 12-game gate needs roughly +115 Elo in
+   a single generation to reach coin-flip power.** Evolutionary steps are not that size.
+
+## What this makes next
+
+Not another acceptance rule. Both rules are now measured, and neither is the binding constraint:
+the SPRT gate resolves in 37 games and finds nothing to accept because there is nothing to accept.
+The open question moves upstream to what produces candidates at all — GRAMMAR 4's mutation operators
+and the type checker, which is where the plan already puts it.

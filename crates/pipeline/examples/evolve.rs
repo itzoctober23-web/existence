@@ -31,6 +31,23 @@ use nnue::Net;
 /// that is the safe direction: an unproven position is skipped, so the set contains only positions
 /// whose mate distance was actually demonstrated. It would NOT be safe to use this as an oracle for
 /// "no mate exists".
+/// Filename prefix for the champion artifacts this run writes.
+///
+/// WHY. The artifact name was `evolved_{lineage}_gen{g}.prog` — relative, with no run identity in
+/// it. Every arm runs with `cwd` = the repo root (measured 2026-09-10: six concurrent arms, six
+/// identical cwds), so any two arms promoting the same lineage at the same generation write the
+/// same path and the survivor is whichever finished last. The files are write-only — nothing reads
+/// them back, so no RUN was ever corrupted — but the on-disk artifact for "the gen-2 MCTS champion"
+/// was an arbitrary arm's, and it surfaced as a tracked file mutating under an unrelated commit.
+///
+/// `EXISTENCE_ARM` unset reproduces the old names exactly, so banked artifacts keep their paths.
+fn artifact_prefix() -> String {
+    match std::env::var("EXISTENCE_ARM") {
+        Ok(a) if !a.is_empty() => format!("{a}_"),
+        _ => String::new(),
+    }
+}
+
 fn mate_within(p: &mut Position, n: u32, nodes: &mut u64, cap: u64) -> bool {
     if n == 0 || *nodes > cap { return false; }
     let l = p.legal_moves();
@@ -3174,12 +3191,12 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                     lineages[li].best_rate = rate;
                     lineages[li].accepted += 1;
                     let _ = std::fs::write(
-                        format!("evolved_{}_gen{g}.prog", lineages[li].name),
+                        format!("{}evolved_{}_gen{g}.prog", artifact_prefix(), lineages[li].name),
                         format!("// SPEEDUP {f} mates, {rate:.6} mates/Mcost, {} nodes, gen {g}\n{:#?}\n",
                                 c.size(), c));
                     // Recoverable sibling: the .prog above is a `{:#?}` dump and cannot be read
                     // back, which made every champion this project evolved unrecoverable.
-                    let _ = std::fs::write(format!("evolved_{}_gen{g}.sexp", lineages[li].name),
+                    let _ = std::fs::write(format!("{}evolved_{}_gen{g}.sexp", artifact_prefix(), lineages[li].name),
                                            grammar::sexp::to_string(&c));
                     continue;
                 }
@@ -3526,12 +3543,12 @@ champ_mates\tchamp_cost\tchamp_rate\tgames\tci95\tnodes\tmate1\tmate2\n");
                 lineages[li].best_rate = rate;
                 lineages[li].accepted += 1;
                 let _ = std::fs::write(
-                    format!("evolved_{}_gen{g}.prog", lineages[li].name),
+                    format!("{}evolved_{}_gen{g}.prog", artifact_prefix(), lineages[li].name),
                     format!("// {f} mates, {rate:.6} mates/Mcost, {} nodes, gen {g}\n{:#?}\n",
                             c.size(), c));
                 // Recoverable sibling: the .prog above is a `{:#?}` dump and cannot be read
                 // back, which made every champion this project evolved unrecoverable.
-                let _ = std::fs::write(format!("evolved_{}_gen{g}.sexp", lineages[li].name),
+                let _ = std::fs::write(format!("{}evolved_{}_gen{g}.sexp", artifact_prefix(), lineages[li].name),
                                        grammar::sexp::to_string(&c));
             } else {
                 // rhi at SIX decimals: at three, a candidate strictly above the incumbent is
