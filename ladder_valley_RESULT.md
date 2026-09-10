@@ -663,3 +663,42 @@ be sound at a much higher rate than 22.8%. Build a third minimal half that tests
 measure the three-way crossing. **Prediction: soundness rises toward the hand-built 65%; the PATH-1
 rate rises with it.** If soundness does NOT rise, the validity marker is not the missing ingredient
 and this section is wrong -- which is the point of writing the prediction down first.
+
+### Correction to my own framing: "three-part conjunction" UNDERSTATES it, and +104 was already here
+
+The section above concluded the rung is `Probe + Store + a validity test` and called it a three-part
+conjunction. Reading `ab_hash_parts` (`reference.rs:315`) rather than reasoning about it, the probe
+half ALONE is:
+
+    If(flag != 0,
+       If(depth >= d,
+          Seq[ If(flag == 1, Ret(score)),
+               If(flag == 2, If(score >= b, Ret(score))),
+               If(flag == 3, If(score <= a, Ret(score))) ]))
+
+One validity test, one depth test, three bound-type dispatches and two bound comparisons -- and the
+file explains why it is nested rather than conjoined: *"the grammar has no `and`, and adding one for
+this would change the primitive count that GRAMMAR 6's prior is measured in."*
+
+**And this document already carried the number, near the top:** *"the pair is +104 nodes, which is not
+'1-3 mutations' under any reading."* So the DEPTH of the conjunction was never in dispute; I restated
+a known fact in weaker terms. Recording that rather than leaving two inconsistent framings in one
+file, which is the exact trap this project keeps paying for.
+
+**What tonight actually added, stated narrowly:**
+
+1. The minimal-halves PATH-1 rate, 13/1200 = 1.08% against the hand-built 5.50%, Fisher p = 0.00018 --
+   resolved, where the n=200 run could not resolve it.
+2. Which STEP of the funnel is binding: soundness 65.4% vs 22.8% (p = 0.00009) while
+   cheaper-given-sound is 64.7% vs 61.9% (p = 1.00000, exactly null).
+3. The MECHANISM for the unsoundness, traced through the interpreter rather than argued: `Tt::probe`
+   returns `Slot::default()` on a miss, `Slot` derives `Default`, and `Field(Slot, Score)` therefore
+   yields the CONSTANT 0. A miss is not inert -- it is a zero-injector. That is why 24 of 36 unsound
+   children never record a hit.
+4. That the guard `ab_hash` uses to prevent exactly this (`flag != 0`) is the ingredient the minimal
+   halves lack, and that a bare flag READ is single-edit reachable while a flag TEST is what actually
+   matters -- the distinction mode 3 exists to measure.
+
+None of that changes the +104-node conclusion. It explains WHY the 104 nodes cannot be approached
+piecewise: the guards pay nothing individually, and without them the probe actively corrupts the
+answer rather than merely costing time.
