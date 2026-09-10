@@ -121,11 +121,40 @@ seed-anchored floors (already in place, not the issue), and a harder set (tested
 They failed for one reason — each tried to fix a *ratio* whose denominator carries most of the
 variance.
 
-**What the evidence points at now, untested and stated as a lead:** stop dividing. Measure accuracy
-**at equal cost** rather than accuracy **per cost** — cap every program to the same cost budget per
-position and count what it solves. That is exactly what the GAME gate already does (same net, same
-budget both sides), and the game gate ranks these five correctly. It also leaves capture extension
-reachable, since it would be compared at equal spend rather than penalised for spending.
+**What the evidence points at now:** stop dividing. Measure accuracy **at equal cost** rather than
+accuracy **per cost** — cap every program to the same budget per position and count what it solves.
+That is what the GAME gate already does (same net, same budget both sides), and the game gate ranks
+these five correctly. It also leaves capture extension reachable, compared at equal spend rather
+than penalised for spending.
+
+## ✅ TESTED — equal-cost fixes the inversion
+
+`--equal-cost 3300000` on the same MATE-2 set (the cap is ID's own observed average per position, so
+the choice does not favour any program):
+
+| program | mates/Mcost rank | equal-cost solved | game rank |
+|---|---|---|---|
+| **+hash+ID** | **5th of 5** (0.083) | **7/40 — 1st** | **1st (0.612)** |
+| depth-one | 1st (0.577) | 2/40 | 5th (0.427) |
+| bare alpha-beta | 2nd | 2/40 | 3rd |
+| capture extension | 2nd= | 2/40 | 2nd |
+| +hash reuse | 4th | 2/40 | 3rd= |
+
+**The inversion is gone.** The program the games rank first, which the ratio ranked LAST, is now
+ranked first. The cap binds on exactly the program it should — ID's spend falls 132M → 116M and its
+solved count 11 → 7 — while the other four are untouched, being already under it. At equal spend ID
+still solves **3.5× more**.
+
+**Do not read the Spearman (+0.100) as the result.** Four of the five programs tie at 2/40, so their
+relative ranks are arbitrary and dominate the coefficient. Spearman is the wrong summary under a
+four-way tie; the substantive fact is that the top of the ranking is now correct and was previously
+exactly inverted.
+
+**Still open, and not claimed here:** sensitivity to the cap. 3.3M was chosen as ID's own average;
+a much lower cap would throttle the deepening that is precisely ID's advantage, and a much higher
+one approaches the uncapped case. The right cap is itself a parameter and has not been swept.
+Equal-cost also does not separate the four mid programs at all, so it fixes the ORDERING ERROR
+without yet providing resolution.
 
 ## Harness note — the first run of this experiment was worthless and looked perfect
 

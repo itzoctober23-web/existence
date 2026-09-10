@@ -144,6 +144,9 @@ fn main() {
     // with zero variance in all ten matches. Depth-one "drew" with alpha-beta; the ranking was
     // pure artefact.
     let cost_cap: u64 = arg("--cost-cap", u64::MAX);
+    // 0 = off (score by mates/Mcost, the historical metric). >0 = cap each program to this spend
+    // per position and rank by SOLVED COUNT, no ratio.
+    let eq_cost: u64 = arg("--equal-cost", 0);
     let all = std::env::args().any(|x| x == "--all");
 
     let net = Net::random(32, seed);
@@ -183,6 +186,16 @@ fn main() {
     let mut sur: Vec<(usize, f64, u32, u64)> = Vec::new();
     for (i, (name, prog)) in progs.iter().enumerate() {
         let mut it = Interp::new(&net, tables.clone());
+        // EQUAL COST instead of PER cost. --equal-cost N caps every program to the same spend per
+        // position and simply counts what it solves; no division at all.
+        //
+        // Why: mates/Mcost failed on BOTH sets, and the refutation showed why. Cost spans 38x across
+        // these programs while accuracy spans 5.5x, so a ratio of the two is a cost measurement with
+        // a rounding error attached -- hardening the set raised both ranges together and made the
+        // inversion worse (-0.300 -> -0.900). A ratio cannot be repaired when its denominator holds
+        // most of the variance. The GAME gate already avoids this by giving both sides the same
+        // budget, and the game gate ranks these five correctly.
+        if eq_cost > 0 { it.cost_cap = eq_cost; }
         let (mut found, mut cost) = (0u32, 0u64);
         let total = if hard { hard_set.len() } else { set.len() };
         if hard {
@@ -205,8 +218,14 @@ fn main() {
                 }
             }
         }
-        let rate = found as f64 / (cost as f64 / 1e6).max(1e-9);
-        println!("  {:<46} {:>3}/{:<3} solved cost {:>13}  {:.6} per Mcost", name, found, total, cost, rate);
+        let rate = if eq_cost > 0 { found as f64 }
+                   else { found as f64 / (cost as f64 / 1e6).max(1e-9) };
+        if eq_cost > 0 {
+            println!("  {:<46} {:>3}/{:<3} solved  cost {:>12} (cap {eq_cost}/pos)  score {found}",
+                     name, found, total, cost);
+        } else {
+            println!("  {:<46} {:>3}/{:<3} solved cost {:>13}  {:.6} per Mcost", name, found, total, cost, rate);
+        }
         sur.push((i, rate, found, cost));
     }
 
