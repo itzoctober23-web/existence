@@ -73,6 +73,25 @@ anything below.
     member. The falsifier and its three readings are pre-registered; `ab_report.py` reads it and
     checks the gating-rate prediction automatically.
 
+11. **★ THE SURROGATE IS NOT THE ONE FITNESS §3 SPECIFIES, and that is upstream of items 8-10.**
+    §3 gives `mates/Mcost` the role of a **FILTER** — *"a PROGRAM candidate must score >= 0.9x the
+    champion on MATE-{1,2} and >= 0.8x on MATE-{3,4} **to reach the ladder**"* — and closes *"Not a
+    substitute for Elo."* The code RANKS by it and sends only `popn[0]` to the gate, which is using
+    it as a substitute for Elo. **A filter cannot be gamed by cheapness** (over the bar, cheaper buys
+    nothing); **a ranking function rewards cheapness without limit**, which is the measured failure.
+    §10's degenerate-solutions table makes it explicit: *"Prune everything / return eval → **
+    mates-per-cost filter (3)**; ladder (7)"* — the designated catcher was inverted into the driver.
+    Two further deviations: the set is **23 positions against a specified 500 × 4 = 2,000**, and it
+    is not stratified per N. So the saturation in item 8 has its cause upstream — 23/23 is saturated
+    *because the set is ~1% of the specified size* — and `HARD_WEIGHT` is a workaround, not §3's
+    repair. The compliant mode already exists as `EXISTENCE_SPEC_FILTER` (`evolve.rs:1801`, the 0.9×
+    rule verbatim) and is **default-OFF**; all 8 PATH-1 promotions in this project's history were
+    under it, zero in any standard arm. → `fitness_spec_gap_FINDING.md`
+    **Caveat kept:** §3's set must be mined from own self-play, of which there is little at iteration
+    zero, so the small set may be a deliberate bootstrap. The ROLE inversion is not defensible on
+    that ground. **Not changed yet:** the dose-response is minutes from its first gate;
+    `relaunch_spec_filter.sh` is ready and carries its own pre-registered reading.
+
 **Default settings unchanged by all of the above.** Everything here is measurement; nothing shipped.
 
 
