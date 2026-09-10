@@ -262,6 +262,92 @@ impl Acc {
     }
 }
 
+/// A snapshot of EXACTLY the position fields `Net::active_with` reads, and nothing else.
+///
+/// WHY THIS EXISTS. `Acc::update` needs the on/off feature delta of a move, and there was no way to
+/// produce one cheaply. `tests/incremental.rs` derives it by enumerating BOTH positions' active sets
+/// and diffing them with `contains()` -- correct, and O(38^2) on top of two full enumerations, i.e.
+/// strictly slower than the `refresh()` it was meant to replace. That test proves the accumulator is
+/// right; it is not a usable delta, which is why nothing in `engine` ever called it.
+///
+/// WHY IT IS A SNAPSHOT AND NOT A `Move`. Deriving the delta from a move means re-deriving, by hand,
+/// every rule that moves a piece: promotions change the KIND, en passant removes a pawn that is not
+/// on the destination square, castling moves a rook too, and both castling rights and the ep square
+/// change independently of any of that. Each is a separate chance to disagree with `active_with` in a
+/// way that only shows up as a wrong eval. Diffing the board state instead is mechanically derived
+/// from the same fields the feature encoder reads, so the two cannot drift apart.
+///
+/// It is 12 bitboards plus three scalars -- ~100 bytes, no allocation.
+#[derive(Clone)]
+pub struct FeatSnap {
+    pieces: [[bb::Bb; N_PIECE_KINDS]; 2],
+    stm: Color,
+    castling: u8,
+    ep: Option<board::types::Square>,
+}
+
+impl FeatSnap {
+    #[inline]
+    pub fn of(pos: &Position) -> Self {
+        FeatSnap { pieces: pos.pieces, stm: pos.stm, castling: pos.castling, ep: pos.ep }
+    }
+
+    /// Features that turned ON and OFF going from `self` to `after`.
+    ///
+    /// The piece half is a per-plane XOR: a move touches at most a couple of planes, and an
+    /// unchanged plane costs one compare and is skipped. Only the bits that actually differ are
+    /// walked, so this is O(changed features), not O(active features).
+    pub fn delta(&self, after: &FeatSnap, on: &mut Vec<u16>, off: &mut Vec<u16>) {
+        on.clear();
+        off.clear();
+        for c in 0..2 {
+            for k in 0..N_PIECE_KINDS {
+                let b = self.pieces[c][k];
+                let a = after.pieces[c][k];
+                let diff = b ^ a;
+                if diff == 0 {
+                    continue;
+                }
+                let base = ((c * N_PIECE_KINDS + k) * 64) as u16;
+                for sq in bb::squares(diff) {
+                    if a & (1u64 << sq) != 0 {
+                        on.push(base + sq as u16);
+                    } else {
+                        off.push(base + sq as u16);
+                    }
+                }
+            }
+        }
+        // `active_with` pushes IDX_STM only for White, so the feature toggles on every move.
+        if self.stm != after.stm {
+            if after.stm == Color::White {
+                on.push(IDX_STM as u16);
+            } else {
+                off.push(IDX_STM as u16);
+            }
+        }
+        for i in 0..4 {
+            let b = self.castling & (1 << i) != 0;
+            let a = after.castling & (1 << i) != 0;
+            if a != b {
+                if a {
+                    on.push((IDX_CASTLE + i) as u16);
+                } else {
+                    off.push((IDX_CASTLE + i) as u16);
+                }
+            }
+        }
+        if self.ep != after.ep {
+            if let Some(e) = self.ep {
+                off.push(IDX_EP as u16 + e.file() as u16);
+            }
+            if let Some(e) = after.ep {
+                on.push(IDX_EP as u16 + e.file() as u16);
+            }
+        }
+    }
+}
+
 impl Net {
     /// Serialise. SCHEMAS.md 4: the HEADER IS THE ARCHITECTURE -- n_hidden and the input count
     /// come from the file, and `nnue` builds itself from them, so an architecture change is a

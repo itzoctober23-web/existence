@@ -57,6 +57,9 @@ pub struct Searcher {
     /// a claim in a comment. Setting it false reproduces the old behaviour (movegen emission
     /// order), and examples/ordering_prior.rs reports the node-count difference.
     pub shuffle_children: bool,
+    /// Which delta implementation push_move uses. Set per-search from the environment so the two
+    /// are A/B-comparable on identical trees rather than one replacing the other on an argument.
+    xor_delta: bool,
 }
 
 impl Searcher {
@@ -66,12 +69,28 @@ impl Searcher {
             node_cap: u64::MAX,
             aborted: false,
             // Default chosen by MEASUREMENT, not assumption. Node counts are identical across
-            // both paths at every width (same tree), so these ratios are real:
+            // every path at every width (same tree), so these ratios are real work-for-work.
+            //
+            // The ORIGINAL finding, which gated incremental behind `n_hidden >= 64`:
             //   hidden  32   refresh 1718969   incr 1560497   0.91x  LOSS
             //   hidden 128   refresh  889406   incr 1014240   1.14x  win
             //   hidden 512   refresh  240701   incr  363458   1.51x  win
-            // The saving scales with width (~38 rows rebuilt -> ~4 touched); the bookkeeping
-            // (two active() scans, bitset diff, memcpy) does not. Crossover is near 64.
+            // Diagnosis in that comment was right: the ROW ADDS scale with width, the bookkeeping
+            // does not, so at small widths the fixed cost wins. The conclusion drawn from it -- that
+            // small widths must use refresh -- was wrong, because the bookkeeping was not a constant
+            // of nature. It was two active() scans, four passes over a 13-word bitset and two
+            // ~38-element Vec builds, i.e. O(features ACTIVE).
+            //
+            // 2026-09-10: replaced by FeatSnap::delta, a per-plane bitboard XOR that is O(features
+            // CHANGED) -- typically 2-6. Re-measured on a contended box, 3 reps, node counts equal:
+            //   hidden   8   refresh  967k   old-delta    --     XOR 1188k   1.23x
+            //   hidden  16   refresh  906k   old-delta    --     XOR 1125k   1.24x
+            //   hidden  32   refresh  747k   old-delta  674k     XOR  956k   1.28x   (was 0.90x)
+            //   hidden 128   refresh  403k   old-delta  442k     XOR  561k   1.39x
+            //   hidden 512   refresh  122k   old-delta    --     XOR  185k   1.52x
+            // The control reproduces the original ratios (0.90x at 32, 1.10x at 128), so the harness
+            // is the same one. THERE IS NO LONGER A CROSSOVER: the XOR delta wins at every width
+            // measured, so the `>= 64` gate is gone and the default width (32) now benefits.
             incremental: true, // set per-search by best_move from net.n_hidden
             scratch: Vec::new(),
             acc: Acc { vals: Vec::new() },
@@ -85,6 +104,7 @@ impl Searcher {
             rng: 0x9E3779B97F4A7C15,
             order: Vec::new(),
             shuffle_children: true,
+            xor_delta: false, // set per-search by best_move
         }
     }
 
@@ -123,6 +143,37 @@ impl Searcher {
             return pos.make_move(m);
         }
         let h = net.n_hidden;
+
+        // ---- ARM B: O(changed) delta from per-plane bitboard XOR ---------------------------------
+        // The doc comment above says computing the two active sets is cheap. The measured crossover
+        // at hidden 64 is evidence that at small widths it is NOT: the ROW ADDS scale with width, but
+        // two active() scans, four passes over a 13-word bitset and two ~38-element Vec builds are a
+        // FIXED per-node cost the saving must overcome before it shows a win.
+        //
+        // FeatSnap::delta reads the same fields active_with reads and diffs them as bitboards, so it
+        // is O(features CHANGED) -- typically 2-6 -- rather than O(features ACTIVE). Behaviour is
+        // identical by construction and asserted by nnue/tests/incremental.rs.
+        if self.xor_delta {
+            let before = nnue::FeatSnap::of(pos);
+            let u = pos.make_move(m);
+            let after = nnue::FeatSnap::of(pos);
+
+            let base = self.ply * h;
+            if self.stack.len() < base + h {
+                self.stack.resize(base + h, 0.0);
+            }
+            self.stack[base..base + h].copy_from_slice(&self.acc.vals);
+            self.ply += 1;
+
+            before.delta(&after, &mut self.on, &mut self.off);
+            let (on, off) = (std::mem::take(&mut self.on), std::mem::take(&mut self.off));
+            self.acc.update(net, &on, &off);
+            self.on = on;
+            self.off = off;
+            return u;
+        }
+
+        // ---- ARM A: the original two-active-sets diff, kept as the control -----------------------
         Net::active(pos, &mut self.feat_a);
         let u = pos.make_move(m);
         Net::active(pos, &mut self.feat_b);
@@ -166,7 +217,8 @@ impl Searcher {
         self.acc.vals.copy_from_slice(&self.stack[base..base + h]);
     }
     pub fn best_move(&mut self, pos: &mut Position, depth: u32, net: &Net) -> (Move, Score) {
-        self.incremental = std::env::var("EXISTENCE_FULL_REFRESH").is_err() && net.n_hidden >= 64;
+        self.incremental = std::env::var("EXISTENCE_FULL_REFRESH").is_err();
+        self.xor_delta = std::env::var("EXISTENCE_OLD_DELTA").is_err();
         self.acc.refresh(net, pos);
         self.ply = 0;
         let list = pos.legal_moves();
@@ -202,7 +254,8 @@ impl Searcher {
     pub fn best_move_capped(
         &mut self, pos: &mut Position, depth: u32, net: &Net, node_cap: u64, seed: u64,
     ) -> (Move, Score) {
-        self.incremental = std::env::var("EXISTENCE_FULL_REFRESH").is_err() && net.n_hidden >= 64;
+        self.incremental = std::env::var("EXISTENCE_FULL_REFRESH").is_err();
+        self.xor_delta = std::env::var("EXISTENCE_OLD_DELTA").is_err();
         self.acc.refresh(net, pos);
         self.ply = 0;
         self.nodes = 0;
