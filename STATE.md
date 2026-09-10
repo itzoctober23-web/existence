@@ -3418,3 +3418,29 @@ mate-in-1 against the shipped 52%, size held at 24 vs 23. Checked before launchi
 this repo has ever varied the ratio. Pre-registered: fewer accepts is expected and is not failure;
 if it also reaches 0 accepts by gen 6, composition is not the constraint either and the remaining
 suspect is the correctness oracle under graft (0 of 40 grafts kept all 25 mates).
+
+---
+
+## 14. 2026-09-10 — audit of the standing task list: 5 of 6 done, with evidence
+
+The brief carries six Existence tasks "in this order". Checked each against the repo rather than
+against memory, because four separate premises in it turned out stale tonight.
+
+| # | task | status | evidence |
+|---|---|---|---|
+| 1 | Incremental NNUE accumulator | **DONE** | `crates/nnue/tests/incremental.rs` — `incremental_eval_matches_from_scratch_over_a_walk` and `the_root_accumulator_matches_too` both pass. That IS the brief's stated verification: "incremental == from-scratch on every eval in test builds". |
+| 2 | Faithful MCTS + PN encodings | **DONE, and the headline claim is made** | `reference.rs`: "FAITHFUL PROOF-NUMBER SEARCH. The earlier version here was a sketch". GRAMMAR 6 now reads **"THE SKEW IS NOW RESOLVED, AND IT IS TOWARD ALPHA-BETA"** — PN 23/23 forced mates, MCTS 20/23; seed 71 nodes, MCTS +59, PN +104, every alpha-beta variant nearer at +9/+15/+29. |
+| 3 | Zobrist hashing + real TT slots | **DONE; the premise is stale** | The brief says "interp currently FNV-hashes a FEN string". It does not. `Node::Key` reads `pos().key`, which `chess.rs:38` documents as an "Incrementally maintained Zobrist key" with `self.key ^= KEYS.piece[..]` updates. `crates/board/src/zobrist.rs` exists. **Zero occurrences of FNV or FEN-hashing** in board or interp. The TT is 64k direct-indexed slots with generation stamps. |
+| 4 | Type checker + mutation operators | **DONE** | `crates/grammar/src/typecheck.rs`, `tests/typecheck.rs`, and `ALL_OPS` with 11 operators including `ProbeRead`/`StoreHere`. The GRAMMAR 9 ladder check runs as `every_declared_rung_is_constructible`. |
+| 5 | Register bytecode (CRATE 4) | **NOT DONE** | `crates/interp/src/` contains only `lib.rs`; no bytecode module. `CRATE.md:76` still describes it as a spec. The brief itself marks this "now a PERF task, not a survival one". |
+| 6 | xcheck + perft as real `#[test]`s | **DONE** | `crates/board/tests/perft.rs::canonical_perft_suite` and `crates/board/tests/xcheck.rs`, among 21 test files. Full workspace suite: **68 passed, 0 failed**. |
+
+**So item 5 is the only open task, and it is explicitly a performance task rather than a survival
+one.** That is why this session's work has been diagnostic — measuring WHY the search track accepts
+nothing — rather than list-following: the list was already done.
+
+**Worth stating plainly, because it recurred all night:** four of the brief's premises were stale
+(item 3's FNV claim, item 2's "current ones are SKETCHES", GRAMMAR 9's "rung 7 unwritten",
+`reachability.rs`'s "operators cannot introduce a primitive"). Every one was a true statement that
+later work invalidated and nobody went back to soften. A task list is a hypothesis about the repo's
+state; on a repo moving this fast it needs re-checking before it is followed.
