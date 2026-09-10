@@ -10,6 +10,22 @@ use board::{Move, Outcome, Position};
 use nnue::Net;
 
 use crate::search::Searcher;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// NODES PER MOVE for datagen. `u64::MAX` means "no budget, use the fixed depth", which is what
+/// every measurement before 2026-09-10 used and is still the default.
+///
+/// WHY THIS EXISTS. The loop's datagen depth defaults to **1** (`main.rs:152`), and a depth-1 label
+/// is the search that stalled: `untrained_baseline_RESULT.md` shows training gaining ~235 Elo before
+/// generation 200 and then nothing for 1200 generations. Real from-zero pipelines generate at
+/// THOUSANDS OF NODES PER MOVE, which in this engine is roughly depth 3 (measured: ~10,300 nodes at
+/// depth 3, ~73,000 at depth 4 on a midgame position). A node budget expresses that directly and,
+/// unlike a depth, it is the same unit across positions of different branching.
+///
+/// It is an atomic static rather than a threaded parameter because `play_games -> play_game ->
+/// play_game_ext` is a three-signature chain with call sites in four examples, and `gate::FORFEITS`
+/// / `gate::PLY_CEILING` already establish this idiom in the crate.
+pub static NODE_CAP: AtomicU64 = AtomicU64::new(u64::MAX);
 
 #[derive(Clone)]
 pub struct Sample {
@@ -166,7 +182,19 @@ pub fn play_game_ext(
             how = GameEnd::FiftyMove;
             break;
         }
-        let (mv, score) = s.best_move(&mut pos, depth, net);
+        let cap = NODE_CAP.load(Ordering::Relaxed);
+        let (mv, score) = if cap == u64::MAX {
+            s.best_move(&mut pos, depth, net)
+        } else {
+            // THE ABORT MUST NOT REACH THE LABEL. `best_move_capped` returns `-INF` when the budget
+            // ran out before ANY root move completed -- it keeps the best COMPLETED move, and if
+            // there is none the score is the initial `-INF`. That value would be written straight
+            // into `Sample.root` and become `tanh(-32000/600) = -1.0`: a confidently-lost label on a
+            // position nobody evaluated. Falling back to a depth-1 search, which always completes,
+            // costs a few hundred nodes and keeps the label honest.
+            let r = s.best_move_capped(&mut pos, depth, net, cap, rng.next());
+            if r.1 <= -crate::search::INF + 1 { s.best_move(&mut pos, 1, net) } else { r }
+        };
         if mv == board::types::MOVE_NONE {
             break;
         }

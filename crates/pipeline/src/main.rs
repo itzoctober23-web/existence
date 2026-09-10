@@ -150,6 +150,27 @@ fn main() {
     // depth2x2_RESULT also ranks d2 LAST of the four arms it tested, and had been asserting that
     // the shipped depth was already 1 -- it was not, which is how a default nobody chose survived.
     let depth = arg("--depth", 1) as u32;
+    // DATAGEN AT A NODE BUDGET instead of a fixed depth. 0 = off, which reproduces every prior run.
+    //
+    // "Thousands of nodes per move" is the unit real from-zero pipelines generate in, and it is
+    // position-independent in a way a depth is not: depth 3 costs ~10,300 nodes on a midgame
+    // position and ~2,350 from the start position, so a fixed depth spends wildly different amounts
+    // of search on different positions while a node budget does not.
+    //
+    // The DEPTH is still derived from the budget rather than raised out of the way, for the reason
+    // measured in `speed_cannot_pay_RESULT.md`: without iterative deepening, a cap that fires inside
+    // the first root child leaves NO completed move and the score is -INF. `datagen.rs` guards that
+    // case, but a guard that fires on most moves would silently turn a deep run into a depth-1 run.
+    let dg_nodes = arg("--datagen-nodes", 0) as u64;
+    let depth = if dg_nodes > 0 {
+        pipeline::datagen::NODE_CAP.store(dg_nodes, std::sync::atomic::Ordering::Relaxed);
+        // Measured single-position costs, midgame (the expensive case, so this never overspends):
+        // d2 352, d3 10,309, d4 72,977, d5 1,234,802, d6 12,696,968.
+        let d = [(3u32, 10_309u64), (4, 72_977), (5, 1_234_802), (6, 12_696_968)]
+            .iter().filter(|(_, n)| *n <= dg_nodes).map(|(d, _)| *d).max().unwrap_or(2);
+        eprintln!("  datagen node budget {dg_nodes}/move -> depth {d} (cap is the safety net)");
+        d
+    } else { depth };
     let epochs = arg("--epochs", 3);
     // GATE RESOLUTION. 40 -> 224, because the gate could not see the improvements it exists to
     // detect. MEASURED over 230 generations of ledger: median ci95 0.079, so it only resolves a
