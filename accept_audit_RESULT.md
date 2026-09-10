@@ -35,6 +35,24 @@ The tool now discloses this: it prints the margin, what fraction of an interval 
 candidates would resolve the call — the same boundary disclosure added to `surrogate_validity.py`
 earlier today after its verdict cleared a self-chosen threshold by 0.012.
 
+## ⚠ The boundary disclosure is NOT yet verified, and I am saying so
+
+I added the margin-disclosure to the tight branch and then ran a control — but the control used
+4 pairs per candidate, giving ci95 = 0.0525, which takes the **UNRESOLVED** branch instead. That
+branch behaved correctly (it printed "Ignorance, not a null. Need roughly 716 pairs total"), so the
+run validated something, just not the thing I changed.
+
+**The tight-branch disclosure has therefore never executed.** It will be exercised by the n≈30 re-run
+at 32 pairs, which is where this question resolves anyway. Until then the code is written and
+unproven, which is a different state from working, and this project has been bitten by exactly that
+twice today — a committed rc=75 branch that was never in the running process, and a recipe option the
+engine ignored.
+
+Also worth noting from that control: at 4 pairs per candidate the same 26 accepts read **0.4639 ±
+0.0525** against 0.5179 ± 0.0185 at 32 pairs. Not a contradiction — sd across candidates rises from
+0.0483 to 0.1277 when each is measured with 8× fewer games — but a useful reminder that the accept
+estimate is unstable until the per-candidate match is wide enough.
+
 ## The sharper test: do accepts differ from rejects?
 
 "The gate discriminates" means the two groups separate. Both were measured with the same
