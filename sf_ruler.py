@@ -48,7 +48,7 @@ def elo_diff(w, d, l):
     return e, 1.96 * se_s * slope
 
 
-def play(net, depth, sf_elo, sf_nodes, games, seed, plycap=300):
+def play(net, depth, sf_elo, sf_nodes, games, seed, plycap=300, movetime=None):
     os.environ["EXISTENCE_NET"] = net
     ours = chess.engine.SimpleEngine.popen_uci(ENGINE)
     ours.configure({"Depth": depth})
@@ -80,7 +80,16 @@ def play(net, depth, sf_elo, sf_nodes, games, seed, plycap=300):
                 mine = (b.turn == chess.WHITE) == we_are_white
                 try:
                     if mine:
-                        r = ours.play(b, chess.engine.Limit(depth=depth))
+                        # TIME CONTROL when asked for, fixed depth otherwise.
+                        #
+                        # Until 2026-09-10 the engine ignored go parameters entirely, so this could
+                        # only ever be a fixed-depth reading and every speed change measured 0 Elo by
+                        # construction (`speed_cannot_pay_RESULT.md`). The engine now converts a
+                        # movetime into a node budget and picks its depth from it, so a FASTER engine
+                        # genuinely searches deeper here -- which is the only way an eval optimisation
+                        # can show up as Elo.
+                        r = (ours.play(b, chess.engine.Limit(time=movetime / 1000.0))
+                             if movetime else ours.play(b, chess.engine.Limit(depth=depth)))
                     else:
                         r = sf.play(b, chess.engine.Limit(nodes=sf_nodes))
                 except chess.engine.EngineError:
@@ -118,6 +127,10 @@ def main():
     ap.add_argument("--sf-nodes", type=int, default=1000)
     ap.add_argument("--games", type=int, default=40)
     ap.add_argument("--seed", type=int, default=20260910)
+    ap.add_argument("--movetime", type=int, default=None,
+                    help="milliseconds per move for OUR engine. Measures strength on a CLOCK rather "
+                         "than at a fixed depth, which is what MASTER_PLAN line 43 specifies for the "
+                         "gate and the only setting in which a speedup can become Elo.")
     ap.add_argument("--calibrate", action="store_true",
                     help="sweep SF node counts to find a contested setting before spending games")
     a = ap.parse_args()
@@ -133,12 +146,13 @@ def main():
         return
 
     t0 = time.time()
-    w, d, l = play(a.net, a.depth, a.sf_elo, a.sf_nodes, a.games, a.seed)
+    w, d, l = play(a.net, a.depth, a.sf_elo, a.sf_nodes, a.games, a.seed, movetime=a.movetime)
     n = w + d + l
     s = (w + 0.5 * d) / max(1, n)
     e, ci = elo_diff(w, d, l)
     print(f"  net      {os.path.basename(a.net)}")
-    print(f"  depth {a.depth}  vs SF elo {a.sf_elo} nodes {a.sf_nodes}  {n} games  ({time.time()-t0:.0f}s)")
+    setting = f"movetime {a.movetime}ms" if a.movetime else f"depth {a.depth}"
+    print(f"  {setting}  vs SF elo {a.sf_elo} nodes {a.sf_nodes}  {n} games  ({time.time()-t0:.0f}s)")
     print(f"  W-D-L {w}-{d}-{l}   score {s:.4f}")
     if e is None:
         print(f"  ELO: a {'clean sweep' if s in (0.0,1.0) else 'degenerate score'} -- this is a BOUND, not a rating.")
