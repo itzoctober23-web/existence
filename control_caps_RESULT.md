@@ -1,5 +1,18 @@
 # The origin control's node budget is STABLE to 1.9% — my "moving instrument" explanation is REFUTED
 
+> ## ⚠ SUPERSEDED, same day, on the premise rather than the finding
+>
+> **The decline this file sets out to explain does not exist.** See `pooled_runs_RESULT.md`. The
+> four points below were selected by `grep ... | tail -4` across a log holding **five runs** whose
+> generation counter restarts at 1, so they are not one lineage: the file contains two different
+> gen-400 rows, 0.870 and 0.819, and the "decline" is the splice between them. Segmented by run,
+> the earlier run is FLAT (0.873/0.871/0.847/0.870) and the current one is RISING (0.819 → 0.837).
+>
+> **The measurement in this file is still valid and still binding** — the caps really are stable to
+> 1.9%, and that was established against a threshold declared before the run. Only its motivation
+> was wrong. Keep the "do not re-run `ctrl_fixed` on this idea" instruction; ignore the framing that
+> a decline needs explaining.
+
 **2026-09-10.** This file records a hypothesis of mine that failed, and the number that killed it,
 so it is not proposed again. The decline it tried to explain is still unexplained.
 
