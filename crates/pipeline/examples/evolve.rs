@@ -1709,7 +1709,55 @@ fn mate_ladder() {
     println!("  decides whether 500-per-stratum is affordable or whether the walk is required.");
 }
 
+/// How often do N edits produce a candidate carrying BOTH TT halves? Mutation only, NO fitness.
+///
+/// WHY SEPARATE FROM `stepdiff`. The both-halves rate is the one number in that sweep that n=40
+/// cannot resolve: `ALL_OPS` has 11 operators drawn uniformly, so P(a run of 2 edits includes both
+/// ProbeRead and StoreHere) = 2*(1/11)^2 = 0.0165, giving an expected 0.66 hits in 40 -- a zero
+/// there measures the sample size, not the search space (`editcount_power_PREREG.md`).
+///
+/// The fix is not a longer stepdiff. Its cost is entirely the FITNESS evaluation, ~13.5s per
+/// candidate; the mutation and the kind-count are microseconds. Dropping fitness makes n=5000
+/// trivial and answers the reachability question exactly, leaving stepdiff to answer the
+/// correctness/cost questions it is actually powered for.
+///
+/// Reports the ceiling too: mutations that produce a PROBE-side and a STORE-side separately. If the
+/// pair rate matches 2*(1/11)^2 the operators compose freely and only DRAW limits them; if it is
+/// far below, placement is refusing the combination and that is a different problem.
+fn tt_reach() {
+    let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
+    let (n, maxe) = (a(2, 5000) as usize, a(3, 3) as usize);
+    let seed = reference::bare_alpha_beta();
+    println!("=== TT-primitive reachability by edit count, {n} mutations each, NO fitness ===");
+    println!("  expected pair rate if only DRAW limits: edits=2 -> {:.4}, edits=3 -> {:.4}",
+             2.0 / 121.0, 1.0 - (2.0 * (10.0f64 / 11.0).powi(3) - (9.0f64 / 11.0).powi(3)));
+    println!("  {:<7} {:>8} {:>10} {:>10} {:>10} {:>12}",
+             "edits", "welltyped", "probe-side", "store-side", "BOTH", "both-rate");
+    for e in 1..=maxe {
+        let (mut wt, mut ps, mut ss, mut both) = (0usize, 0usize, 0usize, 0usize);
+        for k in 0..n {
+            let mut r = Rng::new((k as u64) << 12 ^ 0xA5A5 ^ (e as u64) << 40);
+            let Some((cand, _)) = mutate::mutate_program_n(&seed, &mut r, e) else { continue };
+            wt += 1;
+            let c = tt_counts(&cand);
+            if c[0] > 0 { ps += 1; }
+            if c[1] > 0 { ss += 1; }
+            if c[0] > 0 && c[1] > 0 { both += 1; }
+        }
+        println!("  {:<7} {:>8} {:>10} {:>10} {:>10} {:>11.4}",
+                 e, wt, ps, ss, both, both as f64 / wt.max(1) as f64);
+    }
+    println!("\n  A pair rate at or near the expected line means the operators COMPOSE and only the");
+    println!("  DRAW limits them -- so the loop's 1-3 budget does install both halves, and the");
+    println!("  barrier is downstream (the valley: probe-only 0.991x, store-only 0.997x, pair 1.024x).");
+    println!("  A rate far BELOW it means placement is refusing the combination, which is a");
+    println!("  different problem needing targeted operators rather than plateau tolerance.");
+}
+
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("ttreach") {
+        return tt_reach();
+    }
     if std::env::args().nth(1).as_deref() == Some("mateladder") {
         return mate_ladder();
     }
