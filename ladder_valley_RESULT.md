@@ -1404,3 +1404,42 @@ node-kind multisets. It is consistent with everything else measured tonight -- 0
 edits producing both halves, and populations collapsing to `pop 1..4` for the first several
 generations. **The search is not exploring a wide structural space and being unlucky; it is exploring
 a narrow one.**
+
+### ⚠ CORRECTION to finding #9: "9 shapes" is a KIND-PROFILE count, not a program count
+
+The same run reports both, and they say different things:
+
+    DISTINCT PROGRAMS (Debug string, what retention dedups on)
+      probe-only:  336 children ->  10 distinct   ( 3.0% unique)
+      store-only:  348 children ->  86 distinct   (24.7% unique)
+
+    DISTINCT SHAPES (node-kind multiset, what the reserve keys on)
+      non-carriers: 3,316 -> 6      all: 9
+
+**86 distinct store-carrier PROGRAMS collapse into essentially one SHAPE.** So `shape_sig` is coarse
+by construction -- it counts node KINDS and is blind to where they sit -- and "nine structures across
+3,316 mutations" is a statement about kind-profiles, not about how much program space the search
+covers. I wrote *"the search is exploring a narrow one"* and that overstates it.
+
+**What is actually true:** the mutation operators mostly RELOCATE and RETARGET within a fixed kind
+profile rather than introducing new kinds. That is a sharper characterisation than "narrow", and it
+explains the hardest number in this file -- **0 of 20,000 single edits produce both halves** -- because
+producing both requires TWO separate kind-introductions, which is exactly the move the operators
+rarely make.
+
+**Finding #10 is UNAFFECTED.** The reserve keys on `shape_sig`, so what matters to it is the shape
+count, and 6 non-carrier shapes is the measurement that applies. A coarse signature is the RIGHT
+signature for a diversity reserve -- it groups programs that differ only in placement and reserves a
+slot for genuinely different structure.
+
+### And an asymmetry worth its own line: probe forms are 8x more constrained than store forms
+
+    probe-only   10 distinct of 336   ( 3.0%)
+    store-only   86 distinct of 348   (24.7%)
+
+The probe half occupies a far smaller program space than the store half. **This inverts a hypothesis
+recorded earlier in this file:** dedup was listed as candidate 3 for the 3:1 skew, on the guess that
+store-carriers might collapse to fewer distinct forms and be culled by `pool.retain(dedup)`. The
+opposite is true -- it is PROBES that collapse. Dedup, if it biases anything, biases against probes,
+which is the wrong direction to explain the observed skew. Candidate 3 is dead, and was never needed:
+conditioning already explained the whole discrepancy.
