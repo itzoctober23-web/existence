@@ -1260,3 +1260,30 @@ discriminator, and it is checked before the kill rather than after.
 **Cost of the restart:** ~5 MAIN generations, roughly an hour of one core. **Bought:** an experiment
 whose log states whether its own mechanism fired. The baselines reach `pop 8` around gen 6, so the
 reserve should first engage there, and `dsl0 -> dsl1` is now a glance rather than a reconstruction.
+
+### Why the 5th arm is acceptable on 4 cores, checked rather than assumed
+
+`repin_loop.sh` warns that cores 12-15 run comparisons which "are only comparable if every arm gets
+the same CPU", that a neighbour there "halves that arm's throughput", that 12-15 are E-cores sharing
+one L2 so "a neighbour steals cache as well as cycles", and that **an arm was once restarted because
+datagen lanes landed on 12-15 during a depth-4 run.** Adding `gate_diversity_s1` makes five arms on
+four cores, so that warning has to be answered, not waved at.
+
+**Checked: these arms are COST-budgeted, not wall-clock budgeted.**
+
+    fitness() runs under `cost_cap` (2e9 per position, interp/src/lib.rs:527)
+    rate = found as f64 * 1e6 / cost          (evolve.rs:501)
+    no Instant::now / elapsed anywhere in the budgeting path
+
+A generation ends when the cost model says so, not when a timer does. **CPU contention therefore
+costs these arms WALL-CLOCK SPEED and cannot move their rates, mate counts or verdicts.** The
+restarted depth-4 arm the comment refers to was an equal-wall-clock experiment, which is a different
+design and would indeed have been invalidated.
+
+**And floating 12-15 is the RIGHT pinning, not the lazy one.** Pinning the fifth arm to a single core
+would halve ONE baseline and leave three untouched -- unequal degradation, which is exactly what
+breaks comparability between them. Letting it float spreads roughly 25% evenly across all four, so
+they stay comparable with each other. Equal slowdown is benign here; unequal slowdown is not.
+
+**Cost, stated plainly:** the four baselines run about a quarter slower while this experiment is up.
+That is real and it is paid knowingly, for the arm testing the only lever measured at 3.00x.
