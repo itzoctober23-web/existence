@@ -110,3 +110,43 @@ strong instrument.
 number. It is inside its documented reversal band, it lacks the resolution for the effect sizes
 that remain (±0.021 against a ~+0.015 expected move), and it has now contradicted the standard
 instrument on a live pair. It stays useful only as a coarse "has the lineage collapsed" tripwire.
+
+---
+
+## ⚠ THE PRE-REGISTERED PREDICTION FAILED, and the failure is the result
+
+I sized the next measurement on the assumption that gains are LINEAR in generations, predicting a
+200-generation window would clear the between-seed noise on one seed:
+
+    PREDICTED   200 gens -> +48 Elo -> score 0.569, effect 0.069 > sd 0.047 -> RESOLVES
+    OBSERVED    200 gens -> +27 Elo -> score 0.539, effect 0.039 < sd 0.047 -> does NOT
+
+Both windows are measured against the SAME opponent (the gen-200 net), so there is no
+non-transitivity to explain it away:
+
+| comparison | score | Elo |
+|---|---|---|
+| gen300 vs gen200 | 0.535 ± 0.029 | +24.4 |
+| gen400 vs gen200 | 0.539 ± 0.027 | +27.2 |
+| **implied gens 300→400** | | **+2.8** |
+
+**The methodological error is worth more than the number.** I used linearity to size an experiment
+whose purpose was to test whether the trend continues. If the gain had been linear the design
+worked; because it is not, the design under-powered itself by exactly the amount the effect
+decelerated. An experiment sized on the hypothesis it is testing cannot fail informatively in one
+direction — it just comes back marginal again, which is what happened.
+
+**What is and is not established:**
+
+* **Established:** a 200-generation window produced +27 Elo, not the +48 that a constant
+  +24/100 rate predicts. Linear extrapolation from the first window is refuted.
+* **NOT established:** that gens 300→400 added ~+3 rather than ~+24. The difference between the two
+  windows is +0.004 ± 0.040 — nowhere near resolved. The deceleration is visible in the point
+  estimates and nothing more.
+* **Still true:** both windows exclude 0.5, so the loop is still gaining. It is the RATE that is
+  in question, not the sign.
+
+**What would actually settle it,** now that window-widening is known not to buy effect size here:
+seeds. `netmatch` says ~12 at sd 0.047, ~5 at the directly-measured 0.0285. At ~600–1200
+generations/hour a 5-seed replication of a 200-generation window is roughly 1–2 hours of box time,
+which is affordable and is the honest next step rather than a third window.
