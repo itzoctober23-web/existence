@@ -1,3 +1,50 @@
+# ⚠⚠ TWO CORRECTIONS, 20:50 and 21:02. The tolerance is a DILEMMA, not a dial.
+
+**Second correction first, because it retracts the repair proposed in the first.** At 20:50 I
+concluded that `EXISTENCE_GUARD_TOL=0` was "the whole fix" — close the market and the surrogate can
+only reward genuine speedups. The arm ran. It does not fix; it **freezes**:
+
+    gtol0  (floor 23)  gen 3 MAIN  ..none (8 cand, 0 ill, mate-ok 0, rates none)
+    control(floor 19)  gen 3 MAIN  gate REJECT ... mates 19
+
+**`mate-ok 0` — not one of eight candidates kept all 23 mates.** Per generation, same seed:
+
+    gen 1   floor 23: mate-ok 1     floor 19: mate-ok 1
+    gen 2   floor 23: mate-ok 1     floor 19: mate-ok 1
+    gen 3   floor 23: mate-ok 0     floor 19: gate REJECT
+
+And the one candidate that survives at gens 1-2 scores `rates 0.999`, i.e. below `best_rate`, so it
+cannot gate either. **Both ends of the tolerance dial fail, for opposite reasons:**
+
+- **tolerance 0** — nothing passes the guard. The search stops.
+- **tolerance 4** — things pass by SELLING mates. The search degrades (VERIFY 0.422).
+- **tolerance 7** — more sellable, worse still (VERIFY 0.258).
+
+**This was already on record and I should have read it before proposing the repair.**
+`search_track_WHY_NOTHING.md:344` says it outright: *"a genuine strength improvement ALSO changes
+behaviour, and on a 25-position all-or-nothing set..."*, and its crux line is **"0 of 33
+behaviour-changing edits pass an all-or-nothing guard"**. Tolerance exists BECAUSE the all-or-nothing
+guard admits nothing. I re-derived the dilemma from the other side and briefly mistook one horn of it
+for a solution.
+
+**Where this actually points: the SET, not the dial.** With 23 positions, any behaviour change loses
+at least one mate, so "keep every mate" is equivalent to "change nothing". A guard can only be
+*proportional* if the set is large enough for a small behaviour change to cost a small FRACTION —
+which is exactly what FITNESS §3 specifies and the run does not build: **500 positions at each of
+MATE-1..4, 2,000 total, stratified**, against the 23 in use. On 2,000 positions a candidate that
+loses 2 is at 99.9% of the champion; on 23 it is at 91.3% and indistinguishable from one that sold
+four. **The set size is not a detail — it is what makes the guard expressible at all.**
+
+So the three findings collapse into one: `fitness_spec_gap_FINDING.md` (§3 role + set size) is
+upstream, the mate-selling is what the undersized set forces the tolerance to permit, and the
+saturation story was a wrong reading of the same evidence.
+
+**The gtol0 arm keeps running.** A frozen arm is still a measurement — it pins the cost of the
+strict guard at "0 of 8 candidates, generation 3" rather than leaving it as an argument, and gens
+4-6 will show whether that is permanent or a gen-3 accident.
+
+---
+
 # ⚠ SATURATION IS REFUTED — the candidate SELLS mates for cost. Corrected 2026-09-09 20:50
 
 **The instrument I added to test this premise refuted it on its first line.** The gate line now
