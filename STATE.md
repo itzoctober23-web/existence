@@ -4815,3 +4815,30 @@ stopped to accelerate the diagnosed-bottleneck test; one slot is now used for th
 same diagnosis. Net 7 arms against the earlier 9, so `gate_gateveto` still has more CPU than before
 the reallocation. That is the trade I intended: free capacity from arms whose purpose was served, spend
 it only on arms testing the open question.
+
+## 2026-09-10 — OPEN, PRE-EXISTING: `exploit_regression` has been RED since 07:42
+
+`cargo test -p pipeline` fails on `shipped_configuration_admits_no_known_exploit`. Verified
+pre-existing by reverting the day's unrelated `gate.rs`/`main.rs` edits and re-running against a
+clean HEAD — it fails identically, so it is not a regression from the zero-game gate fix.
+
+**What it is saying.** `exploits.tsv` gained two rows (committed in `733f1e4`) of the form
+`ex_mates 2, champ_mates 6`. The shipped guard is `ex_mates >= champ_mates - GUARD_TOLERANCE`
+with tolerance 4, so `2 >= 2` clears, and both rate rules then admit the specimen. The test
+reports 4 because two rules are checked against each of two rows.
+
+**The two rows are IDENTICAL.** `evolve.rs:3529` appends to `exploits.tsv` with no dedup, so one
+specimen recorded twice reads as two. The distinct count is 1 specimen, not 2 — worth fixing in the
+writer, and worth knowing before anyone reasons from the number.
+
+**Deliberately not "fixed" by moving the tolerance.** `fitness_saturation_RESULT.md` records that
+this knob is a DILEMMA rather than a dial: its own header carries two corrections, and the arm run
+at `GUARD_TOLERANCE=0` did not fix the surrogate, it FROZE the search. Loosening admits
+non-searching programs; tightening stops acceptance entirely. Changing it to make a test green
+would be picking the side of that trade-off silently, which is what the test exists to prevent —
+its own message says "if a tolerance change is intended, the exploit it admits must be understood
+first."
+
+**So this is a real open finding, not a broken test.** The guard tolerance the project ships admits
+a specimen the project has now observed. Recorded here rather than acted on, because acting on it
+means resolving the dilemma, and that needs a measurement rather than a preference.
