@@ -321,6 +321,14 @@ fn main() {
     // Keep every Nth REJECTED candidate paired with the champion it lost to, so the depth-1 gate's
     // false-reject rate can be measured at depth 4 instead of argued about. See the use site.
     let rej_every = arg("--save-rejects-every", 0);
+    // ACCEPTS, the complementary half. reject_holdout_RESULT.md measured what the gate THREW AWAY
+    // (34 candidates, 0.4982 [0.4847,0.5117] -- exactly champion strength) and explicitly recorded
+    // that it says nothing about what the gate KEEPS. That is the half which decides whether the
+    // loop is doing anything: main.rs's own rollback note measures the 224-pair gate as resolving
+    // only ~21.5 Elo while self-play steps are far smaller, so accepts could be largely noise --
+    // which would produce a random walk, and the ancestor control's first readings (0.464, 0.498
+    // over 400-generation windows) are what a random walk looks like.
+    let acc_every = arg("--save-accepts-every", 0);
     let rej_dir = a.iter().position(|x| x == "--save-rejects")
         .and_then(|i| a.get(i + 1)).cloned().unwrap_or_default();
     // ANCESTOR CONTROL: play the champion against its own rung from `anc_lag` generations back,
@@ -1015,6 +1023,26 @@ fn main() {
                 eprintln!("      WARNING: could not save reject pair at gen {g}: {e}");
             } else {
                 println!("      reject sample saved: {c}");
+            }
+        }
+
+        // SAVE A SAMPLE OF ACCEPTED CANDIDATES, paired with the champion they BEAT. Same pairing
+        // rule as the reject sampler and for the same reason: the champion moves on every accept,
+        // so measuring a saved candidate against a later champion answers a different question than
+        // the one the gate decided. Saved BEFORE `champion = cand`, which is the only point where
+        // both nets still exist.
+        if better && acc_every > 0 && !rej_dir.is_empty() && g % acc_every == 0 {
+            let stem = if run_tag.is_empty() { format!("acc_g{g}") } else { format!("acc_{run_tag}_g{g}") };
+            let c = format!("{rej_dir}/{stem}_cand.net");
+            let h = format!("{rej_dir}/{stem}_champ.net");
+            if let Err(e) = std::fs::create_dir_all(&rej_dir) {
+                eprintln!("      WARNING: could not create {rej_dir}: {e}");
+            } else if std::path::Path::new(&c).exists() {
+                eprintln!("      WARNING: accept sample {c} already exists -- NOT overwriting.");
+            } else if let Err(e) = cand.save(&c).and_then(|_| champion.save(&h)) {
+                eprintln!("      WARNING: could not save accept pair at gen {g}: {e}");
+            } else {
+                println!("      accept sample saved: {c}");
             }
         }
 

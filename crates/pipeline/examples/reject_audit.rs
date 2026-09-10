@@ -48,6 +48,10 @@ fn main() {
     let pairs: usize = a.next().and_then(|s| s.parse().ok()).unwrap_or(64);
     let depth: u32 = a.next().and_then(|s| s.parse().ok()).unwrap_or(4);
     let seed: u64 = a.next().and_then(|s| s.parse().ok()).unwrap_or(20260907);
+    // "rej" (default) or "acc". The ACCEPT half is the one that decides whether the loop is doing
+    // anything: rejects were measured at 0.4982 [0.4847,0.5117], exactly champion strength, which
+    // says the gate discards nothing -- and says nothing about whether it KEEPS anything.
+    let prefix: String = std::env::args().skip_while(|x| x != "--prefix").nth(1).unwrap_or_else(|| "rej".into());
 
     // Collect gen numbers from rej_g<N>_cand.net, keeping only those with a matching _champ.net.
     // An unpaired candidate is silently useless -- the champion it lost to is the ONLY valid
@@ -70,7 +74,7 @@ fn main() {
     };
     for ent in rd.flatten() {
         let name = ent.file_name().to_string_lossy().to_string();
-        let core = match name.strip_prefix("rej_").and_then(|c| c.strip_suffix("_cand.net")) {
+        let core = match name.strip_prefix(&format!("{prefix}_")).and_then(|c| c.strip_suffix("_cand.net")) {
             Some(c) => c,
             None => continue,
         };
@@ -80,7 +84,7 @@ fn main() {
             None => match core.strip_prefix('g') { Some(n) => n, None => continue },
         };
         if let Ok(g) = numtxt.parse::<u64>() {
-            if std::path::Path::new(&format!("{dir}/rej_{core}_champ.net")).exists() {
+            if std::path::Path::new(&format!("{dir}/{prefix}_{core}_champ.net")).exists() {
                 found.push((g, core.to_string()));
             }
         }
@@ -95,7 +99,7 @@ fn main() {
         return;
     }
 
-    println!("reject_audit: {} reject pairs from {dir}", gens.len());
+    println!("reject_audit[{prefix}]: {} pairs from {dir}", gens.len());
     println!("  {pairs} pairs each, depth {depth}, seed {seed}");
     println!("  each candidate plays THE CHAMPION IT LOST TO, not a later one\n");
 
@@ -104,8 +108,8 @@ fn main() {
 
     for g in &gens {
         let stem = &stems[g];
-        let cand = match Net::load(&format!("{dir}/rej_{stem}_cand.net")) { Ok(n) => n, Err(e) => { eprintln!("  gen {g}: {e}"); continue } };
-        let champ = match Net::load(&format!("{dir}/rej_{stem}_champ.net")) { Ok(n) => n, Err(e) => { eprintln!("  gen {g}: {e}"); continue } };
+        let cand = match Net::load(&format!("{dir}/{prefix}_{stem}_cand.net")) { Ok(n) => n, Err(e) => { eprintln!("  gen {g}: {e}"); continue } };
+        let champ = match Net::load(&format!("{dir}/{prefix}_{stem}_champ.net")) { Ok(n) => n, Err(e) => { eprintln!("  gen {g}: {e}"); continue } };
         // Seed varies per candidate so the openings are not identical across rejects -- otherwise
         // every reject is measured on the same handful of positions and the pooled interval is a
         // lie about how much independent evidence there is.
@@ -159,7 +163,26 @@ fn main() {
     // Verdict against the three readings declared in the header, so the outcome cannot be
     // reinterpreted to suit whichever number appeared.
     println!();
-    if r + c < 0.5 {
+    if prefix == "acc" {
+        // The readings INVERT for accepts, and they are declared here rather than reused from the
+        // reject branch, where "below 0.5" is the good outcome.
+        if r - c > 0.5 {
+            println!("  VERDICT: accepted candidates really ARE stronger at depth {depth} (interval");
+            println!("  entirely above 0.5). The gate keeps real improvements; the flat ancestor");
+            println!("  readings must then be explained by something other than a noisy accept rule.");
+        } else if c < 0.02 {
+            println!("  VERDICT: accepts pool at {r:.4}, indistinguishable from 0.5 at a TIGHT interval.");
+            println!("  The gate is promoting candidates that are NOT stronger than the champion they");
+            println!("  replaced. Combined with rejects also at 0.5, the accept/reject decision");
+            println!("  carries no depth-{depth} signal at all and the champion is on a RANDOM WALK --");
+            println!("  which is exactly what the ancestor control's 0.464 / 0.498 over 400-generation");
+            println!("  windows looks like. That would explain the plateau completely.");
+        } else {
+            let need = ((c / 0.02).powi(2) * pooled.games() as f64 / 2.0).ceil() as u64;
+            println!("  UNRESOLVED: interval contains 0.5 and is too wide ({c:.4}). Ignorance, not a");
+            println!("  null. Need roughly {need} pairs total; bank more accepts first.");
+        }
+    } else if r + c < 0.5 {
         println!("  VERDICT: the gate's rejects ARE weaker at depth {depth} (interval entirely below 0.5).");
         println!("  The depth-1 decision TRANSFERS. The cheap gate is vindicated -- do not spend");
         println!("  200x on a deeper gate on the strength of the +0.043-vs-+0.139 asymmetry alone.");
