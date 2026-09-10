@@ -1044,3 +1044,36 @@ CONDITIONAL on `mates >= guard_floor`, and generate from a population member rat
 **NOT concluding "the selection path is buggy" on this evidence.** That claim would rest on comparing
 two distributions that are conditioned differently, which is the same class of error as the cost-ratio
 mistake it just replaced.
+
+### Projection bookkeeping, 2026-09-10 — the arms have advanced, and the DENOMINATOR needed checking
+
+The 4.0% figure was computed when the arms had 19 generations left each. They are now at gen 10 / 9 /
+8 / 4 of 25, moving at roughly 20-40 min per generation, with **0 accepts in any arm**.
+
+**Which arms can host the union at all is not obvious, and the first two answers I got were wrong.**
+
+    gate_composition_s1   14 ttk lines, 10 with a carrier     HOSTS union attempts
+    gate_composition_s2   13 ttk lines, 12 with a carrier     HOSTS union attempts
+    gate_sprt30_s1         0 ttk lines  ... but 6 tt[] lines, last `tt[40]`
+    gate_specfilter_s1     0 ttk lines  ... and 0 tt[] lines
+
+* **`0 ttk lines` is an absence of INSTRUMENTATION, not of carriers.** Both of those arms were launched
+  before the `ttk` field was added, so their binaries never print it. Reading it as "no carriers"
+  would have been the empty-grep trap.
+* **`gate_sprt30_s1` DOES carry TT primitives** -- `tt[40]` is a single-member population holding 40 of
+  them, i.e. the `uct_mcts` lineage, which was BORN with a complete table. That is the reference rung,
+  not a union attempt, so it does not belong in the numerator either.
+* **`gate_specfilter_s1` prints no `tt[]` field at all**, so its carrier state is genuinely UNKNOWN.
+  It is excluded as unmeasured, not as zero.
+
+**Corrected projection over the two CONFIRMED hosts:**
+
+    composition_s1  15 generations remaining
+    composition_s2  16 generations remaining
+    pooled                                   31 generation-trials
+    P(at least one accepted union) = 1 - (1 - 0.002167)^31 = 6.5%
+
+Higher than the 4.0% quoted per-arm because it pools two arms; lower per-arm because both have spent
+generations since. **`specfilter_s1` can only raise this if it turns out to carry halves**, and that
+is unmeasurable without restarting it on an instrumented binary, which would cost its 4 generations of
+state. Left alone.
