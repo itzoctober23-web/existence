@@ -147,3 +147,42 @@ threshold, a bound, or a tolerance, but because the operator set cannot express 
   MAIN-lineage members is a different distribution and is not measured.
 * "Cheaper" is on the 25-position set at depth 3 with `cost_cap` 20e9. A speedup that only pays
   deeper is invisible, and `ab_hash` itself is a small-margin case (2.9% here).
+
+## ⚠ 2026-09-10 — CORRECTION: it is NOT an expressiveness gap. The primitives ARE reachable.
+
+The section above concluded that "no operator in the grammar produces the conjunction" and called it
+an expressiveness gap. **That explanation is wrong**, and the repo's own instrument says so:
+
+    operators can introduce: {Budget, Const, Field, Key, Loop, Max, Pred, Probe, Store}
+
+`ALL_OPS` contains **`Op::ProbeRead`** — which turns an Int-typed leaf into
+`Field(Probe(Key(Var("p"))), f)`, i.e. Probe, Key AND Field in ONE edit — and **`Op::StoreHere`**,
+which introduces Store. Their own doc comment states the intent plainly: *"Introduces Store. Paired
+with ProbeRead this makes hash reuse REACHABLE -- not assembled."*
+
+So mutation can build every TT primitive, and hash reuse is two well-placed edits, inside the loop's
+1-3 edit budget. Nothing is inexpressible.
+
+**What survives, unchanged:** the MEASUREMENTS. 0 of 100 behaviour-preserving single edits are
+cheaper; 0 of 40 crossover children preserve behaviour; PATH 1 has never fired. Those are counts and
+they stand.
+
+**The correct explanation is the VALLEY, which `ladder_valley_RESULT.md` already established.** A
+single `ProbeRead` adds a probe against a table nothing has written — a guaranteed miss, so pure
+overhead (measured 0.991x). A single `StoreHere` writes entries nothing reads (0.997x). Both halves
+are individually WORSE, and only the pair pays (1.024x). So "0 of 100 identical mutants are cheaper"
+is not evidence that the operators cannot express a speedup — **it is the valley showing up in the
+PATH-1 statistic**, exactly where the valley predicts it.
+
+**Why I got it wrong, and it is the same mistake as four earlier tonight:** I read
+`tests/reachability.rs`'s HEADER — *"they cannot introduce a PRIMITIVE the program does not already
+contain... hash reuse needs Probe/Key/Field/Store"* — and treated it as current. That header is
+stale; the test BELOW it prints the constructible set and that set contains Probe and Store. The
+refutation was in the same file as the claim, in the output rather than the prose. Prose in a repo
+this active is a hypothesis; the measurement next to it is the fact.
+
+**Net effect on the diagnosis:** the barrier is a conjunctive VALLEY, not expressiveness, and the
+route out is whatever crosses a valley — accepting a non-improving intermediate, or a single edit
+that installs both halves at once. The second is what MASTER_PLAN line 53 forbids as hand-coding the
+answer; the first is what EPS was for, and EPS is separately measured inert because the band it
+widens into is empty.

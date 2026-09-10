@@ -3,8 +3,16 @@
 //! GRAMMAR 9 asserts "a path of single mutations from the seed exists where every step is fitter".
 //! GRAMMAR 4 supplies the operators that would have to walk it. Nothing checked the two against
 //! each other, and they do not compose: the operators can tune constants, rearrange existing
-//! structure, and wrap statements in an If or a Loop, but they cannot introduce a PRIMITIVE the
-//! program does not already contain.
+//! structure, and wrap statements in an If or a Loop.
+//!
+//! ⚠ THE NEXT SENTENCE USED TO READ "but they cannot introduce a PRIMITIVE the program does not
+//! already contain". THAT IS STALE and is refuted by this file's own output: `constructible()`
+//! prints `{Budget, Const, Field, Key, Loop, Max, Pred, Probe, Store}`. `Op::ProbeRead` and
+//! `Op::StoreHere` were added after this header was written, and they introduce every TT primitive
+//! (ProbeRead emits `Field(Probe(Key(Var "p")), f)` in a single edit). Hash reuse is REACHABLE by
+//! mutation; what stops it is the conjunctive VALLEY -- probe alone 0.991x, store alone 0.997x,
+//! the pair 1.024x -- not expressibility. Corrected 2026-09-10 after the stale header misled a
+//! whole analysis into calling the barrier an expressiveness gap.
 //!
 //! Consequences, measured before this test existed: `evolve` ran ~690 candidates across two runs
 //! and accepted zero. Two of the three declared rungs need a primitive the seed lacks and no
