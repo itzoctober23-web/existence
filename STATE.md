@@ -3370,3 +3370,51 @@ stays unrun, and the core goes to `EPS`, whose justification is a measured 45.4%
 rather than a term that is zero two thirds of the time. If `HARD_FITNESS` is ever run, the
 pre-registered reading is that it depresses rates without improving selection — and if it instead
 helps, this measurement was wrong about which dimension carries the signal.
+
+---
+
+## 13. 2026-09-09 late — the search-track suspect list, closed by measurement
+
+A chain of measurements tonight eliminated every candidate explanation for "the search track accepts
+nothing" except one, and corrected three of my own claims along the way. Recorded here because the
+individual RESULT files each hold one link and the chain is what matters.
+
+**Eliminated, each by direct measurement rather than argument:**
+
+| suspect | how it died |
+|---|---|
+| gate BOUNDS / surrogate ROLE / set SIZE | control, EPS, spec-filter arms: 0 accepts, and none changes what the surrogate can express |
+| candidate SUPPLY | `ttgraft` collected **40 children carrying BOTH TT halves in 499 crossover attempts** (~5.6% of `ab<-uct` grafts). Supply of the one known rung is fine |
+| REACHABILITY | **solved.** `uct_mcts` tags `P10S5K15F10`, byte-identical to `ab_hash` — the second lineage seed has carried a complete transposition table all along, and `donors` (`evolve.rs:1561`) flat-maps over every lineage |
+| the mate GUARD's tolerance | tolerance 0 freezes the search (`mate-ok 0` at gen 3, measured); tolerance 4 admits 10% mate-SELLERS. No threshold admits the rung and not the sale, because on this fitness the sale scores higher |
+
+**Still standing: what the fitness set can EXPRESS.** A null search costing 0.0366% of the seed scores
+**2934.933x** on a mate-in-1-heavy set while keeping every mate. The shipped set is 52% mate-in-1.
+
+**Three corrections I had to make to my own work, all in one evening:**
+
+1. **`tt` overread.** I wrote "both halves retained simultaneously" from two members showing `tt 3`.
+   `tt_prims` pools `Probe|Store|Key|Field` into ONE integer, so that is equally two members holding
+   the SAME half. Fixed by adding `ttk` (per-kind composition) with a positive control that asserts
+   probe-only shows `P` and no `S`.
+2. **"0 of 40" used the wrong guard.** I scored "kept mates" as strictly 25; the loop uses
+   `f >= best_found - tolerance`, i.e. 21. Four of forty would be ACCEPTED — all mate-sellers at
+   1.15-1.19x, higher than the genuine rung's 1.024x.
+3. **The mate-ladder fix was already refuted, in this repo, by this repo.** `forced_mate_set`
+   (`:200`) is an existing mate-in-2 builder whose comment states my 2934x finding as *"333x cheaper
+   in ONE type-preserving edit"*, and `disagreement_set`'s comment records that a mate-in-2 set "has
+   no teeth" at fitness depth 3 (solved 40/40 at depth 2). A mate-in-N does not imply N plies of
+   search; disagreement does, by construction. **I measured before reading the function I proposed
+   to change.**
+
+**Also found and fixed, not a search-track issue:** `Interp::new` defaults `cost_cap` to **2e9 per
+position** and `fitness` never overrode it, while other call sites use 20e9. That ceiling — not
+`depth` — is why the seed scores 24/24 at depth 3 and 2/24 at depth 4. Raising it restores 24/24 at
+depth 4 (6.57e9 per position, 13.7x the depth-3 cost). `EXISTENCE_COST_CAP` now exposes it; **default
+unchanged**, control confirms the default path reproduces `24 mates / cost 11534432615` exactly.
+
+**Live now:** the first arm that varies set COMPOSITION rather than size — `n1=4 n2=10 n3=10`, 17%
+mate-in-1 against the shipped 52%, size held at 24 vs 23. Checked before launching that no arm in
+this repo has ever varied the ratio. Pre-registered: fewer accepts is expected and is not failure;
+if it also reaches 0 accepts by gen 6, composition is not the constraint either and the remaining
+suspect is the correctness oracle under graft (0 of 40 grafts kept all 25 mates).
