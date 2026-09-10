@@ -78,14 +78,33 @@ thing it was meant to find.
 substitutable.** Dropping a mate helps twice: it shrinks the numerator a little and the denominator
 a lot. The floor's job is to say what may be TESTED; the ratio then also lets a mate loss be BOUGHT.
 
-* **Rank lexicographically — mates descending, then cost ascending — rather than by a ratio.** A
-  candidate that solves fewer positions can then still be *tried* (the floor and its tolerance are
-  untouched, so capture extension remains reachable) but can never be *preferred* on the strength
-  of what it stopped doing.
-* **The surrogate needs its precision measured before it steers anything.** These runs give the
-  first estimate and it is damning: `ABOVE:7` candidates cleared the surrogate and went to games,
-  and **7 of 7 were rejected** at LLR ≈ −3. A filter that is wrong every time it fires is worse
-  than no filter, because it spends the search's budget pointing away from the answer.
+* ~~**Rank lexicographically — mates descending, then cost ascending.**~~ **WITHDRAWN, an hour
+  later, for the same reason I rejected the floor fix.** The ranking site is
+  `evolve.rs:3046`, `pool.sort_by(|a, b| b.2.partial_cmp(&a.2))` — sorted on rate alone, with the
+  mate count in `.1` ignored. Sorting mates-first would put **capture extension permanently last**:
+  it solves **18/25** against the seed's 25, so it loses every mate-first comparison it ever enters,
+  and it is the one reference program that scores on the hard set. I wrote the fix that bans the
+  target one paragraph after writing that the floor must not ban the target.
+  **A ranking that cannot prefer a candidate solving fewer positions cannot find capture
+  extension.** The bug and the feature are the same mechanism, which is why neither the floor nor
+  the ranking is the place to fix it.
+* **The surrogate needs its precision measured before it steers anything — and that is now the
+  whole recommendation.** These runs give the first estimate and it is damning: `ABOVE:7` candidates
+  cleared the surrogate and went to games, and **7 of 7 were rejected** at LLR ≈ −3. A filter wrong
+  every time it fires is worse than no filter, because it spends the search's game budget pointing
+  away from the answer.
+
+  But n=7 cannot support a redesign, and both redesigns I reached for turned out to ban the target.
+  The correct next step is the one already applied to the NNUE gate's identical question
+  (`reject_audit.rs`): **measure whether the surrogate rate predicts the game outcome**, by
+  recording `(rate, mates, gate verdict)` for every candidate sent to the ladder and testing the
+  correlation. If rate does not predict, the fix is not a different ranking formula — it is to stop
+  spending games on the surrogate's top pick and sample the guard-passing pool more broadly.
+
+  **What makes this hard is genuine, not an oversight:** the tolerance exists so a candidate that
+  gives up mates can be tried, and the ratio is what lets one be preferred. Any rule that stops a
+  mate loss being *bought* also stops capture extension being *found*. The discriminator has to
+  come before the redesign.
 
 ## Cost of finding out
 
