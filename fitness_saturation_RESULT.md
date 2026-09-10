@@ -136,6 +136,47 @@ treatment arms currently read `hard 0-0` at gens 1-2, which is exactly what ever
 therefore carries no information at all. The experiment cannot begin to engage until gen 3, and the
 informative window is gens 4-6. **Do not read an early `hard 0-0` as "the fix does not work".**
 
+### PRE-REGISTERED PREDICTION: the fix may be TOO WEAK to outbid cost-cutting
+
+Written before any treatment gate exists. Recovering the cost split from the two arms' seed
+surrogates (same program, same sets, so the only difference is the added hard-set cost):
+
+    control   23e6 / C_m         = 0.002490  ->  C_m = 9,236,947,791
+    treatment 23e6 / (C_m + C_h) = 0.002084  ->  C_h = 1,799,520,539  (19.5% of C_m)
+
+The hard set's max achieved score is **2 of 8** (see the ladder below: 0 at gen 1, 1 at gens 2-5, 2
+from gen 6). So the largest numerator boost the fix can offer is bounded:
+
+    hf=1  ->  (23+1)/23  =  +4.3%
+    hf=2  ->  (23+2)/23  =  +8.7%      <- the observed ceiling
+
+Against that, cutting cost moves the DENOMINATOR, and the denominator now includes both sets:
+
+    cut mate-set cost 10%  ->  +9.1%     <- already beats the best possible hard-set gain
+    cut mate-set cost 20%  -> +20.1%
+    cut mate-set cost 30%  -> +33.5%
+
+And the cost-driven gains actually observed under the standard guard were **+13.1%, +17.4%, +22.3%**
+— all of them larger than +8.7%.
+
+**Prediction: cost-cutting still wins, and the treatment still selects cost-cutters.** If that holds,
+the remedy is not to abandon the hard set but to WEIGHT it — count a hard solve as worth more than
+one mate, or stop charging the hard set's cost to the same denominator — because the diagnosis
+(a saturated numerator) would be right while the correction was simply under-powered. That is a
+different repair from "saturation was the wrong mechanism", and the two must not be conflated.
+
+### How to read `hard {hlo}-{hhi}` — the range does not always identify the winner
+
+The gate line prints the range over guard-passing candidates, not the winner's own `hf`. So:
+
+- `hhi == 0` → the fix definitely did NOT engage; the winner had `hf = 0`. **Unambiguous.**
+- `hlo > 0` → every retained member scored, so the winner did too. **Unambiguous engagement.**
+- `hlo == 0, hhi > 0` → **AMBIGUOUS.** Some candidate scored, but the winner may still be a
+  cost-cutter with `hf = 0` — which is exactly what the prediction above expects.
+
+Historically the unambiguous-engagement cases (`1-1`, `1-2`, `2-2`) number 39, against 54 ambiguous
+(`0-1`, `0-2`). So roughly 40% of engaged generations will read cleanly and 60% will not.
+
 ### At `hf = 0` the treatment is inert for selection — but it is NOT a pure rescale
 
 Measured on seed 1, gens 1-2, treatment vs control:
