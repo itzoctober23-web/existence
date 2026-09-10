@@ -363,3 +363,44 @@ truncation, and no guard threshold repairs that ordering.
 both `P` and `S`, it will read ~1.15x on the surrogate, will have SOLD 2-3 mates, and will resolve
 BELOW 0.5 under VERIFY — like every other seller. An accept is not a discovery here, and the `ttk`
 field now makes the distinction visible on the gate line itself.
+
+## 2026-09-10 — the crossover precondition IS met, and the `ttk` field is what settled it
+
+At 21:47 I claimed two population members held "both halves of the rung ... neither acceptable
+alone". At 22:07 I RETRACTED that: `tt` pools `Probe|Store|Key|Field` into one integer, so `tt 3` in
+two members is equally consistent with both holding the SAME half. The retraction was correct — the
+count could not support the claim. I then built `ttk`, which prints the per-kind composition, exactly
+so the question could be settled by measurement rather than re-argued.
+
+**It is settled, and the original claim was right.** `gate_composition_s2`, MAIN lineage:
+
+    gen 4  pop 4  ttk["-", "-", "P1K1F1", "S1K1"]
+    gen 5  pop 7  ttk["-", "-", "P1K1F1", "P1K1F1", "P1K1F1", "S1K1", "S1K1"]
+    gen 6  pop 8  ttk["-", "-", "P1K1F1", "P1K1F1", "P1K1F1", "S1K1", "S1K1", "-"]
+
+`P1K1F1` is a **probe half** — Probe + Key + Field, no Store. `S1K1` is a **store half** — Store +
+Key, no Probe. These are DIFFERENT MEMBERS of one population, coexisting for three consecutive
+generations, growing from one of each to three probe-halves and two store-halves.
+
+**That is the crossover precondition, observed rather than argued.** Retention keeps both halves
+alive because `x.2 >= top * (1 - EPS)` does not require improvement; acceptance would reject either
+alone because each is below `best_rate` (probe-only 0.991x, store-only 0.997x). Exactly the state
+this document predicted and could not previously demonstrate.
+
+**Three things follow, and only the first is a claim about strength:**
+
+1. **The two halves are simultaneously present and both retained.** Measured, three generations
+   running, in the arm whose population reaches `MU`.
+2. **This is the depth-heavy composition arm, not the control.** The control collapses to `pop 2`
+   and its MAIN population is unobservable from gen 3 because it gates every generation. So this is
+   NOT a demonstration that composition causes it — only that composition is where it is visible.
+3. **Crossover has not united them.** `evolve.rs:1586` runs crossover on one candidate in four with
+   donors drawn from every lineage, and `crossover_can_carry_the_tt_rung_from_mcts` measures 5.6% of
+   `ab<-uct` grafts carrying both. Yet zero accepts, and `editcount_RESULT.md` measures that when
+   both halves ARE installed the result is 1.0 probes/store and 62% hits — table traffic, not a
+   transposition table.
+
+**So the precondition is met and the conclusion is unchanged.** Having both halves in the population
+is necessary and demonstrably not sufficient. What the arm is waiting on is not a rarer event; it is
+a DIFFERENT one — a union that behaves like a table rather than like two memory operations sharing a
+program.
