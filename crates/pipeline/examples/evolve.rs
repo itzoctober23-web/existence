@@ -1469,10 +1469,19 @@ fn selftest() {
     let kept0 = a.iter().any(|x| shape_sig(&x.0) == min_sig);
     if !kept0 { println!("PASS (reproduces the measured failure)"); } else { println!("FAIL"); fail += 1; }
 
+    // The counter must actually MOVE, not just exist. Asserting "the branch bumps it" without
+    // watching it is the failure this whole counter was added to prevent.
+    let dsl_before = DSL_ENGAGED.load(std::sync::atomic::Ordering::Relaxed);
+
     print!("  dslots=2 KEEPS the minority shape ................ ");
     let c = select_survivors(pool.clone(), mu, 2);
     let kept2 = c.iter().any(|x| shape_sig(&x.0) == min_sig);
     if kept2 { println!("PASS (the flag BITES)"); } else { println!("FAIL — flag is inert"); fail += 1; }
+
+    print!("  dsl counter incremented on the reserve branch .... ");
+    let dsl_after = DSL_ENGAGED.load(std::sync::atomic::Ordering::Relaxed);
+    if dsl_after > dsl_before { println!("PASS ({dsl_before} -> {dsl_after})"); }
+    else { println!("FAIL — counter did not move, so dsl{{n}} on the gen line is decorative"); fail += 1; }
 
     print!("  population size unchanged at mu ................. ");
     if c.len() == mu { println!("PASS ({} members)", c.len()); } else { println!("FAIL — {} != {mu}", c.len()); fail += 1; }
