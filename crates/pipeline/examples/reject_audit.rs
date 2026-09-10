@@ -1,0 +1,132 @@
+//! DOES THE DEPTH-1 GATE'S "NO" MEAN ANYTHING AT THE DEPTH STRENGTH IS JUDGED AT?
+//!
+//! The loop gates candidates at the datagen depth (1 by default) while this project judges strength
+//! at depth 4. Measured on two rungs, same files and seed with only the depth changing: the later
+//! net wins by +0.043 at depth 1 and +0.139 at depth 4. So the gate is deciding on roughly a THIRD
+//! of the signal that exists in the game that counts.
+//!
+//! The natural worry is that it therefore throws away real improvements. That is an INFERENCE. This
+//! is the discriminator: `--save-rejects` banks every Nth REJECTED candidate together with the
+//! champion it lost to at that moment, and this replays those exact pairs at depth 4.
+//!
+//! ## The null is NOT 0.5, and getting that wrong would invert the reading
+//!
+//! Rejects are a SELECTED sample -- they are precisely the candidates the gate scored below its
+//! accept threshold. So:
+//!
+//! * pooled **well below 0.5** -> the gate's "no" TRANSFERS. The candidates it rejected really are
+//!   weaker at depth 4. The cheap gate is vindicated and there is nothing to fix.
+//! * pooled **at 0.5** -> the gate's decision carries NO information about the judged game. It is
+//!   rejecting candidates that are, on average, exactly as good as the champion at depth 4 -- i.e.
+//!   the selection is noise with respect to what we actually care about.
+//! * pooled **above 0.5** -> actively anti-correlated: the gate is systematically discarding nets
+//!   that are BETTER at depth 4. That is the expensive case, and it would price the 200x saving.
+//!
+//! Reporting the pooled number against 0.5 without saying which of these is expected would let any
+//! outcome be told as a success story. The three readings are written down before the run.
+//!
+//! ## Why pooled rather than per-candidate
+//!
+//! A per-candidate verdict at any affordable game count is noise: 64 pairs carries ci95 ~0.06,
+//! which cannot resolve the effect sizes involved. The quantity with teeth is the MEAN over many
+//! rejects, and pentanomial pair counts pool exactly (each pair is an independent unit), so N
+//! rejects at 64 pairs give the precision of a single 64N-pair match.
+//!
+//! Per-candidate scores are still printed, because the spread is itself informative: a gate that
+//! rejects a mix of clear wins and clear losses is failing differently from one that rejects a
+//! tight cluster of neutrals.
+
+use nnue::Net;
+use pipeline::gate;
+
+fn main() {
+    let mut a = std::env::args().skip(1);
+    let dir = a.next().unwrap_or_else(|| {
+        eprintln!("usage: reject_audit <dir> [pairs_per_reject] [depth] [seed]");
+        std::process::exit(2);
+    });
+    let pairs: usize = a.next().and_then(|s| s.parse().ok()).unwrap_or(64);
+    let depth: u32 = a.next().and_then(|s| s.parse().ok()).unwrap_or(4);
+    let seed: u64 = a.next().and_then(|s| s.parse().ok()).unwrap_or(20260907);
+
+    // Collect gen numbers from rej_g<N>_cand.net, keeping only those with a matching _champ.net.
+    // An unpaired candidate is silently useless -- the champion it lost to is the ONLY valid
+    // opponent, since the champion moves on every accept.
+    let mut gens: Vec<u64> = Vec::new();
+    let rd = match std::fs::read_dir(&dir) {
+        Ok(r) => r,
+        Err(e) => { eprintln!("cannot read {dir}: {e}"); std::process::exit(2); }
+    };
+    for ent in rd.flatten() {
+        let name = ent.file_name().to_string_lossy().to_string();
+        if let Some(rest) = name.strip_prefix("rej_g") {
+            if let Some(numtxt) = rest.strip_suffix("_cand.net") {
+                if let Ok(g) = numtxt.parse::<u64>() {
+                    if std::path::Path::new(&format!("{dir}/rej_g{g}_champ.net")).exists() {
+                        gens.push(g);
+                    }
+                }
+            }
+        }
+    }
+    gens.sort_unstable();
+
+    if gens.is_empty() {
+        println!("no complete reject pairs in {dir} -- nothing to audit.");
+        println!("(the trainer writes them only with --save-rejects <dir> --save-rejects-every N)");
+        return;
+    }
+
+    println!("reject_audit: {} reject pairs from {dir}", gens.len());
+    println!("  {pairs} pairs each, depth {depth}, seed {seed}");
+    println!("  each candidate plays THE CHAMPION IT LOST TO, not a later one\n");
+
+    let mut tw = 0u32; let mut td = 0u32; let mut tl = 0u32; let mut tp = [0u32; 5];
+    let mut rates: Vec<(u64, f64)> = Vec::new();
+
+    for g in &gens {
+        let cand = match Net::load(&format!("{dir}/rej_g{g}_cand.net")) { Ok(n) => n, Err(e) => { eprintln!("  gen {g}: {e}"); continue } };
+        let champ = match Net::load(&format!("{dir}/rej_g{g}_champ.net")) { Ok(n) => n, Err(e) => { eprintln!("  gen {g}: {e}"); continue } };
+        // Seed varies per candidate so the openings are not identical across rejects -- otherwise
+        // every reject is measured on the same handful of positions and the pooled interval is a
+        // lie about how much independent evidence there is.
+        let s = gate::match_nets(&cand, &champ, depth, pairs, seed ^ g);
+        tw += s.wins; td += s.draws; tl += s.losses;
+        for i in 0..5 { tp[i] += s.pent[i]; }
+        rates.push((*g, s.pent_rate()));
+        println!("  gen {:>5}  cand vs its champion: {:>3}W-{:>3}D-{:>3}L  rate {:.3} +/- {:.3}",
+                 g, s.wins, s.draws, s.losses, s.pent_rate(), s.ci95());
+    }
+
+    if rates.is_empty() { println!("\nno pairs could be loaded."); return; }
+
+    let pooled = gate::Score { wins: tw, draws: td, losses: tl, pent: tp };
+    let r = pooled.pent_rate();
+    let c = pooled.ci95();
+    println!("\n  === POOLED over {} rejects: {}W-{}D-{}L, {} games ===", rates.len(), tw, td, tl, pooled.games());
+    println!("  rate {r:.4} +/- {c:.4}   interval [{:.4}, {:.4}]", r - c, r + c);
+
+    // Verdict against the three readings declared in the header, so the outcome cannot be
+    // reinterpreted to suit whichever number appeared.
+    println!();
+    if r + c < 0.5 {
+        println!("  VERDICT: the gate's rejects ARE weaker at depth {depth} (interval entirely below 0.5).");
+        println!("  The depth-1 decision TRANSFERS. The cheap gate is vindicated -- do not spend");
+        println!("  200x on a deeper gate on the strength of the +0.043-vs-+0.139 asymmetry alone.");
+    } else if r - c > 0.5 {
+        println!("  VERDICT: the gate is discarding candidates that are BETTER at depth {depth}");
+        println!("  (interval entirely above 0.5). This is the expensive case: the 200x saving is");
+        println!("  being paid for in real strength, and a deeper tiebreak near the accept");
+        println!("  threshold is now justified by measurement rather than by argument.");
+    } else if c < 0.02 {
+        println!("  VERDICT: rejects pool at {r:.4}, indistinguishable from 0.5 at a TIGHT interval.");
+        println!("  The gate's 'no' carries no information about depth-{depth} strength -- it is");
+        println!("  rejecting candidates that are on average exactly as good as the champion.");
+        println!("  Not harmless: it means selection is noise with respect to the judged game.");
+    } else {
+        let need = ((c / 0.02).powi(2) * pooled.games() as f64 / 2.0).ceil() as u64;
+        println!("  UNRESOLVED: interval contains 0.5 and is too wide ({c:.4}) to call anything.");
+        println!("  This is IGNORANCE, not a null -- two random movers also score 0.500.");
+        println!("  Need roughly {need} pairs total; bank more rejects before reading this.");
+    }
+}
