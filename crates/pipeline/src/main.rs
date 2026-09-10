@@ -305,6 +305,13 @@ fn main() {
     let rej_every = arg("--save-rejects-every", 0);
     let rej_dir = a.iter().position(|x| x == "--save-rejects")
         .and_then(|i| a.get(i + 1)).cloned().unwrap_or_default();
+    // ANCESTOR CONTROL: play the champion against its own rung from `anc_lag` generations back,
+    // every `anc_every`. 0 = off. See the use site for why a moving opponent is the point.
+    // anc_lag MUST be a multiple of the rung cadence or the rung will not exist; the use site warns
+    // rather than failing, so a misconfiguration is visible instead of silently skipped.
+    let anc_every = arg("--ancestor-every", 0);
+    let anc_lag = arg("--ancestor-lag", 400);
+    let anc_pairs = arg("--ancestor-pairs", 200);
     let out = a.iter().position(|x| x == "--out").and_then(|i| a.get(i + 1)).cloned()
         .unwrap_or_else(|| "champion.net".to_string());
     // Resume from a saved champion instead of starting at iteration zero. See the use site.
@@ -1261,6 +1268,34 @@ base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
             }
         }
 
+        // ANCESTOR CONTROL, on its OWN cadence -- deliberately NOT inside the origin-control block.
+        //
+        // I wrote it nested inside that block first, which made it fire only when the origin
+        // control fired. That is exactly the coupling I removed from the ladder rungs earlier the
+        // same day, reintroduced one screen lower: a cheap independent measurement welded to the
+        // cadence of an expensive one. It was invisible in review -- the code reads correctly, the
+        // guard is right, and with the default --control-every it would even have produced output
+        // on the usual schedule. The smoke test caught it because it ran --control-every 0, and the
+        // ancestor line never appeared and no warning did either.
+        if anc_every > 0 && g % anc_every == 0 && g > anc_lag
+            && !out.is_empty() && out != "/dev/null" {
+            let past = format!("{out}.gen{}.net", g - anc_lag);
+            match Net::load(&past) {
+                Ok(old) => {
+                    let (pa, pb) = arch::equal_time_caps(&champion, &old, budget_ns, depth.max(3));
+                    let ac = gate::match_nets_capped(&champion, &old, gate_depth_cap, pa, pb,
+                                                     anc_pairs, seed ^ 0xA9CE ^ g as u64, 4);
+                    println!("      ancestor control @gen {g} vs gen {}: {}W-{}D-{}L  rate {:.3} +/- {:.3}  [{pa} vs {pb} nodes]{}",
+                        g - anc_lag, ac.wins, ac.draws, ac.losses, ac.pent_rate(), ac.ci95(),
+                        if ac.rate() - ac.ci95() > 0.5 { "  *" } else { "" });
+                }
+                // Not fatal and not silent: the rung is missing whenever anc_lag is not a multiple
+                // of the rung cadence, which is a configuration mistake worth seeing rather than a
+                // reason to stop training.
+                Err(e) => eprintln!("      WARNING: ancestor control skipped, cannot load {past}: {e}"),
+            }
+        }
+
         if ctrl_every > 0 && g % ctrl_every == 0 {
             // EQUAL TIME, not equal depth: once the ARCH arm can change the champion's width,
             // a depth-matched control would hand a wider champion free computation and report
@@ -1312,6 +1347,34 @@ base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
                 }
             }
 
+            // ANCESTOR CONTROL -- a progress reading that does NOT saturate.
+            //
+            // The origin control has stopped working on this champion, and the log now says so
+            // outright: gen 400 and gen 800 both read 0.882 +/- 0.022. That is not a plateau, it is
+            // the ceiling. `instrument_saturation_RESULT.md` records this instrument REVERSING SIGN
+            // twice near the top of its scale -- blend 0.75-vs-1.00 at 0.861, and w16-vs-w64 at
+            // 0.967 where it called w64 "far better" while head-to-head said w16. Against a FIXED
+            // weak opponent, every net strong enough to win ~90% of the time looks identical,
+            // because the remaining games are decided by the opponent's blunders rather than by the
+            // difference under test.
+            //
+            // The fix was already written down in netmatch's header -- "above that, stronger has to
+            // be settled head-to-head against a RECENT ANCESTOR" -- and was not implementable,
+            // because `--out` was one file every accept overwrote and no ancestor survived. With
+            // --rung-every they do, so the instrument can finally exist.
+            //
+            // A MOVING opponent cannot saturate: it improves at the same rate as the champion, so
+            // the measured gap stays in the range where a match can resolve it. What it measures is
+            // also the thing actually wanted -- "did the last L generations buy anything" -- rather
+            // than "is it still far better than random", which was answered long ago.
+            //
+            // Deliberately NOT replacing the origin control. The origin is the only ABSOLUTE
+            // reference in the project, comparable across runs and rebuilds; the ancestor is
+            // relative and its opponent differs at every reading, so a rise cannot be summed into a
+            // total. They answer different questions and both are cheap enough to keep.
+            //
+            // Equal-time caps for the same reason the origin control uses them, and gate_depth_cap
+            // rather than the datagen depth because this project judges strength at depth 4.
             // CHECKPOINT AND ROLLBACK. Until now this control measured the lineage and then
             // ignored the answer -- it printed and did not even reach the ledger.
             //
