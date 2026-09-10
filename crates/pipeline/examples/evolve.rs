@@ -1773,40 +1773,44 @@ fn tt_hits() {
     let seed = reference::bare_alpha_beta();
     let set = mate_set(6);
 
-    let run = |prog: &Program| -> (u64, u64, u64) {
-        let (mut c, mut h, mut st) = (0u64, 0u64, 0u64);
+    let run = |prog: &Program| -> (u64, u64, u64, u64, u64) {
+        let (mut c, mut h, mut st, mut zp, mut zs) = (0u64, 0u64, 0u64, 0u64, 0u64);
         for (p, _) in &set {
             let mut it = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
             it.cost_cap = 20_000_000_000;
             let _ = it.run(prog, p, 16);
             let (cc, hh, ss) = it.probe_stats();
-            c += cc; h += hh; st += ss;
+            let (zzp, zzs) = it.zero_key_stats();
+            c += cc; h += hh; st += ss; zp += zzp; zs += zzs;
         }
-        (c, h, st)
+        (c, h, st, zp, zs)
     };
 
     println!("=== do installed TT primitives ever HIT? {n} mutants at {edits} edits, depth {depth} ===");
-    let (sc, sh, ss) = run(&reference::ab_hash());
+    let (sc, sh, ss, szp, szs) = run(&reference::ab_hash());
     println!("  CONTROL ab_hash (hand-built, working TT): {sc} probes, {sh} HITS ({:.1}%), {ss} stores, {:.1} probes/store",
              100.0 * sh as f64 / sc.max(1) as f64, sc as f64 / ss.max(1) as f64);
+    println!("           zero-key: {szp} probes ({:.1}%), {szs} stores ({:.1}%)",
+             100.0 * szp as f64 / sc.max(1) as f64, 100.0 * szs as f64 / ss.max(1) as f64);
     if sh == 0 {
         println!("  *** CONTROL FAILED: a known-working table registered zero hits.");
         println!("  *** probe_stats is wired wrong; every number below is meaningless.");
         return;
     }
-    let (bc, bh, bs) = run(&seed);
+    let (bc, bh, bs, _, _) = run(&seed);
     println!("  seed bare_alpha_beta (no TT at all)     : {bc} probes, {bh} hits, {bs} stores  (must be 0/0/0)");
 
     let (mut both, mut probed, mut any_hit, mut tot_c, mut tot_h) = (0usize, 0usize, 0usize, 0u64, 0u64);
     let mut tot_s = 0u64;
+    let (mut tot_zp, mut tot_zs) = (0u64, 0u64);
     for k in 0..n {
         let mut r = Rng::new((k as u64) << 12 ^ 0x77AA ^ (edits as u64) << 40);
         let Some((cand, _)) = mutate::mutate_program_n(&seed, &mut r, edits) else { continue };
         let c = tt_counts(&cand);
         if c[0] == 0 || c[1] == 0 { continue; }
         both += 1;
-        let (cc, hh, ss) = run(&cand);
-        tot_c += cc; tot_h += hh; tot_s += ss;
+        let (cc, hh, ss, zzp, zzs) = run(&cand);
+        tot_c += cc; tot_h += hh; tot_s += ss; tot_zp += zzp; tot_zs += zzs;
         if cc > 0 { probed += 1; }
         if hh > 0 { any_hit += 1; }
     }
@@ -1816,6 +1820,13 @@ fn tt_hits() {
     println!("  total across them                 : {tot_c} probes, {tot_h} hits, {tot_s} stores");
     println!("  PROBES PER STORE                  : {:.1}   (ab_hash control: {:.1})",
              tot_c as f64 / tot_s.max(1) as f64, sc as f64 / ss.max(1) as f64);
+    println!("  ZERO-KEY (the `_ => 0` fallback)   : {tot_zp} probes ({:.1}%), {tot_zs} stores ({:.1}%)",
+             100.0 * tot_zp as f64 / tot_c.max(1) as f64,
+             100.0 * tot_zs as f64 / tot_s.max(1) as f64);
+    println!("  Node::Probe and Node::Store both do `match val!(k) {{ Value::Key(x) => x, _ => 0 }}`,");
+    println!("  so a key expression that is not a Key silently collapses to slot ZERO. If these");
+    println!("  percentages are high, every store writes one slot and every probe reads it -- which");
+    println!("  explains a 1:1 store/probe ratio and a high hit rate from a SINGLE cause.");
     println!("  A real TT stores about as often as it probes -- each new node probes, misses,");
     println!("  searches, stores. A memo cell stores a few times and probes millions.");
     // CLOSING TEXT CORRECTED 2026-09-10, BY THIS TOOL'S OWN FIRST RUN. It previously read "A pair

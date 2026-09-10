@@ -304,6 +304,19 @@ struct Tt {
     /// probes once, misses, searches, stores. A memo cell stores a few times and probes millions.
     /// So probes-per-store separates them directly.
     pub store_calls: u64,
+    /// DEGENERATE-KEY accounting, added 2026-09-10 after TWO mechanism guesses were refuted by this
+    /// same instrument ("never hits" -> 8 of 10 hit; "memo cell" -> 1.0 probes/store, they store MORE
+    /// than they probe). The brief's own rule applies: two wrong hypotheses in a row means look at the
+    /// HARNESS, not the subject.
+    ///
+    /// The harness turned out correct -- exactly one probe site and one store site, both in the right
+    /// node handlers -- but reading it surfaced this: `Node::Probe` and `Node::Store` each compute
+    /// `match val!(k) { Value::Key(x) => x, _ => 0 }`. A key expression that does not evaluate to a
+    /// Key silently becomes key ZERO. Every such store writes one slot and every such probe reads it,
+    /// which would produce a 1:1 store/probe ratio AND a high hit rate at once -- both measurements
+    /// from a single cause. That is a prediction, so it is counted rather than argued.
+    pub zero_key_probes: u64,
+    pub zero_key_stores: u64,
 }
 
 impl Tt {
@@ -317,6 +330,8 @@ impl Tt {
             probe_calls: 0,
             probe_hits: 0,
             store_calls: 0,
+            zero_key_probes: 0,
+            zero_key_stores: 0,
         }
     }
     #[inline]
@@ -549,6 +564,10 @@ impl<'a> Interp<'a> {
     /// that, but explaining is not measuring. Hits measure it.
     pub fn probe_stats(&self) -> (u64, u64, u64) {
         (self.hash.probe_calls, self.hash.probe_hits, self.hash.store_calls)
+    }
+    /// (probes with key 0, stores with key 0). See `zero_key_probes`.
+    pub fn zero_key_stats(&self) -> (u64, u64) {
+        (self.hash.zero_key_probes, self.hash.zero_key_stores)
     }
 
     pub fn new(net: &'a Net, tables: Vec<i64>) -> Self {
@@ -803,6 +822,7 @@ impl<'a> Interp<'a> {
                     Value::Key(x) => x,
                     _ => 0,
                 };
+                if key == 0 { self.hash.zero_key_probes += 1; }
                 Value::Slot(self.hash.probe(key))
             }
             Node::Store(k, field, v) => {
@@ -811,6 +831,7 @@ impl<'a> Interp<'a> {
                     _ => 0,
                 };
                 let val = val!(v).num();
+                if key == 0 { self.hash.zero_key_stores += 1; }
                 let e = self.hash.entry(key);
                 match field {
                     FieldId::Score => e.score = val,
