@@ -5111,3 +5111,91 @@ window, and the rate is not resolved. More generations of a configuration whose 
 lever (width, depth, blend, horizon, draws) is already closed buys less than it did. What the
 throughput definitely buys is time-to-measurement: the 5-seed replication that the deceleration
 question actually needs is now ~1 hour of box time instead of ~5.
+
+---
+
+## 2026-09-10, 17:00-17:50 — control 2 finished, and GRAMMAR 4's first real defect found and fixed
+
+### Control 2: better labels are LEARNED and do not become strength
+
+Same positions, same trainer, same architecture, same epochs, same init seed — only the label source
+differs (`crates/pipeline/examples/label_source_ab.rs`). `blend = 1.0`, so the outcome term is off and
+nothing but the label moves. Full write-up in `label_source_RESULT.md`.
+
+| Elo vs SF-1320, depth 4, 120 games/cell | self label | SF label |
+|---|---|---|
+| w16 | −290 ± 69 | −241 ± 58 |
+| w64 | −290 ± 66 | −241 ± 61 |
+
+Pooled over 480 games the SF-label advantage is **+49 ± 64 — unresolved**, and nowhere near the ~400
+Elo that the pre-registered "jumps to 1600+" branch required. Quadrupling width moved the score by
+**exactly zero** (0.1583 and 0.2000 in both rows). That double coincidence was verified before being
+believed: 4× file sizes, four distinct md5s, differing W-D-L compositions, and w64 measurably slower
+per match.
+
+Held-out MSE — split by FEN hash, because consecutive rows are plies of the same game and a
+prefix/suffix split would leak every training game's tail into the holdout:
+
+| net | vs SF label | vs self label |
+|---|---|---|
+| self arm | 0.09605 | **0.01935** |
+| sf arm | **0.04711** | 0.08376 |
+| untrained | 0.52474 | 0.56622 |
+
+Each arm fits its own label best and both beat untrained by 11–27×. **So the trainer is not broken
+and the arms are not undertrained** — the SF label was learned and did not convert. Against the
+pre-registered rule the answer is *neither branch*.
+
+Honest limit: every arm trains on 18,188 positions while the champion (1216) used far more, so this
+is established at THIS data volume, not at the loop's.
+
+**Two of my own claims were refuted in place rather than swapped out**: the file's original headline
+("the bottleneck is capacity") and its reading of "SF's label is 2.4× harder to fit" as a capacity
+signature. Both died to the w64 row. A label can be harder to fit because it depends on information
+the FEATURES do not carry, and width cannot recover information that was never in the input.
+
+### GRAMMAR 4: the operators could emit programs with holes in them
+
+`typecheck::scope_check` now rejects programs that read a variable nothing binds. Four fallbacks had
+been hiding them: `Var -> Ty::Unit` on lookup miss, `want()` accepting Unit anywhere,
+`Foreach`/`Argmax`/`Sort`/`Sample` inserting their binder and never removing it, and interp's
+`lookup` falling back to `Value::Unit` at runtime. The result type-checked, ran, and silently computed
+with Unit where a real value belonged.
+
+| | before | after |
+|---|---|---|
+| `Op::WrapIfPred` applications reading an unbound var | **26 of 50 (52%)** | **0** |
+| ...that passed `check_program` and reached the GATE | **26** | 0 |
+| all operators | 26 / 823 (3.2%) | 0 / 797 |
+
+`WrapIfPred` hardcodes `Var("m")`/`Var("p")` and never checks scope. GRAMMAR 3's economics is the
+whole point: those were being paid for in GAMES and are now discarded by a tree walk. The operator
+still applies at its 24 legal sites.
+
+**The first version of that sweep reported 0 and was a broken probe** — it counted a name as bound if
+it appeared anywhere in the function, and the reference programs reuse loop variables, which is
+exactly the case being hunted. A positive control now guards the predicate. This is the third time
+this repo has recorded an empty result that was a defective instrument rather than an absence.
+
+**Crossover's bidirectionality was resting on those holes.** `reachability.rs` asserted crossover
+carries `{"Max","Set"}` from alpha-beta into UCT and PASSED — measuring holed programs. In alpha-beta
+those exist only as `Set("a", Max(Var("a"), Var("vv")))`, and UCT has no `a` and no `vv`. With scope
+enforced the direction is empty, and selecting donors by free variables does not recover it. What
+would fix it is `add-arg`/`add-fn` — the two declared-but-missing operators. The missing operators and
+the one-directional crossover are one gap seen from two sides.
+
+### Also this hour
+
+* **The `EXISTENCE_PICK=lowrate` arm was stopped at gen 3.** It had no `EXISTENCE_GATE_SPRT`, so it
+  was running the fixed 6-pair gate that `gate_power_RESULT.md` measures as arithmetically unable to
+  accept. Even wired to SPRT it answers a retired question: the generator, not the picking rule, is
+  where the gradient is missing.
+* **P2 restarted** as `gate_scopefix_s1.log`, config byte-identical to the recorded `gate_sprt30_s1`
+  baseline so the scope fix is the only difference. Pre-registered in `scopefix_prereg.md`, which
+  states in advance that the run is UNDERPOWERED for the strength question (expected shift ~0.01–0.02
+  against a ±0.016 baseline interval) and that the deliverable is budget, not Elo.
+* **A self-match was caught**: `pgrep -f "sprt.py"` matched this session's own shell, and an earlier
+  check in this same session reported "4PC GATE RUNNING" on that basis. There is no 4PC gate; there
+  are 8 datagen lanes. Re-verified by `/proc/PID/exe` with the observer excluded.
+* **Pre-existing, not from these changes**: `shipped_configuration_admits_no_known_exploit` fails
+  identically with the changes stashed (the documented `guard_tolerance_worst_of_both` condition).
