@@ -568,3 +568,35 @@ in a different context, then hits should be dominated by writer-context != reade
 stored slot with its writer call-site id and count cross-context hits. Not built -- the actionable
 conclusion (soundness is the barrier, cheapness is not) does not move on the answer, and the n=1000
 power run is the thing that changes a published number.
+
+### RESOLVED at n=1000 (2026-09-10)
+
+The n=200 run could not separate 3/200 from 11/200 (Fisher p=0.0531) and was reported as unresolved.
+`ttunion 1000 3 1` settles it.
+
+    minimal n=1000     10/1000 = 1.00%   CI [0.54%, 1.83%]
+    minimal POOLED     13/1200 = 1.08%   CI [0.63%, 1.84%]
+    vs hand-built      11/ 200 = 5.50%   CI [3.10%, 9.58%]
+    Fisher exact                          p = 0.00018   RESOLVED
+
+**The minimal rate is ~5x lower than the hand-built rate, and that difference is real.** The 5.5%
+was measuring a friendlier question, as the construction predicted.
+
+### The funnel, pooled -- one decisive step and one that is exactly null
+
+    behaviour preservation among carriers   65.4% (17/26)  vs  22.8% (21/92)   p = 0.00009
+    cheaper GIVEN it preserves behaviour    64.7% (11/17)  vs  61.9% (13/21)   p = 1.00000
+
+**p = 1.0000 on the second row.** Once a minimal union preserves the answer it is cheaper at
+indistinguishably the same rate as the hand-built one. The ENTIRE gap is soundness: a probe and a
+store dropped at one arbitrary site each return the wrong answer 77% of the time. Nothing about
+making these children faster is the problem.
+
+### Corrected projection
+
+    P(union attempted/gen) 0.20  x  P(acceptable) 0.0108  =  0.217%/generation
+      over the 19 generations remaining:   4.0%   (CI range 2.4% - 6.8%)
+      over 50 generations:                10.3%
+
+**The published 19% becomes 4.0%.** The arms are chasing a real event, roughly five times rarer than
+this document claimed an hour ago.
