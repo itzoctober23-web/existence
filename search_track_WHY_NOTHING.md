@@ -468,3 +468,59 @@ one where shallowness does lose mates. **The conclusion is unchanged because 23/
 saturated**: the numerator is at its maximum, so `mates/Mcost` can still only be improved by cutting
 cost. The repair moved the number, not the defect. That is what `EXISTENCE_HARD_FITNESS=1` is now
 being A/B'd against.
+
+---
+
+## 2026-09-09 — THE BAR RATCHETS ON REJECTION, and the codebase already has the fix
+
+**A gate REJECTION raises `best_rate` to the rejected candidate's rate.** `evolve.rs:2157`, in the
+reject path:
+
+```rust
+if spec_filter { lineages[li].gated.insert(format!("{c:?}")); }
+else           { lineages[li].best_rate = rate; }
+```
+
+So the champion never moves — 0 accepts and 0 PATH-1 promotions in any standard arm, and the MAIN
+population spread tops out at exactly the seed's `0.002490` in every one of them — while **the bar
+the next generation must clear keeps rising, set by programs the gate just measured as WORSE.**
+
+### It cost a gate call that would otherwise have happened
+
+Measured on the EPS arm, seed 1:
+
+    seed / champion rate ............. 0.002490    champion never changed
+    gen-3 candidate, gate REJECTED ... 0.002924    VERIFY 0.422 +/-0.027 = RESOLVED WORSE
+    best_rate after that rejection ... 0.002924    +17.4% over the seed
+
+    gen-4 candidates vs the RAISED bar:   0.002770 = 0.947x  ->  below, NO gate
+                                          0.002810 = 0.961x  ->  below, NO gate
+    the SAME candidates vs the CHAMPION:  0.002770 = 1.112x  ->  above, would have gated
+                                          0.002810 = 1.129x  ->  above, would have gated
+
+Generation 4 produced no gate call at all, and the reason is not that its candidates were weak
+against the champion — they were 11-13% above it. They were below a bar inherited from a program that
+had already been rejected as worse.
+
+### Why this compounds with the saturation diagnosis rather than replacing it
+
+The rejected candidates are cost-cutters (MAIN's numerator is saturated at 23/23, so a surrogate gain
+can only come from the denominator). So the ratchet raises the bar **specifically along the cost
+axis** — the one axis VERIFY says is anti-correlated with strength. Each rejection makes the next
+step harder in the direction already measured as wrong.
+
+### The repair is already in this file, used on the other branch
+
+The `spec_filter` branch does the right thing: it records the program in a `gated` HashSet and
+**leaves `best_rate` alone**. The struct comment at `evolve.rs:1399` explains the asymmetry — under a
+TOLERANCE filter, raising the bar would ratchet it DOWNWARD, "because every rejection lowers the
+reference the next 0.9x is measured against", so that path needs the set instead.
+
+That reasoning is about protecting the tolerance filter. It does not argue that raising the bar is
+CORRECT under the strict rule; the bar-raise is simply the older anti-re-proposal mechanism that the
+`gated` set was invented to replace. Applying `gated` to both branches would prevent re-proposal
+without inheriting a bar from a rejected program.
+
+**NOT changed yet, and deliberately so.** Four arms are mid-run, the A/B on `HARD_FITNESS` weight is
+the question currently being answered, and changing the acceptance dynamics underneath it would
+confound both. Recorded here as the next repair, with its evidence attached.
