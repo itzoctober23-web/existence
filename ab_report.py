@@ -48,6 +48,11 @@ TOL_RE    = re.compile(r'guard tolerance (\d+)')
 # every other key field -- and the moment EPS diverges its generations would collide with the
 # control's and overwrite them. Third instance today of a dedup key that was too coarse.
 EPS_RE    = re.compile(r'EPS=([0-9.]+)')
+# SET SIZE and LAMBDA are arm identity too. The bigset arm runs 77 positions and the lambda arm 32
+# offspring; without these in the key both pool with the control and their whole point vanishes.
+# Fourth instance tonight of a dedup key too coarse to separate the thing being varied.
+SETN_RE   = re.compile(r'lineage MAIN.*?-> *(\d+)/(\d+) mates')
+LAM_RE    = re.compile(r'lambda=(\d+)')
 LLR_RE    = re.compile(r'llr\s+([-+0-9.]+)')
 # Added to the gate line on 2026-09-09 and, until now, NOT PARSED HERE -- the fields existed in the
 # log and the reader was blind to them, which would have surfaced at the exact moment they mattered.
@@ -64,6 +69,8 @@ def parse(path):
     seed = int(m.group(1)) if (m := SEED_RE.search(txt)) else None
     tol  = int(m.group(1)) if (m := TOL_RE.search(txt)) else None
     eps  = float(m.group(1)) if (m := EPS_RE.search(txt)) else None
+    setn = int(m.group(2)) if (m := SETN_RE.search(txt)) else None
+    lam  = int(m.group(1)) if (m := LAM_RE.search(txt)) else None
     # PREFER THE EXPLICIT HEADER. Arms now print "HARD_FITNESS on weight N" / "HARD_FITNESS off".
     #
     # The old heuristic below inferred the FLAG from the seed's own surrogate (0.002490 without the
@@ -107,18 +114,22 @@ def parse(path):
             mt = int(mm.group(1)) if (mm := MATES_RE.search(line)) else None
             hm = HARD_RE.search(line)
             hlo, hhi = (int(hm.group(1)), int(hm.group(2))) if hm else (None, None)
-            rows.append(dict(seed=seed, tol=tol, eps=eps, hard=hard, hw=hw, gen=key[0], lin=key[1],
+            rows.append(dict(seed=seed, tol=tol, eps=eps, setn=setn, lam=lam, hard=hard, hw=hw, gen=key[0], lin=key[1],
                              verify=v, ci=ci, surro=s, verdict=m.group(3), llr=lr,
                              mates=mt, hlo=hlo, hhi=hhi))
-    return dict(seed=seed, tol=tol, eps=eps, hard=hard, hw=hw, hdr=hdr, gens=gens), rows
+    return dict(seed=seed, tol=tol, eps=eps, setn=setn, lam=lam, hard=hard, hw=hw, hdr=hdr, gens=gens), rows
 
 def main():
     # NOTE: `gate_hardw*` must be here. It was missed when the weight-4 arm was added, which would
     # have silently dropped the entire dose-response arm from the report -- a grep that finds nothing
     # because the pattern is wrong, not because the data is absent.
-    paths = sorted(sum((glob.glob(p) for p in
-                        ('gate_hardfit_s*.log', 'gate_hardw*.log', 'gate_sprt30*.log',
-                         'gate_control*.log', 'gate_veto*.log', 'gate_guardtol*.log')), []))
+    # GLOB EVERY ARM LOG, not a hand-maintained list. That list went stale twice in one evening:
+    # first it missed gate_hardw*, then gate_bigset/gate_lam32/gate_gtol0 -- three arms added after
+    # the first fix. A missing pattern drops an entire arm SILENTLY, producing a smaller and
+    # perfectly plausible table. Stratification below is what keeps incomparable arms apart, so
+    # over-collecting is safe and under-collecting is not. Suffixed archives (*.preratchet,
+    # *.premates, *.prev) do not end in .log and are excluded automatically.
+    paths = sorted(glob.glob('gate_*.log'))
     if not paths:
         print("no arm logs found in", os.getcwd()); return 1
     allrows, seen = [], set()
@@ -127,24 +138,24 @@ def main():
     for p in paths:
         meta, rows = parse(p)
         hf = ('HARD_FITNESS w=%g' % meta['hw']) if meta['hard'] else ('surrogate-only' if meta['hard'] is False else '?')
-        print(f"    {p:<30} seed {meta['seed']}  tol {meta['tol']}  EPS {meta['eps']}  {hf}  ({len(rows)} gated gens)")
+        print(f"    {p:<32} seed {meta['seed']} tol {meta['tol']} EPS {meta['eps']} set {meta['setn']} lam {meta['lam']}  {hf}  ({len(rows)} gated)")
         for r in rows:
             # DEDUPLICATE: identical config replays the identical trajectory.
-            k = (r['seed'], r['tol'], r['eps'], r['hard'], r['hw'], r['lin'], r['gen'], r['surro'])
+            k = (r['seed'], r['tol'], r['eps'], r['setn'], r['lam'], r['hard'], r['hw'], r['lin'], r['gen'], r['surro'])
             if k in seen:
                 continue
             seen.add(k); allrows.append(r)
         if meta['hdr']:      # post-ratchet-fix arms ONLY -- see the note in parse()
             for (gn, lin, gated) in meta['gens']:
-                gseen[(meta['seed'], meta['tol'], meta['eps'], meta['hard'], meta['hw'], lin, gn)] = gated
+                gseen[(meta['seed'], meta['tol'], meta['eps'], meta['setn'], meta['lam'], meta['hard'], meta['hw'], lin, gn)] = gated
 
     strata = {}
     for r in allrows:
-        strata.setdefault((r['tol'], r['eps'], r['hard'], r['hw']), []).append(r)
+        strata.setdefault((r['tol'], r['eps'], r['setn'], r['lam'], r['hard'], r['hw']), []).append(r)
 
-    for (tol, eps, hard, hw), rows in sorted(strata.items(), key=lambda kv: (kv[0][0] or 0, kv[0][1] or 0, kv[0][2] or False, kv[0][3] or 0)):
+    for (tol, eps, setn, lam, hard, hw), rows in sorted(strata.items(), key=lambda kv: tuple((x or 0) if not isinstance(x,bool) else int(x) for x in kv[0])):
         hf = ('HARD_FITNESS weight %g' % hw) if hard else ('surrogate only' if hard is False else 'unknown')
-        print(f"\n  === guard tolerance {tol} | EPS {eps} | {hf} | {len(rows)} unique gated gens ===")
+        print(f"\n  === tol {tol} | EPS {eps} | set {setn} | lambda {lam} | {hf} | {len(rows)} unique gated gens ===")
         print("    seed gen lin    surrogate   VERIFY            gate")
         for r in sorted(rows, key=lambda r: (r['lin'], r['seed'] or 0, r['gen'])):
             v = f"{r['verify']:.3f}+/-{r['ci']:.3f}" if r['verify'] is not None else "   --        "
