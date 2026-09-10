@@ -42,6 +42,32 @@ of 19 does not keep every mate.
 **Also confirmed as predicted:** `hard 0-0`, so `HARD_FITNESS` has not engaged, and the falsifier
 correctly reports 2/2 still-worse as UNDECIDED rather than a refutation.
 
+## The harm tracks the MATE-SELLING, not the cheapness — separable from existing data
+
+The exchange-rate account makes a sharper claim than "cheapness is bad", and the two candidates on
+record already separate the variables. Both cost changes recovered from `rate = f*1e6/cost`:
+
+    candidate        mates       cost      surrogate   VERIFY           verdict
+    MCTS accepted    15 -> 15    -23.9%      +31.4%    0.490 +/-0.018   not resolved
+    MAIN  gen-3      23 -> 19    -29.7%      +17.4%    0.422 +/-0.027   RESOLVED WORSE
+                     sold 0                                             <- neutral
+                     sold 4                                             <- harmful
+
+**A ~24% PURE cost cut, with every mate kept, reads NEUTRAL. A ~30% cost cut that sold 4 mates reads
+resolved worse.** The bigger cost cut is the harmless one. So the damage is not cheapness as such —
+it is the mates being spent to buy it.
+
+That matters for the repair. If cheapness itself were harmful, the cost term would need rebuilding
+and no floor could save it. If the harm is the exchange, then closing the market is sufficient and
+`EXISTENCE_GUARD_TOL=0` is the whole fix — the surrogate may then only reward speedups that cost
+nothing in play, which is what `evolve.rs:45` intended by *"keep every mate, get cheaper"*.
+
+**CAVEAT, stated because this is two points.** n=1 each, on different lineages running different
+programs at different budgets. It is a clean natural contrast, not a controlled comparison. **It is
+suggestive and it is not settled** — which is precisely what the tolerance-0 arm is running to
+decide, and the pre-registered reading there already names the case that would refute it: candidates
+still resolved worse WITH `mates 23`.
+
 ---
 
 # The gate was never the bottleneck — the surrogate is
