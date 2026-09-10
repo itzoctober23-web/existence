@@ -1554,3 +1554,29 @@ reading.
 
 **Nothing is claimed for the fix yet, and the falsifier registered before launch still stands:** if
 this arm's probe:store ratio settles near the baseline 3:1, the reserve is not doing the work.
+
+### The PAIRED control, and it is falsifiable on its first six generations
+
+The confound is now exact. `gate_diversity_s1` runs **seed 0** (the default, since I launched it
+without `EXISTENCE_EVOLVE_SEED`); `gate_composition_s2` runs **seed 2**. Different trajectories, so the
+comparison was never controlled.
+
+Launched `gate_diversity_PAIRED_off`: identical args (`25 8 4 10 3 10`), identical default seed 0,
+**flag OFF**. The only difference from `gate_diversity_s1` is `EXISTENCE_DIVERSITY_SLOTS=2`.
+
+**Pre-registered, and it tests my own claim before it tests the fix:**
+
+* **Generations 1-6 must be IDENTICAL between the two arms.** The treatment arm ran `dsl0` throughout
+  those, and the selftest proves `dslots=0` is byte-identical to `pool.truncate(mu)`. If they differ,
+  **the flag is doing something at `dsl0` that it must not**, the selftest is insufficient, and every
+  conclusion drawn from the treatment arm is void. That is the sharper half of this control.
+* **From generation 7 onward they may diverge**, because that is where `dsl` first incremented. Any
+  divergence from there IS the flag, with trajectory held fixed.
+
+**This is what the previous comparison could not do.** One flag-on arm against two flag-off arms on
+different seeds cannot separate the flag from the trajectory -- which is exactly what six generations
+of `dsl0` fused members demonstrated. A seed-matched pair can.
+
+**Cost:** a sixth arm on four cores. The arms are cost-budgeted rather than wall-clock budgeted
+(`fitness` runs under `cost_cap`, `rate = found*1e6/cost`, no `Instant` in the budgeting path), so the
+extra contention slows every arm and biases none.
