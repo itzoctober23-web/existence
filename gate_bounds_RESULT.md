@@ -103,3 +103,52 @@ iteration zero, where the live question is "did it learn to mate at all", not "i
 
 Running `[0,30]` on the two SPRT arms pending a decision on §7.2. The fixed-gate arms on cores 12/14
 are untouched as the old-gate baseline.
+
+## THE FITNESS §7.2 DEVIATION, read properly — and my cost argument was half wrong
+
+I flagged `[0,30]` as "deviates from §7.2, open, not settled" and then did not read §7.2 in full.
+Reading it verbatim changes the picture in both directions.
+
+**What the spec actually says.** The acceptance criterion is FIXED and HUMAN, and the reason is
+stated: *"an instrument calibrated by its subject measures nothing, and the degenerate solution
+(bounds that accept everything) is obvious and unstoppable."* The schedule is DATA-DERIVED —
+`e1` = mean gain per acceptance from an anchor match, recomputed every 20 acceptances — with
+**width `e1-e0` fixed at 2 Elo as a declared resolution constant**, a floor of `e1 >= 0.5`, and
+**bootstrap: until 20 acceptances exist, `e1 = 5`**. So the spec-compliant bootstrap bound is
+**`[3,5]`**, and the draft it explicitly criticises for being hand-picked was `[0,10]` — which is
+where I started.
+
+**My hypothesis, tested and REFUTED.** I reasoned that `[3,5]` would reject bad candidates FAST,
+because with `e0=3` a null candidate is clearly H0 rather than sitting on the boundary. It does not:
+at a 400-pair cap `[3,5]` fails to resolve ANYTHING between -25 and +25 Elo, capping 100% of the
+time, and a -55 candidate takes 255 pairs against 11 at `[0,30]`. Width-2 bounds carry ~15x less
+evidence per pair, which is the same `(p1-p0)` scaling that made `[0,10]` slow.
+
+**But the cap is MINE, not the spec's** — and the spec expects the cost: *"a candidate near a bound
+gets thousands of pairs"*. Uncapped, `[3,5]` is CORRECT and affordable on the population actually
+observed:
+
+    true elo   verdict          median pairs   games   wall-clock @ <=10 s/game
+        -55    100% REJECT           255         510      1.4 h
+        -25    100% REJECT           591        1182      3.3 h
+          0    100% REJECT          3861        7722     21.4 h
+        +10    100% ACCEPT          2687        5374     14.9 h
+        +50    100% ACCEPT           332         664      1.8 h
+
+Every measured candidate so far sits at -25 to -55 (VERIFY 0.422-0.490), i.e. in the 1.4-3.3 h band.
+
+**The finding that matters, and it is against me.** `[0,30]` is NOT the "accepts everything"
+degeneracy — its false-accept rate at true 0 is 5.0%, exactly alpha. It is the OPPOSITE failure: it
+tests `H1: elo >= 30`, so **it accepts a genuine +10 candidate only 25% of the time and REJECTS it
+72.5%.** I traded away detection power at precisely the effect size the spec's `e1 = 5` exists to
+catch, and I did it on a cost argument without measuring what the cost bought.
+
+**Why the running A/B is still valid, stated so this is not overclaimed as a crisis.** The falsifier
+reads VERIFY, which is a fixed 96-pair match on an independent seed and does not depend on the gate
+bounds at all. What the bounds affect is whether a real improvement gets PROMOTED — the run's
+progress, not the experiment's primary reading.
+
+**Decision: do not churn the arms again mid-generation.** Switch to spec-compliant `[3,5]` with a cap
+sized ABOVE the distance to the bound (the 4PC lesson: *a cap below the distance to the bound is not
+a test*) at the next natural boundary, once this A/B has resolved. Recorded now, with the numbers,
+so it is a scheduled correction rather than a discovered one.
