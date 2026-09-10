@@ -1510,3 +1510,47 @@ looked like an hour ago.
 this number have come out differently?"*. 6.5% CAN come out differently -- it moves with the
 composition term, and it did, from 19% to 4.0% to 6.5% as better inputs arrived. That is the signature
 of a real estimate rather than a forced one, and it is why this one survives where the others did not.
+
+## The reserve ENGAGED at gen 7 — and the `dsl` counter shows it cannot be credited
+
+First live firing, exactly where predicted (`pool.len() > MU` once the population fills):
+
+    gen 6   pop 6   dsl0
+    gen 7   pop 8   dsl1    ttk["-","-","-","-","P1K1F1","S1K1","P1K1F1","P1S1K2F1"]
+
+That gen-7 population is everything the fix targets: two probe-carriers, **a surviving
+store-carrier**, and a **fused `P1S1K2F1`** — against a baseline of 3:1 probe-skew with 6 of 14
+generations holding ZERO stores.
+
+**And it is not attributable to the reserve.** Per-generation `dsl`:
+
+    gen 3   dsl0    P1S1K2F1
+    gen 4   dsl0    P1S1K2F1
+    gen 5   dsl0    P1S1K2F1  P1S1K2F1
+    gen 6   dsl0    S1K1  P1S1K2F1  P1S1K2F1
+    gen 7   dsl1    P1K1F1  S1K1  P1K1F1  P1S1K2F1
+
+**Fused members from gen 3 and a surviving store-carrier at gen 6, all with the reserve INACTIVE.**
+Six of the seven generations ran the old selector. Whatever makes this arm union-rich where both
+baselines produced zero fused members ever, it is not `EXISTENCE_DIVERSITY_SLOTS` — it acted before
+the flag could.
+
+**So the baseline comparison is CONFOUNDED.** Same config, same generation budget, different seed and
+therefore a different trajectory. The arm differs from the baselines on an axis the experiment does
+not control.
+
+**This is the second time tonight I have nearly credited this fix with a union it did not cause** --
+and the difference is that this time the log said so in one field. That is precisely why the counter
+was added, at the cost of restarting the arm and losing 9 generations. It paid for itself in one
+reading.
+
+### What would actually attribute an effect
+
+* **Within-arm:** compare composition across generations where `dsl` INCREMENTS against those where it
+  does not, inside this same arm. That controls trajectory. It needs many more generations -- there is
+  exactly one post-firing generation now.
+* **Between-arm:** more arms per condition. One flag-on arm against two flag-off arms cannot separate
+  the flag from the seed, which is what these seven generations demonstrate.
+
+**Nothing is claimed for the fix yet, and the falsifier registered before launch still stands:** if
+this arm's probe:store ratio settles near the baseline 3:1, the reserve is not doing the work.
