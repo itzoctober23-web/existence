@@ -551,3 +551,36 @@ pairs = 192 games) plus the gate itself, and measured at roughly 40 minutes. If 
 goes from ~42% toward ~100%, generations get correspondingly slower in wall-clock. A 25-generation
 run becomes an overnight job rather than an afternoon one. That is the right trade — the previous
 speed came from skipping measurements, not from being efficient.
+
+### 2026-09-09 21:08 — two refuted hypotheses in a row, so I checked the HARNESS
+
+The standing rule is that two wrong hypotheses in a row means the harness is wrong, not the subject.
+Tonight had exactly two:
+
+1. **Saturation** — MAIN's numerator pinned at 23/23 so only cost can improve. REFUTED by the `mates`
+   field: the winner read **19**, having sold 4 mates.
+2. **`GUARD_TOL=0` closes the market** — REFUTED by running it: `mate-ok 0` of 8 at gen 3, the search
+   freezes rather than redirects.
+
+**So I checked the harness before proposing a third.** Both refutations arrived FROM instrumentation
+behaving correctly — the `mates` field printed what it was built to print, and the tolerance-0 arm
+measured what it was built to measure. That is the harness working, not failing. But "it produced an
+answer" is not the same as "it can produce the RIGHT answer", so the question worth asking is
+whether this pipeline could recognise a genuine improvement if one appeared.
+
+**It can.** `GRAMMAR.md:617,676` records hash reuse as the only rung ever measured fitter than the
+seed: **0.98x the seed's cost at D=3, identical play**. Scored against today's live configuration:
+
+    seed     f=23  cost 9.235e9  rate 0.002490
+    ab_hash  f=23  cost 9.051e9  rate 0.002541  = 1.0204x best_rate
+    guard f >= 19 ?  PASS        rate > best_rate ?  PASS
+
+A same-play speedup keeps every mate and clears the bar by 2%. **The selection rule is not blind to
+a real improvement** — so the failure is not that the pipeline cannot see one, and my two wrong
+hypotheses were wrong about the MECHANISM rather than about the instrument.
+
+**What that leaves.** The operators have to actually PRODUCE such a candidate. GRAMMAR 9 records that
+hash reuse is two edits that only pay off together — a store nothing reads is pure overhead and a
+probe of an empty table can never hit — so a single mutation reaches neither half. That is a
+reachability question about the mutation operators, not a measurement question about the fitness,
+and it is the one thing tonight's work has NOT touched.
