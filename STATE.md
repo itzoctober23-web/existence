@@ -4940,7 +4940,35 @@ ARCH is not disabled, only made rare: its answer is correct *at the current engi
 right time to re-ask is after a speed change (bytecode, or a cheaper eval), which is exactly when a
 100-generation cadence will re-ask it anyway.
 
-## 2026-09-10 — P1 PLATEAUED after a resolved +96 Elo, and BOTH instruments are compromised
+## 2026-09-10 — P1's accept rate is DECLINING but has NOT stopped (this heading first said PLATEAUED)
+
+**⚠ CORRECTED within the hour, by the run's own continuation.** The section below was written at
+generation 200 on a window reading `161-200: 0/40` and called it a plateau. Seventy generations
+later:
+
+    gens 161-200   0/40   0.00     <- the window that prompted "plateau"
+    gens 201-240   3/40   0.07
+    gens 241-271   2/31
+
+**Accepts resumed.** The DECLINE is real and resolved — first 40 against last 40 is 0.28 → 0.07,
+difference −0.20 ± 0.16 — but the loop has not stopped improving, and "0 in 40" was a transient
+window that a single extra window contradicted. A 40-generation window at a 7% base rate has an
+expected count of 2.8, so seeing 0 is unremarkable; I read a run of noise as a state change.
+
+**And the unsaturated instrument says progress was real.** `netmatch` at depth 4, the declared
+strength standard, current champion against the gen-29 net it resumed from:
+
+    0.708 +/- 0.031   interval [0.677, 0.738], clear of 0.5   -> ~+154 Elo on the logistic scale
+
+That is measured against a STRONG opponent, so it does not saturate the way the origin control
+does, and the tool's own power note puts the effect (0.208) far above the between-seed sd (0.047).
+
+So the state is: **still improving, at a decelerating rate** — not at a ceiling. The caution below
+about not acting on a plateau stands, and now has a second reason: the plateau was not there.
+
+### Original entry, kept with its error intact
+
+#### P1 PLATEAUED after a resolved +96 Elo, and BOTH instruments are compromised
 
 Measured on the resumed run, accept rate by non-overlapping 40-generation window:
 
