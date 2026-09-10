@@ -355,3 +355,22 @@ SPEC_FILTER moves the champion, the conclusion is not "saturation was wrong" —
 surrogate cannot be repaired as a ranking function and should only ever screen. That is a larger
 claim than the one this document currently makes, and it needs its own arm rather than being read
 off the side of this one.
+
+## VERIFIED: VERIFY really is an independent instrument
+
+This document leans on "the gate and VERIFY agree" and on VERIFY being the falsifier's instrument,
+so the independence is worth checking rather than assuming. Traced through `evolve.rs`:
+
+    GATE    seed 0xC0FFEE   ^ g ^ (li<<8)      openings walked from that same seed (evolve.rs:1934-44)
+    VERIFY  seed 0x5EEDBEEF ^ g ^ (li<<8)      openings walked internally, 4 plies (evolve.rs:1997-2001)
+
+Different base constants, so different game streams AND different opening sets — the two matches do
+not replay the same positions. That is what makes "gate REJECT llr -3.18 and VERIFY 0.422 +/-0.027
+both say worse" two readings rather than one restated.
+
+**The honest limit.** They share `g` and `li`, so within a generation the two seeds are
+deterministically related by a fixed XOR. For this PRNG that yields uncorrelated streams, but it is
+not independence in a cryptographic sense, and a systematic defect in `Rng` would hit both. What
+protects the falsifier is more basic: VERIFY is a FIXED 96-pair match whose pair count does not
+depend on the gate's bounds, its stopping rule, or its cap. So the §7.2 bounds question — live and
+unresolved — cannot move the falsifier's reading.
