@@ -79,6 +79,38 @@ pub fn scope_check(p: &Program) -> Result<(), TypeError> {
     Ok(())
 }
 
+/// Every name live anywhere in a function's body, with its type.
+///
+/// `Op::AddFn` needs this: lifting a subtree into a new function turns the subtree's FREE variables
+/// into that function's PARAMETERS, and a parameter needs a declared type.
+///
+/// It leans on a quirk of `check()` that is a defect elsewhere and exactly right here — the loop
+/// binders are inserted into `env` and never removed, so after checking a whole body the env holds
+/// every name the function ever bound. `Set` is the one construct `check` does NOT insert (it only
+/// verifies compatibility against an existing entry), so its targets are added explicitly.
+pub fn env_of(f: &Func, p: &Program) -> HashMap<String, Ty> {
+    let mut env: Env = f.params.iter().cloned().collect();
+    let _ = check(&f.body, p, &mut env);
+    add_set_types(&f.body, p, &mut env);
+    env
+}
+
+fn add_set_types(n: &Node, p: &Program, env: &mut Env) {
+    if let Node::Set(name, v) = n {
+        if !env.contains_key(name) {
+            let mut probe = env.clone();
+            if let Ok(t) = check(v, p, &mut probe) { env.insert(name.clone(), t); }
+        }
+    }
+    for c in kids(n) { add_set_types(c, p, env); }
+}
+
+/// A subtree's type in the context of the function that contains it.
+pub fn type_of_in(n: &Node, f: &Func, p: &Program) -> Option<Ty> {
+    let mut env = env_of(f, p);
+    check(n, p, &mut env).ok()
+}
+
 /// Names a subtree READS but does not itself bind — what a graft of this subtree would need the
 /// destination to supply. `crossover` uses it to pick donors that can legally land.
 pub fn free_vars(n: &Node) -> Vec<String> {

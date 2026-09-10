@@ -38,6 +38,10 @@ impl Rng {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Op {
     Tweak, WrapIf, WrapLoop, Delete, Dup, SwapSiblings, InsertMax, ReplaceConst,
+    /// GRAMMAR 4 `add-fn`: split a subtree into a new function and call it, threading the
+    /// subtree's free variables as parameters. See `try_add_fn`. NOT in `ALL_OPS` until the
+    /// measurement in `tests/add_fn.rs` says it earns a draw -- the `TReadIndex` discipline.
+    AddFn,
     /// Replace an Int leaf with a hash-slot READ: `field(probe(key(p)), <f>)`.
     /// Introduces Probe, Key and Field, none of which any other operator can build.
     ProbeRead,
@@ -57,12 +61,20 @@ pub enum Op {
     /// this operator applied at one position. It is the smallest change that makes any rung
     /// reachable.
     ///
-    /// SCOPE IS HANDLED BY THE TYPE CHECKER, not by tracking it here. Emitting `Var("m")` where no
-    /// `m` is bound types as `Ty::Unit` (typecheck.rs:59), and `Pred` requires `Ty::Move` for its
-    /// first argument (:71), so the candidate fails `want(Unit, Move)` and is discarded. Inside a
-    /// `Foreach` over moves, where m and p are bound, it type-checks. Wasted candidates rather
-    /// than silently wrong ones -- checked before adding this, because an unbound variable that
-    /// merely evaluates to Unit at runtime would have been a silent corruption.
+    /// SCOPE IS HANDLED BY THE TYPE CHECKER -- TRUE SINCE 2026-09-10, AND FALSE WHEN FIRST WRITTEN.
+    ///
+    /// This comment used to argue the candidate "fails `want(Unit, Move)` and is discarded", and
+    /// closed with "checked before adding this, because an unbound variable that merely evaluates to
+    /// Unit at runtime would have been a silent corruption." The reasoning was wrong at the exact
+    /// step it needed to be right: `want` reads `got == expect || got == Ty::Unit`, so it ACCEPTS
+    /// Unit anywhere. Nothing was discarded.
+    ///
+    /// The silent corruption it names is therefore precisely what happened. MEASURED 2026-09-10 by
+    /// `tests/scope_escape.rs`: **26 of 50 applications (52%)** emitted `Var("m")` with no `m` in
+    /// scope, all 26 passed `check_program`, and all 26 reached the GATE to be paid for in games.
+    /// `typecheck::scope_check` now rejects them and the measured rate is 0; the operator still
+    /// applies at its 24 legal sites. The claim in this heading is finally accurate, by a different
+    /// mechanism than the one originally asserted.
     WrapIfPred,
     /// Append ONE in-scope Int expression as a `tread` INDEX: `TRead(t, [..]) -> TRead(t, [.., x])`.
     ///
@@ -126,7 +138,16 @@ pub const ALL_OPS: [Op; 11] = [
 /// field, tables arrive as an `Interp::new` constructor argument, so no mutation can change a
 /// table's contents. Hand-filling the reduction table would make the rung work and the discovery
 /// claim vacuous, which MASTER_PLAN:53 forbids.
-pub const PARKED_OPS: [Op; 1] = [Op::TReadIndex];
+/// `Op::AddFn` is parked for a DIFFERENT reason than TReadIndex, and the distinction matters.
+/// TReadIndex is inert (it cannot change behaviour at all). AddFn is behaviour-PRESERVING by
+/// construction -- it is a refactor -- so every candidate it produces is its parent plus a `Call`
+/// node, which `interp::cost_of` charges 2. Under FITNESS 3 (mates per COST) that is strictly
+/// worse, so it cannot be accepted ON ITS OWN. Its value is as an ENABLER: it is the only operator
+/// that can raise `funcs.len()`, which `shape_reachability.rs` measured at 0 of 858, and
+/// `add-arg` cannot apply to anything until it runs (the entry is pinned to `choose(Pos, Int)`).
+/// UNPARK WHEN there is a reason for a second function to EARN its call -- i.e. once something can
+/// diverge the lifted body from its origin, or the cost model stops charging a bare call.
+pub const PARKED_OPS: [Op; 2] = [Op::TReadIndex, Op::AddFn];
 
 /// Collect mutable positions as a flat index, so an operator can address "the k-th node".
 fn count_nodes(n: &Node) -> usize {
@@ -204,6 +225,10 @@ fn map_nth(n: &Node, k: &mut usize, applied: &mut bool, f: &mut dyn FnMut(&Node)
 /// function of (node, op, r) and therefore reproducible from a seed.
 fn apply_op(n: &Node, op: Op, r: u64) -> Option<Node> {
     match op {
+        // Handled by `try_at` before this point: it adds a FUNCTION, which this
+        // (one node) -> (one node) signature cannot express. Listed so the match stays exhaustive
+        // and a future operator cannot be added without deciding where it belongs.
+        Op::AddFn => None,
         Op::Tweak => match n {
             Node::Const(c) => {
                 let d = (r % 7) as i8 - 3;
@@ -401,6 +426,11 @@ pub fn mutate(p: &Program, op: Op, rng: &mut Rng) -> Option<Program> {
 /// single random position, an operator that matches only a few node types abandons most of the
 /// time, and abandoning is what makes the effective operator set differ from the declared one.
 pub fn mutate_at(p: &Program, op: Op, rng: &mut Rng, fi: usize, k0: usize) -> Option<Program> {
+    // Program-level operators are dispatched here TOO, not only in `try_at`. These are two
+    // independent entry points -- `try_at` is not a wrapper around this one -- and adding the
+    // AddFn branch to only one of them made the operator silently never apply (0 of 200 attempts
+    // per program) while compiling and testing clean.
+    if matches!(op, Op::AddFn) { return try_add_fn(p, fi, k0).0; }
     let mut out = p.clone();
     let mut k = k0;
     let mut applied = false;
@@ -426,9 +456,94 @@ pub fn mutate_at(p: &Program, op: Op, rng: &mut Rng, fi: usize, k0: usize) -> Op
 pub enum Placement { Applied, NoMatch, IllTyped }
 
 /// Like `mutate_at`, but says WHY it failed.
+/// `Ret` unwinds a FRAME, and `Node::Call` converts a callee's `Flow::Ret` into a plain value
+/// (`interp/lib.rs`: `Flow::Ret(v) | Flow::Normal(v) => v`). So lifting a subtree that contains a
+/// `Ret` changes WHICH function returns — the original unwound the enclosing function, the lifted
+/// copy unwinds only the new one. That is a silent semantic change, not a refactor, so `AddFn`
+/// refuses those subtrees.
+fn contains_ret(n: &Node) -> bool {
+    matches!(n, Node::Ret(_)) || children(n).iter().any(|c| contains_ret(c))
+}
+
+/// GRAMMAR 4's `add-fn`: "split a subtree into a new function and call it."
+///
+/// Measured absent for as long as anything has looked — `shape_reachability.rs` reports **0 of 858
+/// applied mutations changed `funcs.len()`**, so a search seeded with a 1-function program could
+/// only ever produce 1-function programs while `typecheck.rs:19` admits 1..4. Three quarters of the
+/// declared program space was not unlikely, it was unreachable.
+///
+/// IT THREADS FREE VARIABLES AS PARAMETERS, which is what makes it correct rather than a hole
+/// generator. A lifted subtree usually reads names its new function does not bind; those become the
+/// function's parameters and the call site passes them. Without that this operator would be the
+/// single richest source of exactly the defect `typecheck::scope_check` was added to stop.
+///
+/// It also subsumes what `add-arg` was needed for HERE. `add-arg` as declared cannot apply to a
+/// 1-function program at all: `check_program` pins the entry to `choose(Pos, Int) -> Move`, so
+/// adding a parameter to `funcs[0]` is rejected by construction, and there is no other function to
+/// add one to until this operator creates it. The two declared-but-missing operators had a
+/// dependency nobody had written down, and this is the one that comes first.
+fn try_add_fn(p: &Program, fi: usize, k0: usize) -> (Option<Program>, Placement) {
+    // GRAMMAR 3 admits 1..4 functions.
+    if p.funcs.len() >= 4 { return (None, Placement::NoMatch); }
+
+    let mut k = k0;
+    let sub = match get_nth(&p.funcs[fi].body, &mut k) { Some(x) => x, None => return (None, Placement::NoMatch) };
+
+    if contains_ret(&sub) { return (None, Placement::NoMatch); }
+    // Lifting a leaf buys a call node and nothing else; lifting the whole body just renames it.
+    if matches!(sub, Node::Const(_) | Node::Var(_) | Node::Nop | Node::Budget) {
+        return (None, Placement::NoMatch);
+    }
+    if sub == p.funcs[fi].body { return (None, Placement::NoMatch); }
+
+    let f = &p.funcs[fi];
+    let ret = match crate::typecheck::type_of_in(&sub, f, p) {
+        Some(t) => t,
+        None => return (None, Placement::IllTyped),
+    };
+    let env = crate::typecheck::env_of(f, p);
+    let mut params: Vec<(String, Ty)> = Vec::new();
+    for name in crate::typecheck::free_vars(&sub) {
+        match env.get(&name) {
+            Some(t) => params.push((name, *t)),
+            // A name with no known type cannot become a typed parameter. Refusing is the whole
+            // point -- guessing one would reintroduce the unbound-read defect by another route.
+            None => return (None, Placement::NoMatch),
+        }
+    }
+
+    let new_idx = p.funcs.len();
+    let call = Node::Call(new_idx, params.iter().map(|(n, _)| Node::Var(n.clone())).collect());
+
+    // SELF-CHECKING SECOND PASS. `get_nth` located the subtree and `map_nth` replaces it, and this
+    // operator is the only caller that needs the two walks to agree on the SAME tree (crossover
+    // reads a donor and writes a recipient, so it never does). Rather than assume they agree, the
+    // replacement closure verifies it landed on the node that was lifted and declines otherwise --
+    // a disagreement becomes a no-op instead of a program that calls a function built from some
+    // other subtree.
+    let mut k2 = k0;
+    let mut applied = false;
+    let mut matched = true;
+    let body = map_nth(&p.funcs[fi].body, &mut k2, &mut applied, &mut |n: &Node| {
+        if *n == sub { Some(call.clone()) } else { matched = false; None }
+    });
+    if !applied || !matched { return (None, Placement::NoMatch); }
+
+    let mut out = p.clone();
+    out.funcs.push(Func { name: format!("lifted{new_idx}"), params, ret, body: sub });
+    out.funcs[fi].body = body;
+    match crate::typecheck::check_program(&out) {
+        Ok(()) => (Some(out), Placement::Applied),
+        Err(_) => (None, Placement::IllTyped),
+    }
+}
+
 pub fn try_at(p: &Program, op: Op, rng: &mut Rng, fi: usize, k0: usize)
     -> (Option<Program>, Placement)
 {
+    // Program-level: it adds a FUNCTION, which `apply_op`'s (one node) -> (one node) signature
+    // cannot express -- the same reason `crossover` is a free function rather than an `Op` arm.
+    if matches!(op, Op::AddFn) { return try_add_fn(p, fi, k0); }
     let mut out = p.clone();
     let mut k = k0;
     let mut applied = false;
