@@ -1580,3 +1580,53 @@ of `dsl0` fused members demonstrated. A seed-matched pair can.
 **Cost:** a sixth arm on four cores. The arms are cost-budgeted rather than wall-clock budgeted
 (`fitness` runs under `cost_cap`, `rate = found*1e6/cost`, no `Instant` in the budgeting path), so the
 extra contention slows every arm and biases none.
+
+## The paired control was running a DIFFERENT BINARY — and the identity check PASSED anyway
+
+The pre-registered guard on the diversity-flag experiment was: *generations 1-6 must be byte-identical
+between treatment and control, because the treatment runs `dsl0` throughout those and the selftest
+proves `dslots=0` is identical to `pool.truncate(mu)`.* Ran it over the full common prefix:
+
+    *** BYTE-IDENTICAL over all 11 lines (raw bytes, no field excluded) ***
+    positive control (compare the log against itself shifted one gen): correctly reports DIFFER
+
+So the check passed, and its ability to fail was demonstrated. **It was still meaningless**, because
+the two arms were not running the same code:
+
+    treatment pid 257385   inode 7922582  size 1012944   exe marked (deleted)
+    control   pid 615676   inode 7925297  size 1012872
+    on-disk   evolve       inode 7925297  mtime 05:22:38
+
+Treatment launched 04:57:23, control 05:35:23, and `target/release/examples/evolve` was **rebuilt at
+05:22:38, between them** — carrying 720d9cf, which edited `evolve.rs`. The path in both cmdlines is
+the same string, so `ps` shows two arms that look paired. The kernel disagrees: the running treatment
+holds a deleted inode, 72 bytes apart from what the control loaded.
+
+**Why the passing check is the dangerous part.** Had the arms diverged I would have investigated and
+found this. Agreement is what let it through: identical output over 11 lines reads as "the flag is
+inert at dsl0, as pre-registered", when it equally supports "both builds happen to agree on the code
+path exercised so far". A confound that produces AGREEMENT is invisible to a check that is looking
+for DISAGREEMENT.
+
+**The available argument was not good enough.** 720d9cf added `#[cfg(test)] mod selftest_gate` and
+split `selftest()` into `selftest_inner() -> usize` plus a wrapper. `#[cfg(test)]` compiles out of a
+release example, and the arm's code path (`evolve 25 8 4 10 3 10`) never calls selftest, so the edit
+*should* be inert here. That is an explanation, not a measurement, and the 72-byte delta is real.
+
+**Fix — recover the exact binary rather than reason about it.** A deleted inode stays reachable
+through any live handle, and the running process has one:
+
+    cp /proc/257385/exe evolve_PINNED
+    recovered : 1529d29f3a98dd21  1012944   == treatment's live image
+    on-disk   : 165292a1bf9f5870  1012872   != it
+
+Killed the control (identity confirmed first by exe, cmdline, stdout target, and absence of the env
+var — not by a pgrep pattern), moved its 11-line log aside as `VOID_paired_off_wrongbinary.log`, and
+relaunched from `evolve_PINNED` at the same nice 19 / cores 12-15. Both arms now report sha
+`1529d29f3a98dd21` and differ **only** by `EXISTENCE_DIVERSITY_SLOTS`. Cost: 11 minutes.
+
+**Generalisation.** Two processes sharing a cmdline string are not running the same program; only a
+shared **inode** proves that. Any long-running A/B where the arms were launched at different times
+and the tree was rebuilt in between is void by default. `readlink /proc/PID/exe` printing `(deleted)`
+is the tell, and it is free. This is [[never-rebuild-under-a-running-job]] in its quiet form: the
+rebuild did not kill the job, it silently unpaired the experiment.
