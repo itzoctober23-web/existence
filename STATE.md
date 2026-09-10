@@ -4939,3 +4939,53 @@ checksum-verified against a pre-shutdown snapshot.
 ARCH is not disabled, only made rare: its answer is correct *at the current engine speed*, and the
 right time to re-ask is after a speed change (bytecode, or a cheaper eval), which is exactly when a
 100-generation cadence will re-ask it anyway.
+
+## 2026-09-10 — P1 PLATEAUED after a resolved +96 Elo, and BOTH instruments are compromised
+
+Measured on the resumed run, accept rate by non-overlapping 40-generation window:
+
+| generations | accepts | rate |
+|---|---|---|
+| 1–40 | 11/40 | 0.28 ± 0.14 |
+| 41–80 | 7/40 | 0.17 ± 0.12 |
+| 81–120 | 1/40 | 0.03 ± 0.05 |
+| 121–160 | 7/40 | 0.17 ± 0.12 |
+| 161–200 | **0/40** | **0.00** |
+
+First 40 against last 40: **0.28 → 0.05, difference −0.23 ± 0.15, RESOLVED.** The mean gate rate
+fell from 0.5136 to **0.5018** — candidates are now arithmetically indistinguishable from the
+champion they were trained on.
+
+**This is not the MASTER_PLAN kill condition.** That fires on "no iteration-over-iteration gain
+across iterations 4-8", and this run produced a resolved +0.075 (≈ +96 Elo) between the gen-10 and
+gen-100 controls. It is a plateau AFTER progress, which is a different thing and wants a different
+response.
+
+### The part that stops this being a clean conclusion
+
+**Both instruments that report it are known-compromised at exactly this point.**
+
+* The **origin control** reads 0.873, and `instrument_saturation_RESULT.md` records that metric
+  REVERSING SIGN at 0.861 and 0.967. The champion is inside the band where it has already been
+  wrong twice.
+* The **per-generation gate** is near-blind between similar nets by construction — `horizon_ab2.sh`
+  documents two similar nets at depth 2 returning 0.500 ± 0.007 on pairs a fixed anchor separates
+  easily, and `acceptance_floor_RESULT.md` puts the 12-game version's power near zero.
+
+So "0 accepts in 40 generations" is consistent with a real plateau AND with continued progress that
+neither instrument can see. Those are opposite conclusions and nothing here separates them.
+
+### What separates them
+
+A head-to-head against a RECENT ANCESTOR at depth 4, which is the project's declared strength
+standard and does not saturate against a strong opponent. Running now: current champion vs the
+gen-29 net it resumed from. Snapshots kept for the ladder: gen14, gen29, gen200.
+
+The finer question — whether the LAST 40 generations bought anything — needs a rung between them,
+which this run cannot supply because it is executing a binary pinned before the ladder-rung change.
+gen200 is snapshotted; the next comparison point is a later snapshot against it.
+
+**Do not act on the plateau until it is confirmed by an instrument that is not saturated.** Every
+documented lever (capacity, depth, blend, horizon, draws) has already been measured and closed, so
+the cost of a wrong plateau call here is high: it would send the next work at a ceiling that may
+not exist.
