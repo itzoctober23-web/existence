@@ -5,7 +5,7 @@ against a null candidate burns the full 400-pair cap **63.8% of the time and ret
 Widening to `[0,30]` takes cap-burns to **0.0%** and cuts the median pairs-to-decision from **274 to
 55**, while keeping false-accepts at 4.8% (α=0.05) and power at 81.8% @ +25 Elo / 98.5% @ +50.
 
-**This is a deviation from FITNESS §7.2 and is flagged, not settled — see the last section.**
+**This deviates from FITNESS §7.2, and reading §7.2 properly showed the deviation costs POWER, not just compliance: `[0,30]` rejects a genuine +10 Elo candidate 72.5% of the time. Correction scheduled — see the last section.**
 
 ## Why the sequential gate was slow
 
@@ -94,15 +94,21 @@ the opposite failure: a random eval shuffling to a repetition. Same symptom, dif
 section's remedy does not transfer. **Do not re-run the material-gap book; this is the do-not-regress
 entry.**
 
-## OPEN: this contradicts FITNESS §7.2
+## ~~OPEN: this contradicts FITNESS §7.2~~ — SUPERSEDED, see the next section
 
-§7.2 specifies width `e1-e0 = 2` Elo with a bootstrap of `e1=5` (`[3,5]`) until 20 acceptances.
-`[0,30]` is width 30. The measured reason for deviating: `[3,5]` needs ~2,673 pairs (~12h) to accept
-a +10 Elo candidate, and `[0,10]` burns the cap 63.8% of the time. Neither is affordable at
-iteration zero, where the live question is "did it learn to mate at all", not "is it +10 Elo".
+This section argued that `[3,5]` "needs ~2,673 pairs (~12h) to accept a +10 Elo candidate" and that
+therefore "neither is affordable at iteration zero". The pair count was close (measured: 2,687), but
+the CONCLUSION was wrong in two ways, and the next section replaces it:
 
-Running `[0,30]` on the two SPRT arms pending a decision on §7.2. The fixed-gate arms on cores 12/14
-are untouched as the old-gate baseline.
+- **Affordability was computed on the wrong candidate.** Every candidate actually observed sits at
+  -25 to -55 Elo, which `[3,5]` rejects in 255-591 pairs, i.e. 1.4-3.3 h. The 12-hour figure is the
+  cost of a candidate near the bound — the case the spec explicitly says deserves thousands of pairs.
+- **It never priced what `[0,30]` gives up.** `[0,30]` tests `H1: elo >= 30` and rejects a genuine
+  +10 candidate 72.5% of the time.
+
+Its arm description is also stale: cores 12/14 have been HARD_FITNESS treatment arms since 19:47,
+not fixed-gate baselines. Kept rather than deleted, because a superseded argument with its error
+named is more useful to a later reader than a clean page.
 
 ## THE FITNESS §7.2 DEVIATION, read properly — and my cost argument was half wrong
 
