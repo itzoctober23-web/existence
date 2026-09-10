@@ -3790,3 +3790,36 @@ while also scoring on the HARD set** is the first thing seen all session that is
 by cheapness — the hard set is the non-saturated component, so a candidate scoring on it did not get
 there by cutting cost. It was `gated-skip` (already tried), so it is not a new result; it is a sign
 that the filter's population reaches places the ranking's does not.
+
+## 2026-09-10 — the SPEC_FILTER arm costs ~10x per generation, and that is the mechanism, not overhead
+
+Measured from `/proc` rather than inferred:
+
+    treatment (SPEC_FILTER on)   4:49:45 CPU  at generation 6   ->  ~48 min/generation
+    control   (SPEC_FILTER off)  0:08:53 CPU  at generation 2   ->  ~4.4 min/generation
+
+**The ranking rule is fast because it does nothing.** Its log line is `..none[above 0, gated-skip 0]`
+at every generation: no candidate clears strict `rate > best_rate`, so no candidate is gated and no
+games are played. Selecting nothing costs nothing.
+
+The filter admits candidates, and admitted candidates get GATED — 6 real gates and 5 no-op vetoes by
+generation 6, with SPRT running to 400 pairs. That is where the 10x goes. Some of the gap is
+contention (the treatment ran while 7-8 arms shared four cores, the control while 6 did), but
+contention cannot explain an order of magnitude when both are pinned to the same cores at the same
+nice level.
+
+**Consequence for reading this A/B, and it is not a small one.** "Which arm reaches a higher generation"
+is the wrong comparison: the control will out-run the treatment on generations precisely BECAUSE it is
+doing less. Any honest comparison has to be per unit COMPUTE, or at matched generation counts with the
+compute difference stated. A control that reaches generation 25 having never gated a single candidate
+has not out-performed a treatment stuck at generation 12 that gated eleven times.
+
+**And it sharpens what the filter actually buys.** §3's filter does not make the search cheaper or
+faster — it converts an idle search into an expensive one. The claim on its behalf can only ever be
+that the games bought are worth their price. On the evidence so far they have not been: 6 gates, 0
+acceptances. What they HAVE bought is the no-op drift path (5 vetoes, 0 games spent), which is free,
+and that remains the part with a mechanism behind it.
+
+**No-op vetoes are the cheap half and are worth separating in any future accounting:** a no-op veto
+advances the population without playing a single game, while a real gate costs up to 400 pairs to
+return a rejection. If the filter helps, the mechanism is likely the free half, not the expensive one.
