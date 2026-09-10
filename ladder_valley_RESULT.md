@@ -1625,8 +1625,12 @@ var — not by a pgrep pattern), moved its 11-line log aside as `VOID_paired_off
 relaunched from `evolve_PINNED` at the same nice 19 / cores 12-15. Both arms now report sha
 `1529d29f3a98dd21` and differ **only** by `EXISTENCE_DIVERSITY_SLOTS`. Cost: 11 minutes.
 
-**Generalisation.** Two processes sharing a cmdline string are not running the same program; only a
-shared **inode** proves that. Any long-running A/B where the arms were launched at different times
+**Generalisation.** Two processes sharing a cmdline string are not running the same program. The
+correct key is the **content hash of `/proc/PID/exe`**, not the inode -- I wrote "only a shared inode
+proves it" here and my own sweep falsified it minutes later: the repaired diversity pair holds inodes
+100616 and 7922582, two separate files, and is sound because the bytes match. A shared inode is
+sufficient and not necessary; equal content is the actual criterion. Sweeping all six running arms by
+sha found no other mismatch (composition s1/s2 correctly share one image). Any long-running A/B where the arms were launched at different times
 and the tree was rebuilt in between is void by default. `readlink /proc/PID/exe` printing `(deleted)`
 is the tell, and it is free. This is [[never-rebuild-under-a-running-job]] in its quiet form: the
 rebuild did not kill the job, it silently unpaired the experiment.
