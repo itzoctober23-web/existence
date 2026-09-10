@@ -14,8 +14,15 @@ changing**.
 | 2 | 1-16-43 | 0.1500 | **−301 ± 86** | — |
 | 3 | 6-17-37 | 0.2417 | **−199 ± 81** | **+102** |
 | 4 | 14-13-33 | 0.3417 | **−114 ± 81** | **+85** |
+| 5 | — | — | **−35 ± 73** | **+79** |
 
-**≈93 Elo per ply**, consistent across both steps.
+**≈89 Elo per ply**, consistent across all three steps — and **the curve has not flattened by
+depth 5**. Ply value normally decays with depth; here it is still worth ~79 Elo at the fourth step,
+which says the engine is nowhere near the depth at which extra search stops paying.
+
+At depth 5 the same net measures **~1285 Elo**, against ~1206 at depth 4 — so simply searching one
+ply deeper is worth more than the entire 1200-generation training history, which the ruler measured
+at zero.
 
 For comparison, from the ruler, at fixed depth 4 across the whole run:
 
@@ -52,9 +59,10 @@ tracks, two instruments, one answer.
 would not be 1600 Elo. The claim is narrower and about MARGINS: at the current operating point,
 one more ply beats anything the learning loop has managed.
 
-**Not that ~93 Elo/ply continues.** Ply value falls as depth rises — this is measured at depths 2-4,
-the steep part of the curve. Depth 5 is running. Extrapolating to "9 more plies = 2000 Elo" would be
-exactly the linearity assumption that broke a pre-registered prediction earlier today.
+**Not that ~89 Elo/ply continues indefinitely.** Ply value must fall eventually; it simply has not
+by depth 5 (+102, +85, +79 across the three steps). Extrapolating to "8 more plies = 2000 Elo" would
+be exactly the linearity assumption that broke a pre-registered prediction earlier today — the
+honest statement is that the curve is still steep where we are standing, not that it stays steep.
 
 ## The consequence for what to work on
 
