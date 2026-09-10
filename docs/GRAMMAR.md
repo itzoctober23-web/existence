@@ -600,6 +600,29 @@ budget). Rung 7 (table-driven reduction) is **WRITTEN BUT INERT** — corrected 
 
 What it needs is NOT hand-written LMR values: this section's own wording is that `R` is "a LEARNED table" whose contents "are meant to be searched, so that 'reduce late moves more' is something the loop DISCOVERS rather than a rule written in by hand". So the missing piece is a table 3 that EXISTS and is REACHABLE BY MUTATION, not one filled in by me. `rung7_table.rs::plays_identically_to_the_seed` is the canary and MUST START FAILING when that lands; a rung indistinguishable from the seed is inert by definition.
 
+**And that missing piece is bigger than a population step — measured 2026-09-10.** `R` is not merely
+unpopulated; it is **outside the search space entirely**, for two independent reasons:
+
+1. **Tables are not in the genome.** `Program { funcs, lineage }` (`ast.rs:173`) has no table field.
+   Tables arrive as a CONSTRUCTOR ARGUMENT — `Interp::new(net, tables: Vec<i64>)` (`lib.rs:511`) —
+   supplied by whoever runs the program. The evolution loop mutates `Program`s, so **no mutation can
+   ever change a table's contents.** Across every `Interp::new` call site in the repo the widest
+   vector passed is three entries; not one passes a fourth.
+2. **`TRead` itself is unreachable.** `tests/reachability.rs` already records that "no operator
+   constructs a TRead or appends an argument to one", so even the READ could not be introduced by
+   the operator set.
+
+So GRAMMAR 9's requirement that "reduce late moves more" be "something the loop DISCOVERS rather than
+a rule written in by hand" is **not satisfiable as the system is currently structured**, and no
+amount of running the search will satisfy it. Making rung 7 discoverable is an ARCHITECTURAL change —
+tables would have to become part of `Program` (a genome extension, with its own mutation operators)
+rather than a runtime parameter. Hand-filling `R` would produce a working rung and a vacuous
+discovery claim, which is the trade MASTER_PLAN line 53 exists to forbid.
+
+**Not claimed:** that the genome extension is the right call, or worth its cost. Only that the
+current gap is architectural rather than a missing initialiser, which is what the previous wording
+("still unwritten") and the test's own framing ("nothing populates it") both understate.
+
 The capture-extension rung is the expressibility check MASTER_PLAN item 2 asks for -- "verify
 alpha-beta, hash reuse, ID, and qsearch are expressible in the grammar", using the test eval
 "for this rig only". It is NOT seeding qsearch: MASTER_PLAN line 53 requires the SEED to hold
