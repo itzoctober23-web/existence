@@ -71,6 +71,64 @@ fn mate_set(n: usize, seed: u64) -> Vec<Position> {
     out
 }
 
+/// MATE-IN-TWO set: positions with NO mate in one, where some move FORCES mate next turn.
+///
+/// Copied from `interp/examples/mate_surrogate_probe.rs` (mate_in_two_set / score_forcing) rather
+/// than reinvented -- that code is already the project's verified definition, and a lookalike set
+/// would silently be measuring something else.
+///
+/// WHY IT MATTERS HERE. On the mate-1 set, 4 of 5 programs score 60/60: the surrogate's numerator
+/// SATURATES, so mates/Mcost degenerates into a pure cost race and ranks the strongest program
+/// last (surrogate_inverts_RESULT.md). Rejecting positions that have a mate in one is exactly what
+/// stops depth-1 from solving everything, which is what restores variance to the numerator.
+/// ladder.rs measured the difference directly: mate-in-1 depth1 80/80, but mate-in-2 depth1 17/40
+/// against depth2 40/40.
+fn mate_in_two_set(n: usize, cap: usize, seed: u64) -> Vec<(Position, board::Move)> {
+    let mut rng: u64 = seed | 1;
+    let mut out = Vec::new();
+    let mut tries = 0;
+    while out.len() < n && tries < cap {
+        tries += 1;
+        let mut p = Position::startpos();
+        for _ in 0..(10 + rng % 40) {
+            let l = p.legal_moves();
+            if l.is_empty() { break; }
+            rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
+            p.make_move(l.as_slice()[(rng % l.len() as u64) as usize]);
+        }
+        if p.legal_moves().is_empty() { continue; }
+        let mut has_m1 = false;
+        for &m in p.legal_moves().as_slice() {
+            let u = p.make_move(m);
+            if p.legal_moves().is_empty() && p.outcome() == Outcome::Loss { has_m1 = true; }
+            p.unmake_move(m, u);
+            if has_m1 { break; }
+        }
+        if has_m1 { continue; }
+        let moves: Vec<_> = p.legal_moves().as_slice().to_vec();
+        for m in moves {
+            let u = p.make_move(m);
+            let replies: Vec<_> = p.legal_moves().as_slice().to_vec();
+            let mut all_lose = !replies.is_empty();
+            for r in replies {
+                let u2 = p.make_move(r);
+                let mut mates = false;
+                for &m2 in p.legal_moves().as_slice() {
+                    let u3 = p.make_move(m2);
+                    if p.legal_moves().is_empty() && p.outcome() == Outcome::Loss { mates = true; }
+                    p.unmake_move(m2, u3);
+                    if mates { break; }
+                }
+                p.unmake_move(r, u2);
+                if !mates { all_lose = false; break; }
+            }
+            p.unmake_move(m, u);
+            if all_lose { out.push((p.clone(), m)); break; }
+        }
+    }
+    out
+}
+
 fn main() {
     let pairs: usize = arg("--pairs", 24);
     let budget: i64 = arg("--budget", 256);
@@ -109,8 +167,16 @@ fn main() {
     println!("  the SAME net and budget on both sides of every match, so this ranks PROGRAMS\n");
 
     // ---- 1. the surrogate: FITNESS 3 mates-per-cost -------------------------------------------
-    let set = mate_set(nmates, seed);
-    println!("  mate-1 set: {} positions\n", set.len());
+    let hard = std::env::args().any(|x| x == "--hard");
+    let (set, hard_set) = if hard {
+        let h = mate_in_two_set(nmates, 400_000, seed);
+        println!("  MATE-2 set: {} positions (no mate-in-1 exists, so depth 1 cannot solve them)\n", h.len());
+        (Vec::new(), h)
+    } else {
+        let m = mate_set(nmates, seed);
+        println!("  mate-1 set: {} positions\n", m.len());
+        (m, Vec::new())
+    };
     // Scoring loop copied from ladder.rs rather than reinvented: same Interp construction, same
     // `it.run(prog, pos, budget)`, same mate test. A lookalike would make the number here a
     // different metric from the one the search optimises, which is the whole point of comparing it.
@@ -118,19 +184,29 @@ fn main() {
     for (i, (name, prog)) in progs.iter().enumerate() {
         let mut it = Interp::new(&net, tables.clone());
         let (mut found, mut cost) = (0u32, 0u64);
-        for p in &set {
-            let mv = it.run(prog, p, budget);
-            cost += it.cost;
-            if mv != board::types::MOVE_NONE {
-                let mut q = p.clone();
-                if let Some(m) = q.legal_moves().as_slice().iter().copied().find(|x| *x == mv) {
-                    q.make_move(m);
-                    if q.legal_moves().is_empty() && q.outcome() == Outcome::Loss { found += 1; }
+        let total = if hard { hard_set.len() } else { set.len() };
+        if hard {
+            // Credit the FORCING move, not a mate on this ply -- mate_surrogate_probe.rs's rule.
+            for (p, best) in &hard_set {
+                let mv = it.run(prog, p, budget);
+                cost += it.cost;
+                if mv == *best { found += 1; }
+            }
+        } else {
+            for p in &set {
+                let mv = it.run(prog, p, budget);
+                cost += it.cost;
+                if mv != board::types::MOVE_NONE {
+                    let mut q = p.clone();
+                    if let Some(m) = q.legal_moves().as_slice().iter().copied().find(|x| *x == mv) {
+                        q.make_move(m);
+                        if q.legal_moves().is_empty() && q.outcome() == Outcome::Loss { found += 1; }
+                    }
                 }
             }
         }
         let rate = found as f64 / (cost as f64 / 1e6).max(1e-9);
-        println!("  {:<46} {:>3}/{:<3} mates  cost {:>13}  {:.6} mates/Mcost", name, found, set.len(), cost, rate);
+        println!("  {:<46} {:>3}/{:<3} solved cost {:>13}  {:.6} per Mcost", name, found, total, cost, rate);
         sur.push((i, rate, found, cost));
     }
 
