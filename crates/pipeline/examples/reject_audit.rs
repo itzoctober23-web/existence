@@ -130,7 +130,10 @@ fn main() {
     let pooled = gate::Score { wins: tw, draws: td, losses: tl, pent: tp };
     let r = pooled.pent_rate();
     let c = pooled.ci95();
-    println!("\n  === POOLED over {} rejects: {}W-{}D-{}L, {} games ===", rates.len(), tw, td, tl, pooled.games());
+    // Prefix-aware for the same reason the header is: printing "rejects" over accept data mislabels
+    // the verdict line itself, which is the line a conclusion gets read off.
+    let what = if prefix == "acc" { "accepts" } else { "rejects" };
+    println!("\n  === POOLED over {} {what}: {}W-{}D-{}L, {} games ===", rates.len(), tw, td, tl, pooled.games());
     println!("  rate {r:.4} +/- {c:.4}   interval [{:.4}, {:.4}]", r - c, r + c);
 
     // BETWEEN-CANDIDATE SPREAD, which the pooled interval does NOT contain.
