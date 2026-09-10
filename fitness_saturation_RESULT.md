@@ -75,12 +75,18 @@ be bought with bloat. Its precondition was already measured as met (20/39 lineag
 a member above zero; seed is 0/8 by construction), and today's independent count agrees: 93 of 287
 gen-lines carry a non-zero hard score.
 
-It defaults OFF and **no arm had ever enabled it.** Now running as a one-variable A/B:
+It defaults OFF and **no arm had ever enabled it.** Now running as a one-variable A/B on TWO seeds,
+because a single run seed is a lottery and the falsifier is a small-n count:
 
-    core 12  EXISTENCE_HARD_FITNESS=1, SPRT [0,30]   <- treatment   gate_hardfit_s1.log
-    core 15  SPRT [0,30], identical otherwise        <- control     gate_sprt30_s1.log
-    core 13  SPRT [0,30] + EPS 0.10                                 gate_sprt30_eps_s1.log
-    core 14  fixed 6-pair gate                       <- old-gate baseline
+    core 12  HARD_FITNESS=1, seed 1, SPRT [0,30]   <- treatment      gate_hardfit_s1.log
+    core 14  HARD_FITNESS=1, seed 2, SPRT [0,30]   <- treatment      gate_hardfit_s2.log
+    core 15  SPRT [0,30], seed 1, no hard fitness  <- live control   gate_sprt30_s1.log
+    core 13  SPRT [0,30] + EPS 0.10, seed 1        <- directive #3   gate_sprt30_eps_s1.log
+
+Core 14 previously held a fixed 6-pair gate as an old-gate baseline. That question is answered and no
+longer earns a core: the old gate is 0/203 historically, produced 3 more REJECTs today, and
+`sprt_smoke` settled the new gate directly. The control side of the comparison is the live seed-1 arm
+plus the 3 historical readings already tabulated above, which span seeds 1 and 2.
 
 The prediction to falsify: if saturation is the cause, the treatment arm's MAIN candidates should
 stop being resolved-worse by VERIFY. If they are still resolved worse, saturation is NOT the
