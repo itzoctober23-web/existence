@@ -4842,3 +4842,41 @@ first."
 **So this is a real open finding, not a broken test.** The guard tolerance the project ships admits
 a specimen the project has now observed. Recorded here rather than acted on, because acting on it
 means resolving the dilemma, and that needs a measurement rather than a preference.
+
+## 2026-09-10 — P1's origin control was 96% of its wall clock
+
+The loop's defaults are `--control-every 10 --control-pairs 1000`. Measured on the live run:
+
+| | measured |
+|---|---|
+| one generation (datagen + train + 224-pair gate) | **2.9s** (14 gens, range 2-4s) |
+| the gen-10 origin control (1000 pairs = 2000 games) | **~13 min** |
+| so one cycle of 10 generations | 30s of learning + 780s of control |
+| **fraction of wall clock spent on the control** | **96.3%** |
+| generations/hour as configured | **44** |
+| generations/hour with the control off | **1200** |
+
+The cost is not mysterious once the loop prints it: the control plays 2000 games at the clock
+budget the header states, `7061 nodes x 334ns = 2.36ms per move`. At ~100 plies that is ~0.24s a
+game and ~8-13 minutes for the match.
+
+**What the control bought.** A real number, and the strongest evidence P1 is learning:
+`control vs origin @gen 10: 1472W-249D-279L, rate 0.798 +/- 0.016` over 2000 games — resolved far
+clear of 0.5.
+
+**Why 1000 pairs is over-powered for it.** ci95 scales as 1/sqrt(n): 1000 pairs gives ±0.016 on an
+effect of +0.298. 400 pairs gives ~±0.025, still overwhelmingly resolved, at 40% of the cost. And
+`instrument_saturation_RESULT.md` records that this metric SATURATES and has reversed two signs at
+the top of its range (0.861 and 0.967), so buying a tighter interval on it has diminishing value
+exactly where the champion is heading.
+
+**Action.** Resumed the run with `--control-every 40 --control-pairs 400`, which cuts control cost
+per generation ~10x while keeping a resolved reading. The champion was snapshotted first and passed
+back via `--init`, so no learning was lost — verified by checksum that the snapshot equalled
+`champion.net` after shutdown, i.e. not a torn write.
+
+**A side effect worth recording, because it is the flaw already documented above.** Resuming
+restarts the generation counter, and the horizon schedule is `10 + (g-1)*5` — tied to the COUNTER,
+not to strength. So the resumed run begins at horizon 10 against a champion that is far from
+iteration zero. MASTER_PLAN says the horizon "should widen with strength rather than being fixed",
+and this is what "declared, not learned" costs in practice: the schedule cannot survive a resume.
