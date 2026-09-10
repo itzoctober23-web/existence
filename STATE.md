@@ -4718,3 +4718,40 @@ args, same seed, differing only in the flag. That control is already running.
 set-dependent. **A conclusion measured in one regime and recorded without that qualifier is the same
 defect as the depth-6 node counts** that ranked two 4PC parameters backwards today — and it is the
 third instance of that shape in one session.
+
+## 2026-09-10 — reallocated CPU from three served arms to the diagnosed-bottleneck test
+
+Nine arms were sharing four cores at ~41% cpu-stall while `gate_gateveto` — the only arm testing the
+mechanism today's diagnosis identifies as the binding constraint — sat at generation 1 after 30
+minutes. That is the wrong allocation, so I reviewed what each arm still owed and stopped three whose
+purpose was already served.
+
+**Stopped, with what each had already delivered:**
+
+* `gate_composition_s1` / `s2` (gen 14/25, 7.6h and 6.8h CPU) — a same-config seed pair. They
+  delivered the project's **noise floor**: seed variance of 2.41 se on `distinct` and 3.72 se on gate
+  rate, plus the `acf1 = +0.50` autocorrelation measurement. Those numbers invalidated three of my own
+  readings today and are the reason every conclusion now rests on counts. Further generations refine a
+  floor that is already sharp enough to have done its work.
+* `gate_sprt30_s1` (gen 11/25, 11.4h CPU) — a **singleton with no matched control**, so its outcome
+  can never be compared to anything. It delivered the 96-pair VERIFY data (MAIN 8/8 resolved WORSE,
+  MCTS 6/6 genuine ties) that established the gate is not underpowered, and contributed 22 of the 78
+  classified gate calls. Its remaining value is more of the same.
+
+**Kept:** `gate_gateveto` (acceptance rule — the diagnosed bottleneck), `gate_set_mateheavy` (isolates
+set composition, the last confound on the hard-set finding), and the four filter cells
+(`filter_only`, `div_x_filter`, `specfilter_s1`, `specfilter_CONTROL`).
+
+**Killed by verified identity, not by pattern.** Each PID was confirmed on three independent facts —
+`readlink /proc/PID/exe` basename, the `stdout` target resolving to the expected log, and the argv —
+with `$$`/`$PPID` excluded, before any signal. Today has produced two self-match incidents and one
+near-miss on a live supervisor; a pattern kill here would have been the fourth.
+
+**Result: 9 arms -> 6, cpu-stall 41% -> 37%.** The surviving arms get roughly 50% more CPU each, which
+matters most for `gate_gateveto` at gen 1 of 25.
+
+**Honest note on what this costs.** Three arms lose their remaining generations, and the composition
+pair in particular would have kept sharpening the noise floor. The trade is that the floor is a
+MEASUREMENT TOOL while `gate_gateveto` is the EXPERIMENT the whole day's diagnosis points at — and a
+tool sharp enough to have already killed three wrong conclusions does not need further sharpening
+while the question it was built to serve goes unanswered.
