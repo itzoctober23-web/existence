@@ -58,3 +58,37 @@ verified against `ab_hash`.
   shown the case §3 was actually meant to admit — a candidate that is slightly WORSE on the surrogate
   but better in games. It may still produce one; it has only reached generation 2.
 * INCONCLUSIVE is the gate behaving correctly. Nothing here indicts the gate.
+
+## 2026-09-10 — FIXED and verified both ways: the no-op VETO
+
+`evolve.rs` now vetoes a candidate that plays IDENTICALLY to the champion and is not cheaper, before
+any games are played. PATH 1 already accepted identical-and-cheaper; this closes the case it left.
+
+**POSITIVE control — same seed and flag as the arm that showed the waste** (`EXISTENCE_SPEC_FILTER=1
+EXISTENCE_EVOLVE_SEED=1`):
+
+    gen 1 MAIN  ..no-op VETO: plays IDENTICALLY on all 31 guard positions at 0.002490
+                vs champion 0.002490 -- gate skipped, 0 games spent
+    gen 1 MCTS  ..no-op VETO: plays IDENTICALLY on all 31 guard positions at 0.001406
+                vs champion 0.001406 -- gate skipped, 0 games spent
+
+Against what that same generation did before:
+
+    gen 1 MAIN  gate INCONCLUSIVE llr +0.00 (60 games W-D-L 8-44-8)  mates 23  surrogate 0.002490
+    gen 1 MCTS  gate INCONCLUSIVE llr +0.00 (60 games W-D-L 2-56-2)  mates 15  surrogate 0.001406
+
+**Same surrogates, same candidates, 120 games and 192 VERIFY pairs saved in generation 1 alone.**
+
+**NEGATIVE control — the default strict path is untouched.** A 2-generation strict run emits ZERO
+veto lines, because the strict filter picks only on `rate > best_rate`, which excludes equality by
+construction. So a no-op can never be picked there and the veto is unreachable. The control, veto and
+composition arms stay byte-comparable, which is what made it safe to land mid-experiment.
+
+**A negative control alone would not have been verification.** "Zero vetoes on the strict path" is
+equally consistent with a working veto and with one that never fires at all. It needed the positive
+half, and the first attempt at that half was run on the WRONG TRAJECTORY — without
+`EXISTENCE_EVOLVE_SEED=1` the run drew a mate-seller (`mates 19`, surrogate 0.002910) rather than a
+tie, so the veto correctly did not fire and proved nothing. Re-run on seed 1, it fired immediately.
+
+**It is a VETO, not a rejection:** the candidate is not recorded in `gated`, because nothing was
+learned about it. It simply never should have cost games.
