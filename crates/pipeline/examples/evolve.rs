@@ -1690,18 +1690,41 @@ fn main() {
     let n1: usize = std::env::args().nth(3).and_then(|s| s.parse().ok()).unwrap_or(40);
     let n2: usize = std::env::args().nth(4).and_then(|s| s.parse().ok()).unwrap_or(20);
     let depth: i64 = std::env::args().nth(5).and_then(|s| s.parse().ok()).unwrap_or(3);
+    // n3 AND gate_pairs ARE PARSED HERE, BEFORE ANY SET IS BUILT, so the echo below can run first.
+    // They used to be read further down, interleaved with construction; parsing is side-effect-free
+    // so hoisting them changes nothing except WHEN the values are known.
+    let n3: usize = std::env::args().nth(6).and_then(|s| s.parse().ok()).unwrap_or(5);
+    let gate_pairs: usize = std::env::args().nth(7).and_then(|s| s.parse().ok()).unwrap_or(6);
+    // ECHO THE DECODED POSITIONAL ARGS *BEFORE* THE EXPENSIVE WORK.
+    //
+    // The header used to report only the ENV knobs (HARD_FITNESS, SPEC_FILTER) and none of the
+    // POSITIONAL ones, so two runs with completely different set composition and search depth
+    // printed byte-identical headers. That cost a real arm on 2026-09-09: the order is NOT
+    // contiguous --
+    //     evolve <gens> <pop> <n1> <n2> <DEPTH> <n3> <gate_pairs>
+    // because n3 was appended after depth, while the `ttgraft` subcommand in this same binary takes
+    // (want, n1, n2, n3, depth), which IS. I carried the ttgraft order over and launched
+    // `25 8 4 10 10 3` intending depth 3 / n3 10, and actually ran DEPTH 10 / n3 3. Every position
+    // then hit the 2e9 per-position cost cap and the arm burned 268 seconds emitting nothing.
+    //
+    // POSITION MATTERS AS MUCH AS CONTENT. My first attempt at this fix printed the same line from
+    // the existing header block -- which runs AFTER set construction -- so at depth 10 it would
+    // never have printed at all, and the mistake would have stayed just as invisible. A diagnostic
+    // that only appears once the expensive work succeeds cannot diagnose the expensive work.
+    println!("  set {}+{}+{}={} positions (mate-in-1 {:.0}%), depth {}, gate {} pairs  \
+[args: gens pop n1 n2 DEPTH n3 gate_pairs — depth is arg 5, n3 is arg 6]",
+             n1, n2, n3, n1 + n2 + n3,
+             100.0 * n1 as f64 / (n1 + n2 + n3).max(1) as f64, depth, gate_pairs);
     let net = Net::random(32, 20260907);
     // MIXED on purpose: mate-in-1 alone made the surrogate maximisable by searching less.
     let mut set = mate_set(n1);
     // Built by DISAGREEMENT at the fitness depth, not by mate distance. See disagreement_set.
     let deep = disagreement_set(n2, depth, &net, 4_000);
     // Third component: window-sensitive positions, closing the raised-alpha exploit.
-    let n3: usize = std::env::args().nth(6).and_then(|s| s.parse().ok()).unwrap_or(5);
     // GAME-GATE PAIRS. Small on purpose: a game at fitness depth is ~200x a single fitness
     // evaluation, so this is the expensive half and it only runs on a surrogate improvement.
     // 6 pairs = 12 games resolves a large effect, which is the only kind worth promoting here;
     // it CANNOT resolve a 2% edge and is not asked to. It is a veto on unplayable programs.
-    let gate_pairs: usize = std::env::args().nth(7).and_then(|s| s.parse().ok()).unwrap_or(6);
     // ALPHA-SENSITIVE, not window-sensitive. The window set varies INF (a symmetric window) while
     // the exploit raises the initial ALPHA (asymmetric), so it caught that exploit only
     // incidentally -- measured at 2 of 25 lost. The alpha-sensitive set is built from the
