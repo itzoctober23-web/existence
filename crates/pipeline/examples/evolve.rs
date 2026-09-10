@@ -3524,14 +3524,33 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                             lineages[li].best_found, champ_cost, best_rate,
                             gsc.pent_rate(), gsc.ci95(), c.size(),
                             e1, m1_probe.len(), e2, m2_probe.len());
+                        // DEDUP BEFORE APPENDING. This file is a corpus of DISTINCT specimens, and
+                        // `tests/exploit_regression.rs` counts its rows to report how many exploits
+                        // the shipped guard tolerance admits. Appending blind made one specimen
+                        // recorded twice read as two: on 2026-09-10 that test reported "admits 4
+                        // known exploit(s)" from 2 rules x 2 BYTE-IDENTICAL rows, when the distinct
+                        // count was 1. The failure is real either way; the MAGNITUDE is what gets
+                        // acted on, and a wrong magnitude in a failure message is worse than none.
+                        //
+                        // Duplicates are expected rather than exceptional -- several arms run the
+                        // same seed over the same reference set, so the same specimen genuinely
+                        // arises more than once.
+                        //
+                        // Reads the whole file first. It is bounded by the number of DISTINCT
+                        // exploits ever found (7 rows today), not by generations, so it stays cheap.
                         use std::io::Write;
-                        if let Ok(mut fh) = std::fs::OpenOptions::new()
-                            .create(true).append(true).open("exploits.tsv") {
-                            if fh.metadata().map(|m| m.len() == 0).unwrap_or(false) {
-                                let _ = fh.write_all(b"lineage\tgen\tex_mates\tex_cost\tex_rate\t\
+                        let already = std::fs::read_to_string("exploits.tsv")
+                            .map(|s| s.lines().any(|l| l == line.trim_end()))
+                            .unwrap_or(false);
+                        if !already {
+                            if let Ok(mut fh) = std::fs::OpenOptions::new()
+                                .create(true).append(true).open("exploits.tsv") {
+                                if fh.metadata().map(|m| m.len() == 0).unwrap_or(false) {
+                                    let _ = fh.write_all(b"lineage\tgen\tex_mates\tex_cost\tex_rate\t\
 champ_mates\tchamp_cost\tchamp_rate\tgames\tci95\tnodes\tmate1\tmate2\n");
+                                }
+                                let _ = fh.write_all(line.as_bytes());
                             }
-                            let _ = fh.write_all(line.as_bytes());
                         }
                     }
                     // RECORD, do not raise the bar -- see the pick block. A gate REJECTION
