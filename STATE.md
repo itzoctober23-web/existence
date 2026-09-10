@@ -3606,3 +3606,57 @@ says nothing about the assertions that do not exist, and this workspace has now 
 separate cases of a check that existed and gated nothing. Today's addition — `prior_table.rs` — was
 written because GRAMMAR 6 was labelled MEASURED, had drifted by 4 nodes, and nothing compared the
 document to the counter that produced it.
+
+## 2026-09-10 — the experiment that addresses P2's kill criterion is NOT among the running arms
+
+MASTER_PLAN P2 states the kill condition: *"no program improves on the seed by eval ~1800 -> grammar
+or fitness is wrong; fix those."* The MAIN lineage has never exceeded its seed (`spread
+0.002725-0.002762` against a 0.002762 seed, in every arm), so that condition is the live question.
+
+`evolve.rs` already localises the cause and has already measured it, in the comment block above
+`EXISTENCE_GATE_VETO`:
+
+    MEASURED, over the 17 game-gate calls in the two completed mcts_ab arms:
+        implemented (resolved_up)        0/17 promotions
+        documented veto (resolved_down)  8/17 promotions
+    ... Zero promotions under the shipped rule means the search track cannot advance at all.
+
+and it discriminates rather than waving everything through: all 8 flips are ties (0.458-0.542), while
+every MAIN-lineage call (0.292, 0.333, 0.375) is rejected under BOTH rules. Drift is bounded
+independently because `guard_floor` anchors to the SEED's score, not the current best, so admitting
+ties cannot ratchet the champion down.
+
+**Checked which arms are actually running, from `/proc/PID/environ` rather than from memory of how I
+launched them:**
+
+    pid 1836422  gate_composition_s1.log        (no veto/diversity env)
+    pid 2144067  gate_composition_s2.log        (no veto/diversity env)
+    pid 257385   gate_diversity_s1.log          EXISTENCE_DIVERSITY_SLOTS=2
+    pid 2727006  gate_specfilter_s1.log         (no veto/diversity env)
+    pid  640127  gate_sprt30_s1.log             (no veto/diversity env)
+    pid  830099  gate_diversity_PAIRED_off.log  (no veto/diversity env)
+
+**None sets `EXISTENCE_GATE_VETO`.** Six arms are running and not one of them tests the rule that the
+file's own measurement says is the difference between a search track that can advance and one that
+cannot.
+
+**What the completed veto arms actually show — stated carefully, because it is weaker than it looks.**
+
+    gate_veto_arm.log              ACC=0  REJ=2  gen 4  spread 0.001406-0.001406
+    gate_veto_arm_noverify.log     ACC=1  REJ=3  gen 7  spread 0.001848-0.001848
+    gate_veto_arm_xtvfy_partial.log ACC=1 REJ=2  gen 4  spread 0.001406-0.001406
+    gate_control_arm.log           ACC=0  REJ=3  gen 4  spread 0.001406-0.001406
+
+`veto_arm` vs `control_arm` is the cleanest pair available and they are **identical in outcome**: both
+0 accepts, both gen 4, both still 0.001406. Only `veto_arm_noverify` reached 0.001848, and it has no
+matched control, so it is n=1 with a confound. **The 8/17 figure is a RETROSPECTIVE replay of logged
+decisions, not a live A/B** — it says how often the two rules would have differed on the same calls,
+which is not the same as showing the veto arm gets further.
+
+**So the honest position is: the strongest available diagnosis of the P2 kill condition rests on a
+retrospective count plus one unmatched arm, and the live A/B that would settle it is not running.**
+Recorded rather than launched: six arms already share four cores, and adding a seventh takes cycles
+from the diversity pair that is now past its identity guard and finally in its informative phase.
+This is the next arm to start when a slot frees, and it should be a SEED-MATCHED PAIR
+(veto on / veto off, same seed, same binary image, verified by sha) so it does not repeat
+`veto_arm_noverify`'s missing-control problem.
