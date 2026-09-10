@@ -1,4 +1,29 @@
 #!/bin/bash
+# ============================================================================================
+# ⛔ REFUTED 2026-09-09 22:5x BY ITS OWN AXIS — DO NOT RUN AS WRITTEN.
+#
+# This script argues for a BIGGER set (23 -> 77) so that `guard_tolerance` becomes a finer
+# proportional licence (17.4% -> 5.2%). It proposes n1=48 n2=24 n3=5, which is **62% mate-in-1**
+# against the current 60%. `fitness_set_composition_RESULT.md` measures that set SIZE was never
+# the axis:
+#
+#     set              composition   fitter+correct   a NULL SEARCH scores
+#     pure mate-in-1     25/ 0/ 0        22/40           2934.933x
+#     mixed (shipped)    15/ 5/ 5         0/40           2274.444x
+#     depth-heavy         5/10/10         1/40           1306.606x
+#
+# A mate-in-ONE is a one-ply check, so a program that abandons the search entirely still finds
+# every one of them. The shipped set discriminates ONLY through its 10 non-mate-1 positions.
+# Enlarging the set while HOLDING the mate-1 fraction buys tolerance granularity on a surrogate
+# that still cannot tell a search from a no-op.
+#
+# THE CORRECTED DIRECTION: n1 DOWN, n2/n3 UP — or better, implement FITNESS §3's real ladder
+# (500 each at MATE-1..4, stratified, reported per N). `mate_set` currently builds mate-in-ONE
+# only, so the spec's entire depth ladder is absent.
+#
+# Kept on disk rather than deleted because the tolerance-granularity ARGUMENT is still correct;
+# it is the composition that is wrong. Any successor must state its mate-1 FRACTION, not its size.
+# ============================================================================================
 # BIGGER MATE SET — test the root cause the evidence now points at, with NO rebuild.
 #
 # WHY. Two corrections tonight converged on the SET, not the dial:
