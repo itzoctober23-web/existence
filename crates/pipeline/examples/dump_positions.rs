@@ -5,11 +5,20 @@
 //! are better" are the same experiment and neither is answered.
 //!
 //! So the positions must come from `datagen::play_games` with the champion net at the loop's own
-//! datagen depth, not from a random walk. A first attempt used random legal walks and the labels
-//! came back at a mover-relative mean of +774 to +1098 centipawns -- random play leaves whoever is
-//! to move winning by ~9 pawns, which saturates `tanh(root/600)` and would have trained against a
-//! near-constant target. That is a property of the SOURCE, not of the labels, and it is exactly the
-//! confound this dump removes.
+//! datagen depth, not from a random walk.
+//!
+//! ⚠ THE ORIGINAL REASON GIVEN HERE WAS WRONG, and is corrected rather than deleted. I first wrote
+//! that random legal walks were rejected because their labels came back at a mover-relative mean of
+//! +774 to +1098 centipawns -- "random play leaves whoever is to move winning by ~9 pawns, which
+//! saturates `tanh(root/600)`". That was an explanation, not a measurement. Re-measured on the
+//! actual smoke file: the raw mean was +933, of which **+750 came from five `mate_score=30000`
+//! entries out of 200 rows**. The non-mate median was **+221cp** -- entirely trainable, nowhere near
+//! saturation. The same artifact appears in the loop's own positions (+1034 raw, +22 non-mate
+//! median), so the raw mean never distinguished the two sources at all.
+//!
+//! The real reason to use the loop's own positions is the one the control needs anyway: the arms
+//! must differ in the LABEL and nothing else, so the position distribution has to be the loop's.
+//! That reason is independent of any centipawn statistic.
 //!
 //! Writes one FEN per line, plus the loop's own `root` and `z` alongside, so the SF-labelled arm and
 //! the self-play arm can be built from the SAME rows and differ in one column.

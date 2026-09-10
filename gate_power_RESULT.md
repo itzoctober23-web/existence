@@ -671,3 +671,31 @@ Not another acceptance rule. Both rules are now measured, and neither is the bin
 the SPRT gate resolves in 37 games and finds nothing to accept because there is nothing to accept.
 The open question moves upstream to what produces candidates at all — GRAMMAR 4's mutation operators
 and the type checker, which is where the plan already puts it.
+
+## 2026-09-10, later — the `EXISTENCE_PICK=lowrate` arm was launched against this finding, and stopped
+
+I started a P2 arm with `EXISTENCE_PICK=lowrate` (pick a lower-rate parent for diversity) and let it
+reach generation 3 before re-reading this file. Two things were wrong with it, and the second is the
+one worth recording.
+
+1. **It had no `EXISTENCE_GATE_SPRT`.** Its header read `gate 6 pairs`, so it was running the
+   *fixed* gate this file measures as arithmetically unable to accept — bar 0.582 against a max
+   observed rate of 0.542, 0 accepts in 203 decisions. Its own log shows the signature exactly:
+   `gen 1 MAIN gate REJECT 0.458+/-0.082 (12 games W-D-L 1-9-2) ... needed >0.582`. Whatever
+   `lowrate` does, that arm would have reported 0 accepts.
+
+2. **Even wired to SPRT it would answer a retired question.** The section above already resolved the
+   upstream one: 16/16 verdicts, pooled 0.4527 [0.4371, 0.4683], candidates worse by ~−33 Elo. *The
+   generator, not the gate, is what has no gradient.* `lowrate` changes which parent is **picked**
+   from a population; it cannot add a gradient to the variants **produced** from that parent. Ranking
+   by expected Elo, it is close to zero, and it was occupying E-cores that the 4PC datagen lanes
+   contend for.
+
+Stopped at gen 3 by verified PID (`/proc/PID/exe`, not a cmdline pattern). The `EXISTENCE_PICK`
+code path stays — it is committed, harmless, and cheap to re-run if the generator ever acquires a
+gradient worth diversifying over.
+
+**This is the second time I have spent cores re-testing the selection stage after the measurement
+moved the problem to the generation stage.** The next P2 work is GRAMMAR 4 — the type checker and
+mutation operators — which is what "What this makes next" above already says, and what the standing
+task order already says. Not another acceptance rule, and not another picking heuristic.

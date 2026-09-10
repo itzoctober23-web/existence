@@ -58,9 +58,20 @@ def main():
     ap.add_argument("--nodes", type=int, default=20000)
     ap.add_argument("--seed", type=int, default=77)
     ap.add_argument("--out", default="sf_labels.tsv")
+    ap.add_argument("--fens", default=None,
+                    help="TSV whose first column is a FEN -- use the LOOP'S OWN positions so that "
+                         "the label is the only variable between arms")
     a = ap.parse_args()
 
-    fens = positions(a.n, a.seed)
+    if a.fens:
+        # Subsample deterministically: the full dump is ~75k positions and SF at 10k nodes runs
+        # ~50ms each, so labelling all of them costs over an hour for no extra statistical power.
+        rows = [l.split("\t")[0] for l in open(a.fens) if l.strip()]
+        rng = random.Random(a.seed)
+        fens = rng.sample(rows, min(a.n, len(rows)))
+        print(f"  {len(rows)} positions available, sampling {len(fens)}")
+    else:
+        fens = positions(a.n, a.seed)
     eng = chess.engine.SimpleEngine.popen_uci(SF)
     eng.configure({"Threads": 1, "Hash": 64})
     t0 = time.time()
