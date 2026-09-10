@@ -5017,3 +5017,38 @@ gen200 is snapshotted; the next comparison point is a later snapshot against it.
 documented lever (capacity, depth, blend, horizon, draws) has already been measured and closed, so
 the cost of a wrong plateau call here is high: it would send the next work at a ceiling that may
 not exist.
+
+## 2026-09-10 — HARD_FITNESS: complete, LIVE, and UNINFORMATIVE (the instrument, not the flag)
+
+`gate_hardfit` (EXISTENCE_HARD_FITNESS=1) against `gate_set_mateheavy` (same 12+6+5 set, flag off),
+both run to their configured 25 generations and exited normally.
+
+| | hardfit | control |
+|---|---|---|
+| paired generations | 50 | 50 |
+| identical rows | 24 | — |
+| first divergence | gen 5 MAIN | — |
+| **ACCEPTS** | **0** | **0** |
+| non-zero `hard` rows | 24 | 24 |
+
+**The flag is LIVE.** 26 of 50 paired rows differ, from gen 5 onward, on the same seed and the same
+set — so `HARD_FITNESS` genuinely changes which candidates survive. The premise it was launched to
+test also held: it was retired on "`hard 0-0`, so it never engaged", which is 2% true on 4+10+10
+and false on this set, where 24 of 50 rows carry a non-zero `hard`.
+
+**And the comparison cannot resolve anything.** Both arms accepted ZERO, which is what the P2 game
+gate does to everything: measured this morning, its power ceiling is **14% even for a candidate that
+wins every decisive game**, and it has 0 accepts across 80+ historical calls. An experiment whose
+read-out is "did it accept" cannot separate two arms when the gate accepts nobody.
+
+**The correction it forced.** I read `hard 1-1` in the treatment arm as evidence the flag had
+engaged. Both arms show 24 non-zero `hard` rows — that field reports scores on the shared SET, not
+whether the flag folds them into fitness. Same number either way.
+
+### The general consequence, which outlives this experiment
+
+**Any P2 arm comparison that reads out on accept counts is uninformative by construction.** That is
+not a property of `HARD_FITNESS`; it is a property of a gate with a 14% ceiling. Future P2 arms need
+a read-out the gate does not bottleneck — the structural counters (`dsl`, `ttk`, distinct shapes,
+union events) already in the log, or a head-to-head against a fixed opponent, which is what
+`netmatch` does for P1 and what settled the saturation question there today.
