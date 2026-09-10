@@ -1488,6 +1488,14 @@ fn selftest() {
     println!("\n  {}", if fail == 0 { "ALL PASS" } else { "*** FAILURES ABOVE — do not commit" });
 }
 
+/// How many times the diversity reserve has actually ENGAGED. Printed on every generation line as
+/// `dsl{n}`. It exists because on 2026-09-10 an arm ran for 7 generations with
+/// `EXISTENCE_DIVERSITY_SLOTS=2` set and the reserve never fired once -- `pool.len() > MU` was never
+/// true at `pop 1..3` -- and I credited a union event to a mechanism that was switched off. Working
+/// that out took reconstructing pool sizes from `pop` and `mate-ok` across the log. A counter makes
+/// it a glance.
+static DSL_ENGAGED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 fn dslots_cfg() -> usize {
     std::env::var("EXISTENCE_DIVERSITY_SLOTS").ok().and_then(|v| v.parse().ok()).unwrap_or(0)
 }
@@ -1515,6 +1523,7 @@ fn select_survivors(mut pool: Vec<(Program, u32, f64)>, mu: usize, dslots: usize
         pool.truncate(mu);
         return pool;
     }
+    DSL_ENGAGED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let keep = mu.saturating_sub(dslots).max(1).min(pool.len());
     // Track survivors by INDEX. The first version tracked them by program Debug-string and could not
     // tell two equal programs apart, so the top-up refused to refill and shrank mu 8 -> 7. Indices
@@ -3467,9 +3476,10 @@ champ_mates\tchamp_cost\tchamp_rate\tgames\tci95\tnodes\tmate1\tmate2\n");
                 let span = if rel.is_empty() { "none".to_string() }
                            else { format!("{rlo:.3}-{rhi:.6}x") };
                 println!("  gen {g:>3} {:<5} ..none[above {n_above}, gated-skip {n_gated_skip}] ({n_scored} cand, {ill} ill, mate-ok {mate_ok}, \
-rates {span} [>=.98:{} .90-.98:{} .50-.90:{} <.50:{} distinct:{}], hard {hlo}-{hhi})  pop {} spread {:.6}-{:.6} tt{:?} ttk{:?}",
+rates {span} [>=.98:{} .90-.98:{} .50-.90:{} <.50:{} distinct:{}], hard {hlo}-{hhi})  pop {} spread {:.6}-{:.6} tt{:?} ttk{:?} dsl{}",
                          lineages[li].name, hist.0, hist.1, hist.2, hist.3, distinct,
-                         popn.len(), spread_lo, spread_hi, tt, ttk);
+                         popn.len(), spread_lo, spread_hi, tt, ttk,
+                         DSL_ENGAGED.load(std::sync::atomic::Ordering::Relaxed));
             }
         }
     }
