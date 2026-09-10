@@ -20,7 +20,19 @@
 # own refuted `relaunch_bigset.sh` — varied SIZE. Checked before launching: no arm in this repo has
 # ever varied the composition ratio.
 #
-# NO CODE CHANGE. n1/n2/n3 are positional args 3/4/5 (`evolve <gens> <lambda> <n1> <n2> <n3> <depth>`).
+# NO CODE CHANGE — but MIND THE ARGUMENT ORDER, which is NOT what it looks like.
+#
+#     evolve <gens> <pop> <n1> <n2> <DEPTH> <n3> <gate_pairs>
+#              1      2     3     4     5      6       7
+#
+# `depth` is arg 5 and `n3` is arg 6 (`evolve.rs:1690-1699`) — n3 was appended LATER, after depth,
+# so the three set sizes are NOT contiguous. The `ttgraft` subcommand uses a DIFFERENT order
+# (`want n1 n2 n3 depth`), and I conflated the two on the first launch: I passed `25 8 4 10 10 3`
+# intending n3=10 depth=3, and actually ran **depth 10, n3 3**. At depth 10 every search hits the
+# 2e9 per-position cost cap, so the arm burned 268 seconds producing NOTHING while the real set
+# build takes 8 seconds — measured, which is what exposed it.
+#
+# The correct line for n1=4 n2=10 n3=10 depth=3 is therefore `25 8 4 10 3 10`.
 #
 # WHAT IT REPLACES. Core 14 held lambda 32, testing whether candidate SUPPLY was the constraint.
 # Measured tonight that it is not: `ttgraft` collected 40 children carrying BOTH halves of the TT rung
@@ -54,5 +66,5 @@ EXISTENCE_GATE_ELO0=0 \
 EXISTENCE_GATE_ELO1=30 \
 EXISTENCE_GATE_MAXPAIRS=400 \
 EXISTENCE_GATE_VERIFY=96 \
-  taskset -c 14 nice -n 19 "$BIN" 25 8 4 10 10 3 > gate_composition_s1.log 2>&1 &
+  taskset -c 14 nice -n 19 "$BIN" 25 8 4 10 3 10 > gate_composition_s1.log 2>&1 &
 echo "  core 14 -> gate_composition_s1.log  (n1=4 n2=10 n3=10: 17% mate-in-1 vs the shipped 52%)"
