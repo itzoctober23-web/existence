@@ -77,3 +77,37 @@ Option 3 is the tempting one and it is exactly the thing this project has agreed
   the MAGNITUDES (0.991 / 0.997 / 1.024) are specific to this configuration.
 * This says nothing about whether hash reuse is worth having in the final engine — it is, at
   depths where a TT sees repeat traffic. It says the SEARCH TRACK cannot get there from here.
+
+## 2026-09-09 21:47 — the valley IS crossable, and EPS is what crosses it
+
+This document concludes the pair "can never be assembled one edit at a time", which is exactly right
+about the ACCEPTANCE rule. But acceptance is not the only way a program survives a generation, and
+the numbers above say the population can hold both halves at once.
+
+**Retention is `x.2 >= top * (1 - EPS)` (`evolve.rs:1730`), not `> best_rate`.** Against the seed's
+1.000x top:
+
+    EPS 0.02  ->  keeps anything >= 0.980x     probe only 0.991x  RETAINED
+                                               store only 0.997x  RETAINED
+    EPS 0.10  ->  keeps anything >= 0.900x     both retained with far more margin
+
+**Neither half can be ACCEPTED, and both are RETAINED.** They sit in the population as parents while
+the champion stays the seed — which is precisely what a plateau tolerance is for.
+
+**And crossover is already wired to combine them.** `evolve.rs:1586` runs `mutate::crossover(parent,
+donor)` on one candidate in four, drawing the donor from the retained population. So the assembly
+path is: EPS keeps probe-only and store-only alive on the valley floor, crossover unites them, and
+the united program is +2.4% — above `best_rate` and therefore ACCEPTABLE.
+
+**What that reframes.** The reachability objection is not "the operators cannot make a two-part
+improvement"; they can, by construction, and GRAMMAR §4's "1-3 operators" is implemented faithfully.
+It is that BOTH halves must be present in the population at the SAME time, and each is only there
+because EPS tolerates a small loss. **EPS is not a diversity nicety here — it is the mechanism that
+makes the one known rung reachable at all**, and the EPS 0.10 arm running tonight widens exactly that
+window (0.900x against 0.980x).
+
+**Not claimed.** That this has ever happened, or that it is likely. Both halves must be generated,
+both retained simultaneously, and crossover must pick that pair — and `+104 nodes` is a large target.
+The point is narrower and it corrects this document: the path is not closed by the acceptance rule,
+because retention and acceptance are different gates. Whether the path is TAKEN is a question about
+population size, EPS width and crossover rate — the three things the `lam32` and EPS arms vary.
