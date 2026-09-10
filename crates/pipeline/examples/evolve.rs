@@ -354,6 +354,26 @@ fn fitness(prog: &Program, set: &[(Position, Option<board::Move>)], net: &Net, d
            budget: i64)
     -> (u32, u64, f64) {
     let mut it = Interp::new(net, vec![depth, 32_000, interp::uct_exploration()]);
+    // COST CAP, and it is the reason this harness stops at depth 3.
+    //
+    // `Interp::new` defaults `cost_cap` to 2e9 PER POSITION (`interp/src/lib.rs:527`), and `fitness`
+    // has never overridden it, while other call sites in this file use 20e9. Measured on a
+    // 12 MATE-1 + 12 MATE-2 ladder, the SEED's cost per position runs:
+    //
+    //     depth 3 ->   480,601,359     24/24 mates
+    //     depth 4 -> 1,953,485,828      2/24 mates   (just under the cap, already starving)
+    //     depth 5 -> 2,000,000,800      0/24 mates   (exactly the cap)
+    //     depth 6 -> 2,000,001,072      0/24 mates   (exactly the cap)
+    //
+    // So a DEEPER search scores FEWER mates, which reads as a broken seed and is actually a
+    // truncated one. FITNESS §3's MATE-3 stratum needs 5 plies, so the whole upper ladder is
+    // unreachable while this ceiling stands.
+    //
+    // Default is UNCHANGED at 2e9, so every running arm and every recorded measurement stays
+    // comparable; the env var exists so the ceiling can be measured rather than argued about.
+    if let Ok(v) = std::env::var("EXISTENCE_COST_CAP") {
+        if let Ok(n) = v.parse::<u64>() { it.cost_cap = n; }
+    }
     let (mut found, mut cost) = (0u32, 0u64);
     for (p, forcing) in set {
         // BUDGET IS PER LINEAGE. Alpha-beta ignores it and recurses on the depth table; UCT
