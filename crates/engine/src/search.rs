@@ -21,6 +21,15 @@ pub const INF: Score = 32_000;
 pub struct Search {
     pub net: Net,
     pub nodes: u64,
+    /// Stop when `nodes` reaches this. `u64::MAX` disables it, which is the fixed-depth behaviour
+    /// every prior measurement used.
+    ///
+    /// THIS IS THE GRAMMAR'S "ITERATE TO BUDGET", not a new search technique. MASTER_PLAN's Given
+    /// column lists `iterate to budget` among the search primitives, and `pipeline::search` has
+    /// carried `best_move_capped` for exactly this reason. It adds no ordering, no hash reuse, no
+    /// deepening, no pruning -- the absent-list is untouched. It only decides WHEN TO STOP.
+    pub node_cap: u64,
+    aborted: bool,
     scratch: Vec<f32>,
     /// Shuffled once per search. Move ordering carries no opinion at the seed
     /// (MASTER_PLAN: "children in emission order (shuffled)"), so the engine cannot
@@ -51,6 +60,8 @@ impl Search {
         Search {
             net,
             nodes: 0,
+            node_cap: u64::MAX,
+            aborted: false,
             scratch: Vec::new(),
             rng: seed | 1,
             acc,
@@ -92,6 +103,7 @@ impl Search {
     /// Root: return the best move and its score at fixed depth.
     pub fn best_move(&mut self, pos: &mut Position, depth: u32) -> (Move, Score) {
         self.nodes = 0;
+        self.aborted = false;
         let list = pos.legal_moves();
         if list.is_empty() {
             return (MOVE_NONE, if pos.in_check(pos.stm) { -MATE } else { 0 });
@@ -110,6 +122,12 @@ impl Search {
             let (u, mark) = self.advance(pos, m);
             let s = -self.alphabeta(pos, depth.saturating_sub(1), -INF, -alpha);
             self.undo(pos, m, u, mark);
+            if self.aborted {
+                // This move's score is incomplete. Keep the best COMPLETED one -- the root list is
+                // shuffled, so the moves that did get searched are a fair sample rather than
+                // whichever ones movegen happens to emit first.
+                break;
+            }
             if s > best_score {
                 best_score = s;
                 best = m;
@@ -132,6 +150,13 @@ impl Search {
     /// returned value equal to the full-width minimax value (alpha-beta's soundness theorem)
     /// and is why FITNESS 2.3 exempts exactly this pattern when deriving the exactness taint.
     fn alphabeta(&mut self, pos: &mut Position, depth: u32, mut alpha: Score, beta: Score) -> Score {
+        // BEFORE counting, and the flag stays set on the way out. Checking only on the way down
+        // is not enough: the unwind passes back through sibling loops that would each enter here
+        // once more, so the search overshoots its cap by one node per open frame.
+        if self.nodes >= self.node_cap {
+            self.aborted = true;
+            return 0;
+        }
         self.nodes += 1;
 
         let list = pos.legal_moves();
