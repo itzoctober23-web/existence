@@ -2617,8 +2617,22 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                     // For MAIN this is expected to read a constant 23 -- that IS the saturation, made
                     // visible instead of argued. If it ever reads anything else, the premise this
                     // whole document rests on is wrong and should fail loudly.
+                    // POP AND DISTINCT ON THE GATE LINE TOO. They were printed only on the `..none` path, so an
+                    // arm that gates every generation reports its population NOWHERE. Measured 2026-09-10: the
+                    // control had 2 `..none` lines and 4 gate lines while a composition arm had 6 and 0 -- so when
+                    // both composition seeds showed the population climbing 2 -> 6 and 7, at the exact stage
+                    // `search_has_no_choice_RESULT.md` identifies as binding, the control could not be compared
+                    // there at all. Not measured-as-2: UNMEASURED.
+                    //
+                    // An observable that vanishes precisely when a candidate is interesting enough to GATE is the
+                    // worst place for a blind spot, and it cost a comparison two seeds had already earned.
+                    let g_pop = popn.len();
+                    let g_distinct = {
+                        let mut v: Vec<String> = popn.iter().map(|(_, _, r)| format!("{r:.9}")).collect();
+                        v.sort(); v.dedup(); v.len()
+                    };
                     println!("  gen {g:>3} {:<5} gate {} {:.3}+/-{:.3} ({} games W-D-L {}-{}-{})  mates {f}  hard {hlo}-{hhi}  surrogate \
-{rate:.6}  ABOVE:{above}  needed >{:.3}",
+{rate:.6}  ABOVE:{above}  needed >{:.3}  pop {g_pop} distinct:{g_distinct}",
                              lineages[li].name,
                                match sprt_verdict {
                                    Some(gate::Sprt::Inconclusive) => format!("INCONCLUSIVE llr {sprt_llr:+.2}"),
