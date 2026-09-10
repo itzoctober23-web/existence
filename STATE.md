@@ -4755,3 +4755,33 @@ pair in particular would have kept sharpening the noise floor. The trade is that
 MEASUREMENT TOOL while `gate_gateveto` is the EXPERIMENT the whole day's diagnosis points at — and a
 tool sharp enough to have already killed three wrong conclusions does not need further sharpening
 while the question it was built to serve goes unanswered.
+
+### PRE-REGISTERED, before the data exists: `gate_gateveto` must ACCEPT at gen 2 MCTS
+
+`gate_gateveto` and `gate_diversity_PAIRED_off` share binary, seed, args, set and gate, differing only
+in `EXISTENCE_GATE_VETO`. Their gens 1-2 MAIN lines are already byte-identical, which is required — the
+flag acts ONLY at a gate call, and MAIN (saturated) never reaches one.
+
+The control's first gate call is its gen 2 MCTS, and its numbers are on record:
+
+    gen 2 MCTS  gate REJECT 0.417+/-0.103 (12 games W-D-L 0-10-2)  needed >0.603
+
+Applying both acceptance rules to that exact pair of numbers:
+
+    shipped:  rate - ci95 > 0.5   ->  0.314 > 0.5   ->  REJECT     (what the control did)
+    veto:     rate + ci95 >= 0.5  ->  0.520 >= 0.5  ->  ACCEPT     (what gateveto must do)
+
+**So `gate_gateveto` should ACCEPT at generation 2 MCTS, on a candidate its control rejected, from the
+same seed and the same 12 games.** By 0.020 — the candidate is a marginal tie, which is exactly the
+class the veto rule exists to admit and the shipped rule exists to exclude.
+
+**This is falsifiable in both directions and costs nothing to state now:**
+* If it accepts there — the flag is live, the mechanism is confirmed, and the arm becomes the first in
+  this project to advance its champion on a non-improvement. Everything after generation 2 is then a
+  genuinely different trajectory rather than a re-run.
+* If it does NOT accept — the flag is inert in this configuration despite `GATE_SPRT` being unset, and
+  the whole `GATE_VETO` line of reasoning collapses. That would be the fourth silently-inert flag
+  found today and would need finding, not explaining away.
+
+Recorded BEFORE the arm reaches generation 2 MCTS specifically so the outcome cannot be fitted to the
+prediction afterwards.
