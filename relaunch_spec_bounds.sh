@@ -32,7 +32,7 @@
 # afternoon one. That is the price of a gate that can see a +10 gain, and the spec is explicit that
 # a candidate near a bound deserves thousands of pairs.
 set -u
-BIN=/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad/xt_r/release/examples/evolve
+BIN=/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad/xt_sf/release/examples/evolve
 cd /home/maswabe/existence || exit 1
 [ -x "$BIN" ] || { echo "missing binary: $BIN" >&2; exit 1; }
 
@@ -49,8 +49,13 @@ common() {
   EXISTENCE_GATE_VERIFY=96 "$@"
 }
 
+# FLEET AS OF 2026-09-09 21:42. This list went STALE once already: it still launched the two
+# HARD_FITNESS arms, which were retired at 21:10 and 21:28 because HARD_FITNESS addresses the
+# SATURATION mechanism refuted at 20:50 by `mates 19`. Running the old version would have killed the
+# spec-filter arm (the current leading hypothesis) and the lambda arm, and resurrected two arms
+# testing a refuted mechanism. A prepared script is a trap unless it is re-checked against `ps`.
 common taskset -c 15 nice -n 19 "$BIN" 25 8 12 6 3 > gate_sprt30_s1.log 2>&1 &
 EXISTENCE_EPS=0.10 common taskset -c 13 nice -n 19 "$BIN" 25 8 12 6 3 > gate_sprt30_eps_s1.log 2>&1 &
-EXISTENCE_HARD_FITNESS=1 EXISTENCE_HARD_WEIGHT=1 common taskset -c 12 nice -n 19 "$BIN" 25 8 12 6 3 > gate_hardfit_s1.log 2>&1 &
-EXISTENCE_HARD_FITNESS=1 EXISTENCE_HARD_WEIGHT=4 common taskset -c 14 nice -n 19 "$BIN" 25 8 12 6 3 > gate_hardw4_s1.log 2>&1 &
+EXISTENCE_SPEC_FILTER=1 common taskset -c 12 nice -n 19 "$BIN" 25 8 12 6 3 > gate_specfilter_s1.log 2>&1 &
+common taskset -c 14 nice -n 19 "$BIN" 25 32 12 6 3 > gate_lam32_s1.log 2>&1 &
 echo "  relaunched all four on FITNESS 7.2 bootstrap bounds [3,5], cap 4000"

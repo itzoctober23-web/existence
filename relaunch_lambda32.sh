@@ -36,6 +36,10 @@
 #   * If viable count rises but VERIFY still reads below 0.5, supply was not the constraint either,
 #     and the remaining suspect is the seed itself: a program computing an exact minimax value may
 #     have no nearby improvement to find at this depth.
+#
+# ⚠ SINGLE-ARM SCRIPT, and it does NOT stop whatever currently holds that core. Check `ps` first.
+# It also runs xt_r, which predates the SPEC_FILTER header field — harmless, because a log with
+# no such field is read as SPEC_FILTER off, which is correct for this arm.
 set -u
 BIN=/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad/xt_r/release/examples/evolve
 cd /home/maswabe/existence || exit 1
