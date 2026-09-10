@@ -4523,3 +4523,48 @@ seed-robust class. It does retire every rate-based comparison made from a single
 that lets a conclusion stand while sounding careful. Measuring `acf1` converts it into a number that
 either kills the result or does not — and here it killed one, cleanly, using data already on disk. The
 seed control raised the suspicion; the autocorrelation measurement settled it.
+
+## 2026-09-10 — 0 of 78 gate calls EVER resolved BETTER. That is the bottom line.
+
+Today's rate-based comparisons kept dying to noise, so I built the count-based version: classify each
+gate call discretely as RESOLVED WORSE (`rate + ci95 < 0.5`), TIE (interval spans 0.5), or RESOLVED
+BETTER (`rate - ci95 > 0.5`). A per-gate classification is a COUNT, which today's seed-variance and
+autocorrelation measurements both identify as the trustworthy class.
+
+    arm                        cell                worse   tie   better   tie-rate
+    gate_diversity_PAIRED_off  div OFF filt OFF       2      20      0       91%
+    gate_diversity_s1          div ON  filt OFF       2      22      0       92%
+    gate_filter_only           div OFF filt ON        0       4      0      100%
+    gate_div_x_filter          div ON  filt ON        0       5      0      100%
+    gate_specfilter_s1         12+6+5  filt ON        2       5      0       71%
+    gate_sprt30_s1             12+6+5  filt OFF       2      14      0       88%
+                                                     ---------------------
+                                                      8      70      0
+
+**Zero candidates resolved BETTER, in 78 gate calls.** That spans 6 arms, both fitness compositions,
+both selection rules, both gate types (fixed 6-pair and SPRT to 400), three binaries, and three seeds.
+88-100% of every arm's gate calls are TIES.
+
+**This reframes everything measured today.** The session produced a chain of real mechanisms — MAIN is
+saturated on both sets; `found/cost` makes selling mates dominant at ~2:1; every gated candidate piles
+at the guard floor; the §3 filter demonstrably stops that piling. Every one of those is about WHICH
+candidate gets selected. **None of them can matter while the answer to "is any candidate better" is
+zero out of seventy-eight.**
+
+The selection rule decides which of a set of non-improvements to spend games on. Changing it changes
+which non-improvement is tested. That is worth knowing and it is not the bottleneck.
+
+**Where that points, and it is already the record's own conclusion.** `EXPERIMENTS.md`: *"The surrogate
+proposes candidates that are WORSE -- and that, not the gate, is why nothing was ever accepted."* The
+count sharpens it: the surrogate proposes candidates that are TIES (70) or WORSE (8), never BETTER (0).
+The mutation operators plus the surrogate, together, have not once produced a program the board can
+tell is stronger.
+
+**What would move this.** Not a selection rule, not a tolerance, not a diversity reserve — all of those
+reorder a candidate pool that contains no improvements. It needs either operators that produce
+different programs, or a fitness signal that points somewhere the current one does not. The `harder_set`
+construction is the only thing in the tree aimed at the second, and the one candidate that provably
+scored on it played resolvedly WORSE.
+
+**Caveat kept honest:** the two filter cells have only 4 and 5 gate calls, so their 100% tie rate is
+weakly held. The 0-better result does not depend on them — it is 0 across all 78.
