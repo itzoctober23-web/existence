@@ -64,6 +64,12 @@ fear was that a depth-1 gate would select for a shallow game and the gains would
 depth 4. Instead the gains are **three times larger** at depth 4 than the gate can see. The loop is
 improving substantially more than its own accept criterion is able to measure.
 
+**⚠ THIS LEAD IS NOW CLOSED — REFUTED, see `reject_holdout_RESULT.md`.** 34 rejected candidates,
+each replayed against the champion it actually lost to at depth 4, pool to **0.4982 [0.4847,
+0.5117]** — exactly champion strength. The gate is NOT discarding improvements, so raising the gate
+depth would buy nothing for ~200x the cost. The paragraph below is kept as written because it is
+what I believed at the time and the pre-registered test that killed it only makes sense against it.
+
 **What that implies, stated as a lead and not a result:** a gate blind to two thirds of the
 improvement it is selecting on must be rejecting candidates that are real depth-4 gains. Raising
 the gate depth is the obvious move and is NOT free — 224 pairs at depth 4 costs ~7 min/generation
