@@ -269,6 +269,29 @@ fn main() {
     // 1000 is the point where the control can finally see an effect the size the loop plausibly
     // produces per 25 generations, without the cost becoming a real tax on datagen.
     let ctrl_pairs = arg("--control-pairs", 1000);
+    // HOW OFTEN TO SNAPSHOT A LADDER RUNG, decoupled from the control.
+    //
+    // Rungs used to be saved ONLY inside the control block, so the cadence of the cheap thing was
+    // welded to the cadence of the expensive one. With `--control-every 400` that is one ancestor
+    // per 400 generations -- and at ~1800 gens/hour this run reached gen 685 with exactly TWO
+    // rungs on disk.
+    //
+    // The two have opposite cost profiles and opposite reliability, which is why welding them is
+    // wrong in both directions:
+    //   * The control costs `ctrl_pairs` games and is the instrument this project has MEASURED
+    //     reversing sign, at 0.861 and 0.967 (`instrument_saturation_RESULT.md`). It is run rarely
+    //     because it is expensive, and read cautiously because it saturates.
+    //   * A rung costs ONE 50KB file write and is the input to the instrument that still works
+    //     above the saturation band: head-to-head against a recent ancestor.
+    //
+    // So the reliable instrument was rationed at the price of the unreliable one. Measured today:
+    // gen400 beats gen200 by +0.043 at depth 1 and +0.039 at depth 4, resolved at 448 pairs --
+    // a real gain the control reported as a DECLINE (0.871 -> 0.819) over the same window. That
+    // comparison was only possible because two rungs happened to exist; at gen 500 or 600 there
+    // was nothing to compare against and the question would have been unanswerable.
+    //
+    // 0 = off, preserving the previous behaviour exactly for any caller that does not ask.
+    let rung_every = arg("--rung-every", 0);
     let out = a.iter().position(|x| x == "--out").and_then(|i| a.get(i + 1)).cloned()
         .unwrap_or_else(|| "champion.net".to_string());
     // Resume from a saved champion instead of starting at iteration zero. See the use site.
@@ -1177,6 +1200,21 @@ base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
         // and instead panicked with "attempt to calculate the remainder with a divisor of zero",
         // aborting the whole run on SIGABRT. `arch_every` was already guarded this way at the
         // ARCH step; this one was not, so the two flags disagreed about what 0 meant.
+        // LADDER RUNG ON ITS OWN CADENCE. Skipped when the control also fires this generation,
+        // so the control keeps writing the rung it annotates with an origin score and no rung is
+        // ever written twice. Deliberately NOT gated on `accepted`: a rung's job is to mark where
+        // the lineage was at generation g, and "unchanged since the last rung" is a fact worth
+        // being able to demonstrate rather than infer.
+        if rung_every > 0 && g % rung_every == 0 && !(ctrl_every > 0 && g % ctrl_every == 0)
+            && !out.is_empty() && out != "/dev/null" {
+            let rung = format!("{out}.gen{g}.net");
+            if let Err(e) = champion.save(&rung) {
+                eprintln!("      WARNING: could not write ladder rung {rung}: {e}");
+            } else {
+                println!("      ladder rung saved: {rung}");
+            }
+        }
+
         if ctrl_every > 0 && g % ctrl_every == 0 {
             // EQUAL TIME, not equal depth: once the ARCH arm can change the champion's width,
             // a depth-matched control would hand a wider champion free computation and report
