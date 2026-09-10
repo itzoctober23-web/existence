@@ -4568,3 +4568,53 @@ scored on it played resolvedly WORSE.
 
 **Caveat kept honest:** the two filter cells have only 4 and 5 gate calls, so their 100% tie rate is
 weakly held. The 0-better result does not depend on them — it is 0 across all 78.
+
+## 2026-09-10 — RETRACTION: the no-op VETO does NOT produce neutral drift. It discards the candidate.
+
+I recorded, and then reasoned from repeatedly, that §3's filter "admits no-op drift at 0 games spent"
+and that this is "precisely what the valley result says crossing requires". **That is wrong.** Read
+the two branches:
+
+    if same_play && rate > best_rate {          // PATH 1
+        ... ACCEPT speedup ...
+        lineages[li].champ = c.clone();          // <- champion MOVES
+    }
+    if same_play {                               // VETO, reached only when rate <= best_rate
+        ... "no-op VETO ... gate skipped, 0 games spent" ...
+        continue;                                // <- champion does NOT move
+    }
+
+A same-play candidate is promoted **only if strictly cheaper**. One that plays identically at equal
+cost — the definition of a neutral step — hits `continue` and is thrown away. The code's own comment
+says so: *"It is a VETO, not a rejection: the candidate is not recorded in `gated`, because nothing
+was learned about it. It simply never should have cost games."* The veto is a GAMES-SAVING device, not
+a drift mechanism.
+
+**And the comment above PATH 1 shows this was already litigated.** An earlier version promoted on
+equal rate, and that was a BUG:
+
+> *"EXISTENCE_SPEC_FILTER breaks that unstated invariant: it picks on `r >= 0.9 * best_rate`, so `rate`
+> may be EQUAL or WORSE. The very first generation of the SPEC cells promoted on `0.002490 was
+> 0.002490` -- identical play at identical cost, recorded as a 'speedup'. That is a no-op replacing the
+> champion, and it would have been read as the SPEC filter working when it is the guard failing."*
+
+So the exact reading I arrived at independently — no-op promotion looks like the filter working — is
+documented in the source as the misreading it was fixed to prevent. I reproduced the error from the
+log lines instead of from the code.
+
+**What this costs, stated plainly.** The filter's measured effects that stand are: it selects
+candidates that sold fewer mates (7 of 7 non-floor, `p ~ 2e-4`), it converts an idle search into an
+expensive one (~10x per generation), and it almost never emits the `..none` line. What does NOT stand
+is any claim that it moves the population through neutral territory. **On the current code there is no
+neutral-drift path at all** — the champion advances only on a strict rate improvement, which for a
+saturated MAIN lineage means only by selling mates.
+
+**Which makes the 0-of-78 result cohere.** If neutral steps cannot be taken, the search cannot cross a
+valley by construction, whatever the selection rule. `ladder_valley_RESULT.md` measures the nearest
+known rung at ~59 nodes of neutral-or-worse territory. A search that discards every neutral step
+cannot traverse that, and no amount of reordering the candidate pool changes it.
+
+**Method note.** I read the behaviour off log lines ("gate skipped, 0 games spent") and inferred the
+semantics. The word VETO in the output does not say whether the champion moved, and I assumed the
+generous reading. **Checking the branch cost one grep and would have prevented four cycles of building
+on it.**
