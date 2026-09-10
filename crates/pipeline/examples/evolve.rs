@@ -1420,6 +1420,60 @@ fn flag_tests(p: &Program) -> usize {
     n
 }
 
+/// SUPPLY vs SELECTION for the two halves of the TT rung.
+///
+/// Measured 2026-09-10 across every arm log: the live populations run **3.0 probe-carriers to 1
+/// store-carrier** (33 vs 11 over 14 generations), and **6 of those 14 generations hold NO store
+/// carrier at all** -- so in 43% of generations the union event is not unlikely, it is impossible.
+/// That skew costs a factor of ~3.1 in the union rate: P(a random pair is probe x store) is 0.090 at
+/// the observed composition against 0.281 for the same population balanced.
+///
+/// Two explanations, opposite fixes:
+///   SUPPLY    -- single mutations simply emit probe-carriers more often than store-carriers.
+///                The fix is operator weights.
+///   SELECTION -- retention keeps probe-carriers preferentially.
+///                The fix is the retention rule.
+///
+/// The valley numbers predict SELECTION should favour STORES, not probes: store-only measures 0.997x
+/// against probe-only's 0.991x, so the store half is the CHEAPER survivor and retention is
+/// `x >= top*(1-EPS)`. The observed skew runs the other way, which points at supply -- but that is an
+/// argument, and this counts it instead.
+fn tt_supply() {
+    let a = |i: usize, d: usize| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
+    let n: usize = a(2, 20_000);
+    let edits: usize = a(3, 1);
+    let seed = reference::bare_alpha_beta();
+    let (mut probe_only, mut store_only, mut both, mut neither, mut wt) = (0usize, 0usize, 0usize, 0usize, 0usize);
+    for k in 0..n {
+        let mut r = Rng::new((k as u64) << 12 ^ 0xA11CE);
+        let Some((c, _)) = mutate::mutate_program_n(&seed, &mut r, edits) else { continue };
+        wt += 1;
+        let t = tt_counts(&c);
+        match (t[0] > 0, t[1] > 0) {
+            (true, false) => probe_only += 1,
+            (false, true) => store_only += 1,
+            (true, true)  => both += 1,
+            (false, false) => neither += 1,
+        }
+    }
+    let pct = |x: usize| 100.0 * x as f64 / wt.max(1) as f64;
+    println!("=== SUPPLY of the two halves: {n} draws of {edits} edit(s) from the seed ===");
+    println!("  well-typed children : {wt} of {n}");
+    println!("  probe-carrier only  : {probe_only:>6}  ({:.3}%)", pct(probe_only));
+    println!("  store-carrier only  : {store_only:>6}  ({:.3}%)", pct(store_only));
+    println!("  BOTH halves at once : {both:>6}  ({:.3}%)", pct(both));
+    println!("  neither             : {neither:>6}  ({:.3}%)", pct(neither));
+    if store_only > 0 {
+        println!("\n  SUPPLY RATIO probe:store = {:.2} : 1", probe_only as f64 / store_only as f64);
+        println!("  live POPULATION ratio    = 3.0 : 1   (33 vs 11 carriers over 14 generations)");
+        println!("  READING: supply ratio ~= 3:1 -> the skew is SUPPLY, fix is operator weights.");
+        println!("           supply ratio ~= 1:1 -> the skew is SELECTION, fix is the retention rule.");
+    } else {
+        println!("\n  ZERO store-only children in {wt} draws -- supply of the store half is the binding");
+        println!("  constraint outright, and no retention rule can keep what is never generated.");
+    }
+}
+
 fn flag_reads(p: &Program) -> usize {
     fn walk(n: &Node, out: &mut usize) {
         use Node::*;
@@ -2085,6 +2139,9 @@ fn tt_union() {
 fn main() {
     if std::env::args().nth(1).as_deref() == Some("ttunion") {
         return tt_union();
+    }
+    if std::env::args().nth(1).as_deref() == Some("ttsupply") {
+        return tt_supply();
     }
     if std::env::args().nth(1).as_deref() == Some("tthits") {
         return tt_hits();

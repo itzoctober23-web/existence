@@ -735,3 +735,53 @@ material WITHOUT the guard. If mode 3 rises above both, the guard is doing the w
 Mode 3 (`ttunion 600 3 3`, third half required to TEST the flag — an operand of a `Cmp`/`Pred` or an
 `If` condition) is running. **Pre-registered:** soundness rises materially above BOTH 23.0% and 15.9%,
 or the validity-marker hypothesis is wrong and this section says so.
+
+## The population is 3:1 skewed toward PROBE-carriers, and 43% of generations cannot union at all
+
+Measured across every arm log (`gate_*.log`), counting per generation how many population members
+carry the probe half (P and no S) versus the store half (S and no P):
+
+    arm               pop  probe  store   P(random pair is P x S)
+    composition_s1     5     1      0        0.000
+    composition_s1     6     1      0        0.000
+    composition_s1     6     1      0        0.000
+    composition_s1     8     2      1        0.062
+    composition_s1     8     2      1        0.062
+    composition_s1     8     2      1        0.062
+    composition_s2     3     1      0        0.000
+    composition_s2     3     1      0        0.000
+    composition_s2     4     1      1        0.125
+    composition_s2     7     3      2        0.245
+    composition_s2     8     3      2        0.188
+    composition_s2     8     5      1        0.156
+    composition_s2     8     5      1        0.156
+    composition_s2     8     5      1        0.156
+
+    pooled: 33 probe-carriers vs 11 store-carriers over 14 generations  ->  3.0 : 1
+    mean P(random pair is P x S) at the observed composition : 0.090
+    the same populations BALANCED (3 probe / 3 store of 8)   : 0.281   -> 3.1x
+
+**Two things fall out, and the second is the sharper one.**
+
+1. **The skew costs a factor of ~3.1 in the union rate.** The projection in this document uses
+   `P(union attempted per generation) ~ 0.20`, measured from one gen-6 population. The composition
+   term inside that is 0.090 where a balanced population would give 0.281.
+2. **Six of the fourteen generations hold NO store-carrier at all.** In 43% of generations the union
+   event is not improbable, it is IMPOSSIBLE -- there is nothing to cross the probe half with. A
+   projection that treats every generation as an independent trial at a uniform rate is therefore
+   wrong in a way that OVERSTATES the chance, and the true figure is lower than the 4.0% recorded
+   above.
+
+### Why this is not obviously a selection problem, which is what makes it worth measuring
+
+The valley table at the top of this document measures **store-only at 0.997x and probe-only at
+0.991x**. Retention is `x.2 >= top * (1 - EPS)`, so the CHEAPER half -- the store -- is the one
+retention should favour. **The observed skew runs the opposite way, 3:1 toward probes.** So the cause
+is more likely SUPPLY (single mutations emit probe-carriers more often than store-carriers) than
+SELECTION, and those have different fixes: operator weights versus the retention rule.
+
+`evolve ttsupply <draws> <edits>` counts it directly -- what fraction of single mutations off the seed
+carry the probe half only, the store half only, both, or neither. **Pre-registered:** a supply ratio
+near 3:1 means the skew is supply and the fix is operator weights; near 1:1 means it is selection and
+the fix is retention. Zero store-only children would mean supply is the binding constraint outright,
+and no retention rule can keep what is never generated.
