@@ -149,10 +149,22 @@ the table have no implementation under any spelling.
 
 | declared | status | measured consequence |
 |---|---|---|
-| `add-arg` — "add an Int/Score parameter and thread a value at each call site" | **absent** | no operator emits a node with a longer argument list. Seed TRead arities `[0]`, newly constructible `[]` |
+| `add-arg` — "add an Int/Score parameter and thread a value at each call site" | **absent** | no operator lengthens any argument list. Seed TRead arities `[0]`, newly constructible `[]` |
 | `add-fn` — "split a subtree into a new function and call it" | **absent** | **0 of 823** applied mutations changed `funcs.len()`, across all 10 reference programs |
 
 Two consequences follow, and both were previously open:
+
+**CORRECTION 2026-09-10, same day, before anything was built on it.** The row above pairs the
+missing `add-arg` with rung 7's missing `TRead/2`, and they are NOT the same operator. `add-arg`
+adds a FUNCTION PARAMETER and threads a value at each call site. Rung 7 needs
+`TRead(3, [d, i])`, where `d` is `ab`'s EXISTING depth parameter and `i` is an existing local —
+no new parameter anywhere. What it needs is an operator that appends an IN-SCOPE Int expression
+as a tread INDEX, which §2.7 already permits: `tread : Tab x Int... -> Int` is variadic, so this
+is inside the Given column and needs no new primitive.
+
+The measured fact is unchanged and is what the test asserts — *no operator lengthens any argument
+list* — but the two gaps need two different operators, and implementing `add-arg` as declared
+would NOT make rung 7 reachable. Recorded because the imprecise version was committed first.
 
 1. **Rung 7 of the ladder is UNREACHABLE, now proven.** `table_reduction` needs `TRead(3, [d, i])`.
    The seed contains `TRead(0, [])` and `TRead(1, [])`, so the kind-granularity check in

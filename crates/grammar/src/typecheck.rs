@@ -101,7 +101,20 @@ pub fn check(n: &Node, p: &Program, env: &mut Env) -> Result<Ty, TypeError> {
             check(b, p, env)?;
             Ty::Score
         }
-        TRead(_, args) => { for a in args { check(a, p, env)?; } Ty::Int }
+        // GRAMMAR 2.7 primitive 26: `tread : Tab x Int... -> Int`. The indices are Int, and this
+        // used to `check()` them without CONSTRAINING them -- proving each index was well-formed
+        // and never that it was an Int, so a Pos or a Score passed. Harmless while nothing built a
+        // tread index (measured 2026-09-10: no operator lengthens any argument list, 0 of 823
+        // applied mutations); not harmless the moment one does.
+        //
+        // It failed in the expensive direction. `mutate.rs:207` sets the standard: an operator may
+        // emit `Var("p")` out of scope precisely BECAUSE the checker discards it -- "wasted
+        // candidates rather than silently wrong ones". An unconstrained index inverts that: the
+        // candidate is KEPT, evaluated, and wrong in a way no gate reports as an error.
+        TRead(_, args) => {
+            for a in args { want(check(a, p, env)?, Ty::Int, "tread index")?; }
+            Ty::Int
+        }
 
         Probe(a) => { want(check(a, p, env)?, Ty::Key, "probe")?; Ty::Slot }
         Store(k, _, v) => {
