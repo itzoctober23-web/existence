@@ -1131,3 +1131,34 @@ that restraint was correct, and this is the measurement that vindicates it.
 * **UNTESTED, and now unnecessary:** candidates 2 (parent) and 3 (dedup collapse). Conditioning is
   sufficient to explain the whole discrepancy, so neither is needed. They are left recorded rather
   than pursued -- the actionable conclusion has not moved.
+
+### PRE-REGISTERED 2026-09-10: does the diversity reserve actually move the composition?
+
+`EXISTENCE_DIVERSITY_SLOTS=2`, arm `gate_diversity_s1`, config `25 8 4 10 3 10` -- identical to
+`gate_composition_s2` in every respect except the flag.
+
+**Testing the MECHANISM, not the outcome.** An accepted union is a 4-12% event over the generations
+remaining, so waiting for one is not a test. The fix targets COMPOSITION, and composition has a
+measured baseline from the existing arms:
+
+    probe-carriers : store-carriers      33 : 11  =  3.0 : 1
+    generations holding ZERO store-carriers        6 of 14  =  43%
+    mean rank of store-carriers (0=best)           0.933, 100% in the bottom half
+
+**Prediction, written before the arm produces a single generation line:**
+
+* the probe:store ratio moves materially toward 1:1;
+* the fraction of generations with zero store-carriers falls well below 43%;
+* store-carriers stop being uniformly bottom-ranked -- i.e. they occupy reserved slots rather than
+  competing for rate slots they cannot win.
+
+**If the ratio stays near 3:1, the reserve does not do what `select_survivors`'s test says it does in
+isolation, and the 3.00x price is wrong.** That is the falsifier: the unit test proves the function
+preserves a minority shape on a hand-built pool; it does NOT prove the shapes the live population
+generates are distinguishable enough for the reserve to catch the store half. `P1K1F1` and `S1K1`
+have different node-kind multisets, so they should be -- but "should be" is what this arm exists to
+replace.
+
+**Cost:** one additional process on cores 12-15. The four existing arms slow by roughly a quarter;
+their metric is cost-model based rather than wall-clock, so their RESULTS are unaffected, only their
+rate of progress.
