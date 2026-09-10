@@ -46,6 +46,32 @@ predict wall-clock (see `microbenchmark bounds, not predicts`).
 `[0,50]` and `[0,100]` are cheaper still but their power collapses at +25 Elo (39.8%, 13.5%) -- they
 would discard real gains. `[0,30]` is the knee: no cap burns, α respected, power retained.
 
+## VERIFIED LIVE 2026-09-09 19:26 — the first real gate under `[0,30]` RESOLVED
+
+Simulation is not production, so the live reading:
+
+    gen 3 MAIN  gate REJECT llr -3.18  0.444+/-0.063  (36 games W-D-L 2-28-6)  needed >0.563
+
+It **crossed the -2.944 bound in 18 pairs** -- resolved, not capped. The same candidate under the old
+fixed 6-pair gate returned `REJECT 0.333+/-0.163 (12 games) needed >0.663`: a bar it could not have
+cleared and an interval spanning everything, i.e. a non-answer. And the sequential verdict AGREES
+with the independent instrument: VERIFY read `0.422 +/-0.027` on 96 pairs with a different seed, also
+resolved worse.
+
+18 pairs is well under the simulated median of 55, and consistent with it rather than contradicting
+it: the simulation's 55 is the median against a NULL candidate, while this one is genuinely worse
+(VERIFY 0.422). A clearly-worse candidate crosses sooner. The `[0,10]` failure mode -- 63.8% of gates
+burning the full 400-pair cap for no answer -- did not occur.
+
+**Scope, stated plainly: n=1 resolved gate.** The EPS arm produced the identical line, but it is the
+same run seed replaying the same trajectory, so it is not a second observation -- `ab_report.py`
+deduplicates it for exactly that reason.
+
+**Cost, now bounded from above.** That generation spanned 18:46-19:26 (~40 min) and contained the
+8-candidate fitness evaluation plus 36 gate games plus 192 VERIFY games = 228 games, so per-game cost
+is **under ~10.5 s including all per-generation overhead**. Earlier only a >=4.8 s/game lower bound
+existed.
+
 ## Remedy #2 (decisive openings) is REFUTED at iteration zero
 
 `unbalanced_open24.log`: control (balanced, today's gate) **8-32-8, 66.7% draws**; treatment
