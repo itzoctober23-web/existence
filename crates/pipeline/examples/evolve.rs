@@ -1686,6 +1686,24 @@ fn tt_supply() {
     let (c_p, c_s) = (med(&mut raw_p), med(&mut raw_s));
     let (k_p, k_s) = (medu(&mut mate_p), medu(&mut mate_s));
 
+    // SHAPE DIVERSITY OF NON-CARRIERS -- the question that decides whether the reserve can work.
+    //
+    // `select_survivors` fills reserved slots with the HIGHEST-RATED member of each novel shape. A
+    // neutral twin rates ~1.000x and a store-carrier ~0.9939x, so a novel-shaped TWIN takes a reserve
+    // slot BEFORE any store-carrier is reached. If ordinary non-carrier candidates are structurally
+    // diverse, they consume the reserve and the fix does nothing for the store half.
+    let mut shape_all: std::collections::HashSet<String> = Default::default();
+    let mut shape_noncarrier: std::collections::HashSet<String> = Default::default();
+    let mut n_nc = 0usize;
+    for k in 0..n.min(4000) {
+        let mut r = Rng::new((k as u64) << 12 ^ 0xA11CE);
+        let Some((c, _)) = mutate::mutate_program_n(&seed, &mut r, edits) else { continue };
+        let t = tt_counts(&c);
+        let sg = shape_sig(&c);
+        shape_all.insert(sg.clone());
+        if t[0] == 0 && t[1] == 0 { shape_noncarrier.insert(sg); n_nc += 1; }
+    }
+
     // DISTINCT-FORM COUNT. Retention dedups by program structure:
     //     pool.retain(|x| seen.insert(format!("{:?}", x.0)))
     // so a class whose members collapse to fewer DISTINCT programs is culled harder by dedup than by
@@ -1745,6 +1763,13 @@ fn tt_supply() {
                  form_p.len(), 100.0 * form_p.len() as f64 / probe_only.max(1) as f64);
         println!("    store-only: {store_only:>5} children -> {:>5} distinct  ({:.1}% unique)",
                  form_s.len(), 100.0 * form_s.len() as f64 / store_only.max(1) as f64);
+        println!("\n  SHAPE DIVERSITY (decides whether the reserve can reach a store-carrier):");
+        println!("    non-carrier candidates: {n_nc} drawn -> {} DISTINCT shapes ({:.1}% unique)",
+                 shape_noncarrier.len(), 100.0 * shape_noncarrier.len() as f64 / n_nc.max(1) as f64);
+        println!("    all candidates        : {} distinct shapes overall", shape_all.len());
+        println!("    READING: many distinct non-carrier shapes -> novel-shaped NEUTRAL TWINS, which");
+        println!("             outrate stores, consume the reserve first and the fix is INERT for the");
+        println!("             store half. Few -> the reserve reaches the store and the 3.00x holds.");
         println!("    READING: stores materially FEWER distinct -> DEDUP explains the 3:1 skew and");
         println!("             the ordering is innocent. Comparable -> dedup is not the cause either.");
         println!("    READING: stores rank WORSE on rel-rate -> retention explains the 3:1 skew.");
