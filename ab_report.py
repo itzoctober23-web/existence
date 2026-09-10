@@ -18,9 +18,23 @@ WHAT IT DOES NOT DO. It prints counts and the falsifier's verdict. It does not c
 at n=3 per lineage a Spearman is not interpretable, and quoting one is how an interval becomes a
 claim.
 
-THE FALSIFIER (pre-registered in fitness_saturation_RESULT.md): if saturation is the cause, the
-treatment arms' MAIN candidates should stop being resolved WORSE by VERIFY. If they are still
-resolved worse, saturation is NOT the mechanism and that document is wrong.
+THE FALSIFIER (pre-registered in fitness_saturation_RESULT.md), in its CORRECTED three-way form. The
+original two-way version was wrong and is kept here as the reason the third branch exists:
+
+  * treatment MAIN stops being resolved WORSE            -> consistent with saturation
+  * still worse AND hf > 0 reached the gate              -> saturation REFUTED as the mechanism
+  * still worse AND hf stayed 0                          -> UNINTERPRETABLE, the fix never engaged
+
+The third branch is not a technicality. With hf = 0 the treatment surrogate is
+(23+0)/(cost+hard_cost), improvable only by cutting cost -- identical in incentive to the control's
+23/cost. Every treatment generation so far reads `hard 0-0`, and no arm has EVER scored on the hard
+set before gen 3, so the third branch is the expected early state, not a remote one.
+
+DOSE-RESPONSE. Two treatment arms now run at HARD_WEIGHT 1 and 4 on the same run seed. The
+arithmetic predicts weight 1 is too weak to outbid cost-cutting: the hard set's ceiling is 2 of 8, so
+its best boost is (23+2)/23 = +8.7%, while a 10% cost cut is already +9.1% and the observed cost
+gains were +13.1%..+22.3%. If weight 1 is inert and weight 4 is not, the diagnosis was right and only
+the dose was too small -- which is a DIFFERENT repair from "saturation was the wrong mechanism".
 """
 import re, sys, glob, os
 
@@ -36,12 +50,22 @@ def parse(path):
     txt = open(path, encoding='utf-8', errors='replace').read()
     seed = int(m.group(1)) if (m := SEED_RE.search(txt)) else None
     tol  = int(m.group(1)) if (m := TOL_RE.search(txt)) else None
-    # HARD_FITNESS is not printed, but it lowers the seed's own surrogate because the hard set's
-    # cost enters the denominator while the seed contributes hf=0. MAIN seed: 0.002490 without,
-    # 0.002084 with. That is a header-derived tell, not a filename guess.
-    hard = None
-    if (m := re.search(r'lineage MAIN.*?([0-9]\.[0-9]{6}) mates/Mcost', txt, re.S)):
+    # PREFER THE EXPLICIT HEADER. Arms now print "HARD_FITNESS on weight N" / "HARD_FITNESS off".
+    #
+    # The old heuristic below inferred the FLAG from the seed's own surrogate (0.002490 without the
+    # hard set in the denominator, 0.002084 with it). That is correct for the flag and BLIND TO THE
+    # WEIGHT, because the seed scores hf=0 and w*0 = 0 at every weight -- so a weight-1 and a
+    # weight-4 arm looked identical and would be pooled as one condition. Same class of error as
+    # counting duplicate trajectories as independent observations. Kept as a fallback so logs written
+    # before the header existed still parse.
+    hard, hw = None, None
+    if (m := re.search(r'HARD_FITNESS on weight ([0-9.]+)', txt)):
+        hard, hw = True, float(m.group(1))
+    elif re.search(r'HARD_FITNESS off', txt):
+        hard, hw = False, None
+    elif (m := re.search(r'lineage MAIN.*?([0-9]\.[0-9]{6}) mates/Mcost', txt, re.S)):
         hard = abs(float(m.group(1)) - 0.002084) < 1e-6
+        hw = 1.0 if hard else None   # legacy logs predate the weight knob, which defaulted to 1
     rows, pend = [], {}
     for line in txt.splitlines():
         if (m := VERIFY_RE.search(line)):
@@ -51,35 +75,38 @@ def parse(path):
             v, ci = pend.pop(key, (None, None))
             s  = float(sm.group(1)) if (sm := SURRO_RE.search(line)) else None
             lr = float(lm.group(1)) if (lm := LLR_RE.search(line)) else None
-            rows.append(dict(seed=seed, tol=tol, hard=hard, gen=key[0], lin=key[1],
+            rows.append(dict(seed=seed, tol=tol, hard=hard, hw=hw, gen=key[0], lin=key[1],
                              verify=v, ci=ci, surro=s, verdict=m.group(3), llr=lr))
-    return dict(seed=seed, tol=tol, hard=hard), rows
+    return dict(seed=seed, tol=tol, hard=hard, hw=hw), rows
 
 def main():
+    # NOTE: `gate_hardw*` must be here. It was missed when the weight-4 arm was added, which would
+    # have silently dropped the entire dose-response arm from the report -- a grep that finds nothing
+    # because the pattern is wrong, not because the data is absent.
     paths = sorted(sum((glob.glob(p) for p in
-                        ('gate_hardfit_s*.log', 'gate_sprt30*.log', 'gate_control*.log',
-                         'gate_veto*.log', 'gate_guardtol*.log')), []))
+                        ('gate_hardfit_s*.log', 'gate_hardw*.log', 'gate_sprt30*.log',
+                         'gate_control*.log', 'gate_veto*.log', 'gate_guardtol*.log')), []))
     if not paths:
         print("no arm logs found in", os.getcwd()); return 1
     allrows, seen = [], set()
     print("  arm logs read:")
     for p in paths:
         meta, rows = parse(p)
-        hf = {True: 'HARD_FITNESS', False: 'surrogate-only', None: '?'}[meta['hard']]
+        hf = ('HARD_FITNESS w=%g' % meta['hw']) if meta['hard'] else ('surrogate-only' if meta['hard'] is False else '?')
         print(f"    {p:<30} seed {meta['seed']}  tolerance {meta['tol']}  {hf}  ({len(rows)} gated gens)")
         for r in rows:
             # DEDUPLICATE: identical config replays the identical trajectory.
-            k = (r['seed'], r['tol'], r['hard'], r['lin'], r['gen'], r['surro'])
+            k = (r['seed'], r['tol'], r['hard'], r['hw'], r['lin'], r['gen'], r['surro'])
             if k in seen:
                 continue
             seen.add(k); allrows.append(r)
 
     strata = {}
     for r in allrows:
-        strata.setdefault((r['tol'], r['hard']), []).append(r)
+        strata.setdefault((r['tol'], r['hard'], r['hw']), []).append(r)
 
-    for (tol, hard), rows in sorted(strata.items(), key=lambda kv: (kv[0][0] or 0, kv[0][1] or False)):
-        hf = {True: 'HARD_FITNESS=1', False: 'surrogate only', None: 'unknown'}[hard]
+    for (tol, hard, hw), rows in sorted(strata.items(), key=lambda kv: (kv[0][0] or 0, kv[0][1] or False, kv[0][2] or 0)):
+        hf = ('HARD_FITNESS weight %g' % hw) if hard else ('surrogate only' if hard is False else 'unknown')
         print(f"\n  === guard tolerance {tol} | {hf} | {len(rows)} unique gated gens ===")
         print("    seed gen lin    surrogate   VERIFY            gate")
         for r in sorted(rows, key=lambda r: (r['lin'], r['seed'] or 0, r['gen'])):
@@ -110,9 +137,14 @@ def main():
         print("      * if hf stayed 0 -> UNINTERPRETABLE. With hf=0 the surrogate is")
         print("        (23+0)/(cost+hard_cost), improvable only by cutting cost -- identical in")
         print("        incentive to the control's 23/cost. The fix never engaged.")
-        print("    These cannot be told apart from these logs (gated gens print no `hard` field),")
-        print("    so THIS is the result that makes the tuple-widening refactor worth its cost.")
-        print("    Every treatment gen so far reads `hard 0-0`, so do not assume engagement.")
+        print("    Read `hard hlo-hhi` ON THE GATE LINE to tell them apart:")
+        print("      hhi == 0  -> the fix did NOT engage. Unambiguous.")
+        print("      hlo >  0  -> every retained member scored, so the winner did. Unambiguous.")
+        print("      hlo == 0 < hhi -> AMBIGUOUS: some candidate scored, but the winner may still")
+        print("                        be a cost-cutter with hf=0, which is what the weight-1")
+        print("                        under-power prediction expects.")
+        print("    Compare the weight-1 and weight-4 arms before concluding: if weight 1 is inert")
+        print("    and weight 4 is not, the diagnosis was right and only the dose was too small.")
     elif worse == 0:
         print("    CONSISTENT with saturation being the cause.")
         print("    NOT PROOF, and the confirming check is NOT AVAILABLE from these logs: a gated")

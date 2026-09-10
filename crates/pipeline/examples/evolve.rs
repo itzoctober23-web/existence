@@ -1458,7 +1458,20 @@ fn main() {
     let (seed_hard, _, _) = fitness(&reference::bare_alpha_beta(), &hard, &net, depth, budget_main);
     println!("  HARD set: {} positions the seed FAILS by construction; seed scores {seed_hard}/{} \
 (a real gradient, unlike the saturated 25/25 guard set)", hard.len(), hard.len());
-    println!("  population MU={MU}, lambda={pop}, EPS={EPS:.3}, guard tolerance {guard_tolerance} \
+    // THE HEADER MUST NAME THE ARM'S CONFIGURATION, because the analysis reads the HEADER and not
+    // the filename. `ab_report.py` was detecting HARD_FITNESS from the seed's own surrogate falling
+    // to 0.002084 -- which is correct for whether the flag is set, and blind to the WEIGHT, because
+    // the seed scores hf=0 and w*0 = 0 at every weight. A weight-1 and a weight-4 arm therefore have
+    // byte-identical headers and would be pooled as one condition. That is the same class of error
+    // as counting duplicate trajectories as independent observations.
+    let hard_cfg = if std::env::var("EXISTENCE_HARD_FITNESS").is_ok() {
+        let w: f64 = std::env::var("EXISTENCE_HARD_WEIGHT")
+            .ok().and_then(|s| s.parse().ok()).unwrap_or(1.0);
+        format!(", HARD_FITNESS on weight {w:.2}")
+    } else {
+        ", HARD_FITNESS off".to_string()
+    };
+    println!("  population MU={MU}, lambda={pop}, EPS={EPS:.3}, guard tolerance {guard_tolerance}{hard_cfg} \
 (deepest measured valley half is 0.009)");
 
     // RECORD panics, do not silence them. The first version of this hook discarded the message
