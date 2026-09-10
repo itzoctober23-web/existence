@@ -352,3 +352,45 @@ sweep; it goes in as soon as that finishes.
 admitted NOTHING through 6 generations. A larger, more varied population that never produces an
 acceptable candidate is a better-shaped failure, not a success — and only VERIFY on an actual accept
 would change that.
+
+## 2026-09-10 — at generation 6, both arms complete: 4/6 vs 0/12 (p = 0.0049), pop reaches MU
+
+All three arms have now run six generations, so the comparison is at equal depth rather than at
+whatever point each happened to have reached. MAIN and MCTS separated, because the earlier reading
+counted a composition MCTS gate and MAIN is the lineage under test.
+
+    MAIN-lineage gates in generations 1-6
+      control  gate_sprt30_s1  (52% mate-in-1)   4 of 6
+      composition seed 1       (17%)             0 of 6
+      composition seed 2       (17%)             0 of 6
+      composition, both seeds                    0 of 12
+
+    Fisher exact, two-sided: p = 0.0049
+    (SUPERSEDES the earlier 3/5 vs 0/7 -> p = 0.045, taken before the arms reached equal depth)
+
+**Population reaches the configured maximum, in both seeds:**
+
+    composition s1  pop: 2 2 2 3 5 6      distinct: 1 1 0 1 2 1
+    composition s2  pop: 1 3 3 4 7 8      distinct: 0 2 0 3 4 2
+
+`MU = 8`, and seed 2 hits it at generation 6. Against the pop-2 collapse that dominated the
+79-generation aggregate — where 94% of generations offered ≤1 distinct fitness — that is the
+funnel's binding stage moving, replicated.
+
+**The interpretation is unchanged and still the honest one.** All four control gates REJECTED, with
+VERIFY 0.398 / 0.430 / 0.398 / 0.435. So the contrast is **"gated and failed" against "never gated"**,
+not strength. Both composition arms have admitted NOTHING in twelve MAIN generations. A set that
+admits nothing is trivially free of bad accepts, and p = 0.0049 measures how reliably it admits
+nothing — which is exactly what the pre-registration said would NOT count as success:
+
+> *"FEWER accepts than the control is EXPECTED and is NOT failure... the question is whether what it
+> admits is better, which only VERIFY answers."*
+
+**What has genuinely changed since the last reading** is the population evidence. "Fewer gates" alone
+is consistent with a set that is merely harder. Reaching `MU` with 2-4 distinct rates says the
+selection stage now has something to choose between, which is the specific defect
+`search_has_no_choice_RESULT.md` identified — and it is the one axis where these arms differ from
+every earlier one.
+
+**Still open, and it is the whole question:** whether a larger, more varied population ever produces
+a candidate that VERIFIES above 0.5. Nineteen generations remain in each run.
