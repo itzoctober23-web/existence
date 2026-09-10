@@ -493,3 +493,44 @@ not independence in a cryptographic sense, and a systematic defect in `Rng` woul
 protects the falsifier is more basic: VERIFY is a FIXED 96-pair match whose pair count does not
 depend on the gate's bounds, its stopping rule, or its cap. So the §7.2 bounds question — live and
 unresolved — cannot move the falsifier's reading.
+
+## THIRD correction, 21:25 — a bigger set does NOT fix it either
+
+The bigset arm (77 positions, tolerance 4) reached gen 3 and read **`mate-ok 0`** — identical to the
+tolerance-0 arm. Three configurations, same seed, same generation, all measured:
+
+    |set|  tolerance  licence   gen-3 MAIN outcome
+      23       4       17.4%    candidate PASSED, sold 4 of 23 — exactly the licence
+      23       0        0.0%    mate-ok 0, nothing passed
+      77       4        5.2%    mate-ok 0, nothing passed
+
+**The 23/tolerance-4 winner lost exactly 17.4% — it consumed the entire licence.** At 77 positions
+the same absolute tolerance is only 5.2%, and nothing cleared it.
+
+**So candidates lose a roughly constant FRACTION of mates, not a constant COUNT.** A bigger set with
+the same absolute tolerance is simply a tighter proportional guard, and behaves like tolerance 0. To
+preserve the 17.4% licence at 77 positions the tolerance would have to be ~13 — which re-opens the
+mate-selling market at exactly the same rate. **The set size moves the dial; it does not remove the
+dilemma.**
+
+That is three repairs refuted tonight, each by the arm launched to test it:
+
+1. **Saturation** — refuted by `mates 19`: the numerator is sold, not stuck.
+2. **Guard tolerance 0** — refuted by `mate-ok 0`: it freezes rather than redirects.
+3. **A bigger set** — refuted by `mate-ok 0` at 5.2%: the loss is fractional, so no size helps.
+
+**What all three share, and where that points.** Every one assumed the mate metric could separate
+"small improvement" from "damage" if only it were scaled or gated correctly. The measurements say it
+cannot at ANY size or tolerance, because a behaviour-changing candidate loses ~17% of mates whatever
+the denominator. That is consistent with the one fact none of these repairs touched: **the seed
+computes an EXACT minimax value**, so essentially every perturbation of it is strictly worse, and
+`mutate.rs:437` predicted exactly this before any of tonight's arms ran.
+
+**Which makes the surviving lever the one FITNESS §3 already specifies, and it is not a dial.** §3
+gives this metric the role of a FILTER admitting anything within 0.9x of the champion, with the
+GAME GATE deciding — precisely because the metric cannot rank. Every repair tried tonight was an
+attempt to make it rank better. `relaunch_spec_filter.sh` is ready and is the first that does not.
+
+**Not claimed:** that candidates lose exactly 17% at 77 positions. `mate-ok 0` proves only that every
+candidate lost MORE than 4 of 77. The constant-fraction reading is consistent with all three
+measurements and is not established by them.
