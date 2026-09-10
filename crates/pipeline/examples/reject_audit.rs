@@ -178,12 +178,30 @@ fn main() {
             println!("  entirely above 0.5). The gate keeps real improvements; the flat ancestor");
             println!("  readings must then be explained by something other than a noisy accept rule.");
         } else if c < 0.02 {
+            // DISCLOSE HOW CLOSE THE CALL WAS. This branch fires whenever `r - c` lands below 0.5 by
+            // ANY margin, and on the first real run it fired at a margin of 0.0006 -- 3% of one
+            // interval -- while printing a verdict that reads as settled. A threshold crossed by a
+            // hair must announce that, or the sentence below gets quoted as a finding.
+            let margin = 0.5 - (r - c);
             println!("  VERDICT: accepts pool at {r:.4}, indistinguishable from 0.5 at a TIGHT interval.");
             println!("  The gate is promoting candidates that are NOT stronger than the champion they");
             println!("  replaced. Combined with rejects also at 0.5, the accept/reject decision");
             println!("  carries no depth-{depth} signal at all and the champion is on a RANDOM WALK --");
             println!("  which is exactly what the ancestor control's 0.464 / 0.498 over 400-generation");
             println!("  windows looks like. That would explain the plateau completely.");
+            if margin < 0.2 * c {
+                // Recomputed locally: the between-candidate sd above is scoped to its own block.
+                let n_c = rates.len() as f64;
+                let m_c = rates.iter().map(|(_, x)| x).sum::<f64>() / n_c;
+                let sd_c = (rates.iter().map(|(_, x)| (x - m_c).powi(2)).sum::<f64>() / (n_c - 1.0)).sqrt();
+                let need = ((1.96 * sd_c / (r - 0.5)).powi(2)).ceil() as usize;
+                println!();
+                println!("  ** BUT THE CALL IS ON THE LINE: the lower bound misses 0.5 by {margin:.4}, which is");
+                println!("  ** {:.0}% of one interval width. This is NOT a demonstrated null -- at this effect", 100.0 * margin / c);
+                println!("  ** size roughly {need} candidates would RESOLVE the pool ABOVE 0.5, and there are {}.", rates.len());
+                println!("  ** Bank more before quoting the paragraph above. The honest reading today is");
+                println!("  ** 'accepts sit just above 0.5 and the interval will not yet separate them from it'.");
+            }
         } else {
             let need = ((c / 0.02).powi(2) * pooled.games() as f64 / 2.0).ceil() as u64;
             println!("  UNRESOLVED: interval contains 0.5 and is too wide ({c:.4}). Ignorance, not a");
