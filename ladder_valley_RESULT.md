@@ -445,3 +445,56 @@ unsupported.
 that span.** So this becomes answerable by waiting, and the thing to watch for on a gen line is a
 single member tagged with BOTH a `P` and an `S` — `P1S1K2F1` or similar. That tag has never appeared
 outside the MCTS lineage.
+
+## 2026-09-10 — CROSSOVER CAN UNITE THE HALVES. 11 of 200 are PATH-1 acceptable.
+
+`evolve ttunion 200 3` crosses `ab_probe_only` with `ab_store_only` — the two halves, hand-built —
+and asks the question the live arms are sampling at 0.20/generation.
+
+**All three controls hold**, which is what makes the rest readable:
+
+| program | probes | hits | stores | p/s | same-play | cheaper |
+|---|---|---|---|---|---|---|
+| `ab_probe_only` | 759,795 | 0 | **0** | inf | true | false |
+| `ab_store_only` | **0** | 0 | 55,114 | 0.0 | true | false |
+| `ab_hash` (the union) | 745,219 | 7,318 | 53,405 | 14.0 | true | **true** |
+
+The probe half probes and never stores; the store half stores and never probes; neither is cheaper;
+only the union is. All three play identically to the seed, confirming they are behaviour-preserving
+halves of ONE improvement rather than three different programs.
+
+**The result:**
+
+    well-typed children      : 200 of 200
+    carrying BOTH halves     :  26   (13.0%)
+    ...that play IDENTICALLY :  17   (65% of those)
+    ...AND cheaper (PATH-1)  :  11   (5.5% of ALL attempts)
+
+**Eleven children are behaviour-preserving speedups — exactly what PATH 1 accepts, with no games
+played.** The route this document has spent all night showing to be open, correct, aimed at a
+qualifying target, and empty, is now shown to be REACHABLE: given both halves in hand, one crossing
+in eighteen produces something PATH 1 would take.
+
+### What it projects onto the live arms
+
+    P(union even attempted per generation)   ~ 0.20    measured from composition_s2's gen-6 population
+    P(a union is PATH-1 acceptable)          ~ 0.055   measured here
+    -> P(acceptable union per generation)    ~ 0.011
+       over the 19 generations remaining:      19%
+       over 50 generations:                    42%
+
+**So the arms are not chasing something impossible — they are chasing a ~1% per-generation event, and
+19% is a real chance of catching it in the run that is already going.** That is a very different
+statement from "no gradient in either currency", which is where the single-edit measurements left it.
+
+### The limit that matters most
+
+**These are the HAND-BUILT halves, `P10K10F10` and `S5K5`, applied at 10 and 5 call sites. The live
+population's halves are MINIMAL — `P1K1F1` and `S1K1`, one site each.** A union of two minimal halves
+is a probe and a store at one site apiece; whether that reproduces the 5.5% is NOT measured, and the
+`ab_hash` control shows coverage matters (its whole 2.4% gain comes from 10 sites at a 1% hit rate).
+
+Also: the united children here run at **30.4% hits and 3.8 probes/store**, against `ab_hash`'s 1.0%
+and 14.0. They are cheaper and behaviour-preserving, so PATH 1 takes them — but they are not
+behaving like `ab_hash`. Some of the 11 may be cheap for a reason unrelated to transposition reuse.
+That is worth knowing before any of this is called "the search found hash reuse".
