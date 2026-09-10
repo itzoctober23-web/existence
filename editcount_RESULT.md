@@ -166,3 +166,47 @@ Whatever the arrangement is, it is not one that converts table traffic into save
 earlier node. Counting hits whose stored key was written at a different tree depth would separate
 genuine reuse from self-inflicted hits. That is one more counter — and unlike the two stories above,
 it is a measurement before it is a claim.
+
+## ⚠ 2026-09-10 — THIRD mechanism refuted. Stopping the guesses and recording the measurements.
+
+    ZERO-KEY (the `_ => 0` fallback) : 0 probes (0.0%), 0 stores (0.0%)
+
+The `Node::Probe`/`Node::Store` fallback that silently turns a non-Key expression into slot zero
+**never fires**. The mutants use real, varying keys.
+
+**Three mechanisms proposed, three refuted, all by the same instrument:**
+
+| # | proposed | refuted by |
+|---|---|---|
+| 1 | an arbitrarily placed pair never hits | 8 of 10 hit |
+| 2 | a memo cell: few stores, read back often | 1.0 probes/store — they store MORE than they probe |
+| 3 | the key collapses to 0 via the `_ => 0` fallback | 0.0% zero-key, on both probes and stores |
+
+The brief's rule — *two wrong hypotheses in a row means the harness is wrong* — was applied after the
+second and the harness checked out: exactly one probe site and one store site, each in the correct
+node handler, verified by grepping every call of `Tt::probe` and `Tt::entry`. The controls hold on
+every run: `ab_hash` registers hits, stores, and 0.0% zero-key; the seed reads 0/0/0.
+
+**So the harness is sound and my explanations were not. That is the finding.**
+
+### What is measured, and it is enough to act on
+
+    both-halves mutants (of 300, 3 edits) : 10;  10 probe;  8 hit
+    hit rate                              : 62.1%   (ab_hash: 1.0%)
+    probes per store                      : 1.0     (ab_hash: 14.0)
+    zero-key                              : 0.0%    (ab_hash: 0.0%)
+    table ops per position                : 2,514,096
+    table traffic as cost                 : ~30.2M units/position = 8% of the seed's 397.2M search
+
+The pairs are installed, keyed properly, and used heavily — and every one is still rejected on cost
+and correctness. **Whatever the arrangement is, it converts table traffic into no saved search.**
+
+### The one discriminator that would settle it, named and NOT built tonight
+
+A real TT's value is reading a slot written at a **different, earlier node**. Tagging each stored
+slot with the tree depth that wrote it, and counting hits where writer-depth ≠ reader-depth, would
+separate genuine reuse from self-inflicted hits — a probe reading back what the same node just wrote.
+
+That is one more counter. I am not building it now: three explanations have already died here, the
+actionable conclusion (0 of 120 candidates work) has not moved through any of them, and the 4PC side
+has a corpus running. Recorded so the next person spends a counter rather than a story.
