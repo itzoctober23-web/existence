@@ -1202,3 +1202,38 @@ baseline arms have run far longer with far more carrier-generations and produced
 **The falsifier stands unchanged:** if the probe:store ratio in this arm settles near the baseline
 3:1, the reserve is not doing the work and this sighting was luck. The arm continues; the composition
 table goes in below when it has enough generations to compare.
+
+### ⚠ CORRECTION, one tick later: the reserve was NEVER ACTIVE when that union appeared
+
+`select_survivors` engages the diversity reserve only when `pool.len() > MU`. Otherwise it takes
+`pool.truncate(mu)`, which the selftest proves is byte-identical to the old behaviour. Per generation
+in `gate_diversity_s1`, MAIN lineage, with `mu = 8` from `configs/search_track.conf`:
+
+    gen 1   pop 1   mate-ok 0     pool = 1 + 0 = 1
+    gen 2   pop 2   mate-ok 2     pool = 1 + 2 = 3
+    gen 3   pop 3   mate-ok 1     pool = 2 + 1 = 3        <- P1S1K2F1 appears here
+    gen 4   pop 3   mate-ok 0     pool = 3 + 0 = 3        <- and persists here
+
+**`pool.len() <= MU` every time. The reserve has not engaged once.** This arm has been running the
+OLD selector with an environment variable set.
+
+**So the fused member is not evidence for the fix.** It arose under plain elitist truncation, in an
+arm that is functionally a fourth baseline. What it actually shows is narrower and still worth having:
+**a fused minimal union CAN arise naturally** -- the first one observed in this project -- which is
+consistent with the measured ~1% PATH-1 rate and with unions being rare rather than impossible. It
+then vanished after gen 4, which is exactly what an unprotected store-carrier does.
+
+**What I got wrong and why.** I reported it as "the predicted downstream consequence" of the reserve
+keeping store-carriers alive. The prediction was reasonable; I did not check whether the mechanism was
+switched on before crediting it with the result. The check was two greps of the arm's own log.
+
+**What this means for the experiment.** The arm is not wasted -- the composition arms reach `pop 8`
+around gen 6-8, so pools there DO exceed `mu`, and this arm should reach that too. **The reserve is
+untested, not refuted.** The falsifier is unchanged and now has a precondition attached: the
+composition comparison is only meaningful over generations in which `pool.len() > mu`, and those have
+not happened yet.
+
+**Instrumentation gap, recorded rather than hot-patched:** the gen line does not print whether the
+reserve engaged, which is why this took a reconstruction from `pop` and `mate-ok` instead of a read.
+Adding it means rebuilding and restarting the arm, costing its 7 generations. Not worth it now; worth
+it before any arm is started to test this properly.
