@@ -1369,7 +1369,31 @@ why it died" record. Four of these re-derived something the repo already knew; t
 
 ### DO NOT REGRESS — each of these is measured, not argued
 
-1. **Do NOT widen `guard_tolerance`.** Tolerance 0 freezes the search (`mate-ok 0` at gen 3, measured). Tolerance 4 admits 10% mate-sellers; tolerance 6 admits 22.5%. And `search_track_WHY_NOTHING.md` already measured the killer: the **ALPHA exploit loses exactly 2** guard positions, the same minimum a genuine change loses, so tolerance 2 re-admits it at **1.29x** and the search degenerates instantly. There is no threshold that admits the rung and not the sale.
+1. **Do NOT widen `guard_tolerance` — but the REASON below is corrected, 2026-09-10.**
+   ~~The ALPHA exploit loses exactly 2, the same minimum a genuine change loses, so tolerance 2
+   re-admits it at 1.29x.~~ **That number is from the WINDOW-sensitive guard and is superseded.** The
+   live loop already builds its third component with `alpha_sensitive_set` (`evolve.rs:1732` — the
+   variable is still named `win` and the comment above it still says "window-sensitive", which is
+   what misled me). The loop's own note explains why it changed: the window set varies INF
+   symmetrically while the exploit raises ALPHA asymmetrically, so it caught the exploit "only
+   incidentally — measured at 2 of 25 lost", and the alpha-sensitive set moves it to 5, "which is
+   what makes a tolerance possible at all."
+
+   **Measured on the CURRENT guard** (`evolve stepdiff`, 200 single edits, same construction the live
+   loop uses):
+
+       DEPTH exploit loses 8      ALPHA exploit loses 5
+       genuine behaviour changes lose a MINIMUM of 3   (losing <=2: 0 of 75)
+       distribution: lost 3: 3 | lost 4: 9 | lost 5: 15 | lost 7: 21 | lost 25: 23
+
+   So **tolerance 3-4 DOES separate genuine changes from both known exploits** — the guard is
+   correctly calibrated, and the live setting of 4 is the right one. The reason not to widen further
+   is different and stronger: **tolerance 4 already admits 12 of 75 behaviour-changing candidates
+   (those losing <=4), and those are exactly the candidates the live arms gated** — `mates 19` and
+   `mates 20` of 23, i.e. losing 3-4 — **which then VERIFIED at 0.422, 0.430 and 0.398. Decisively
+   worse.** The band that excludes the exploits still admits changes that lose games. Widening past 4
+   starts re-admitting the ALPHA exploit at 5.
+   Tolerance 0 remains refuted separately: it freezes the search (`mate-ok 0` at gen 3, measured).
 2. **Do NOT add MATE-2/3 strata as a fitness repair.** Blind to the ONE-PLY cut the search actually finds; `disagreement_set` catches that by construction and is self-calibrating to the fitness depth.
 3. **Do NOT enlarge the position set while holding the mate-in-1 fraction.** Size was never the axis — a null search costing 0.0366% of the seed scores **2934.933x** on a mate-1-heavy set. Composition is the axis.
 4. **Do NOT widen EPS.** The band is empty (0 of 60).
