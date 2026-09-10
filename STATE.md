@@ -4072,3 +4072,38 @@ factorial's own binary — with the fixed 6-pair gate. That isolates SET composi
 gate held fixed, which no existing pair does. Not launched now: the box is committed to `gate_iir`
 plus 8 arms, and adding a 9th while a gate runs is the resource rule's whole point. Queued as the
 next Existence arm when a slot frees.
+
+### Deconfounding the hard-set observation: gate type is NOT the explanation
+
+The previous entry flagged the pattern as confounded by set composition, gate type AND binary. Two of
+those can be separated from data already on disk, by reading each arm's `EXISTENCE_GATE_SPRT` from
+`/proc/PID/environ` rather than inferring it:
+
+    arm                     set        gate        binary     nonzero hard    rate
+    gate_composition_s1     4+10+10    SPRT        549fceeb    2 of 26          8%
+    gate_sprt30_s1          12+6+5     SPRT        cd29871d    9 of 21         43%
+    gate_specfilter_s1      12+6+5     SPRT        dd2c919b    5 of  8         63%
+    ---------------------------------------------------------------------------
+    gate_diversity_s1       4+10+10    6-pair      1529d29f    1 of 50          2%
+    gate_diversity_PAIRED_off 4+10+10  6-pair      1529d29f    0 of 37          0%
+
+**Restricting to the SPRT arms alone, the set difference survives: 8% against 43-63%.** Gate type is
+therefore not the explanation — within one gate type, the mate-in-1-heavy composition still produces
+5-8x more candidates that score on the hard set.
+
+**What remains confounded is the BINARY** (`549fceeb` vs `dd2c919b`/`cd29871d`), and that is not a
+small caveat given the day's evidence: two binaries built five hours apart differed enough to void a
+pairing, and one of them lacks `EXISTENCE_DIVERSITY_SLOTS` entirely. So the honest state is **one of
+three confounds eliminated, one remaining**, and the remaining one has already caused a wrong
+conclusion today.
+
+**The experiment that closes it is unchanged and now better specified:** one arm at `25 8 12 6 3` on
+`evolve_PINNED` (`1529d29f`) with the fixed 6-pair gate. Against `gate_diversity_PAIRED_off` — same
+binary, same gate, same seed, differing ONLY in `n1/n2/n3` — that isolates set composition completely.
+It is the missing cell of a second factorial, and the existing arms cannot substitute for it.
+
+**Why this matters more than a curiosity.** `harder_set` is the only construction in the tree that can
+reward searching BETTER rather than cheaper, and the whole diagnosis of why nothing is ever accepted
+rests on candidates never being better. If one set composition surfaces such candidates 5-8x more
+often, that bears directly on the P2 kill criterion — and the current recommendation points the other
+way.
