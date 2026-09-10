@@ -101,7 +101,11 @@ fn main() {
 
     println!("reject_audit[{prefix}]: {} pairs from {dir}", gens.len());
     println!("  {pairs} pairs each, depth {depth}, seed {seed}");
-    println!("  each candidate plays THE CHAMPION IT LOST TO, not a later one\n");
+    // Wording must match the case: a REJECTED candidate lost to its champion, an ACCEPTED one BEAT
+    // it. Same pairing either way -- the champion AT THAT MOMENT, never a later one -- but printing
+    // "the champion it lost to" over accept data states the opposite of what happened.
+    println!("  each candidate plays the champion it {} -- the one from THAT generation, never a later one\n",
+             if prefix == "acc" { "BEAT" } else { "LOST TO" });
 
     let mut tw = 0u32; let mut td = 0u32; let mut tl = 0u32; let mut tp = [0u32; 5];
     let mut rates: Vec<(u64, f64)> = Vec::new();
