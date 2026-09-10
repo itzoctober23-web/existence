@@ -1480,3 +1480,33 @@ is empirical, and it is the one to cite.
 correctly and then reaching for a bigger claim than it supports. The tell each time was a number that
 could not have come out any other way: 9 shapes from a signature that ignores placement, 0 both-halves
 from a process that applies one operator.
+
+### Cross-check: the 6.5% projection survives an INDEPENDENT derivation
+
+Having just corrected three overstatements in a row, the 6.5% deserved the same scrutiny as the
+claims I withdrew. It rests on `P(union attempted per generation) = 0.20`, which was read off a
+single gen-6 population -- a weak basis for a headline number.
+
+**`editcount_RESULT.md` derives the same quantity a different way**, from an n=5000 `ttreach` sweep
+with no fitness (so the rare event is actually powered): a **1.8-4.4% pair rate** at `lambda 8` gives
+**0.144-0.352 both-halves candidates per generation**.
+
+    A: gen-6 population composition       P(attempt/gen) = 0.200
+    B: editcount, n=5000, powered         P(attempt/gen) = 0.144 .. 0.352
+
+**A sits inside B's range.** Two methods that share no inputs -- one a composition count off a live
+log, the other a mutation sweep -- agree. Propagating each through the measured PATH-1 acceptance
+(13/1200 = 1.08%) over the 31 generation-trials remaining in the two confirmed host arms:
+
+    A  (0.200)        0.2167%/gen  ->   6.5%
+    B low  (0.144)    0.1560%/gen  ->   4.7%
+    B high (0.352)    0.3813%/gen  ->  11.2%
+
+**The quoted 6.5% is mid-range and an outlier of neither method.** It is not a precise figure -- the
+honest interval is roughly **5-11%** -- but it is not resting on one population line, which is what it
+looked like an hour ago.
+
+**Method note.** This check exists because three claims in a row had just failed the question *"could
+this number have come out differently?"*. 6.5% CAN come out differently -- it moves with the
+composition term, and it did, from 19% to 4.0% to 6.5% as better inputs arrived. That is the signature
+of a real estimate rather than a forced one, and it is why this one survives where the others did not.
