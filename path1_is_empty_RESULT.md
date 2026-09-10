@@ -115,8 +115,8 @@ is NOT the same test as the mate guard, and had never been run on crossover outp
       ...AND cheaper    :   0      <- never reduces cost
 
     CROSSOVER (ttgraft, both-halves children, ab <- uct)
-      plays identically :   0 / 12 <- never preserves behaviour
-      ...AND cheaper    :   0 / 12
+      plays identically :   0 / 40 <- never preserves behaviour
+      ...AND cheaper    :   0 / 40   (n=40 completed; the n=12 interim read the same)
 
 **POSITIVE CONTROL, run before the children and printed on every run:**
 
@@ -131,7 +131,7 @@ wrong. It reads true, and correctly identifies the rung as PATH-1 acceptable. Th
 | operator | preserves behaviour? | reduces cost? | PATH-1 capable |
 |---|---|---|---|
 | mutation (1 edit) | **yes, 100 of 200** | **never, 0 of 100** | no |
-| crossover (both-halves graft) | **never, 0 of 12** | (moot) | no |
+| crossover (both-halves graft) | **never, 0 of 40** | (moot) | no |
 
 **Mutation preserves behaviour but never reduces cost. Crossover changes cost but never preserves
 behaviour.** PATH 1 requires BOTH at once, and no operator in the grammar produces both. That is why
@@ -140,8 +140,9 @@ threshold, a bound, or a tolerance, but because the operator set cannot express 
 
 ### Honest limits
 
-* **n = 12 crossover children** is small. A 40-child run is launched; the ratios will be updated
-  rather than re-argued. The mutation side is n = 200 and firm.
+* **n = 40 crossover children, drawn from 499 attempts** — the launched run completed and the ratio
+  did not move from the n=12 interim (0 either way). The mutation side is n = 200. Both are firm
+  enough for the conjunction claim; neither is large enough to bound a rare event below ~2%.
 * Crossover here is `ab <- uct` only — the graft that carries TT primitives. A crossover between two
   MAIN-lineage members is a different distribution and is not measured.
 * "Cheaper" is on the 25-position set at depth 3 with `cost_cap` 20e9. A speedup that only pays
