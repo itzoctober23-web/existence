@@ -1443,7 +1443,7 @@ fn shape_sig(p: &Program) -> String {
 /// to run, the population collapses to `pop 1`, so `pool.len() > MU` is never true, the diversity
 /// branch is never reached, and "identical output" says nothing about the flag. A pure function with
 /// a hand-built pool exercises the branch every time.
-fn selftest() {
+fn selftest_inner() -> usize {
     let mu = 8usize;
     // Rate-sorted pool: 10 copies of one shape at high rates, then ONE minority shape below the
     // cutoff. This is the measured situation -- guard-passing probe-carriers outrate the store half
@@ -1495,6 +1495,24 @@ fn selftest() {
     else { println!("FAIL — survivor not present in the input pool"); fail += 1; }
 
     println!("\n  {}", if fail == 0 { "ALL PASS" } else { "*** FAILURES ABOVE — do not commit" });
+    fail
+}
+
+/// The subcommand form: `evolve selftest`. Prints and exits.
+fn selftest() { let _ = selftest_inner(); }
+
+/// THE SAME CHECKS, WIRED INTO `cargo test`.
+///
+/// `evolve selftest` was a SUBCOMMAND, so nothing ran it unless a human typed it -- a control that
+/// gates nothing. `cargo test` does not run tests inside examples unless the example declares
+/// `test = true`, which `crates/pipeline/Cargo.toml` now does. Same body as the subcommand, so the
+/// two cannot drift.
+#[cfg(test)]
+mod selftest_gate {
+    #[test]
+    fn select_survivors_controls_all_pass() {
+        assert_eq!(super::selftest_inner(), 0, "select_survivors selftest reported failures");
+    }
 }
 
 /// How many times the diversity reserve has actually ENGAGED. Printed on every generation line as

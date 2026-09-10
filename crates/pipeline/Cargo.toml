@@ -17,3 +17,11 @@ interp = { path = "../interp" }
 [[bin]]
 name = "learn"
 path = "src/main.rs"
+
+# EXAMPLES DO NOT RUN THEIR TESTS unless told to. `evolve selftest` was a subcommand, so the controls
+# for `select_survivors` -- including that dslots=0 is byte-identical to truncate(mu) -- gated nothing
+# until a human typed the command. `test = true` puts them under `cargo test`.
+[[example]]
+name = "evolve"
+path = "examples/evolve.rs"
+test = true
