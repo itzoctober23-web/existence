@@ -39,6 +39,40 @@ anything below.
    **REFUTED end-to-end**: slower in wall-clock at depths 4 and 5, because the tree grew 6–7%.
    → `throughput_RESULT.md`
 
+### SEARCH TRACK, same day, later — four more, and they change what the bottleneck IS
+
+7. **The game gate is SEQUENTIAL now, and it RESOLVES.** FITNESS §7 always specified SPRT; the
+   shipped gate was a fixed 6-pair match needing ~70% of pairs to pass, so it could never accept
+   anything short of a rout — 0 accepts in **99 independent gate calls**. Verified on the real
+   binary: A/A vs itself returns Inconclusive at 30 pairs without accepting, A/B vs `depth_one`
+   **ACCEPTS at llr +3.08 after 26 pairs**, and the first live gate REJECTED a real candidate at
+   **llr −3.18 in 18 pairs** by crossing the bound rather than exhausting a cap. Bounds `[0,10]` →
+   `[0,30]`, sized by simulation first: cap-burns 63.8% → 0%, median pairs 274 → 55.
+   → `gate_bounds_RESULT.md`. **Deviates from FITNESS §7.2's 2-Elo width; flagged, not settled.**
+
+8. **With the gate cleared, the surrogate is the bottleneck — and it is a SPEED metric.** The search
+   finds a surrogate improvement in 42.3% of lineage-generations, but 3 of 3 MAIN candidates that did
+   so were **resolved WORSE** by a 96-pair independent-seed VERIFY, against 0 of 3 for MCTS. MAIN's
+   numerator is saturated at 23/23, so `mates/Mcost` can only improve via cost — by searching less.
+   The confirming case was already on disk: the one candidate ever ACCEPTED (line 2668 below, veto
+   arm) is recorded as **"15 mates"** — the seed's own score — so its +31.4% was a pure cost cut,
+   VERIFY 0.490. **MCTS is NOT saturated and the search still took cost over a free numerator gain,
+   which paid 4.7× better.** → `fitness_saturation_RESULT.md`
+
+9. **A gate REJECTION used to raise the bar.** `best_rate` was set to the rejected candidate's rate,
+   so the next generation had to clear a bar inherited from a program just measured as worse. It cost
+   a real gate call: gen-4 candidates read 0.947× and 0.961× of the inherited bar and produced no
+   gate, while against the champion they are 1.112× and 1.129× and would have gated. Both reject
+   paths now record into `gated`, which is what the `spec_filter` branch always did.
+   → `search_track_WHY_NOTHING.md`
+
+10. **Running now: a dose-response, all on run seed 1.** control / `HARD_FITNESS` weight 1 / weight 4
+    / EPS 0.10. The arithmetic predicts weight 1 is inert — the hard set's ceiling is 2 of 8 = +8.7%,
+    against cost cuts observed at +13.1%…+31.4% — so weight 4 is what separates "diagnosis wrong"
+    from "dose too small". EPS 0.10 is already shown live: pop 4 vs pop 2, retaining a `tt`-carrying
+    member. The falsifier and its three readings are pre-registered; `ab_report.py` reads it and
+    checks the gating-rate prediction automatically.
+
 **Default settings unchanged by all of the above.** Everything here is measurement; nothing shipped.
 
 
