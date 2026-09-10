@@ -3871,3 +3871,41 @@ and the behavioural test settles it: `EXISTENCE_DIVERSITY_SLOTS=2` on `xt_veto` 
 IDENTICAL to no flag at all. **Had I launched the combination on that binary, diversity would have
 been a silent no-op and the arm would have been a duplicate of specfilter-only wearing a different
 name** — a null result that looked like a refutation of the combination hypothesis.
+
+## 2026-09-10 — the diversity x spec-filter factorial is COMPLETE (2x2, one binary, one seed, one set)
+
+    cell                          log                         state
+    [diversity OFF, filter OFF]   gate_diversity_PAIRED_off   running, gen 17/25
+    [diversity ON,  filter OFF]   gate_diversity_s1           DONE 25/25, 0 accepts
+    [diversity OFF, filter ON ]   gate_filter_only            launched
+    [diversity ON,  filter ON ]   gate_div_x_filter           running, gen 1/25
+
+All four run `evolve_PINNED` (sha `1529d29f3a98dd21`, verified per-arm after launch from
+`/proc/PID/exe`), args `25 8 4 10 3 10`, seed 0 with no override, and therefore the same
+`4+10+10 = 24` fitness set at 17% mate-in-1 — the depth-heavy composition the record endorses, not
+the 52% mate-in-1 set the `specfilter` pair happens to use.
+
+**What each cell is for.** The diversity arm alone answered "does a diversity reserve unfreeze the
+search" with a clean NO: 25 generations, the reserve engaging 25 times, 0 acceptances, both lineages
+finishing as their own seeds. The recorded objection to reading that as a refutation of the RESERVE was
+that every acceptance path in the arm was closed — the ranking rule admits only `rate > best_rate` and
+the all-drawn 6-pair gate demanded `>0.750` — so the reserve was feeding diversity into a selector that
+could not use it. `SPEC_FILTER` is a selector that CAN accept: measured directly, it admits no-op drift
+at 0 games spent where the ranking rule selects nothing at all.
+
+So the factorial separates the two claims that were previously confounded:
+* `filter_only` vs `PAIRED_off` — does §3's filter alone change anything, on the good fitness set?
+* `div_x_filter` vs `filter_only` — does the reserve add anything ONCE there is a selector to receive it?
+* `div_x_filter` vs `diversity_s1` — the same question from the other side.
+
+**Why `gate_specfilter_s1` is still not one of these cells**, restated because it is the tempting
+shortcut: it differs in binary (`dd2c919b` vs `1529d29f`), args (`25 8 12 6 3`), fitness set (12+6+5 at
+52% mate-in-1), and gate (SPRT to 400 pairs vs the fixed 6-pair gate). It is a valid experiment against
+its own matched control and answers the filter question in a DIFFERENT regime — which, given the day's
+lesson that a depth-6 regime ranked two 4PC parameters backwards, is worth having deliberately rather
+than by accident. Two regimes agreeing would be much stronger than either alone.
+
+**Cost expectation, so the comparison is not misread.** The filter arms will run far slower per
+generation than the non-filter arms — measured on the other pair at ~10x — because selecting nothing
+costs nothing and admitting candidates costs gates. "Which cell reaches generation 25 first" is
+therefore not the result; the result is what each cell ACCEPTS, and at what price in games.
