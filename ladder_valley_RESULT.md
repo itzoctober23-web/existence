@@ -1077,3 +1077,57 @@ Higher than the 4.0% quoted per-arm because it pools two arms; lower per-arm bec
 generations since. **`specfilter_s1` can only raise this if it turns out to carry halves**, and that
 is unmeasurable without restarting it on an instrumented binary, which would cost its 4 generations of
 state. Left alone.
+
+## RESOLVED: the contradiction was CONDITIONING, and the selection path is innocent
+
+`evolve ttsupply 20000 1 60`, reading pre-registered before the run.
+
+    UNCONDITIONAL (what I measured first, and it contradicted the ranks)
+      minimal PROBE-carriers  n=60   median rel-rate 0.000000x   mates 0
+      minimal STORE-carriers  n=60   median rel-rate 0.993933x   mates 6
+
+    CONDITIONAL ON THE GUARD (mates >= 2 = base 6 - guard_tolerance 4) -- what the ordering SEES
+      PROBE-carriers passing guard:  28 of 60   median rel-rate 0.995213x
+      STORE-carriers passing guard:  60 of 60   median rel-rate 0.993933x
+
+**Conditioning REVERSES the ordering.** Unconditionally the store half looks overwhelmingly better
+(0.994 against 0.000). Among the children that reach the rate comparison, the probe half is HIGHER --
+0.995213 against 0.993933.
+
+### Why, mechanically
+
+1. `scored.filter(|(_, f, _)| *f >= guard_floor)` removes every child that loses mates. That is
+   **32 of 60 probe-carriers** -- the ones whose zero-injection destroys mate detection. They never
+   reach the ordering at all, so their 0.000 rate never competes.
+2. The **28 survivors** are the placements where the probe is harmless, and a harmless probe is
+   CHEAPER than a store: a `Store` writes on every node it executes, while a probe whose result is
+   discarded costs a read. Hence 0.9952 > 0.9939.
+3. `pool.sort_by(rate DESC)` then `pool.truncate(MU)` therefore puts guard-passing probe-carriers
+   ABOVE every store-carrier -- **consistently, by ~0.13%**.
+
+A consistent 0.13% edge is enough: with 8 slots, every store lands below every probe. Which is
+exactly what the arm logs independently show -- **100% of store-carriers in the bottom half, 64%
+ranked last, Mann-Whitney p = 0.00008.**
+
+### The two measurements now AGREE, where before they contradicted
+
+That is the point. The rank data and the rate data disagreed for three iterations of this
+investigation, and the disagreement was mine: I compared an UNCONDITIONAL distribution against a
+population the code filters FIRST. Same class of error as the cost-ratio mistake before it.
+
+**The selection path is innocent. It does exactly what it is written to do.** The earlier note in this
+file explicitly declined to conclude "the selection path is buggy" on the unconditional evidence --
+that restraint was correct, and this is the measurement that vindicates it.
+
+### What survives, and what does not
+
+* **SURVIVES:** the store half is the binding constraint. It is culled because guard-passing
+  probe-carriers consistently outrate it, so elitist truncation removes stores first. The 3:1 skew,
+  the 43% of generations with no store-carrier, and the ~3.1x cost to the union rate all stand.
+* **SURVIVES:** the mechanism is intrinsic, not a bug. A store nothing reads is pure overhead; a
+  harmless probe is nearly free. Any conjunctive rung whose halves cost asymmetrically has this shape.
+* **DOES NOT SURVIVE:** any suggestion that selection is misordering. It is ordering correctly on the
+  metric it is given.
+* **UNTESTED, and now unnecessary:** candidates 2 (parent) and 3 (dedup collapse). Conditioning is
+  sufficient to explain the whole discrepancy, so neither is needed. They are left recorded rather
+  than pursued -- the actionable conclusion has not moved.
