@@ -153,3 +153,36 @@ What this unlocks: eval optimisations can now be measured as Elo, the gate can b
 gate MASTER_PLAN line 43 specifies, and the +6.3% nps shipped earlier today stops being worth zero.
 It does not change the sizing in §2 — quantization is still ~5 Elo, and the plies are still in the
 branching factor, still reachable only through P2.
+
+## 5. THE MODEL CROSS-CHECKS, on numbers that were already measured
+
+§2's "27.8 Elo per doubling of nps" is a MODEL — it assumes Elo is linear in log(nodes) and divides
+89 Elo/ply by log2(9.17). That is an extrapolation, and this repo has had a measured 12% become a
+wall-clock LOSS. So it is worth testing against data that already exists, which costs no games.
+
+`elo_per_ply_RESULT.md` measured Elo at each depth directly. This file measured the node cost of each
+depth directly. Dividing one by the other gives Elo-per-doubling with no model in between:
+
+| step | Elo gain (measured) | node ratio (measured) | doublings | Elo per doubling |
+|---|---|---|---|---|
+| depth 2→3 | +102 | 13.36× | 3.74 | 27.3 |
+| depth 3→4 | +85 | 5.30× | 2.41 | 35.3 |
+| depth 4→5 | +79 | 6.53× | 2.71 | 29.2 |
+| **pooled 2→5** | **+266** | — | **8.85** | **30.0** |
+
+**Measured 30.0 against a modelled 27.8 — 8% apart**, from two independent sets of inputs. The model
+holds, and the sizing tightens rather than moves:
+
+| change | Elo (model, 27.8/doubling) | Elo (measured, 30.0/doubling) |
+|---|---|---|
+| int16 eval 2× faster | ~5 | **~6** |
+| eval entirely FREE | ~12 | **~13** |
+
+So the conclusion is not resting on an extrapolation. Quantization is worth about **6 Elo**, against
+~235 for all of training and 89 for one ply. It is cheap and worth doing; it is not the lever.
+
+The two derivations share `elo_per_ply_RESULT.md` as an input, so this is a consistency check on the
+*node-cost* half rather than a fully independent replication. What would be fully independent is
+`elo_vs_time.sh`, which measures Elo against the CLOCK directly — now possible for the first time,
+because until today the engine ignored `go` parameters and every point on that curve would have
+returned the same number.
