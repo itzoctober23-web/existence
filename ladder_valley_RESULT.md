@@ -1634,3 +1634,42 @@ sha found no other mismatch (composition s1/s2 correctly share one image). Any l
 and the tree was rebuilt in between is void by default. `readlink /proc/PID/exe` printing `(deleted)`
 is the tell, and it is free. This is [[never-rebuild-under-a-running-job]] in its quiet form: the
 rebuild did not kill the job, it silently unpaired the experiment.
+
+## The pre-registered diversity guard has COMPLETED, and it passes
+
+Pre-registered verbatim, before the arms ran:
+
+> **Generations 1-6 must be IDENTICAL between the two arms.** The treatment arm ran `dsl0` throughout
+> those, and the selftest proves `dslots=0` is byte-identical to `pool.truncate(mu)`. If they differ,
+> **the flag is doing something at `dsl0` that it must not**, the selftest is insufficient, and every
+> conclusion drawn from the treatment arm is void. Divergence is permitted only from gen 7, the first
+> `dsl1`; any divergence there IS the flag.
+
+All three clauses now resolve, on a shared binary image (both arms `sha 1529d29f3a98dd21`, after the
+earlier repair where a mid-experiment rebuild had silently unpaired them):
+
+* **Gens 1-6 (18 log lines, both lineages): BYTE-IDENTICAL.** So the flag is inert at `dsl0`, as the
+  selftest claimed and as the design requires.
+* **First divergence is at line 19 = gen 7 MAIN** — exactly the generation the reserve first engages.
+* **At gen 7 the ONLY differing field is the counter itself** (`dsl1` vs `dsl0`). With `dsl[0-9]*`
+  stripped the two lines are identical: same 8 candidates, same 0 illegal, same 4 mate-ok, same rate
+  histogram, same `pop 8`, same `spread 0.002725-0.002762`, same `tt[0,0,0,0,3,2,3,5]`, same
+  `ttk[...]`.
+
+**That last point is the informative one and it was not pre-registered, because I did not anticipate
+it.** The reserve ENGAGING and the reserve CHANGING THE OUTCOME are different events. At gen 7 the
+diversity slots were spent — `dsl` moved 0 -> 1 — and the surviving population came out the same as
+plain truncation would have produced. So the first engagement bought nothing. The treatment's counter
+then runs 1,2,4,5,6,7,7,8,9,11,13 over subsequent generations, so the divergence that matters, if any,
+is later than the first engagement.
+
+**Reading discipline for what follows.** Now that the arms have legitimately separated, every later
+difference is attributable to the flag and *only* to the flag — that is what the 18 identical lines
+buy. It also means the arms can no longer be compared line-for-line as a correctness check; from here
+the comparison is about OUTCOMES (does the treatment reach a higher `spread`, or accept where the
+control rejects), not about identity. The identity check has done its job and is retired.
+
+**Status of the underlying question, unchanged:** the MAIN lineage still shows `spread
+0.002725-0.002762` against a seed of 0.002762 — i.e. nothing above the seed in either arm yet. The
+valley result predicts exactly that, and MASTER_PLAN's P2 kill criterion ("no program improves on the
+seed -> grammar or fitness is wrong; fix those") is what the diversity reserve is an attempt at.
