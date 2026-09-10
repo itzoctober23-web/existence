@@ -122,11 +122,38 @@ An ungated generation costs ~3.5 min at 23 positions, so **2,000 positions is ~5
 generation and ~5.3 days for a 25-generation run.** That is why the implementation uses 23, and it
 is a real constraint rather than an oversight.
 
-**CAVEAT that cuts the estimate, stated because it is load-bearing.** §3's set is STRATIFIED over
-MATE-1..4, and a MATE-1 position is solved at depth 1 while the current forced-mate set is mate-in-2
-by construction. So per-position cost would NOT be uniform across the strata, and this linear
-extrapolation is an **upper bound, not a forecast**. Measuring the per-N cost is cheap and is the
-right next step before committing to any set size.
+**~~CAVEAT that cuts the estimate~~ — MEASURED, and it was WRONG.** I wrote that §3's stratification
+would reduce the cost, since a MATE-1 position is solved at depth 1 while the current set is
+mate-in-2, so the 91x was "an upper bound, not a forecast". `crates/interp/examples/mate_surrogate_probe.rs`
+measures it directly, and mate distance barely matters:
+
+    depth   MATE-1/position   MATE-2/position   ratio
+      1        3,077,185         3,093,122      1.01x
+      2       38,114,680        33,907,025      0.89x
+      3      431,889,314       413,506,638      0.96x
+
+**DEPTH dominates, at ~11-12x per extra ply; mate distance is worth 0.89-1.01x.** An alpha-beta
+search to a fixed depth explores that depth whether or not the mate is shallow. Both figures also
+cross-check the arms' own 420,483,081/position at depth 3 (1.03x and 0.98x), which is an independent
+confirmation from a different program on a different set. So stratifying buys nothing and the 91x
+stands as a forecast rather than a bound.
+
+**But the same table hands over a different lever, and it changes the answer.** Cost is ~12x per ply,
+so §3's 2,000-position set costs:
+
+    depth 3:  827,013,276,000  =  89.5x the current fitness cost   <- unaffordable
+    depth 2:   67,814,050,000  =   7.3x                            <- affordable
+
+And depth 2 does not give up the guard. From the same probe: the mate-in-2 set scores **17/40 at
+depth 1 and 40/40 at depth 2**, so shallowness still LOSES mates (the guard bites, which is the whole
+point of the forced-mate repair) while the set remains fully solvable. **§3's specified set is
+affordable at fitness depth 2 — 7.3x, not 90x.**
+
+**What that costs in exchange, stated rather than buried:** fitness depth is a real property of what
+is being optimised, not a free knob. Dropping from 3 to 2 changes the programs the surrogate
+prefers, and `netmatch.rs:23-29` records depth 4 as this project's strength standard with a measured
+case where a depth-2 result did NOT hold at depth 4. So this is a trade to be tested, not a free
+win — but it moves §3's set from "unaffordable" to "one arm".
 
 **What this changes about the recommendation.** "Implement §3's set" is not a small fix, and saying
 so is more useful than repeating that the code deviates. The tractable version is the middle ground
