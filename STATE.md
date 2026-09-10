@@ -3660,3 +3660,48 @@ from the diversity pair that is now past its identity guard and finally in its i
 This is the next arm to start when a slot frees, and it should be a SEED-MATCHED PAIR
 (veto on / veto off, same seed, same binary image, verified by sha) so it does not repeat
 `veto_arm_noverify`'s missing-control problem.
+
+## 2026-09-10 — the SPEC_FILTER experiment had no valid control, and now does
+
+`fitness_spec_gap_FINDING.md` identifies the deviation that matters most: **FITNESS §3 defines the
+mates-per-cost surrogate as a FILTER** (score >= 0.9x the champion and you reach the ladder, where
+games decide) **and the shipped code uses it as a RANKING function**, sending only `popn[0]`. A filter
+cannot be gamed by cheapness — being cheaper than the champion buys nothing once you are over the bar
+— while a ranking function rewards cheapness without limit. That is exactly the measured failure:
+`mates/Mcost` is a SPEED metric, and the one candidate ever accepted improved it 31.4% while merely
+holding the seed's mate count.
+
+`EXISTENCE_SPEC_FILTER=1` implements §3's rule, threshold and all, and `gate_specfilter_s1` runs it.
+**It had nothing to be compared against.** Checked rather than assumed, from `/proc`:
+
+    specfilter_s1  sha dd2c919b8a5747cd   xt_veto  built 2026-09-10 01:10
+    sprt30_s1      sha cd29871d9ec337e2   xt_r     built 2026-09-09 20:03
+
+Their EXISTENCE_* env differs by exactly `SPEC_FILTER=1`, which is what made `sprt30` look like the
+control. It is not: **different binary images, built five hours apart** — the same defect that voided
+the diversity pair this morning, where a rebuild between two launches silently unpaired them. And here
+there is a second, larger difference the binaries carry: the headers show
+
+    specfilter:  set 12+6+5=23 positions (mate-in-1 52%)
+    sprt30:      (no set line at all -- its build predates that instrumentation)
+
+**The fitness SET is the thing the surrogate is computed over**, so comparing these two measures set +
+build + filter, not filter. For the question `fitness_spec_gap_FINDING.md` calls upstream of everything
+else, that is not a readable comparison.
+
+Surveyed every running arm by image. Only two valid pairings existed:
+
+    1529d29f  diversity_s1 + diversity_PAIRED_off   (paired, after this morning's repair)
+    549fceeb  composition_s1 + composition_s2       (paired)
+    cd29871d  sprt30_s1        singleton
+    dd2c919b  specfilter_s1    singleton
+
+**Fixed by launching `gate_specfilter_CONTROL` from specfilter's EXACT binary** (`dd2c919b8a5747cd`,
+verified equal after launch), same args `25 8 12 6 3`, same seed, same SPRT settings, with
+`EXISTENCE_SPEC_FILTER` simply absent. One new arm rather than two, because the treatment was already
+running and only the control was missing.
+
+**Reading rule for when it has data:** both arms share a binary and a seed, so their early generations
+should be IDENTICAL until the filter first changes a selection — the same guard that made the
+diversity pair interpretable. Divergence before that point would mean `SPEC_FILTER` does something
+outside the selection rule and the comparison is void.
