@@ -92,3 +92,25 @@ tie, so the veto correctly did not fire and proved nothing. Re-run on seed 1, it
 
 **It is a VETO, not a rejection:** the candidate is not recorded in `gated`, because nothing was
 learned about it. It simply never should have cost games.
+
+### The arm is relaunched on the fixed binary, and its old progress was worth nothing
+
+`gate_specfilter_s1` had been running ~4 hours on the pre-veto binary. What it produced:
+
+    gen lines : 9
+    gates     : 4     of which INCONCLUSIVE ties: 3
+    accepts   : 0
+
+Three of its four gates were the no-op ties above — 96 VERIFY pairs and ~60 games each to establish
+that a program identical to the champion draws against the champion. It reached generation 2 while
+the control reached 6 and both composition arms reached 6.
+
+**So restarting cost nothing.** The old log is kept as `gate_specfilter_s1.log.prev`; the arm is
+relaunched on `xt_veto`, byte-identical (md5 `c70e2f96…`) to the binary whose strict-path control
+emitted zero veto lines, staged in scratchpad so a later rebuild cannot unlink it mid-run.
+
+**What this arm now actually tests.** Its purpose was always FITNESS §3's filter role — pick on
+`r >= 0.9 * best_rate` instead of the strict `r > best_rate` — and the question the pre-registration
+posed was *"whether VERIFY on those promotions stops reading below 0.5"*. It could not answer that
+while every generation was consumed adjudicating ties. With no-ops vetoed for free, the budget goes
+to candidates that actually differ from the champion, which is the only kind that can answer it.
