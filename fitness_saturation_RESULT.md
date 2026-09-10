@@ -136,6 +136,34 @@ treatment arms currently read `hard 0-0` at gens 1-2, which is exactly what ever
 therefore carries no information at all. The experiment cannot begin to engage until gen 3, and the
 informative window is gens 4-6. **Do not read an early `hard 0-0` as "the fix does not work".**
 
+### At `hf = 0` the treatment is inert for selection — but it is NOT a pure rescale
+
+Measured on seed 1, gens 1-2, treatment vs control:
+
+    gen 1 MAIN   control rates 0.999-0.998708x    treatment rates 0.999-0.998706x
+    gen 2 MAIN   control rates 0.497-0.496943x    treatment rates 0.497-0.496913x
+
+Within a lineage the relative ranking is preserved to ~5 significant figures, which is what the
+arithmetic predicts: with `hf = 0` the treatment rate is `23e6/(cost + hard_cost)` and the control is
+`23e6/cost`, so if `hard_cost` tracked `cost` the two would be monotone transforms of each other and
+select identically.
+
+It does not track exactly. The incumbent-surrogate ratio differs BY LINEAGE:
+
+    MAIN  0.002084 / 0.002490 = 0.8369
+    MCTS  0.000950 / 0.001406 = 0.6757
+
+MCTS pays proportionally more for the hard set. That particular difference is harmless — the two
+lineages hold separate champions and populations and never compete — but it proves `hard_cost` is not
+a fixed multiple of `cost`, so a small per-candidate residual remains inside each lineage too (the
+~3e-5 above).
+
+**CONFOUND, recorded before it can be misread.** Neutral twins scoring exactly `1.000x` are the
+common case, so a 3e-5 perturbation is enough to break a tie the other way. **A divergence between
+treatment and control that appears BEFORE `hard > 0` is tie-breaking noise, not the treatment
+effect.** The `hard {hlo}-{hhi}` field on the gate line is what separates the two: until `hhi > 0`,
+any difference is bookkeeping.
+
 **Selection caveat, in the conservative direction.** This distribution is built from lines that PRINT
 the `hard` field, and before today's instrumentation only NON-GATED generations did. Gated
 generations — those where a candidate actually won — are therefore missing from the counts above.
