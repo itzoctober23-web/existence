@@ -264,3 +264,43 @@ generations offer ≤1 distinct fitness, so a stricter set risks pushing the cho
 — which is what `mate-ok 0` at gen 3 looks like. Whether this composition eventually admits something
 that VERIFIES ABOVE 0.5, or simply starves the search, is the open question, and gen 6 is where the
 earlier `tt` work says the interesting structure appears.
+
+## 2026-09-10 — the composition effect REPLICATES at a second seed (p = 0.045)
+
+`gate_composition_s2` runs the identical configuration at `EXISTENCE_EVOLVE_SEED=2`, same binary
+(`xt_comp`), same set sizes, same gate settings — only the mutation trajectory differs. Launched
+because the original result was **n = 1 seed**, and one sample is a lottery.
+
+| arm | mate-in-1 % | generations reached the gate |
+|---|---|---|
+| control `gate_sprt30_s1` | 52% | **3 of 5** (gens 3, 4, 5) |
+| composition seed 1 | 17% | 0 of 4 |
+| composition seed 2 | 17% | 0 of 3 |
+| **composition, both seeds** | 17% | **0 of 7** |
+
+Fisher exact, two-sided: **p = 0.045**.
+
+**What that does and does not license.**
+
+* It says the depth-heavy composition is a **stricter filter**, and that the strictness is a property
+  of the SET rather than of one lucky trajectory — which is the only thing the second seed was run to
+  establish.
+* It says **nothing about strength.** Every control gate RESOLVED WORSE (`VERIFY 0.422`, `0.430`,
+  `0.398`), so the contrast is "reached a gate that then failed" against "never reached one". A set
+  that admits nothing is trivially free of bad accepts, and the pre-registration in
+  `relaunch_composition.sh` said exactly this before either arm ran: *"FEWER accepts than the control
+  is EXPECTED and is NOT failure... the question is whether what it admits is better, which only
+  VERIFY answers."*
+* **p = 0.045 on n = 12 generations is weak** and should not be quoted as though it were a gate
+  result. Two of the three "successes" in the control arm are consecutive generations of one
+  trajectory, so they are not independent, which the test assumes.
+
+**One thing the replication added that seed 1 never showed:** seed 2's gen 2 reports `distinct:2` —
+TWO distinct fitness values among the guard-passers, both `>=.98`. Across all arms only 6% of
+generations offer more than one distinct rate (`search_has_no_choice_RESULT.md`), so this is the rare
+case where selection actually had a choice to make. It still did not accept, because both candidates
+scored BELOW the seed.
+
+**Standing question, unchanged:** whether this set ever admits something that VERIFIES above 0.5. If
+both seeds reach gen 6 with 0 accepts, composition is not the constraint either, and the remaining
+suspect is the correctness oracle under graft — 0 of 40, measured.
