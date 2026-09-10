@@ -4442,3 +4442,46 @@ still running to find out.**
 that clears the guard at all has already sold to 19-20 and the filter has nothing better to choose
 from. The filter can only decline to pick the biggest seller when a smaller seller EXISTS, which on a
 saturated set it does not.
+
+## 2026-09-10 — do less-sold candidates PLAY better? The data says the opposite, and the noise floor says wait
+
+Having shown the §3 filter selects candidates that sold FEWER mates, the payoff question is whether
+those play better. Measured within one arm, so seed and config are fixed:
+
+    diversity_s1 (ranking rule), MCTS gated candidates, by mate count
+      mates 6 (the floor, MAX selling)   n=16   mean gate rate 0.4739  sd 0.0299
+      mates 8                            n=7    mean gate rate 0.4227  sd 0.0286
+      mates 9                            n=1    mean gate rate 0.375
+      difference (6 vs 8)  +0.0512 +/- 0.0131   ->  +3.89 standard errors
+
+**The MORE a candidate sold, the BETTER it played** — monotone across all three levels. And the filter
+arms' mates-8 picks average 0.435, against the ranking arm's floor picks at 0.474.
+
+**A mechanism that would explain it, and it is not exotic.** `match_progs` runs under a COST CEILING
+(`COST_PER_MOVE`). A candidate that sold mates is CHEAPER, so within that ceiling it searches more per
+move during the game. Selling mates on the fitness set buys search depth in the actual match. If that
+is what is happening, the surrogate's cheapness reward is partially ALIGNED with game strength under a
+cost cap, not merely gaming it.
+
+**But the seed control says the interval is not trustworthy, and this is the third time today it has
+changed a reading:**
+
+    same config, different seed:  s1 0.4693 +/- 0.0044 (n=9)  |  s2 0.4347 +/- 0.0082 (n=9)
+    difference +0.0347 +/- 0.0093  ->  +3.72 se, from NOTHING
+
+Two identically-configured arms differ by 3.72 se on this exact metric. So a 3.89 se within-arm
+difference is barely above what the metric manufactures on its own. **The nominal standard error
+understates the true uncertainty**, almost certainly because gate rates within an arm are NOT
+independent draws: the population evolves, successive candidates are relatives, and the champion is
+shared. Autocorrelation inflates apparent significance, and the seed control is what makes that
+visible rather than assumed.
+
+**Status: SUGGESTIVE, not established.** Stated plainly because it cuts against the filter result
+recorded above. That result — the filter picks non-floor candidates, `p ~ 2e-4` — stands, because it is
+a claim about WHAT IS SELECTED and rests on a discrete count, not on this noisy rate. What does not
+stand is any inference that selecting them is BETTER. If the correlation is real, §3's filter would be
+selecting weaker players, and the whole filter hypothesis would need re-reading.
+
+**The clean test already exists and is running.** All four factorial cells share binary, seed and set;
+their OUTCOMES (acceptances, final spread) are the seed-robust class per today's variance measurement,
+unlike per-gate rates. That comparison answers this properly. **No conclusion until it lands.**
