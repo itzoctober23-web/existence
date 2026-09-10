@@ -1650,8 +1650,39 @@ fn main() {
                                             // the only thing stopping program bloat. A candidate
                                             // that wins hard positions by searching enormously
                                             // must pay for it.
+                                            // EXISTENCE_HARD_WEIGHT: what ONE hard-set solve is worth,
+                                            // in mates. Default 1.0, so every existing run is
+                                            // unchanged.
+                                            //
+                                            // WHY A WEIGHT IS NEEDED AT ALL. At weight 1 the fix is
+                                            // probably too weak to do its job, and the arithmetic
+                                            // says so before any gate has reported. Recovered from
+                                            // the two arms' seed surrogates: C_m = 9.24e9 and
+                                            // C_h = 1.80e9, so the hard set costs 19.5% of the mate
+                                            // set. The best hard score ever achieved is 2 of 8, so
+                                            // the largest numerator boost available is
+                                            // (23+2)/23 = +8.7%. But cutting cost moves the
+                                            // DENOMINATOR: a 10% mate-set cost cut is already +9.1%,
+                                            // and the cost-driven gains actually observed were
+                                            // +13.1%, +17.4% and +22.3% -- all of them bigger. So a
+                                            // cost-cutter outbids a hard-set solver every time and
+                                            // selection never changes.
+                                            //
+                                            // CHOOSING THE VALUE, from the measured gains rather
+                                            // than taste: to make ONE solve competitive with the
+                                            // weakest observed cost gain (+13.1%) needs
+                                            // (23+w)/23 >= 1.131, i.e. w >= 3.0. Weight 4 puts one
+                                            // solve at +17.4% and two at +34.8%, which clears the
+                                            // whole observed range.
+                                            //
+                                            // This does NOT relax the bloat guard: cost still counts
+                                            // both sets, so a candidate that buys hard solves with
+                                            // enormous search still pays for it in the denominator.
                                             let rate = if std::env::var("EXISTENCE_HARD_FITNESS").is_ok() {
-                                                (f + hf) as f64 * 1e6 / cst.saturating_add(hcst).max(1) as f64
+                                                let w: f64 = std::env::var("EXISTENCE_HARD_WEIGHT")
+                                                    .ok().and_then(|s| s.parse().ok()).unwrap_or(1.0);
+                                                (f as f64 + w * hf as f64) * 1e6
+                                                    / cst.saturating_add(hcst).max(1) as f64
                                             } else { rate };
                                             (c.clone(), f, rate, hf)
                                         }
