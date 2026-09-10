@@ -67,3 +67,54 @@ two unrelated memory operations that happen to share a program.
 * A shape-level reachability check — does any operator sequence produce a probe that DOMINATES the
   recursive call it guards — is the follow-up this points at, and `reachability.rs` already flags
   shape-granularity as its own honest limit.
+
+## ⚠ 2026-09-10 — CORRECTION: the pairs DO hit. "Semantic placement" was wrong, and the tool said so.
+
+The section above inferred that an installed Probe+Store pair is inert — *"the kinds co-occur at
+chance; the ARRANGEMENT essentially never does"* — and flagged it explicitly as an inference from
+two facts rather than a measurement. `evolve tthits` measured it. The inference is **false**.
+
+    CONTROL ab_hash (hand-built, working TT): 745,219 probes,  7,318 HITS  ( 1.0%)
+    seed bare_alpha_beta (no TT at all)     :       0 probes,      0 hits  (0/0, as required)
+
+    mutants carrying BOTH halves     : 10 of 300
+    ...that actually EXECUTE a probe : 10
+    ...that ever get a HIT           :  8
+    total across them                : 74,677,154 probes, 46,391,167 hits
+
+**8 of 10 hit.** The pairs are not decorative and the placement is not refusing them.
+
+### But the HIT RATE is the finding, not the hit count
+
+|  | probes per position | hit rate |
+|---|---|---|
+| `ab_hash`, a working TT | 124,203 | **1.0%** |
+| both-halves mutants | 1,244,619 | **62.1%** |
+
+**10x the probes at 63x the hit rate.** A real transposition table mostly MISSES — every new node is
+a position not seen before, so ~1% is what genuine tree reuse looks like at this depth. **A 62% hit
+rate means the probe keeps returning the SAME slot**: one key, written once and read back
+repeatedly. That is a scratch variable, not a transposition table.
+
+And it is an expensive one. `Node::Probe` costs 12 units, so 1.24M probes per position is **14.9M
+cost units of probing alone**, against the seed's entire ~397M per-position search. The pair does not
+fail by doing nothing; it fails by doing a great deal of useless work.
+
+### What this replaces
+
+Not *"probe and store never end up correctly arranged"* but **"probe and store readily end up
+arranged as a memo cell, which is cheap to reach and costs more than it saves"**. The operators
+compose freely (measured), the pair executes (measured), the table is used (measured) — and what
+gets built is a degenerate single-slot cache rather than a search-tree table.
+
+That is a more specific and more useful failure than placement-in-general, and it points somewhere
+different: the gap is not arrangement but **KEYING**. `ProbeRead` emits `Key(Var("p"))` on whatever
+`p` is in scope at an arbitrary Int leaf, so the same key recurs; a transposition table needs the key
+to vary with the node being searched.
+
+### And the tool's own closing text was wrong
+
+`tt_hits` printed *"A pair that never hits is not a transposition table"* — my expected conclusion,
+baked into the output, contradicted by the very first run. Corrected in place. **Asserting the
+expected finding in a tool's output is how a tool stops being able to surprise you**, and this one
+surprised me only because the numbers were printed beside it.

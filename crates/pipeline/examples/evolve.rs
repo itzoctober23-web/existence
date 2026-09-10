@@ -1813,9 +1813,15 @@ fn tt_hits() {
     println!("  ...that actually EXECUTE a probe  : {probed}");
     println!("  ...that ever get a HIT            : {any_hit}");
     println!("  total across them                 : {tot_c} probes, {tot_h} hits");
-    println!("\n  A pair that never hits is not a transposition table -- it is a read of an empty slot");
-    println!("  and a write nothing reads, which is exactly the valley's probe-only 0.991x and");
-    println!("  store-only 0.997x paid TOGETHER, with neither half's payoff.");
+    // CLOSING TEXT CORRECTED 2026-09-10, BY THIS TOOL'S OWN FIRST RUN. It previously read "A pair
+    // that never hits is not a transposition table", which is what I expected and is FALSE: 8 of 10
+    // both-halves mutants DO hit, at a 62.1% hit rate against ab_hash's 1.0%. Asserting the expected
+    // conclusion in the output is how a tool stops being able to surprise you.
+    println!("\n  READ THE HIT RATE, NOT JUST THE HIT COUNT. A real transposition table mostly MISSES:");
+    println!("  every new node is a position not seen before, which is why the hand-built ab_hash");
+    println!("  sits at ~1%. A HIGH hit rate means the probe keeps returning the SAME slot -- one key,");
+    println!("  read over and over -- which is a scratch variable, not a transposition table. And at");
+    println!("  12 cost units per probe it is an expensive one.");
 }
 
 fn main() {
