@@ -83,3 +83,60 @@ specifies.
   MATE-{3,4}) be applied as specified.
 * 1 of 40 passing on the depth-heavy set is a small number to reason from; it says the set is
   strict, not that it is correctly calibrated.
+
+## 2026-09-09 23:2x — FITNESS §3's ladder BUILT, and it does exactly what §3 says it will
+
+`mate_within` / `mate_set_n` / `forcing_move` now build the stratified ladder, and `ttgraft ... 1`
+scores against it. Same 40 seeded children as every run above.
+
+| set | best score a CORRECT child reaches | null-search child #30 |
+|---|---|---|
+| pure mate-in-1 (25/0/0) | **2934.933x** | 25/25 — **passes** |
+| mixed, shipped (15/5/5) | — (none passed) | 19/25 |
+| depth-heavy proxy (5/10/10) | 1.283x | 11/25 |
+| **LADDER 12 x MATE-1 + 12 x MATE-2** | **3.669x** | **12/24 — rejected** |
+
+**Child #30 scores exactly 12 of 24: every MATE-1, zero MATE-2.** It does 0.0366% of the seed's
+search, and a mate-in-two needs a real 3-ply search to find. It cannot fake one, and the mate guard
+rejects it. That is the whole mechanism §3 was specifying, working.
+
+**And the achievable score collapses to a sane range.** On a mate-1-only set the best *correct*
+child scores 2934.933x — three orders of magnitude, all of it degenerate. On the ladder the best
+correct child scores **3.669x**, in the same neighbourhood as the hand-built `ab_hash` rung's 1.024x.
+A surrogate whose maximum is 3.669x can be reasoned about; one whose maximum is 2934x cannot.
+
+### The bug I reintroduced, and the control that caught it
+
+The first ladder scored the SEED at **12 of 24** — every MATE-1, every MATE-2 impossible. `fitness`
+credits positions two different ways:
+
+```rust
+Some(best) => { if mv == *best { found += 1; } }   // credit the FORCING move
+None       => { /* did this move mate ON THIS PLY? */ }
+```
+
+and `mate_set_n` pushed `None` for every stratum. **The first move of a mate-in-two never mates on
+its own ply, so a `None`-labelled MATE-2 position scores 0 for every program forever.** The codebase
+had already found and documented this exact defect — *"that bug made depth 1, 2 and 3 all read 0
+until the control caught it"* — and I walked straight back into it.
+
+Fixed by `forcing_move`, which recovers the proving move; MATE-1 keeps `None`, deeper strata carry
+their move. Control after the fix: **seed 24 of 24.**
+
+**Worth stating plainly: a stratum the champion itself cannot score is constant-zero across every
+candidate and adds no discrimination at all** — it is pure cost. That is the same failure this
+document opens with, in a new place, and the SEED SCORE is what detects it. Any future stratum must
+be checked against the seed before it is trusted, exactly as `evolve ttk` checks the tag against
+programs known to carry each half.
+
+### Limits, and the open one
+
+* **Ambiguity in the label.** A position may have several mate-forcing moves; `forcing_move` returns
+  the first in move order and `fitness` compares by equality. So these strata measure "finds THIS
+  forcing move", not "finds A forcing move". That is the existing mate-in-two convention, not
+  something new, but it understates any program that finds a different sound mate.
+* **Depth 4+ collapses, and it is NOT this bug.** The seed scores 24 at depth 3 and 2 at depth 4,
+  with cost pinned near 4.7e10. Cost hits the same ceiling at depths 5 and 6 (4.80e10). The budget
+  (16) is the binding constraint, not the depth, and **that means the harness currently cannot
+  evaluate any program past depth 3.** MATE-3 needs 5 plies, so §3's third stratum is unreachable
+  until that ceiling is understood. Open, and the next thing to measure.

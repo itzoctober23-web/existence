@@ -65,12 +65,63 @@ fn mate_within(p: &mut Position, n: u32, nodes: &mut u64, cap: u64) -> bool {
     false
 }
 
+/// The move that forces mate within `n`, if one is proven. `None` when unproven within `cap`.
+///
+/// NEEDED BECAUSE OF HOW `fitness` SCORES, and I got this wrong once already. `fitness` credits a
+/// position two different ways (`fitness`, the `match forcing` arm):
+///
+///   * `None`       -> MATE IN ONE: any move that mates ON THIS PLY.
+///   * `Some(best)` -> credit the FORCING move, compared by equality.
+///
+/// The first move of a mate-in-two does NOT mate on its own ply, so labelling a MATE-2 position
+/// `None` scores it **0 by construction, for every program forever**. The codebase had already found
+/// and documented exactly this — "that bug made depth 1, 2 and 3 all read 0 until the control caught
+/// it" — and my first `mate_set_n` reintroduced it by pushing `None` for every stratum. The symptom
+/// was the SEED scoring 12 of 24 on a 12 MATE-1 + 12 MATE-2 set: every MATE-1 solved, every MATE-2
+/// impossible. A stratum the champion cannot score is constant-zero and adds no discrimination at
+/// all, which is the failure this whole ladder exists to remove.
+///
+/// AMBIGUITY, stated: a position may have several mate-forcing moves and this returns the first in
+/// move order. `fitness` compares by equality, so a program finding a DIFFERENT sound forcing move
+/// scores 0. That is the existing mate-in-two convention rather than something new, but it means
+/// these strata measure "finds THIS forcing move", not "finds A forcing move".
+fn forcing_move(p: &mut Position, n: u32, cap: u64) -> Option<board::Move> {
+    let l = p.legal_moves();
+    for &m in l.as_slice() {
+        let u = p.make_move(m);
+        let opp = p.legal_moves();
+        let delivered = opp.is_empty() && p.outcome() == Outcome::Loss;
+        let ok = if delivered {
+            n >= 1
+        } else if n <= 1 || opp.is_empty() {
+            false
+        } else {
+            let mut all = true;
+            for &r in opp.as_slice() {
+                let u2 = p.make_move(r);
+                let mut nodes = 0u64;
+                let sub = mate_within(p, n - 1, &mut nodes, cap);
+                p.unmake_move(r, u2);
+                if !sub { all = false; break; }
+            }
+            all
+        };
+        p.unmake_move(m, u);
+        if ok { return Some(m); }
+    }
+    None
+}
+
 /// Positions with a proven forced mate in EXACTLY `n` — `mate_within(n)` and not `mate_within(n-1)`.
 ///
 /// The "and not n-1" clause is what makes the strata disjoint, and it is not optional: without it a
 /// MATE-3 set silently contains every MATE-1 and MATE-2 position, the depth ladder collapses back to
 /// mate-in-one, and the per-N thresholds FITNESS §3 asks for would be computed over the wrong
 /// populations.
+///
+/// MATE-1 is labelled `None` (any mating move counts, matching the shipped `mate_set`); every deeper
+/// stratum is labelled with its forcing move, because `None` would score it zero forever. See
+/// `forcing_move`.
 fn mate_set_n(count: usize, n: u32, cap: u64) -> Vec<(Position, Option<board::Move>)> {
     let mut rng: u64 = 0xC0DE_F00D ^ (n as u64) << 32;
     let mut out = Vec::new();
@@ -94,7 +145,16 @@ fn mate_set_n(count: usize, n: u32, cap: u64) -> Vec<(Position, Option<board::Mo
             let mut n2 = 0u64;
             if mate_within(&mut p, n - 1, &mut n2, cap) { continue; }   // shallower => wrong stratum
         }
-        out.push((p.clone(), None));
+        // Label the position the way `fitness` will read it. MATE-1 keeps `None` (any mating move
+        // counts, as the shipped `mate_set` does); deeper strata MUST carry their forcing move or
+        // they score 0 for every program forever.
+        let label = if n == 1 { None } else {
+            match forcing_move(&mut p, n, cap) {
+                Some(m) => Some(m),
+                None => continue,   // proven by mate_within but the move could not be recovered
+            }
+        };
+        out.push((p.clone(), label));
     }
     out
 }
@@ -1429,10 +1489,33 @@ fn tt_graft() {
     let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
     let (want, n1, n2, n3, depth) =
         (a(2, 40) as usize, a(3, 15) as usize, a(4, 5) as usize, a(5, 5) as usize, a(6, 3));
+    // arg 7: LADDER MODE. 0 (default) = the shipped mixed set (mate-in-1 + disagreement + window).
+    // 1 = FITNESS §3's stratified ladder, n1 at MATE-1, n2 at MATE-2, n3 at MATE-3.
+    //
+    // A MATE-n position needs 2n-1 plies to solve, so `depth` MUST be >= 2n-1 for the stratum to be
+    // solvable at all: depth 3 covers MATE-1 and MATE-2, and MATE-3 needs depth 5. Running a MATE-3
+    // stratum at depth 3 would report the SEED failing it, which reads as a broken seed rather than
+    // as a set built past the search horizon -- so the mismatch is checked and announced.
+    let ladder = a(7, 0) == 1;
     let net = Net::random(32, 20260907);
-    let mut set = mate_set(n1);
-    set.extend(disagreement_set(n2, depth, &net, 4_000));
-    set.extend(window_sensitive_set(n3, depth, &net, 8, 4_000));
+    let mut set;
+    if ladder {
+        set = mate_set_n(n1, 1, 300_000);
+        if n2 > 0 { set.extend(mate_set_n(n2, 2, 300_000)); }
+        if n3 > 0 { set.extend(mate_set_n(n3, 3, 300_000)); }
+        let deepest = if n3 > 0 { 3 } else if n2 > 0 { 2 } else { 1 };
+        let need = 2 * deepest - 1;
+        println!("  LADDER MODE: {n1} MATE-1 + {n2} MATE-2 + {n3} MATE-3 = {} positions", set.len());
+        if depth < need {
+            println!("  ⚠ depth {depth} < {need} plies needed for MATE-{deepest}: that stratum is BEYOND");
+            println!("    the search horizon and the seed will fail it. Not a broken seed -- a set");
+            println!("    built past what the configured depth can see.");
+        }
+    } else {
+        set = mate_set(n1);
+        set.extend(disagreement_set(n2, depth, &net, 4_000));
+        set.extend(window_sensitive_set(n3, depth, &net, 8, 4_000));
+    }
 
     let ab = reference::bare_alpha_beta();
     let uct = reference::uct_mcts();
