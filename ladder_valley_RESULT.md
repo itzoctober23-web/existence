@@ -1717,3 +1717,51 @@ path is code-verified at all three fall-throughs but has not yet fired, so "0" i
 "wired and genuinely zero" and "wired but never exercised". The structural argument above is what
 makes the first reading the likely one; a fired counter would settle it, and one will only appear if
 the ceiling is ever actually reached.
+
+## The diversity treatment arm COMPLETED — 25 generations, 0 acceptances, both lineages end as the seed
+
+`gate_diversity_s1` ran its full 25 generations and its own summary is unambiguous:
+
+    MAIN  0 accepted   final 24 mates 0.002762 mates/Mcost (71 nodes)
+    MCTS  0 accepted   final 10 mates 0.000737 mates/Mcost (131 nodes)
+
+**71 and 131 nodes are the seed sizes**, and 0.002762 / 0.000737 are the seed rates from the header.
+After 25 generations the population's best program is, in both lineages, the program it started with.
+
+The reserve was not idle — `dsl` climbs 0,0,0,0,0,0,0,1,2,4,5,6,7,7,8,9,11,13,14,15,16,17,19,21,23,25,
+so it engaged on every generation from the 7th and spent 25 diversity slots by the end. **It engaged
+and it changed nothing.** This result is trustworthy specifically because the pairing was repaired this
+morning: the arm had been running against a control built from a DIFFERENT binary, and any comparison
+before that repair was void.
+
+### Why those gates could not have accepted, which is a separate finding
+
+    gen 23 MCTS  gate REJECT 0.500+/-0.250 (12 games W-D-L 0-12-0)  needed >0.750
+
+**All twelve games drawn.** `gate.rs` handles zero observed variance with the rule of three, giving
+`ci95 = 1.5/n = 0.250` at 6 pairs, and the acceptance rule is `pent_rate - ci95 > 0.5`. So the bar
+printed itself: **needed > 0.750** — a candidate must win three-quarters of its pairs to pass a gate
+that has produced no decisive game at all. That is not a threshold anything can clear; it is the gate
+correctly reporting that it measured nothing.
+
+This is the ALL-DRAWN case `evolve.rs` warns needs the opposite fix from the MIRRORED one: *"wins ==
+losses == 0 means the match is not producing decisive games and sample size was never the issue."*
+Note the arms differ here — the diversity pair runs the fixed 6-pair gate, while the specfilter and
+sprt30 arms run SPRT to 400 pairs. **More pairs cannot fix an all-drawn match**, which is why the
+sprt30 arm reaches the same 0 acceptances with 16x the evidence.
+
+### What this does and does not settle
+
+**Settles:** a diversity reserve on the survivor selector, alone, does not unfreeze this search. 25
+generations, 25 engagements, zero acceptances, final = seed. It is not the missing ingredient.
+
+**Does not settle:** whether the reserve helps in combination with a rule that can accept anything.
+Every acceptance path was closed in this arm — the ranking rule admits only `rate > best_rate` and the
+game gate demanded 0.750 — so the reserve was supplying diversity into a selector that could not use
+it. `EXISTENCE_SPEC_FILTER` is the arm testing an acceptance path that CAN fire (it admits no-op
+drift at zero gate cost), and that pair is running now.
+
+**Pending:** `gate_diversity_PAIRED_off` is at generation 14 of 25. When it finishes, the byte-level
+comparison over gens 1-6 plus the outcome comparison over all 25 completes the A/B. The treatment's
+own result above stands on its own — 0 of 25 needs no control to be disappointing — but the control is
+what will say whether the reserve changed the TRAJECTORY even though it did not change the outcome.
