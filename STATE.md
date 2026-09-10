@@ -53,11 +53,32 @@ anything below.
 8. **With the gate cleared, the surrogate is the bottleneck — and it is a SPEED metric.** The search
    finds a surrogate improvement in 42.3% of lineage-generations, but 3 of 3 MAIN candidates that did
    so were **resolved WORSE** by a 96-pair independent-seed VERIFY, against 0 of 3 for MCTS. MAIN's
-   numerator is saturated at 23/23, so `mates/Mcost` can only improve via cost — by searching less.
-   The confirming case was already on disk: the one candidate ever ACCEPTED (line 2668 below, veto
-   arm) is recorded as **"15 mates"** — the seed's own score — so its +31.4% was a pure cost cut,
-   VERIFY 0.490. **MCTS is NOT saturated and the search still took cost over a free numerator gain,
-   which paid 4.7× better.** → `fitness_saturation_RESULT.md`
+     **⚠ THE MECHANISM IN THIS ITEM IS REFUTED — see item 12. It is NOT saturation.** Every measured
+     number here stands; the account of WHY was wrong. → `fitness_saturation_RESULT.md`
+
+12. **★ THE SURROGATE SELLS MATES. Six of six gated candidates dropped mates; not one kept 23.**
+    The `mates {f}` field added to the gate line refuted the saturation story on its first line:
+    `mates 19`, not 23. MAIN's guard floor is **19, not the seed's 23** (`23/23 mates (floor 19)`),
+    so the numerator was never pinned — it is SOLD. The gen-3 winner dropped 4 of 23 (17.4%) for a
+    29.7% cost cut and the surrogate paid it **+17.4%**; VERIFY 0.422. Every gate line ever printed
+    with the field reads `mates 19` (5x, sold 4) or `mates 20` (1x, sold 3). **A mate-KEEPER can only
+    beat `best_rate` by being cheaper at identical play — the `ab_hash` case at 0.98x, the only such
+    rung ever found — while a mate-SELLER beats it easily.** So `mates/Mcost` is an EXCHANGE RATE and
+    `guard_tolerance` sets the price; the tolerance-7 arm is the same curve at a wider licence
+    (+85.5% surrogate, VERIFY 0.258).
+
+    **THREE repairs tried, each refuted by the arm launched to test it:** saturation (by `mates 19`);
+    **guard tolerance 0** (by `mate-ok 0` — nothing passes, the search FREEZES, which
+    `search_track_WHY_NOTHING.md:344` already recorded as "0 of 33 behaviour-changing edits pass an
+    all-or-nothing guard"); and **a bigger set** (77 positions, `mate-ok 0` at a 5.2% licence — the
+    loss is a constant FRACTION, so no size helps). All three assumed the metric could be made to
+    RANK. It cannot.
+
+    **Now running: `EXISTENCE_SPEC_FILTER`, which is what §3 specifies** — the metric as a FILTER at
+    0.9x with the ladder deciding. Verified to bite: at gen 1 a guard-passer sits at `rates 0.999`,
+    which the strict rule rejects and the filter admits. Not a guard bypass — `evolve.rs:1762` still
+    filters on `guard_floor`. Never meaningful before tonight, because the 6-pair gate could not
+    accept anything in 99 calls; the gate now resolves. → `fitness_spec_gap_FINDING.md`
 
 9. **A gate REJECTION used to raise the bar.** `best_rate` was set to the rejected candidate's rate,
    so the next generation had to clear a bar inherited from a program just measured as worse. It cost
