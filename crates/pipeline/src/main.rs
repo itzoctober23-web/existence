@@ -111,6 +111,24 @@ fn paired_sign(champ: &Net, cand: &Net, held: &[&Sample]) -> (u32, u32) {
 /// `--horizon-cap` defaulted to 1000, so nothing connected the knob to the bound it could not cross.
 const MAX_PLIES: usize = 160;
 
+/// Path for a ladder rung, and the guard that keeps a rung meaning ONE net.
+///
+/// `learn`'s generation counter RESTARTS AT 1 on every launch, and this loop is relaunched often --
+/// five times on 2026-09-10 alone. `{out}.gen{g}.net` therefore names a point in a run, not a point
+/// in the lineage, so run 7's gen100 would silently OVERWRITE run 6's gen100.
+///
+/// That is not a cosmetic clash. The ancestor control loads `{out}.gen{g-lag}.net` and plays the
+/// champion against it; if that file had been replaced by a different run's net, the control would
+/// report a strength difference between two lineages while labelling it as progress within one.
+/// Exactly the failure that made a flat origin control read as a collapse today
+/// (`pooled_runs_RESULT.md`) -- a key that omits the run.
+///
+/// `--run-tag` puts the run back in the key. Without one, the guard below REFUSES to overwrite an
+/// existing rung: losing the new snapshot is recoverable, destroying an ancestor is not.
+fn rung_path(out: &str, tag: &str, g: usize) -> String {
+    if tag.is_empty() { format!("{out}.gen{g}.net") } else { format!("{out}.{tag}.gen{g}.net") }
+}
+
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let arg = |k: &str, d: usize| -> usize {
@@ -309,6 +327,11 @@ fn main() {
     // every `anc_every`. 0 = off. See the use site for why a moving opponent is the point.
     // anc_lag MUST be a multiple of the rung cadence or the rung will not exist; the use site warns
     // rather than failing, so a misconfiguration is visible instead of silently skipped.
+    // Distinguishes this run's rungs from a previous run's. See rung_path().
+    let run_tag = a.iter().position(|x| x == "--run-tag")
+        .and_then(|i| a.get(i + 1)).cloned().unwrap_or_default();
+    // Rungs written BY THIS RUN. The ancestor control refuses any other, see its use site.
+    let mut my_rungs: std::collections::HashSet<String> = std::collections::HashSet::new();
     let anc_every = arg("--ancestor-every", 0);
     let anc_lag = arg("--ancestor-lag", 400);
     let anc_pairs = arg("--ancestor-pairs", 200);
@@ -1260,10 +1283,15 @@ base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
         // being able to demonstrate rather than infer.
         if rung_every > 0 && g % rung_every == 0 && !(ctrl_every > 0 && g % ctrl_every == 0)
             && !out.is_empty() && out != "/dev/null" {
-            let rung = format!("{out}.gen{g}.net");
-            if let Err(e) = champion.save(&rung) {
+            let rung = rung_path(&out, &run_tag, g);
+            if std::path::Path::new(&rung).exists() {
+                eprintln!("      WARNING: ladder rung {rung} already exists -- NOT overwriting. \
+                           The generation counter restarts each launch; pass --run-tag to keep \
+                           this run's rungs distinct.");
+            } else if let Err(e) = champion.save(&rung) {
                 eprintln!("      WARNING: could not write ladder rung {rung}: {e}");
             } else {
+                my_rungs.insert(rung.clone());
                 println!("      ladder rung saved: {rung}");
             }
         }
@@ -1279,7 +1307,19 @@ base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
         // ancestor line never appeared and no warning did either.
         if anc_every > 0 && g % anc_every == 0 && g > anc_lag
             && !out.is_empty() && out != "/dev/null" {
-            let past = format!("{out}.gen{}.net", g - anc_lag);
+            let past = rung_path(&out, &run_tag, g - anc_lag);
+            // PROVENANCE, not just existence. The no-clobber guard preserves a rung left by an
+            // EARLIER run that used the same --run-tag -- which is the right call for the file, but
+            // it means `past` can exist and belong to a different lineage. Loading it anyway would
+            // print "ancestor control @gen G vs gen G-lag" while actually comparing across runs:
+            // the exact mislabel this whole feature exists to prevent, reproduced by its own safety
+            // guard. Observed in the smoke test, where a second pass under the same tag happily
+            // measured itself against the first pass's net.
+            if !my_rungs.contains(&past) {
+                eprintln!("      WARNING: ancestor control skipped -- {past} was not written by \
+                           THIS run, so comparing against it would cross lineages. Use a fresh \
+                           --run-tag.");
+            } else {
             match Net::load(&past) {
                 Ok(old) => {
                     let (pa, pb) = arch::equal_time_caps(&champion, &old, budget_ns, depth.max(3));
@@ -1293,6 +1333,7 @@ base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
                 // of the rung cadence, which is a configuration mistake worth seeing rather than a
                 // reason to stop training.
                 Err(e) => eprintln!("      WARNING: ancestor control skipped, cannot load {past}: {e}"),
+            }
             }
         }
 
@@ -1339,10 +1380,14 @@ base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
             //
             // Cost is one 50KB file per control -- every 100 generations as currently configured.
             if !out.is_empty() && out != "/dev/null" {
-                let rung = format!("{out}.gen{g}.net");
-                if let Err(e) = champion.save(&rung) {
+                let rung = rung_path(&out, &run_tag, g);
+                if std::path::Path::new(&rung).exists() {
+                    eprintln!("      WARNING: ladder rung {rung} already exists -- NOT overwriting. \
+                               Pass --run-tag to keep this run's rungs distinct.");
+                } else if let Err(e) = champion.save(&rung) {
                     eprintln!("      WARNING: could not write ladder rung {rung}: {e}");
                 } else {
+                    my_rungs.insert(rung.clone());
                     println!("      ladder rung saved: {rung}");
                 }
             }
