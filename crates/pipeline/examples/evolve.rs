@@ -2568,6 +2568,36 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                     continue;
                 }
 
+                // NO-OP VETO: identical play, NOT cheaper -> skip the gate entirely.
+                //
+                // PATH 1 above accepts identical play that is CHEAPER. The case it leaves is identical play
+                // at the same or worse cost -- a program behaviourally indistinguishable from the champion.
+                // Sending that to the game gate spends 96 VERIFY pairs and ~60 games to discover that two
+                // identical programs draw.
+                //
+                // MEASURED 2026-09-10 on gate_specfilter_s1, which spent its ENTIRE budget this way:
+                //   gen 1 MAIN gate INCONCLUSIVE llr +0.00 (60 games W-D-L 8-44-8) mates 23 surrogate 0.002490
+                //   gen 1 MCTS gate INCONCLUSIVE llr +0.00 (60 games W-D-L 2-56-2) mates 15 surrogate 0.001406
+                //   gen 2 MAIN gate INCONCLUSIVE llr +0.00 (60 games W-D-L 8-44-8) mates 23 surrogate 0.002487
+                // The seed's own header is `23/23 mates, 0.002490 mates/Mcost` -- so those carry the seed's
+                // exact mate count and exact surrogate, and the games return perfectly symmetric at 0.500.
+                // That arm reached generation 2 while the control reached 6 and both composition arms 5-6.
+                //
+                // WHY THE STRICT FILTER NEVER NEEDED THIS: it picks only on `rate > best_rate`, which excludes
+                // equality by construction, so a no-op cannot be picked at all. EXISTENCE_SPEC_FILTER picks on
+                // `r >= 0.9 * best_rate` and admits them. This veto is therefore INERT on the default path and
+                // the control/veto/composition arms stay byte-comparable -- the same property that made the
+                // PATH 1 repair safe.
+                //
+                // It is a VETO, not a rejection: the candidate is not recorded in `gated`, because nothing was
+                // learned about it. It simply never should have cost games.
+                if same_play {
+                    println!("  gen {g:>3} {:<5} ..no-op VETO: plays IDENTICALLY on all {} guard positions at \
+{rate:.6} vs champion {:.6} -- gate skipped, 0 games spent",
+                             lineages[li].name, set.len() + hard.len(), best_rate);
+                    continue;
+                }
+
                 // ---- PATH 2: THE GAME GATE, for candidates that change play.
                 // It RUNS EVOLVED PROGRAMS ON A BOARD, so it is exactly as exposed
                 // to a malformed candidate as the fitness call is, and it was NOT wrapped. A
