@@ -1840,7 +1840,98 @@ fn tt_hits() {
     println!("  12 cost units per probe it is an expensive one.");
 }
 
+/// CAN crossover unite the two halves into a WORKING table? `evolve ttunion <n> <depth>`
+///
+/// The live arms hold both halves simultaneously -- `gate_composition_s2` gen 4-6 carries `P1K1F1`
+/// probe halves and `S1K1` store halves as separate members -- but a union has never appeared, and
+/// the power says that is a coin flip: P(a union is even ATTEMPTED per generation) ~ 0.20, so
+/// P(none in the three generations of coexistence) = 0.51. Waiting 19 more generations would answer
+/// it at 0.99, and this answers it now.
+///
+/// `ab_probe_only` and `ab_store_only` ARE the two halves, hand-built and full-coverage. Crossing
+/// them isolates the question the arms are sampling slowly: given both halves in hand, does the
+/// crossover operator produce a child that behaves like a transposition table?
+///
+/// CONTROLS, both printed and both gating:
+///   * `ab_hash` is the hand-built union -- it MUST read PATH-1 acceptable and ~14 probes/store.
+///   * `ab_probe_only` alone MUST show probes and ZERO stores; `ab_store_only` the reverse. If the
+///     halves are not actually complementary, nothing below means anything.
+fn tt_union() {
+    let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
+    let (n, depth) = (a(2, 400) as usize, a(3, 3));
+    let net = Net::random(32, 20260907);
+    let seed = reference::bare_alpha_beta();
+    let set = mate_set(6);
+
+    let run = |prog: &Program| -> (u64, u64, u64) {
+        let (mut c, mut h, mut st) = (0u64, 0u64, 0u64);
+        for (p, _) in &set {
+            let mut it = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
+            it.cost_cap = 20_000_000_000;
+            let _ = it.run(prog, p, 16);
+            let (cc, hh, ss) = it.probe_stats();
+            c += cc; h += hh; st += ss;
+        }
+        (c, h, st)
+    };
+    let base_moves: Vec<board::types::Move> = set.iter().map(|(p, _)| {
+        let mut it = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
+        it.cost_cap = 20_000_000_000;
+        it.run(&seed, p, 16)
+    }).collect();
+    let plays_same = |prog: &Program| -> bool {
+        set.iter().zip(&base_moves).all(|((p, _), b)| {
+            let mut it = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
+            it.cost_cap = 20_000_000_000;
+            it.run(prog, p, 16) == *b
+        })
+    };
+
+    println!("=== can crossover UNITE the halves into a working table? {n} attempts, depth {depth} ===");
+    let (_, bc, _) = fitness(&seed, &set, &net, depth, 16);
+    for (name, prog) in [("ab_probe_only", reference::ab_probe_only()),
+                         ("ab_store_only", reference::ab_store_only()),
+                         ("ab_hash (the UNION)", reference::ab_hash())] {
+        let (c, h, st) = run(&prog);
+        let (_, cost, _) = fitness(&prog, &set, &net, depth, 16);
+        println!("  CONTROL {:<20} {:>9} probes {:>9} hits {:>9} stores  {:>6} p/s  same-play {}  cheaper {}",
+                 name, c, h, st,
+                 if st == 0 { "inf".to_string() } else { format!("{:.1}", c as f64 / st as f64) },
+                 plays_same(&prog), cost < bc);
+    }
+
+    let (mut wt, mut both, mut same, mut acceptable) = (0usize, 0usize, 0usize, 0usize);
+    let (mut tc, mut th, mut ts) = (0u64, 0u64, 0u64);
+    for k in 0..n {
+        let mut r = Rng::new((k as u64) << 12 ^ 0x5E11);
+        let (rec, don) = if k % 2 == 0 { (reference::ab_probe_only(), reference::ab_store_only()) }
+                         else          { (reference::ab_store_only(), reference::ab_probe_only()) };
+        let Some(child) = mutate::crossover(&rec, &don, &mut r) else { continue };
+        wt += 1;
+        let c = tt_counts(&child);
+        if c[0] == 0 || c[1] == 0 { continue; }
+        both += 1;
+        let (cc, hh, ss) = run(&child);
+        tc += cc; th += hh; ts += ss;
+        let (_, cost, _) = fitness(&child, &set, &net, depth, 16);
+        let sp = plays_same(&child);
+        if sp { same += 1; if cost < bc { acceptable += 1; } }
+    }
+    println!("\n  well-typed children      : {wt} of {n}");
+    println!("  carrying BOTH halves     : {both}");
+    println!("  ...that play IDENTICALLY : {same}");
+    println!("  ...AND cheaper (PATH-1)  : {acceptable}");
+    if both > 0 {
+        println!("  table behaviour across them: {tc} probes, {th} hits ({:.1}%), {ts} stores, {:.1} probes/store",
+                 100.0 * th as f64 / tc.max(1) as f64, tc as f64 / ts.max(1) as f64);
+        println!("  compare ab_hash, a working table: ~1% hits, ~14 probes/store");
+    }
+}
+
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("ttunion") {
+        return tt_union();
+    }
     if std::env::args().nth(1).as_deref() == Some("tthits") {
         return tt_hits();
     }
