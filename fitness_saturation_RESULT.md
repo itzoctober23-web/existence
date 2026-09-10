@@ -534,3 +534,33 @@ attempt to make it rank better. `relaunch_spec_filter.sh` is ready and is the fi
 **Not claimed:** that candidates lose exactly 17% at 77 positions. `mate-ok 0` proves only that every
 candidate lost MORE than 4 of 77. The constant-fraction reading is consistent with all three
 measurements and is not established by them.
+
+## 21:30 — SIX of six gated candidates sold mates. Not one kept all 23.
+
+With gen 4 in from both control arms, every gate line ever printed with the `mates` field:
+
+    5 x   mates 19  hard 0-0     (sold 4 of 23 = 17.4%)
+    1 x   mates 20  hard 0-1     (sold 3 of 23 = 13.0%)
+
+**Six for six. The game gate has never once been shown a candidate that kept every mate.**
+
+That is the whole account in one line, and it explains why every dial repair failed. A mate-KEEPER
+can only beat `best_rate` by being cheaper at identical play — the `ab_hash` case, measured at 0.98x
+and the only such rung ever found. A mate-SELLER beats it easily, because dropping 3-4 forced mates
+buys a ~30% cost cut. So the selection rule reaches the gate almost exclusively through sellers, and
+the gate then correctly rejects them: VERIFY reads 0.422, 0.430, 0.427 on the three MAIN candidates
+with independent-seed measurements.
+
+**Gen 4 also produced the first non-zero hard score on record** — `hard 0-1`, on the candidate that
+sold 3 rather than 4. n=1, so no relationship is claimed; noted because the hard-set gradient has
+been flat in every previous generation and its first movement is worth marking.
+
+**The arms diverged at gen 4, which confirms EPS 0.10 is doing something.** Control took a candidate
+at surrogate 0.003045 with `mates 20` over 32 games; the EPS arm took a different one at 0.002817
+with `mates 19` over 46 games. Same seed, same trajectory to gen 3, different pick at gen 4 —
+directive #3 is live, not cosmetic.
+
+**And the determinism check held.** The control's gen-4 row is identical to the pre-restart run's
+(surrogate 0.003045, VERIFY 0.430 +/-0.030), and `ab_report.py` correctly deduplicated the two into
+one observation rather than counting them twice — which is precisely the error that opened this
+document.
