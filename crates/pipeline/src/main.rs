@@ -111,7 +111,20 @@ fn main() {
     };
     let gens = arg("--gens", 5);
     let games = arg("--games", 60);
-    let depth = arg("--depth", 2) as u32;
+    // DEFAULT 1, NOT 2 (changed 2026-09-10). MASTER_PLAN:617 concludes "Until then depth 1 is the
+    // correct datagen setting" and this default said 2, so the code contradicted the project's own
+    // stated conclusion for every run that did not pass --depth explicitly.
+    //
+    // The evidence is a THROUGHPUT argument, and it is worth stating precisely because the
+    // head-to-head is not a win: depth2x2_RESULT measures d1 vs d2 at equal generations as a
+    // precise NULL (0.512 +/- 0.014). What separates them is label yield -- d1 produces 72.8
+    // decisive games per 300 against d2's 31.2, and costs less per generation -- so at equal wall
+    // clock d1 gets more generations AND more usable labels. MASTER_PLAN measures the same thing
+    // from the other side: ~47x fewer usable labels/second at depth 2.
+    //
+    // depth2x2_RESULT also ranks d2 LAST of the four arms it tested, and had been asserting that
+    // the shipped depth was already 1 -- it was not, which is how a default nobody chose survived.
+    let depth = arg("--depth", 1) as u32;
     let epochs = arg("--epochs", 3);
     // GATE RESOLUTION. 40 -> 224, because the gate could not see the improvements it exists to
     // detect. MEASURED over 230 generations of ledger: median ci95 0.079, so it only resolves a

@@ -321,9 +321,9 @@ d2 against d3 — one step of depth AND a parity crossing, with the two pointing
 sum is small and unstable, which is exactly the +0.025 that never reproduced. Neither term is an
 artifact; the comparison was.
 
-## Practical consequence: the shipped datagen depth is on the RIGHT side of parity, for a reason nobody had measured
+## Practical consequence: the RECOMMENDED datagen depth is on the right side of parity — but it was never the DEFAULT
 
-`MASTER_PLAN.md:617` sets the loop's datagen depth to 1 and gives the reason as throughput —
+`MASTER_PLAN.md:617` says depth 1 is the correct datagen setting and gives the reason as throughput —
 *"until then depth 1 is the correct datagen setting"*, where "then" is the accumulator and the
 bytecode making deep search cheap.
 
@@ -343,3 +343,33 @@ rather than letting a resolved effect imply an action it does not support. What 
 means a future throughput breakthrough would make depth 3 (odd, deeper) the natural target — not
 depth 2, which is where a naive "one more ply" step would land and which is the worst of the four
 arms tested.
+
+
+---
+
+## ⚠ CORRECTION 2026-09-10 — this file said the depth was "set" to 1. Nothing set it. The default is 2.
+
+The paragraph above read *"MASTER_PLAN.md:617 sets the loop's datagen depth to 1"* and then reasoned
+from it, concluding that "the shipped datagen depth is on the RIGHT side of parity". Checked:
+
+* `MASTER_PLAN.md:617` is PROSE. It concludes *"Until then depth 1 is the correct datagen setting"* —
+  a recommendation, not an assignment.
+* `crates/pipeline/src/main.rs` reads `arg("--depth", 2)`. **The default is 2.**
+* `configs/` contains `cost.toml` and `search_track.conf`; neither sets a datagen depth, and
+  `main.rs` reads no config file at all.
+* 32 of 35 `--depth` occurrences across the repo's scripts pass **2** explicitly.
+
+So the setting this file praised was never the one in force. And the one in force is **d2 — the arm
+this very file ranks 4th of 4** (strength index −0.133 against d1's −0.038; 31.2 decisive games per
+300 against d1's 72.8).
+
+**What this does NOT license.** The d1-vs-d2 head-to-head here is a precise NULL — 0.512 ± 0.014 —
+so nothing supports "depth 1 is stronger per generation". The case for depth 1 is throughput and
+label quality: it produces more than twice the decisive games per generation and costs less, so at
+equal wall clock it gets more of them. That is the same argument MASTER_PLAN makes, and it is an
+argument about the schedule, not about a per-generation win.
+
+**Action taken:** the default is now 1, so the code states the conclusion the project already
+reached instead of contradicting it. Every script that passes `--depth` explicitly is unaffected;
+what changes is the ad-hoc run, which is exactly the case that had been silently getting the
+4th-ranked arm.
