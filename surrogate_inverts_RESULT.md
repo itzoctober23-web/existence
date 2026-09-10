@@ -127,7 +127,7 @@ That is what the GAME gate already does (same net, same budget both sides), and 
 these five correctly. It also leaves capture extension reachable, compared at equal spend rather
 than penalised for spending.
 
-## ✅ TESTED — equal-cost fixes the inversion
+## ~~TESTED — equal-cost fixes the inversion~~ (SUPERSEDED, see the retraction below)
 
 `--equal-cost 3300000` on the same MATE-2 set (the cap is ID's own observed average per position, so
 the choice does not favour any program):
@@ -150,11 +150,47 @@ relative ranks are arbitrary and dominate the coefficient. Spearman is the wrong
 four-way tie; the substantive fact is that the top of the ranking is now correct and was previously
 exactly inverted.
 
-**Still open, and not claimed here:** sensitivity to the cap. 3.3M was chosen as ID's own average;
-a much lower cap would throttle the deepening that is precisely ID's advantage, and a much higher
-one approaches the uncapped case. The right cap is itself a parameter and has not been swept.
-Equal-cost also does not separate the four mid programs at all, so it fixes the ORDERING ERROR
-without yet providing resolution.
+## ⚠ RETRACTED, one hour later — equal-cost is CAP-DEPENDENT and I picked the flattering cap
+
+I flagged the cap as unswept. Sweeping it refutes the section above.
+
+| cap per position | ID solved | every other program | ID's rank |
+|---|---|---|---|
+| 200,000 | **0/40** | 2/40 | **LAST** |
+| 500,000 | **0/40** | 2/40 | **LAST** |
+| 1,000,000 | **0/40** | 2/40 | **LAST** |
+| 3,300,000 | 7/40 | 2/40 | first |
+| 10,000,000 | 11/40 | 2/40 | first |
+
+**The ordering flips on the cap.** Below ~3M, equal-cost ranks the best program LAST — the same
+inversion the ratio produced. Above it, first. **3.3M was ID's own observed average**, which I chose
+believing it favoured nobody; it is in fact the threshold where ID starts to win. That is the most
+flattering value available, arrived at honestly and wrong all the same.
+
+**The mechanism, and it is specific:** iterative deepening is ALL-OR-NOTHING under a cost ceiling.
+Cut off mid-deepening, the interpreter sets `over_budget`, unwinds every frame and `run` reports
+`MOVE_NONE` — so a truncated ID answers with NO MOVE and scores **zero**, not a partial result. It
+does not degrade gracefully; it disappears. Note the cost column: at cap 1M, ID spends 40,020,557
+and returns nothing at all.
+
+**So equal-cost is not a fix either — it moves the free parameter from the formula into the cap.**
+That is the FOURTH repair to fail today, after lexicographic ranking, seed-anchored floors, and the
+harder set.
+
+**What the four failures have in common:** every one tried to compress "how good is this search
+program" into a single offline number, and the value of a search program depends on HOW MUCH IT IS
+ALLOWED TO SPEND. Any scalar proxy must fix a spend, and fixing it either starves the programs that
+convert spend into strength or hands victory to whichever program is cheapest. The GAME gate has no
+such parameter to get wrong: it gives both sides the same budget and lets them play, and it ranked
+these five correctly on the first attempt with no tuning.
+
+**The honest recommendation is therefore narrower than "fix the metric":** stop using the surrogate
+as a RANKER. Its measured precision as a ranker is now established as poor-to-inverted across four
+formulations. It may still be usable as a cheap FILTER — but only with its false-negative rate
+measured, exactly as `reject_audit.rs` did for the NNUE gate. Not tested; recorded as the lead.
+
+Equal-cost also never separated the four mid programs at any cap — all sit at 2/40 throughout — so
+even where the top of the ranking is right, it has no resolution below that.
 
 ## Harness note — the first run of this experiment was worthless and looked perfect
 
