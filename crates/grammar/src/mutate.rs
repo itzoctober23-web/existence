@@ -93,11 +93,40 @@ pub enum Op {
     TReadIndex,
 }
 
-pub const ALL_OPS: [Op; 12] = [
+/// The operators the search DRAWS FROM. `Op::TReadIndex` is implemented and tested but is
+/// deliberately NOT here — see `PARKED_OPS`.
+pub const ALL_OPS: [Op; 11] = [
     Op::Tweak, Op::WrapIf, Op::WrapLoop, Op::Delete,
     Op::Dup, Op::SwapSiblings, Op::InsertMax, Op::ReplaceConst,
-    Op::WrapIfPred, Op::ProbeRead, Op::StoreHere, Op::TReadIndex,
+    Op::WrapIfPred, Op::ProbeRead, Op::StoreHere,
 ];
+
+/// Implemented, tested, and NOT DRAWN — because enabling it today would cost the search and buy it
+/// nothing. Kept as code rather than deleted so that flipping it on is one line once its blocker
+/// clears.
+///
+/// `Op::TReadIndex` closes a real gap: `tests/shape_reachability.rs` measured that no operator could
+/// lengthen an argument list, which put ladder rung 7 (`TRead(3, [d, i])`) outside the search space
+/// at any edit count. With it, TRead/1 is one edit away and TRead/2 two (both measured).
+///
+/// THAT IS A FACT ABOUT SHAPES, AND THE BEHAVIOURAL FACT POINTS THE OTHER WAY.
+/// `interp/tests/tread_index_is_inert.rs` MEASURES that appending an index changes nothing:
+/// `Interp` resolves a TRead through `tables_nd` first and falls back to the scalar `tables`, and
+/// `tables_nd` is declared, initialised to `Vec::new()`, read — and never populated, while every
+/// `Interp::new` call site passes at most three scalars. The indices are never consulted.
+///
+/// So every candidate this operator can produce today is behaviourally identical to its parent and
+/// strictly LARGER. FITNESS 3 is mates per COST, so each one is strictly worse and cannot be
+/// accepted — while still consuming a `1/|ALL_OPS|` share of every draw and diluting the eleven
+/// operators that can do something. Adding it to the drawn set would be a measurable regression to
+/// the search dressed up as new capability.
+///
+/// UNPARK IT WHEN, and only when, `tables_nd` is populated AND tables are part of the genome.
+/// GRAMMAR 9 records that second half as architectural: `Program { funcs, lineage }` has no table
+/// field, tables arrive as an `Interp::new` constructor argument, so no mutation can change a
+/// table's contents. Hand-filling the reduction table would make the rung work and the discovery
+/// claim vacuous, which MASTER_PLAN:53 forbids.
+pub const PARKED_OPS: [Op; 1] = [Op::TReadIndex];
 
 /// Collect mutable positions as a flat index, so an operator can address "the k-th node".
 fn count_nodes(n: &Node) -> usize {

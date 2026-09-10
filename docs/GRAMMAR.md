@@ -166,13 +166,15 @@ The measured fact is unchanged and is what the test asserts — *no operator len
 list* — but the two gaps need two different operators, and implementing `add-arg` as declared
 would NOT make rung 7 reachable. Recorded because the imprecise version was committed first.
 
-**⚠ CLOSED THE SAME DAY — `Op::TReadIndex` landed and rung 7 is now REACHABLE.** Read the two
-points below as the diagnosis that motivated the operator, not as current state. What changed:
+**⚠ SHAPE-REACHABLE, BEHAVIOURALLY INERT, AND THEREFORE PARKED — `Op::TReadIndex`, 2026-09-10.**
+Read the two points below as the diagnosis that motivated the operator. What changed, and what
+did not:
 
 | | before | after `Op::TReadIndex` |
 |---|---|---|
 | TRead arities constructible in ONE edit | `[]` | **`[1]`** |
-| `TRead/2`, which rung 7 needs | unreachable at any edit count | **reachable in TWO edits — measured** by composing the operator with itself, not assumed |
+| `TRead/2`, which rung 7 needs | unreachable at any edit count | **reachable in TWO edits — measured** by composing the operator with itself (but the operator is PARKED, see below) |
+| does appending an index change BEHAVIOUR? | n/a | **no — measured inert**, `tables_nd` is never populated |
 | function count changed by a mutation | 0 of 823 | **0 of 858 — still zero**, `add-fn` remains absent |
 
 The operator appends ONE in-scope Int as a tread index and never picks the table id, so reaching
@@ -181,9 +183,22 @@ requires the technique be DISCOVERED, and `mutate.rs:205` already refused an ope
 probe-and-store together as making the discovery vacuous. It adds no primitive — §2.7 #26 declares
 `tread : Tab x Int... -> Int` variadic already.
 
-Nothing here claims the search will now climb rung 7. Reachability was a PRIOR blocker, and the
-valley (`ladder_valley_RESULT.md`) is a separate one; `reachability.rs`'s header records that hash
-reuse became reachable and is still blocked by a conjunctive valley.
+**AND IT IS NOT IN THE DRAWN SET.** `mutate::ALL_OPS` stays at eleven; the operator lives in
+`mutate::PARKED_OPS`. The reason is measured, not cautious: `interp/tests/tread_index_is_inert.rs`
+shows appending an index changes NOTHING. `Interp` resolves a TRead through `tables_nd` first and
+falls back to the scalar `tables`; `tables_nd` is never populated and every `Interp::new` call site
+passes at most three scalars, so the indices are never consulted. Every candidate the operator can
+produce today is behaviourally its parent and strictly LARGER — and FITNESS 3 is mates per COST, so
+each one is strictly worse while still consuming a `1/|ALL_OPS|` share of every draw. Enabling it
+now would be a regression to the search wearing the costume of new capability.
+
+This is the same shape as the `GATE_VETO` result earlier the same day: the mechanism fired exactly
+as predicted, and firing was not evidence the change helps.
+
+UNPARK WHEN both halves of point 1 below clear — `tables_nd` populated AND tables in the genome.
+Nothing here claims the search would then climb rung 7 either: reachability was a PRIOR blocker and
+the valley is a separate one; `reachability.rs`'s header records hash reuse as reachable since
+2026-09-08 and still blocked by a conjunctive valley.
 
 1. **Rung 7 of the ladder was UNREACHABLE, and this is how it was proven.** `table_reduction` needs `TRead(3, [d, i])`.
    The seed contains `TRead(0, [])` and `TRead(1, [])`, so the kind-granularity check in

@@ -157,10 +157,13 @@ fn every_declared_rung_is_constructible() {
     // element was exactly `("TRead", 2)`: seed TRead arities `[0]`, newly constructible `[]`. So
     // "very likely unreachable" became MEASURED unreachable.
     //
-    // `Op::TReadIndex` then closed it. TRead/1 is now constructible in one edit and TRead/2 in two
-    // (measured by composing the operator with itself, not assumed), so table reduction is inside
-    // the search space. Reachability was only ever a PRIOR blocker: the valley is separate, and
-    // this file's own header records hash reuse as reachable-but-still-blocked by one.
+    // `Op::TReadIndex` then closed the SHAPE gap: TRead/1 is constructible in one edit and TRead/2
+    // in two, measured by composing the operator with itself. But it is PARKED, not drawn
+    // (`mutate::PARKED_OPS`), because `interp/tests/tread_index_is_inert.rs` measures that
+    // appending an index changes NOTHING -- `tables_nd` is never populated, so the indices are
+    // never consulted. Every candidate it can make is its parent, larger; under FITNESS 3 that is
+    // strictly worse. So rung 7 is EXPRESSIBLE and still not climbable, and the operator is code
+    // waiting on an architectural change rather than a live part of the search.
     //
     // Still open, and the shape file asserts it: 0 of 858 applied mutations change
     // `Program::funcs.len()`, so GRAMMAR 4's `add-fn` remains absent and every program the search

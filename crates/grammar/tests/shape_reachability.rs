@@ -187,10 +187,30 @@ fn shape_level_reachability_of_the_two_undeclared_operators() {
     // HISTORY, kept because the transition is the point. Until Op::TReadIndex landed (2026-09-10)
     // this file asserted that NO operator could build a TRead with arguments, and the sibling
     // recorded rung 7 as NOT PROVEN EITHER WAY at kind granularity. Both are now settled.
+    // TReadIndex is PARKED (mutate::PARKED_OPS), so it is not in the ALL_OPS sweep above and
+    // `buildable` correctly does NOT contain TRead/1. Test the operator directly: the question
+    // "can the operator set express this" is separate from "is the operator switched on".
+    let mut direct: BTreeSet<(&'static str, usize)> = BTreeSet::new();
+    for (_, prog) in reference::all() {
+        for fi in 0..prog.funcs.len() {
+            for k in 0..400 {
+                let mut rng = mutate::Rng::new((k as u64) << 8 ^ fi as u64 ^ 0xABCD);
+                if let Some(m) = mutate::mutate_at(&prog, mutate::Op::TReadIndex, &mut rng, fi, k) {
+                    for sh in prog_shapes(&m) { direct.insert(sh); }
+                }
+            }
+        }
+    }
+    println!("TReadIndex applied directly reaches TRead/1: {}", direct.contains(&("TRead", 1)));
     assert!(
-        buildable.contains(&("TRead", 1)),
-        "Op::TReadIndex no longer builds a TRead index. If it was removed, rung 7 goes back to \
-         being unreachable and reachability.rs:145 must say so again."
+        direct.contains(&("TRead", 1)),
+        "Op::TReadIndex no longer builds a TRead index; rung 7 goes back to being unreachable."
+    );
+    assert!(
+        !buildable.contains(&("TRead", 1)),
+        "TRead/1 is reachable from ALL_OPS, so TReadIndex has been UNPARKED. That is only correct \
+         once tables_nd is populated -- until then every candidate it makes is a no-op that costs \
+         nodes (interp/tests/tread_index_is_inert.rs). Re-measure before leaving it enabled."
     );
     assert!(
         tread2_in_two_edits,
