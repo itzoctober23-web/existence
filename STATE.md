@@ -4402,3 +4402,43 @@ experiment rather than another tolerance sweep.
 
 **Caveat: n=3 distinct candidates**, from one arm's MAIN lineage. The pile-up itself is 14 of 14
 across two arms and two binaries, so the PHENOMENON is replicated; the exchange RATIO is not yet.
+
+## 2026-09-10 — PREDICTION CONFIRMED: the §3 filter demonstrably reduces mate-selling
+
+The exchange-rate measurement makes a testable prediction. The RANKING rule sends `popn[0]`, the
+HIGHEST-rate candidate, and since selling mates raises the rate at ~2:1, the highest-rate candidate is
+the one that sold the most. §3's FILTER instead takes the FIRST candidate clearing `0.9x best_rate`,
+which has no reason to be the biggest seller. **So filter arms should gate candidates with higher mate
+counts.** Tested on data already on disk:
+
+    MCTS lineage, 4+10+10 set, seed 10/24, guard floor 6
+      RANKING  gate_diversity_s1     16x mates 6 (THE FLOOR)   7x mates 8   1x mates 9
+      FILTER   gate_div_x_filter      4x mates 8    -- none at the floor
+      FILTER   gate_filter_only       3x mates 8    -- none at the floor
+
+**The ranking rule gates a floor-selling candidate 16 times in 24 (67%). The two filter arms gate
+7 times between them and NOT ONCE at the floor** — every one at mates 8, two above the floor.
+
+If the filter were drawing from the ranking rule's distribution, the chance of 7 consecutive
+non-floor picks is `(8/24)^7 = 4.6e-4`, and of all 7 landing exactly on `mates 8` is `(7/24)^7 =
+1.9e-4`. This is not a small-sample coincidence.
+
+**Why this matters more than the other filter observations.** Everything measured about the filter so
+far described its COST — it converts an idle search into an expensive one, it spends gates, it runs
+~10x slower per generation. This is the first measured evidence that it does the thing it was designed
+for: **it stops the optimiser from spending the guard tolerance.** The mechanism is exactly as
+predicted from the ratio — remove "more cheapness is always better" and the biggest seller stops being
+the automatic winner.
+
+**Confounds, stated.** The two filter arms share a binary and seed with the ranking arm
+(`evolve_PINNED`, seed 0) and the same 4+10+10 set, so this comparison is clean in a way the earlier
+hard-set one was not. What it does NOT show is that the less-sold candidates PLAY better: all three
+arms still have 0 acceptances, and the filter arms have only 7 gate calls between them. **The filter
+changes WHAT gets selected; whether that converts into a passing candidate is what the factorial is
+still running to find out.**
+
+**And it sharpens the MAIN case rather than settling it.** On MAIN (seed 23, floor 19) ranking gives
+`1x19, 8x20` and filter gives `1x19, 4x20` — the same shape. MAIN is saturated, so every candidate
+that clears the guard at all has already sold to 19-20 and the filter has nothing better to choose
+from. The filter can only decline to pick the biggest seller when a smaller seller EXISTS, which on a
+saturated set it does not.
