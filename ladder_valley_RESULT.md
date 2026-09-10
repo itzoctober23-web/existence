@@ -404,3 +404,44 @@ this document predicted and could not previously demonstrate.
 is necessary and demonstrably not sufficient. What the arm is waiting on is not a rarer event; it is
 a DIFFERENT one — a union that behaves like a table rather than like two memory operations sharing a
 program.
+
+### "Crossover has not united them" is NOT yet evidence that it cannot — the power says 51% no-attempt
+
+Across every arm and every generation, the complete set of population members carrying any TT
+primitive:
+
+    P10S5K15F10  15x   the MCTS SEED -- a full transposition table by construction
+    P1K1F1       12x   a probe half, mutation-created, MAIN lineage
+    P10S6K16F10  12x   an MCTS mutant -- one EXTRA Store and Key than the seed
+    S1K1          5x   a store half, mutation-created, MAIN lineage
+
+**No MAIN-lineage member has ever carried both halves.** The only both-halves members are the MCTS
+seed and its mutants, which start that way.
+
+**Before reading that as a failure of crossover, count the attempts.** At gen 6 of
+`gate_composition_s2` the MAIN population is
+`["-","-","P1K1F1","P1K1F1","P1K1F1","S1K1","S1K1","-"]`, and crossover fires on `i % 4 == 3` for
+`i` in `0..8` — so `i = 3` and `i = 7`:
+
+* `i=3` -> recipient is `popsnap[3]` = `P1K1F1`, a probe half. It needs a store-half DONOR, drawn
+  uniformly from all lineages: **2 of 10 = 0.200**.
+* `i=7` -> recipient is `popsnap[7]` = `"-"`, carries no half, cannot unite: **0**.
+
+    P(a union is even ATTEMPTED in one generation)  ~ 0.20
+      over  3 generations of coexistence:  0.49
+      over 10 generations:                 0.89
+      over 19 generations:                 0.99
+
+**The halves have coexisted for three generations (4, 5, 6). P(no attempt yet) = 0.51.** Observing no
+union is exactly what a coin flip looks like. It carries no information about whether crossover CAN
+unite them.
+
+**Which is the same trap as `both_halves == 0` at n=40 earlier tonight** — a zero read as a result
+when the expected count was below one. The pre-registration there caught it; this needed catching
+too, because the tempting conclusion ("crossover is attempted and fails") is both plausible and
+unsupported.
+
+**Nineteen generations remain in each composition arm, and P(at least one attempt) reaches 0.99 over
+that span.** So this becomes answerable by waiting, and the thing to watch for on a gen line is a
+single member tagged with BOTH a `P` and an `S` — `P1S1K2F1` or similar. That tag has never appeared
+outside the MCTS lineage.
