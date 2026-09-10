@@ -3748,3 +3748,45 @@ the follow-up is the same pair at `4 10 3 10`, not abandonment.
 **All three pairs are now image-verified**, which was not true earlier today: diversity was repaired
 after a mid-experiment rebuild unpaired it, and specfilter had no control at all until one was launched
 from its exact binary. `sprt30_s1` remains a singleton and is not a control for anything.
+
+## 2026-09-10 — the SPEC_FILTER A/B is producing a clean mechanism difference
+
+With a matched control finally running (same binary `dd2c919b`, same seed, same set, `SPEC_FILTER` the
+only difference), generations 1-2 — where BOTH arms have data — show the two rules failing in opposite
+ways:
+
+    CONTROL (ranking, shipped)
+      gen 1 MAIN  ..none[above 0, gated-skip 0] (8 cand, 0 ill, mate-ok 1, rates 0.999-0.998708x ...)
+      gen 2 MAIN  ..none[above 0, ...]          (8 cand, ..., rates 0.497-0.496943x ...)
+
+    TREATMENT (filter, FITNESS 3)
+      gen 1 MAIN  ..no-op VETO: plays IDENTICALLY on all 31 guard positions at 0.002490
+                  vs champion 0.002490 -- gate skipped, 0 games spent
+      gen 2 MAIN  ..no-op VETO: (same)
+
+**The ranking rule selects NOTHING**: `above 0` means no candidate cleared strict `rate > best_rate`
+(0.999x and 0.497x both fail it). That is the frozen search `fitness_saturation_RESULT.md` describes,
+reproduced here under a proper control.
+
+**The filter selects something, and what it selects is a behavioural NO-OP** — a DIFFERENT program
+that plays identically on all 31 guard positions. Genotype moves, phenotype does not, and the no-op
+veto then skips the gate entirely: **0 games spent**.
+
+**That is neutral drift, and neutral drift is precisely what the valley result says crossing
+requires** — `ladder_valley_RESULT.md` measures the nearest known rung at ~59 nodes of neutral-or-worse
+territory from the seed, which a strict hill climb cannot traverse by construction. A rule that admits
+same-phenotype programs at zero gate cost is the only mechanism on offer that can move through it.
+§3's filter was not designed as a drift mechanism; it turns out to be one.
+
+**What is NOT yet established, stated plainly.** The control is at generation 2 and the treatment at
+12, so their OUTCOMES are not comparable — the treatment has 5 no-op vetoes and 6 real gates, the
+control 0 gates, and almost all of that gap is elapsed time rather than behaviour. Nothing here says
+the filter finds a better program. It says the two rules do different things at the same generation
+from the same seed, which is the first time that has been shown with the binary and set held fixed.
+
+**One observation worth flagging for when the comparison matures:** the treatment reached
+`gen 5 MCTS ... rates 1.079-1.078679x ... hard 1-1`. A candidate scoring **1.079x the champion's rate
+while also scoring on the HARD set** is the first thing seen all session that is not obviously bought
+by cheapness — the hard set is the non-saturated component, so a candidate scoring on it did not get
+there by cutting cost. It was `gated-skip` (already tried), so it is not a new result; it is a sign
+that the filter's population reaches places the ranking's does not.
