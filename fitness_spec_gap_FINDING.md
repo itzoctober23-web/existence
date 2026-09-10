@@ -97,3 +97,40 @@ obvious improvement at llr +3.08 in 26 pairs, and it rejected a real candidate a
 That makes fixing the filter's role newly worthwhile rather than newly urgent: with a working ladder
 behind it, a filter that admits more candidates is no longer dangerous, because the games decide.
 Those two changes are complements, and the ladder had to come first.
+
+## What §3's specified set actually COSTS — measured, not guessed
+
+The set-size deviation (23 against a specified 2,000) is easy to call a defect and harder to price.
+Two arms now give two measured points on the same program at the same depth and budget, so the
+scaling is measured rather than assumed:
+
+    |set| = 23   seed cost   9,235,450,584     (control arm header)
+    |set| = 77   seed cost  31,941,536,946     (bigset arm header)
+
+    per position = 420,483,081 cost units
+    intercept    = -4.4e8, i.e. ~0 against a 9.2e9 base -> cost is LINEAR in |set|
+
+Extrapolating to the specified size:
+
+    |set|   seed cost              vs the 23-position cost
+       23     9,671,110,858          1.0x
+       77    32,377,197,220          3.5x
+      500   210,241,540,389         22.8x
+     2000   840,966,161,556         91.1x
+
+An ungated generation costs ~3.5 min at 23 positions, so **2,000 positions is ~5.1 hours per ungated
+generation and ~5.3 days for a 25-generation run.** That is why the implementation uses 23, and it
+is a real constraint rather than an oversight.
+
+**CAVEAT that cuts the estimate, stated because it is load-bearing.** §3's set is STRATIFIED over
+MATE-1..4, and a MATE-1 position is solved at depth 1 while the current forced-mate set is mate-in-2
+by construction. So per-position cost would NOT be uniform across the strata, and this linear
+extrapolation is an **upper bound, not a forecast**. Measuring the per-N cost is cheap and is the
+right next step before committing to any set size.
+
+**What this changes about the recommendation.** "Implement §3's set" is not a small fix, and saying
+so is more useful than repeating that the code deviates. The tractable version is the middle ground
+already running: 77 positions at 3.5x, which is affordable and already tightens the guard's licence
+from 17.4% to 5.2%. If per-N costs turn out heavily skewed toward MATE-1 being cheap, a
+stratified 500x4 may cost far less than 91x and become reachable — which is a measurement worth
+making before the set size is decided either way.
