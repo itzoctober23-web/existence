@@ -217,11 +217,24 @@ now asserts that ordering directly -- row-by-row count agreement would not have 
 **THE SKEW IS NOW RESOLVED, AND IT IS TOWARD ALPHA-BETA.** This section recorded the direction as
 UNRESOLVED for a specific and correct reason: MCTS and PN were SKETCHES, so their counts were
 lower bounds and a lower bound cannot establish which paradigm the grammar favours. Both are now
-written out in full and executed — PN solves 23/23 forced mates, MCTS 20/23 — so the counts are
-real lengths rather than floors, and the comparison is meaningful for the first time:
+written out in full and executed — PN solves 23/23 forced mates, and UCT 23/23 at K >= 600 — so the
+counts are real lengths rather than floors, and the comparison is meaningful for the first time:
 
-* the seed alpha-beta is **71** nodes; MCTS is **+59** and PN is **+104** from it.
+* the seed alpha-beta is **71** nodes; MCTS is **+60** and PN is **+104** from it.
 * every alpha-beta VARIANT is nearer the seed (+13, +15, +29) than either rival paradigm is.
+
+> **Two corrections to this paragraph, 2026-09-10.** It said "+59" and "MCTS 20/23", and both
+> disagreed with the table twenty lines above it — the table that `grammar/tests/prior_table.rs`
+> exists to keep honest. The node count is settled by arithmetic on gated values: the table records
+> UCT at **131** and the seed at **71**, so the distance is **+60**, and 131 − 71 is not a matter of
+> opinion. The fidelity figure was stale rather than wrong-at-the-time: "20/23" is the `slot 2 = 1`
+> row of the sweep below, and the section headed *RESOLVED 2026-09-09 — UCT reaches 23/23* closes
+> that status explicitly. **The conclusion is untouched** — +60 against +13/+15/+29 is the same skew,
+> the same factor of two, in the same direction.
+>
+> Worth naming the shape of it: `prior_table.rs` gates the TABLE's node counts, and the numbers that
+> drifted were the ones re-typed into PROSE beside it. A test that pins a table does not pin the
+> sentences quoting it, which is the same class of gap as a monitor whose output nobody reads.
 
 So the grammar is biased toward alpha-beta-shaped programs, by roughly a factor of two in edit
 distance. That is a real cost of this Given column and it is now a measured number rather than an
@@ -383,7 +396,12 @@ shortfall at 64 is RESOURCE, not a defect — checked by sweeping the budget rat
 The count moved 83 -> 175 and the PN distance with it, +70 -> **+104**. The old number counted a
 program that could not prove a mate in one, so it was never a PN distance in the first place.
 
-MCTS is now 130 nodes (+59), PN 175 (+104).
+MCTS is now 131 nodes (+60), PN 175 (+104).
+
+<!-- 2026-09-10: this line read "130 nodes (+59)". The gated table in GRAMMAR 6 records 131 against a
+     seed of 71, and `grammar/tests/prior_table.rs` asserts that count against `reference::all()`, so
+     +60 is the value with a test behind it. Corrected here rather than in the table. -->
+
 
 **All entries measured by `crates/grammar` (examples/prior.rs) at EQUAL FIDELITY.** Run it to
 reproduce.
@@ -816,6 +834,15 @@ not 16, for the reason given in `configs/search_track.conf`.
 | capture extension (rung 6) | +9 | 25/25 | 0.002479 | 0.985x | not fitter |
 | table reduction (rung 7) | +15 | 25/25 | 0.002499 | 0.993x | not fitter |
 | proof-number search | +104 | 4/25 | 0.022854 | 9.078x | loses answers |
+
+> **This table is a SNAPSHOT, and its "vs seed" column is stale on two rows (noted 2026-09-10).**
+> It reads `+59` for UCT and `+9` for the capture extension; the gated GRAMMAR 6 table now records
+> **+60** and **+13**. The numbers were NOT edited in place, because the distance column is not the
+> only thing that moved: the `12/25` beside UCT is the pre-`RESOLVED 2026-09-09` blend program, and
+> the `25/25` beside rung 6 predates commit `064112f` ("rung 6 fixed to extend AT THE HORIZON").
+> Refreshing the distances alone would pair current programs with fitness measured on their
+> predecessors — a row that never existed. Re-run `examples/prior.rs` to regenerate the whole table
+> if these fitness figures are needed for current programs.
 
 **HASH REUSE IS THE ONLY FITTER RUNG ON THE WHOLE LADDER.** That was previously asserted from one
 measurement of one program; it is now measured across all nine, and every other rung the plan
