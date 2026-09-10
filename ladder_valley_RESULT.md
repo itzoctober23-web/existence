@@ -1287,3 +1287,48 @@ they stay comparable with each other. Equal slowdown is benign here; unequal slo
 
 **Cost, stated plainly:** the four baselines run about a quarter slower while this experiment is up.
 That is real and it is paid knowingly, for the arm testing the only lever measured at 3.00x.
+
+## Why EPS could never have fixed this, and why a RANKING change can
+
+Three measurements in this file now connect, and together they explain the valley more cleanly than
+any of them does alone.
+
+    EPS band floor (eps = 0.02)                 top * 0.98  =  0.9800
+    minimal STORE-carriers, guard-conditional               =  0.993933   INSIDE the band
+    guard-passing PROBE-carriers                           =  0.995213   INSIDE the band
+
+    gap between the two halves     0.128 percentage points
+    EPS band width                 2.0   percentage points   = 16x the gap
+
+**Both halves survive EPS comfortably. EPS is not the filter that removes the store half.**
+
+### The distinction that matters: a THRESHOLD cannot fix a RANKING
+
+`eps` is a tolerance -- "keep anything within 2% of the top". `truncate(MU)` is an ORDERING -- "keep
+the best MU". Those fail differently:
+
+* A threshold is defeated by a LARGE loss. The store half's loss is tiny, so the threshold never
+  fires on it.
+* An ordering is defeated by ANY CONSISTENT loss, however small. **0.128 points is fatal not because
+  it is big but because it is reliable**: it puts every store-carrier at position MU+1 or worse,
+  every generation. That is exactly the measured shape -- 100% of store-carriers in the bottom half,
+  64% ranked last, Mann-Whitney p = 0.00008.
+
+**Which retires option 1 for a second, sharper reason.** `eps_is_inert_RESULT.md` established that
+widening EPS 0.02 -> 0.10 buys a band holding 0 of 60 candidates. True, and this is the other half:
+even a band that DID contain candidates would not help, because the store half was never outside the
+band to begin with. **Widening a tolerance cannot rescue something a ranking is discarding.** No value
+of `eps` fixes this, including 1.0.
+
+### And it says precisely what the right lever looks like
+
+Anything that only adjusts WHO IS TOLERATED is inert here. The lever has to change WHO IS RANKED, or
+remove some slots from ranking altogether. `EXISTENCE_DIVERSITY_SLOTS` is the second kind: it reserves
+places that rate ordering does not get to fill, which is why it can retain a member losing by 0.128
+points when a 2-point tolerance cannot.
+
+**Note the shape of the error this corrects.** The valley document opened by listing EPS first, as the
+"cheapest change". It was cheap and it was measured and it was inert -- and the reason recorded at the
+time (an empty band) was correct but incidental. The structural reason is that the intervention was
+aimed at the wrong mechanism, and that only became visible once the two halves' rates were measured on
+the metric selection actually uses.
