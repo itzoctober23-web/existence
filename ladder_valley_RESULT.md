@@ -948,3 +948,53 @@ never survives to be crossed, the guard question never arises.
 
 Thirty-two children that never record a single hit, and still change the answer. Fourth independent
 dataset showing `Field(Slot::default(), Score) == 0` is what makes an arbitrary probe unsound.
+
+### What fixing store-survival is WORTH: exactly 3.00x. And what is legitimate.
+
+Priced from measured terms only -- `P(accept)` = 13/1200 pooled minimal crossings,
+`P(union attempted/gen)` = 0.20 measured at the OBSERVED composition, scaled by the pair-probability
+ratio 0.281/0.090:
+
+    observed composition   0.200 x 0.0108 = 0.2167%/gen   ->  19 gens  4.0%   50 gens 10.3%
+    balanced composition   0.624 x 0.0108 = 0.6765%/gen   ->  19 gens 12.1%   50 gens 28.8%
+    ------------------------------------------------------------------------------------
+    ratio at 19 generations                                    3.00x
+
+And the term a uniform per-generation rate cannot express at all: **6 of 14 generations hold ZERO
+store-carriers, so 43% of generations have P = 0 exactly.** The 4.0% figure therefore OVERSTATES the
+current odds, and balancing removes the zero-generations rather than merely improving the rate.
+
+### Is changing the retention rule allowed? Yes — and the distinction is sharp.
+
+`MASTER_PLAN:54`, verbatim:
+
+> *"No hash reuse, no iterative deepening, no quiescence, no ordering, no extensions, no reductions,
+> no pruning. **All of these must be DISCOVERED as program edits that beat the current program on the
+> clock.**"*
+
+**The constraint binds the PROGRAM, not the SEARCH THAT DISCOVERS IT.** The evolutionary machinery
+already exposes EPS, population size, MU, crossover rate and guard tolerance as knobs, and this
+document's own option 2 -- *"a population with regression tolerance rather than a single champion --
+the standard answer to a conjunctive-payoff valley"* -- was endorsed here from the start. Option 3, a
+gadget operator emitting probe+store in one edit, was rejected as *"hand-coding the answer"*.
+
+So the line falls between:
+
+    LEGITIMATE   a GENERIC diversity-preserving retention rule -- e.g. reserve slots by structural
+                 novelty rather than by rate alone. It knows nothing about transposition tables and
+                 would equally preserve any minority structure.
+    FORBIDDEN    protecting members BECAUSE they carry Probe/Store. That encodes the answer in the
+                 selector, which is option 3 wearing different clothes: the rung would then be
+                 "discovered" by a search built to find it.
+
+**The measured barrier makes the generic version pointed rather than speculative:** a store that
+nothing reads is pure overhead BY CONSTRUCTION, so it is always the worst-rated member present
+(100% in the bottom half, p = 0.00008), so a purely rate-ordered `truncate(MU)` removes it first --
+not by accident but as a direct consequence of what the half IS. Any conjunctive rung whose halves
+each cost before they pay has exactly this shape, which is why the fix is generic rather than
+TT-specific.
+
+**NOT IMPLEMENTED, deliberately.** Changing retention edits the machinery FOUR live arms are running
+on, with 19 generations of accumulated state. The session rule is to match evidence to blast radius,
+and "never edit under a running job" is the rule that has cost this project the most. The measurement
+stands on its own; the change is a decision for a clean start, not a hot patch.
