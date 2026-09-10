@@ -4278,3 +4278,41 @@ observable and an unobservable experiment for the entire filter half of the fact
 HARD set — so not bought by cheapness — was not gated, because `gated-skip` means it had already been
 tried and rejected. The filter's population reaches candidates the ranking rule's does not; the
 de-duplication then declines to re-test them.
+
+## 2026-09-10 — `distinct` looked like a workaround for the `dsl` blind spot. The seed control killed it.
+
+The diversity reserve acts on survivor SELECTION, and gate lines carry `pop N distinct:M` — so
+`distinct` appeared to observe the same thing `dsl` does, on the line type the filter arms actually
+emit. That would have routed around the blind spot entirely. On the completed pair it even pointed the
+right way:
+
+    diversity ON  (dsl25)   mean distinct 3.08 +/- 0.34   (n=50 gate lines)
+    diversity OFF (dsl0)    mean distinct 2.77 +/- 0.36   (n=43)
+    difference              +0.31 +/- 0.50   ->  +0.62 standard errors
+
+**Then the seed control, which cost nothing because those arms were already running:**
+
+    composition_s1 (seed 1)  mean distinct 1.00 +/- 0.24  (n=18)
+    composition_s2 (seed 2)  mean distinct 1.94 +/- 0.31  (n=18)
+    difference               -0.94 +/- 0.39   ->  -2.41 standard errors
+
+**Two arms with IDENTICAL configuration differ by 2.41 se on this metric — four times the treatment
+effect and in the opposite direction.** So `distinct` cannot resolve the diversity reserve at these
+sample sizes. The +0.31 is not a small real effect; it is well inside the noise floor that a same-config
+pair generates by itself.
+
+**What I nearly wrote.** "The reserve measurably increased population diversity by ~11% and still
+produced 0 acceptances" — a tidy, quotable conclusion, and unsupported. The honest version is: **the
+reserve's effect on `distinct` is not detectable above seed variation**, so nothing is known about
+whether it changed the population's diversity at all.
+
+**Why the control was decisive rather than merely cautionary.** The usual failure is comparing two arms
+and assuming the difference is the treatment. Here the noise floor was MEASURABLE because a same-config
+seed pair happened to be running, and it turned out to be larger than the effect. Without it, +0.62 se
+would have read as "small but consistent, pointing the right way".
+
+**Standing consequence:** any Existence metric compared across a single arm pair must be checked
+against `composition_s1` vs `composition_s2` on that same metric first. That pair is the project's
+noise floor and it is cheap to consult. The `dsl` blind spot therefore stands — the fix (print `dsl` on
+every per-generation line type) is not substitutable by a proxy, because the proxy's resolution is
+worse than the thing being measured.
