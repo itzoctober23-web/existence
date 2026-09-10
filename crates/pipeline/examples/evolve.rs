@@ -1456,6 +1456,32 @@ fn tt_supply() {
             (false, false) => neither += 1,
         }
     }
+    // COST DISTRIBUTIONS, sampled. Retention is `x >= top*(1-EPS)`, so if minimal store-carriers are
+    // systematically dearer than minimal probe-carriers the 3:1 skew is explained mechanically. The
+    // valley table's 0.997x/0.991x cannot answer this -- it measures the HAND-BUILT halves at 10 and
+    // 5 sites, and the same hand-built/minimal distinction already cost this analysis a 5x error.
+    let cap: usize = a(4, 60);
+    let net = Net::random(32, 20260907);
+    let set = mate_set(6);
+    let (_, base_cost, _) = fitness(&seed, &set, &net, 3, 16);
+    let mut cost_p: Vec<f64> = Vec::new();
+    let mut cost_s: Vec<f64> = Vec::new();
+    for k in 0..n {
+        if cost_p.len() >= cap && cost_s.len() >= cap { break; }
+        let mut r = Rng::new((k as u64) << 12 ^ 0xA11CE);
+        let Some((c, _)) = mutate::mutate_program_n(&seed, &mut r, edits) else { continue };
+        let t = tt_counts(&c);
+        let want_p = t[0] > 0 && t[1] == 0 && cost_p.len() < cap;
+        let want_s = t[1] > 0 && t[0] == 0 && cost_s.len() < cap;
+        if !(want_p || want_s) { continue; }
+        let (_, cost, _) = fitness(&c, &set, &net, 3, 16);
+        let rate = base_cost as f64 / cost as f64; // >1 = CHEAPER than the seed
+        if want_p { cost_p.push(rate); } else { cost_s.push(rate); }
+    }
+    let med = |v: &mut Vec<f64>| { v.sort_by(|a,b| a.partial_cmp(b).unwrap()); if v.is_empty() {f64::NAN} else {v[v.len()/2]} };
+    let (n_p, n_s) = (cost_p.len(), cost_s.len());
+    let (m_p, m_s) = (med(&mut cost_p), med(&mut cost_s));
+
     let pct = |x: usize| 100.0 * x as f64 / wt.max(1) as f64;
     println!("=== SUPPLY of the two halves: {n} draws of {edits} edit(s) from the seed ===");
     println!("  well-typed children : {wt} of {n}");
@@ -1468,6 +1494,12 @@ fn tt_supply() {
         println!("  live POPULATION ratio    = 3.0 : 1   (33 vs 11 carriers over 14 generations)");
         println!("  READING: supply ratio ~= 3:1 -> the skew is SUPPLY, fix is operator weights.");
         println!("           supply ratio ~= 1:1 -> the skew is SELECTION, fix is the retention rule.");
+        println!("\n  COST vs the seed (rate > 1 = CHEAPER; retention keeps x >= top*(1-EPS)):");
+        println!("    minimal PROBE-carriers  n={n_p:>3}  median rate {m_p:.6}x");
+        println!("    minimal STORE-carriers  n={n_s:>3}  median rate {m_s:.6}x");
+        println!("    valley table, HAND-BUILT halves:  probe 0.991x   store 0.997x");
+        println!("    READING: stores DEARER than probes -> retention explains the 3:1 skew, case closed.");
+        println!("             stores equal or CHEAPER   -> retention CANNOT explain it; audit selection.");
     } else {
         println!("\n  ZERO store-only children in {wt} draws -- supply of the store half is the binding");
         println!("  constraint outright, and no retention rule can keep what is never generated.");

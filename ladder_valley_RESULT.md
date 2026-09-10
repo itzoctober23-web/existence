@@ -785,3 +785,50 @@ carry the probe half only, the store half only, both, or neither. **Pre-register
 near 3:1 means the skew is supply and the fix is operator weights; near 1:1 means it is selection and
 the fix is retention. Zero store-only children would mean supply is the binding constraint outright,
 and no retention rule can keep what is never generated.
+
+### RESOLVED: the 3:1 skew is SELECTION, not supply — and it runs against the valley's own prediction
+
+`evolve ttsupply 20000 1`, pre-registered reading committed before the run:
+
+    well-typed children : 20000 of 20000
+    probe-carrier only  :  1812  (9.060%)
+    store-carrier only  :  1768  (8.840%)
+    BOTH halves at once :     0  (0.000%)
+    SUPPLY RATIO probe:store = 1.02 : 1
+
+**Supply is balanced to within 2%.** Against the live populations' 3.0:1:
+
+    supply rate  p(probe | carrier)   = 0.5061
+    live population                   = 33/44 = 0.7500
+    exact binomial, two-sided           p = 0.001306      RESOLVED
+
+    expected store-carriers at the supply rate : 21.7
+    observed                                   : 11
+    -> selection removes roughly HALF the store-carriers that supply provides
+
+**So the fix is the retention rule, not operator weights** — which is what the pre-registered reading
+said a ~1:1 supply ratio would mean, written down before the number existed.
+
+### And it contradicts what the valley table predicts
+
+The table at the top of this document measures **store-only 0.997x, probe-only 0.991x**. Retention is
+`x.2 >= top * (1 - EPS)`, so it keeps whatever is CHEAPER — which is the STORE half. Selection is
+instead culling stores at twice the rate of probes. **Something in the selection path is not behaving
+the way the recorded costs say it should.**
+
+The most likely mundane explanation is that those costs do not transfer: the valley table measures the
+HAND-BUILT halves at 10 and 5 call sites, while the population carries MINIMAL ones (`P1K1F1`, `S1K1`)
+at one site each — the same distinction that already cost this document a 5x error in the PATH-1 rate
+(5.50% hand-built vs 1.08% minimal, p = 0.00018). If minimal store-carriers happen to be the more
+expensive of the two, retention explains the skew mechanically and nothing is wrong.
+
+**That is a hypothesis with a countable prediction, so it gets measured rather than argued.** Extending
+`ttsupply` to report the COST DISTRIBUTION of minimal probe-carriers against minimal store-carriers.
+**Pre-registered:** minimal stores measurably more expensive than minimal probes explains the skew via
+retention and closes it; costs equal or stores cheaper means retention cannot explain it and the
+selection path itself needs auditing.
+
+### One more hard number, worth stating on its own
+
+**0 of 20,000 single edits produce BOTH halves** (95% upper bound 0.015%). This document has assumed
+throughout that the union requires crossover; that assumption is now measured rather than argued.
