@@ -4241,3 +4241,40 @@ think it is not noise. It does not remove the binary confound — only `gate_set
 config on different seeds had been treated as two data points for the composition question, when they
 are also a free control for seed variance. **A seed pair is an error bar, not just a replicate** —
 worth looking for before quoting any single-arm number.
+
+### The filter almost never emits the line that carries `dsl` — the observability gap is temporary but SLOW
+
+Earlier I wrote that `div_x_filter`'s diversity would become observable "at its first `..none`
+generation", citing `gate_specfilter_s1` reaching one at generation 5. Counted properly, that
+reassurance was thinner than it read:
+
+    arm                        gen   ..none   VETO   gates   SPEC_FILTER
+    gate_diversity_PAIRED_off   21     22       0      20      off
+    gate_diversity_s1           25     26       0      24      off
+    gate_specfilter_s1           7      1       5       7      on
+    gate_specfilter_CONTROL      2      4       0       0      off
+    gate_filter_only             4      0       5       2      on
+    gate_div_x_filter            5      0       6       3      on
+
+**For the ranking rule, `..none` is the DEFAULT line** — 22 of 22 and 26 of 26 generations produce
+one. **For the filter it is nearly absent**: 1 line in 7 generations (14 lineage-generations) for
+`specfilter_s1`, and zero so far for both new filter arms.
+
+That is the mechanism stated exactly: the ranking rule selects nothing whenever no candidate clears
+`rate > best_rate`, which for the saturated MAIN lineage is always. The filter's bar is
+`r >= 0.9 * best_rate`, which something almost always clears — so it selects, and then either vetoes
+the selection as a no-op or spends a gate on it. **The filter converts "select nothing" into "select
+something", and `..none` is precisely the line that stops being printed.**
+
+**Consequence for the `dsl` blind spot: it is temporary, but the wait is long.** `dsl` is printed only
+on `..none`, so `div_x_filter` gets roughly one opportunity per 7 generations to reveal whether its
+diversity reserve engaged. It is at generation 5. The honest status stays *"diversity is SET but not
+CONFIRMED to engage"* for a while yet, and the fix (print `dsl` on every per-generation line type)
+matters more than I first credited — it is not a nicety for one arm, it is the difference between an
+observable and an unobservable experiment for the entire filter half of the factorial.
+
+**One detail worth keeping from that single line.** `gen 5 MCTS ..none[above 1, gated-skip 1] ... rates
+1.079-1.078679x ... hard 1-1`: a candidate at **1.079x the champion's rate** that also scored on the
+HARD set — so not bought by cheapness — was not gated, because `gated-skip` means it had already been
+tried and rejected. The filter's population reaches candidates the ranking rule's does not; the
+de-duplication then declines to re-test them.
