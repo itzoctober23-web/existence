@@ -107,8 +107,16 @@ def main():
         print("    SATURATION IS REFUTED as the mechanism: the fix did not change the outcome.")
         print("    fitness_saturation_RESULT.md must be corrected.")
     elif worse == 0:
-        print("    CONSISTENT with saturation being the cause. Still not proof: check the")
-        print("    surrogate actually rose via the hard set (hf>0), not merely via cost.")
+        print("    CONSISTENT with saturation being the cause.")
+        print("    NOT PROOF, and the confirming check is NOT AVAILABLE from these logs: a gated")
+        print("    generation prints only VERIFY and gate lines, and the `hard h-h` field appears")
+        print("    only on non-gated `..none` lines. So for exactly the candidates that reach a")
+        print("    gate, the log never says whether the surrogate rose via the hard set or via")
+        print("    cost. It cannot be recovered arithmetically either: the guard pins f at 23, so")
+        print("    rate=(23+hf)/(cost+hard_cost) has two unknowns and one equation.")
+        print("    To confirm the MECHANISM rather than the OUTCOME, evolve.rs must print hf on")
+        print("    the gate line. Until then this reads as 'the fix worked', not 'saturation was")
+        print("    why'.")
     else:
         print("    MIXED. Report the count, claim nothing.")
     return 0

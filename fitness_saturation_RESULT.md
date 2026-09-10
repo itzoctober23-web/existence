@@ -92,6 +92,16 @@ The prediction to falsify: if saturation is the cause, the treatment arm's MAIN 
 stop being resolved-worse by VERIFY. If they are still resolved worse, saturation is NOT the
 mechanism and this document is wrong.
 
+**LIMIT OF THIS RUN, stated before the result arrives.** It can answer the OUTCOME and not the
+MECHANISM. A gated generation prints only the VERIFY and gate lines; the `hard h-h` field is printed
+only on non-gated `..none` lines. So for exactly the candidates that reach a gate, nothing records
+whether their surrogate rose via the hard set or merely via cost -- and it cannot be recovered
+arithmetically, because the guard pins `f` at 23 and `rate = (23+hf)/(cost+hard_cost)` leaves two
+unknowns in one equation. A clean answer needs `hf` printed on the gate line, which means a rebuild
+and a restart; the arms are 40+ minutes into their first gated generation, so that is not worth
+paying now. **If the treatment arm reads clean, the honest claim is "the fix worked", not
+"saturation was why".** The distinction is recorded here so it cannot be quietly dropped later.
+
 ## Cost note — one figure MEASURED, one still an ESTIMATE
 
 **Measured.** Generations that produce no gate call cost ~3.5 min each (the two new arms both cleared
