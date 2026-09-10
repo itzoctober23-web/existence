@@ -16,6 +16,89 @@ use interp::Interp;
 use pipeline::gate;
 use nnue::Net;
 
+/// Can the side to move FORCE mate within `n` moves (2n-1 plies)?
+///
+/// WHY THIS EXISTS. FITNESS §3 specifies the mate set as **500 positions at each of MATE-1, MATE-2,
+/// MATE-3 and MATE-4**, stratified and reported per N. `mate_set` below builds **mate-in-ONE only**,
+/// so the spec's entire depth ladder has been missing. That is not a cosmetic gap:
+/// `fitness_set_composition_RESULT.md` measures a program doing 0.0366% of the seed's search — a
+/// null search — scoring **2934.933x** on a mate-1-only set while keeping 25/25 mates, because a
+/// mate-in-one is a ONE-PLY CHECK and needs no search to find. The depth ladder is what makes the
+/// surrogate able to tell a search from a no-op.
+///
+/// SOUNDNESS, stated precisely: this is EXHAUSTIVE within `cap` nodes and gives up otherwise. On
+/// budget exhaustion it returns FALSE — "not proven", never "proven absent". For SET CONSTRUCTION
+/// that is the safe direction: an unproven position is skipped, so the set contains only positions
+/// whose mate distance was actually demonstrated. It would NOT be safe to use this as an oracle for
+/// "no mate exists".
+fn mate_within(p: &mut Position, n: u32, nodes: &mut u64, cap: u64) -> bool {
+    if n == 0 || *nodes > cap { return false; }
+    let l = p.legal_moves();
+    if l.is_empty() { return false; }
+    for &m in l.as_slice() {
+        *nodes += 1;
+        if *nodes > cap { return false; }
+        let u = p.make_move(m);
+        let opp = p.legal_moves();
+        // Same mate test `mate_set` uses: after our move it is the opponent to move, so no legal
+        // replies plus Outcome::Loss is checkmate rather than stalemate.
+        let delivered = opp.is_empty() && p.outcome() == Outcome::Loss;
+        let ok = if delivered {
+            true
+        } else if n == 1 || opp.is_empty() {
+            false
+        } else {
+            // EVERY opponent reply must still lose within n-1. One escape refutes the move, so this
+            // breaks early and the effective branching is far below the legal-move count.
+            let mut all = true;
+            for &r in opp.as_slice() {
+                let u2 = p.make_move(r);
+                let sub = mate_within(p, n - 1, nodes, cap);
+                p.unmake_move(r, u2);
+                if !sub { all = false; break; }
+            }
+            all
+        };
+        p.unmake_move(m, u);
+        if ok { return true; }
+    }
+    false
+}
+
+/// Positions with a proven forced mate in EXACTLY `n` — `mate_within(n)` and not `mate_within(n-1)`.
+///
+/// The "and not n-1" clause is what makes the strata disjoint, and it is not optional: without it a
+/// MATE-3 set silently contains every MATE-1 and MATE-2 position, the depth ladder collapses back to
+/// mate-in-one, and the per-N thresholds FITNESS §3 asks for would be computed over the wrong
+/// populations.
+fn mate_set_n(count: usize, n: u32, cap: u64) -> Vec<(Position, Option<board::Move>)> {
+    let mut rng: u64 = 0xC0DE_F00D ^ (n as u64) << 32;
+    let mut out = Vec::new();
+    let mut tries: u64 = 0;
+    while out.len() < count && tries < 400_000 {
+        tries += 1;
+        let mut p = Position::startpos();
+        let plies = 20 + (rng % 45) as usize;
+        rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
+        let mut ok = true;
+        for _ in 0..plies {
+            let l = p.legal_moves();
+            if l.is_empty() { ok = false; break; }
+            rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17;
+            p.make_move(l.as_slice()[(rng % l.len() as u64) as usize]);
+        }
+        if !ok || p.legal_moves().is_empty() { continue; }
+        let mut nodes = 0u64;
+        if !mate_within(&mut p, n, &mut nodes, cap) { continue; }
+        if n > 1 {
+            let mut n2 = 0u64;
+            if mate_within(&mut p, n - 1, &mut n2, cap) { continue; }   // shallower => wrong stratum
+        }
+        out.push((p.clone(), None));
+    }
+    out
+}
+
 fn mate_set(n: usize) -> Vec<(Position, Option<board::Move>)> {
     let mut rng: u64 = 0xC0DE_F00D;
     let mut out = Vec::new();
@@ -1396,7 +1479,68 @@ fn tt_graft() {
     println!("  fitter child moves the question to why the LIVE search has not found one.");
 }
 
+/// Build FITNESS §3's MATE-1..4 ladder and report yield, cost and DISJOINTNESS.
+///
+/// Measured before being wired into `fitness`, because a stratified set whose strata overlap is
+/// worse than no stratification: a MATE-3 set that silently contains mate-in-ones would report a
+/// per-N threshold computed over the wrong population, and nothing downstream would reveal it.
+///
+/// POSITIVE CONTROL FIRST: every position `mate_set` produces must satisfy `mate_within(_, 1)`. If
+/// the new solver disagrees with the shipped mate-in-1 builder, the solver is wrong and every number
+/// below is noise. This is the check that the `ttk` field taught me to write first rather than last.
+fn mate_ladder() {
+    let a = |i: usize, d: i64| std::env::args().nth(i).and_then(|s| s.parse().ok()).unwrap_or(d);
+    let (count, maxn, cap) = (a(2, 8) as usize, a(3, 3) as u32, a(4, 300_000) as u64);
+    println!("=== FITNESS §3 mate ladder: {count} positions at each of MATE-1..{maxn}, cap {cap} nodes ===");
+
+    print!("  control: shipped mate_set(12) positions all solve as mate_within(1) ... ");
+    let base = mate_set(12);
+    let mut bad = 0;
+    for (p, _) in &base {
+        let mut q = p.clone();
+        let mut nodes = 0u64;
+        if !mate_within(&mut q, 1, &mut nodes, cap) { bad += 1; }
+    }
+    if bad > 0 {
+        println!("FAIL — {bad} of {} disagree. The solver is wrong; ignore everything below.", base.len());
+        return;
+    }
+    println!("PASS ({} of {})", base.len(), base.len());
+
+    let mut sets: Vec<(u32, Vec<(Position, Option<board::Move>)>, f64)> = Vec::new();
+    for n in 1..=maxn {
+        let t0 = std::time::Instant::now();
+        let s = mate_set_n(count, n, cap);
+        let secs = t0.elapsed().as_secs_f64();
+        println!("  MATE-{n}: built {:>3} of {count} in {secs:>7.1}s  ({:.2}s per position)",
+                 s.len(), if s.is_empty() { 0.0 } else { secs / s.len() as f64 });
+        sets.push((n, s, secs));
+    }
+
+    // DISJOINTNESS: a MATE-n position must NOT be solvable in n-1. mate_set_n enforces this at
+    // construction; this re-checks it independently, because a filter that is also its own test
+    // proves nothing.
+    println!("\n  disjointness (a MATE-n position must NOT be mate-in-(n-1)):");
+    for (n, s, _) in &sets {
+        if *n < 2 || s.is_empty() { continue; }
+        let mut leak = 0;
+        for (p, _) in s {
+            let mut q = p.clone();
+            let mut nodes = 0u64;
+            if mate_within(&mut q, n - 1, &mut nodes, cap) { leak += 1; }
+        }
+        println!("    MATE-{n}: {leak} of {} also solve in {} — {}",
+                 s.len(), n - 1, if leak == 0 { "DISJOINT" } else { "LEAKING, strata are not clean" });
+    }
+    println!("\n  Yield falls off with N because these are mined by random play, not by §3's");
+    println!("  retrograde walk from real endings. Cost per position is the number to watch: it");
+    println!("  decides whether 500-per-stratum is affordable or whether the walk is required.");
+}
+
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("mateladder") {
+        return mate_ladder();
+    }
     if std::env::args().nth(1).as_deref() == Some("ttk") {
         return tt_kinds_control();
     }
