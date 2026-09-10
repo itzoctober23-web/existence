@@ -58,13 +58,14 @@ set -u
 BIN=/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad/xt_comp/release/examples/evolve
 cd /home/maswabe/existence || exit 1
 [ -x "$BIN" ] || { echo "missing binary: $BIN" >&2; exit 1; }
-[ -f gate_composition_s1.log ] && mv -f gate_composition_s1.log gate_composition_s1.log.prev
+LOG="gate_composition_s${SEED:-1}.log"
+[ -f "$LOG" ] && mv -f "$LOG" "$LOG.prev"
 
-EXISTENCE_EVOLVE_SEED=1 \
+EXISTENCE_EVOLVE_SEED=${SEED:-1} \
 EXISTENCE_GATE_SPRT=1 \
 EXISTENCE_GATE_ELO0=0 \
 EXISTENCE_GATE_ELO1=30 \
 EXISTENCE_GATE_MAXPAIRS=400 \
 EXISTENCE_GATE_VERIFY=96 \
-  taskset -c 14 nice -n 19 "$BIN" 25 8 4 10 3 10 > gate_composition_s1.log 2>&1 &
-echo "  core 14 -> gate_composition_s1.log  (n1=4 n2=10 n3=10: 17% mate-in-1 vs the shipped 52%)"
+  taskset -c ${CORE:-14} nice -n 19 "$BIN" 25 8 4 10 3 10 > "gate_composition_s${SEED:-1}.log" 2>&1 &
+echo "  core ${CORE:-14} -> gate_composition_s${SEED:-1}.log  (n1=4 n2=10 n3=10: 17% mate-in-1 vs the shipped 52%)"
