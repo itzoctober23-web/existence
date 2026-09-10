@@ -192,6 +192,30 @@ measured, exactly as `reject_audit.rs` did for the NNUE gate. Not tested; record
 Equal-cost also never separated the four mid programs at any cap — all sit at 2/40 throughout — so
 even where the top of the ranking is right, it has no resolution below that.
 
+## The same result was already measured on the OTHER track, independently
+
+`main.rs:883` records the NNUE loop's own cheap proxy against its games: over **239 candidate/gate
+pairs from seven runs**, the mcnemar surrogate correlates with the game result at **−0.095, 95% CI
+[−0.220, +0.032], six of seven runs negative**. That branch — `surrogate_fallback` — is OFF BY
+DEFAULT for exactly that reason.
+
+So both tracks independently built a cheap scalar proxy, measured it against games, and found no
+usable signal:
+
+| track | proxy | measured against games | n |
+|---|---|---|---|
+| NNUE (P1) | mcnemar_z on held-out positions | **−0.095** [−0.220, +0.032] | 239 pairs |
+| grammar (P2) | mates/Mcost | **+0.062** [−0.109, +0.229] | 134 pairs |
+
+Neither is distinguishable from zero and neither leans positive. Two different proxies, two
+different tracks, two different games being predicted — same answer. That is much harder to dismiss
+as a quirk of one metric than either result alone, and it is why the recommendation here is not
+"find a better formula" but "stop ranking with a scalar proxy".
+
+The NNUE track has already acted on its version: the proxy may no longer promote a candidate, and
+accepts require the GAMES to resolve. The grammar track has not — its surrogate still selects which
+candidate is spent on games.
+
 ## Harness note — the first run of this experiment was worthless and looked perfect
 
 I first passed `cost_per_move = 0`, believing 0 meant "no ceiling". `Interp::cost_cap` defaults to
