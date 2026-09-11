@@ -138,3 +138,28 @@ events respectively, which is a small sample and is recorded as an observation r
 and wrote it into the file as a reason not to conclude. That is what made the follow-up worth
 running and its answer worth trusting — the prediction was on record, and it was wrong in a way that
 strengthened the finding rather than rescuing it.
+
+## And §8 is not wired into the gate — which is, for now, the only reason the loop still runs
+
+FITNESS.md:273 says of this check:
+
+> **Fail = REJECT even if the ladder passed.** Recorded with the entry.
+
+That makes it a **gate**, not a diagnostic. It is implemented nowhere: `gate.rs` and `main.rs`
+contain no adversarial set, no explanation-layer confidence, and no §8 rejection path. The gate
+decides on `pent_rate − ci95 ≥ 0.5` and nothing else. This is the third specified-but-absent check
+found tonight, after the P1 residual and this measurement itself.
+
+**Do not wire it as written.** The engine scores **17.1%** against §8's 80% threshold, so a literal
+implementation would reject *every* candidate, including the one promoted an hour ago on a clean
+0.601. The spec would halt the project.
+
+So this is a genuine spec-versus-reality conflict and it is recorded as one rather than resolved by
+quietly picking a side:
+
+* if 80% is right, the engine has a large outstanding defect and no candidate should be shipping;
+* if shipping is right, the 80% threshold was chosen before anything had measured what this quantity
+  actually does, and needs re-deriving from data rather than from intuition.
+
+Nothing here settles which. What it does settle is that the number is now **measurable**, so the
+question can be argued from evidence — which it could not be this morning.
