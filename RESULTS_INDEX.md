@@ -9,6 +9,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [diversity_reserve_SIZING.md](diversity_reserve_SIZING.md) | the diversity reserve HAS run (19 gens, dsl engaged) and found nothing — expected 88% of the time; a real test needs ~107 generations for 50% |
 | [epochs_2v3_RESULT.md](epochs_2v3_RESULT.md) | epochs 2 vs shipped 3 is FLAT at full length (0.513 +/- 0.026, matched 2000/2000) — degrades above 3, flat below, and no cost advantage; epochs CLOSED |
 | [hardn_inert_RESULT.md](hardn_inert_RESULT.md) | EXISTENCE_HARD_N is INERT on the code path that runs (hardcoded 8 at evolve.rs:2627) — the n=40 probe measured the default set, and its verdict came from 4 generations where P(zero)=0.74 |
 | [gate_arithmetic_RESULT.md](gate_arithmetic_RESULT.md) | the 6-pair game gate CANNOT accept a candidate that draws >=4 of 6 pairs (ceiling 0.48) — and 85.7% of its games are draws; the constraint is PAIRS, not the rule |
