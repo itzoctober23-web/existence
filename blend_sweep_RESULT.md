@@ -93,3 +93,38 @@ they were the 2000-generation arms.
 +25 Elo contrast. This is an ALTITUDE check, not a verdict on 0.85 vs 0.75 — netmatch resolved that
 at 0.541 +/- 0.032. Agreement here means the altitudes are trustworthy, not that the ruler could
 have found the contrast on its own.
+
+## THE RULER HALF, COMPLETE — 8 samples, 4 per arm, frozen copies
+
+    arm                samples (rel to SF-1320)     POOLED absolute
+    blend 0.75         +161 +183 +161 +179          1490 +/- 30
+    blend 0.85         +236 +223 +228 +211          1544 +/- 32
+
+    ruler contrast     +54 +/- 44   (1.2 sigma)  -- NOT resolved
+    netmatch contrast  0.541 +/- 0.032 = +29 Elo -- RESOLVED (lower bound 0.509)
+    the two are 0.6 sigma apart: consistent in SIGN and in MAGNITUDE
+
+**This is the division of labour working as designed.** The paired netmatch resolves the contrast
+that the absolute ruler cannot see; the ruler places both arms on a scale the netmatch cannot
+reach. Neither is a substitute for the other, and the ruler's 1.2 sigma is NOT a failure to
+replicate — it is the expected result of asking a +/-44 instrument about a +29 effect.
+
+### Against his stop condition
+
+    shipped champion   1481 +/- 19    to 1600:  +119   (6.3 SE)
+    blend 0.75 arm     1490 +/- 30    to 1600:  +110   (3.7 SE)
+    blend 0.85 arm     1544 +/- 32    to 1600:   +56   (1.8 SE)
+
+The 0.85 arm is the closest anything has come to 1600. The gap falls from 119 to 56 — but 1.8 SE
+is still a gap, not an arrival, and this is ONE seed.
+
+### What this does NOT license
+
+**Not a ship.** The head-to-head margin above 0.5 is 0.041 and the measured between-seed sd is
+0.047, so seed 20260918 is running the identical experiment. Both seeds must point the same way and
+the pool must clear before the default moves.
+
+**Not a claim that blend alone moved it +54.** Both arms trained 2000 generations from the same
+champion, and the 0.75 arm ALSO improved (0.536 +/- 0.030 against the shared start). The ruler
+difference is blend-plus-training against training-alone; the netmatch head-to-head is the clean
+attribution, and it says +29 Elo.
