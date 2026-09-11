@@ -125,3 +125,20 @@ general; a mean at or above 0.5 narrows it to the post-resume regime.
 
 Until that lands, **read every number above as applying to the first ten generations after a resume**,
 which is the only regime they were drawn from.
+
+
+### The games-per-generation test inherits the same limitation — recorded before its result is read
+
+`games_per_gen.sh` runs `--games 32` against this file's `--games 8` data. Its base never moved
+either (0 KEEPs), so **both arms are post-resume**. It therefore asks *"does more data per generation
+shrink the resume transient?"* and **not** *"does more data make a steady-state generation
+positive?"* — which is the question the closing section of this file actually poses.
+
+Running total at n=11 of 20: `--games 32` mean **0.4599**, CI [0.4350, 0.4848], against `--games 8`
+mean 0.4684, CI [0.4525, 0.4843]. The intervals overlap almost entirely. Quadrupling the data budget
+does not move the post-resume batch quality.
+
+That is worth having — it rules out "too little fresh data per generation" as the cause of the
+transient — but it must not be quoted as evidence about the generator in general. Answering that
+needs the snapshot method applied to a `--games 32` run already in its steady state, which no arm
+has produced.
