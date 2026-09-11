@@ -13,6 +13,23 @@
 # via --init, so the only difference is the search that produces the label. Judged by netmatch
 # head-to-head against that shared starting point -- the paired instrument, never the ruler, which
 # carries +/-50 Elo and produced a four-reading false decline tonight.
+# PRE-REGISTERED PREDICTION, written before the run. Measured node costs per move from this engine:
+#   depth 1      40 nodes
+#   depth 3   2,352 nodes    -- 59x depth 1
+#   depth 5  81,421 nodes    -- 35x depth 3
+#
+# Depth 1 -> 3 cost 59x and WON decisively, because depth-1 labels are nearly information-free: a
+# one-ply root score barely depends on the position, so almost any increase in label quality pays.
+# Depth 3 labels are already informative, so the same dramatic win is NOT expected -- depth 5 must
+# beat 35x FEWER training steps on labels that are only somewhat better.
+#
+# So the honest prior is that this LOSES or is unresolved at equal wall clock, and the informative
+# outcome is the size of the gap rather than the sign. If depth 5 wins anyway, label quality matters
+# far more than training volume even in the informative regime, which would be a bigger result than
+# the original depth finding.
+#
+# Recording this now because the temptation after a +128 result is to expect the next step of the
+# same lever to pay, and that expectation should be on the record before the number arrives.
 set -uo pipefail
 cd "$(dirname "$0")"
 SCR=/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad
