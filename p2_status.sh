@@ -36,15 +36,26 @@ GEN=$(grep -oE '^gen +[0-9]+' "$LOG" 2>/dev/null | tail -1 | grep -oE '[0-9]+')
 # `grep -c` PRINTS 0 AND EXITS 1 on no match, so `|| echo 0` appends a SECOND zero and every field
 # came out doubled ("0\n0", "1062\n0"). Recorded trap, hit again. Assign, then default the empty.
 cnt(){ local n; n=$(grep -cF "$1" "$2" 2>/dev/null); echo "${n:-0}"; }
-# REPORTING 0 HERE WOULD BE A FALSE REPORT. Checked 2026-09-11: neither the log nor
-# `crates/pipeline/examples/evolve.rs` ever emits a Probe/Store/crossover marker -- the loop prints
-# only `gen N (typed, ill-typed, oracle, surrogate, pairs spent, none beat it)`. So a count of zero
-# means THE EVENT IS NOT INSTRUMENTED, not that it never happened. An absence found by the wrong
-# instrument is not an absence. Say "not instrumented" until the emitter exists.
-if grep -qiE 'probe|crossover|acquir' "$LOG" 2>/dev/null; then
-  ACQ=$(cnt 'acquired Probe+Store' "$LOG"); XPROP=$(cnt 'crossover proposed' "$LOG"); XSURV=$(cnt 'crossover survived' "$LOG")
+# THREE POSSIBLE ANSWERS HERE, AND THEY ARE DIFFERENT CLAIMS. Checked 2026-09-11:
+#   * The CURRENT source DOES instrument both fields. `evolve.rs:3678` prints
+#     `... pop N spread lo-hi tt[..] ttk[".."] dsl0 xPROP/SURV`, and `xtask/src/main.rs:542`
+#     reads a member as holding hash reuse when its `ttk` tag contains both 'P' and 'S'. There is
+#     even a positive control (`tt_kinds_control`) asserting the tag separates a probe-only program
+#     from a store-only one, because the pooled `tt` count it replaced had already produced one
+#     retracted claim.
+#   * The LAST RUN PREDATES IT. `evolve_search.log` (2026-09-08) carries the older sparse line
+#     `gen N -- (24 typed, 0 ill-typed, 13 oracle, 0 surrogate, 252 pairs spent, none beat it)` --
+#     no `ttk`, no `x`. So there is no data, not a zero.
+#   * Reporting 0 would therefore be a BROKEN PROBE reported as a measurement, and reporting
+#     "not instrumented" would be wrong about the code. Say which it is.
+if grep -qF 'ttk[' "$LOG" 2>/dev/null; then
+  ACQ=$(grep -oE 'ttk\[[^]]*\]' "$LOG" | grep -c 'P.*S'); ACQ=${ACQ:-0}
+  XP=$(grep -oE ' x[0-9]+/[0-9]+' "$LOG" | tail -1 | grep -oE '[0-9]+/[0-9]+')
+  XPROP=${XP%%/*}; XSURV=${XP##*/}
+  XPROP=${XPROP:-0}; XSURV=${XSURV:-0}
 else
-  ACQ="not instrumented"; XPROP="not instrumented"; XSURV="n/a"
+  ACQ="no data (run predates the ttk instrumentation added to evolve.rs:3678)"
+  XPROP="no data"; XSURV="no data"
 fi
 PROPOSALS=$(cat ledger_search*.jsonl 2>/dev/null | grep -cF '"class":"PROGRAM"'); PROPOSALS=${PROPOSALS:-0}
 ACCEPTS=$(cat ledger_search*.jsonl 2>/dev/null | grep -F '"class":"PROGRAM"' | grep -cF '"verdict":"accept"'); ACCEPTS=${ACCEPTS:-0}

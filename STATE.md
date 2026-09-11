@@ -5414,26 +5414,32 @@ production: a 4PC timed gate has the box, and Existence load corrupts it (see th
 ## P2 search-track daily status (emitted by `p2_status.sh`)
 
 ```text
-P2 2026-09-11 — NOT RUNNING (last activity 2026-09-08, gen 12). Probe+Store acquisition: not instrumented | crossover survived/proposed: n/a / not instrumented | lifetime 1062 proposals, 0 accepts. WHY: the fitness cannot rank its own candidates — `search_track_WHY_NOTHING.md` ("one dimension saturated, the other blocked": the seed already scores 25/25 on mates, so it is a pass/fail filter and never a gradient) and `surrogate_inverts_RESULT.md` (the grammar fitness ranks the STRONGEST reference program LAST). MASTER_PLAN P2 kill has fired; restarting the loop unchanged would re-derive 0 accepts.
+P2 2026-09-11 — NOT RUNNING (last activity 2026-09-08, gen 12).
+Probe+Store acquisition: no data (run predates the ttk instrumentation at evolve.rs:3678) |
+crossover survived/proposed: no data | lifetime 1062 proposals, 0 accepts.
+WHY: the fitness cannot rank its own candidates.
 ```
 
-The two per-member facts he asked for — Probe+Store acquired from a parent that lacked it, and
-crossover survived/proposed — read **not instrumented** rather than zero, and that distinction is
-the point. `evolve.rs` emits only `gen N (typed, ill-typed, oracle, surrogate, pairs spent, none
-beat it)`; no Probe/Store/crossover event is ever printed. Counting them would have returned 0 from
-a pattern that can never match, which is a broken probe reported as a measurement. **Building that
-emitter is the prerequisite for this line carrying its intended content.**
+**Corrected twice while writing it, and the distinction is the content.** I first reported both
+per-member fields as `0`, from grepping the log for strings I had invented. Then as
+`not instrumented`. Both were wrong:
 
-## Ruler, POOLED per rung (emitted by `ruler_pool.py`)
+* **The instrumentation EXISTS in the current source.** `evolve.rs:3678` prints
+  `pop N spread lo-hi tt[..] ttk["..."] dsl0 xPROP/SURV`, and `xtask/src/main.rs:542` reads a member
+  as holding hash reuse when its `ttk` tag contains both `P` and `S`. There is a positive control
+  (`tt_kinds_control`) asserting the tag separates a probe-only program from a store-only one —
+  written because the pooled `tt` count it replaced had already produced a retracted claim.
+* **The last run predates it.** `evolve_search.log` (2026-09-08) carries the older sparse line
+  `gen N -- (24 typed, 0 ill-typed, 13 oracle, 0 surrogate, 252 pairs spent, none beat it)`.
 
-```text
-RULER prod5 gen 7219: pooled 1364 +/- 51 (n=1 sample, each +/-51)
-prod4 gen 2052: pooled 1466 +/- 20   (n=8, each +/-60, raw span 1424-1543)
-```
+So the honest field is **no data** — not zero, and not uninstrumented. **A fresh run reports it for
+free**, which makes this the cheapest thing standing between us and the milestone line he asked for.
 
-Eight readings of the **same unchanged net** at gen 2052 read 1424 / 1431 / 1440 / 1460 / 1481 /
-1481 / 1496 / 1543. Plotted individually that is a wildly volatile engine; it is one number
-measured eight times at ±60. The headline is now the **pool (1466 ± 20)**; the individual samples
-stay in `live_ruler.out`, which is the ledger. Two pooled rungs differing by less than their
-combined SE is still not a trend — the day-7 stop condition (1600, rising) must be read across
-**pooled** rungs, never across raw samples.
+**WHY it is not running:** `search_track_WHY_NOTHING.md` — one fitness dimension saturated (the seed
+already scores 25/25 on mates, so it is a pass/fail filter and never a gradient), the other blocked.
+`surrogate_inverts_RESULT.md` — the grammar fitness **ranks the strongest reference program last**.
+MASTER_PLAN's P2 kill has fired. Restarting the loop unchanged re-derives 0 accepts; the fitness has
+to change first.
+
+Existence carries alpha-beta, MCTS and proof-number primitives precisely so the loop can assemble
+any of them — or a **hybrid** — if that is what wins. Nothing here steers it toward a paradigm.
