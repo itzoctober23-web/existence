@@ -174,6 +174,19 @@ def main():
           f"90% of trials in [{trials[10]:.3f}, {trials[189]:.3f}]")
     print("  -> a probe AUC inside the random band is indistinguishable from chance at this n.")
 
+    # An AUC reliably BELOW the random band is not an absent signal, it is an INVERTED one -- and an
+    # inverted ranker is a usable ranker with a minus sign. Measured by negating the scores and
+    # running the SAME auc(), rather than asserting 1-AUC, so the claim rests on the code path that
+    # produced the first number.
+    print("\n--- the SAME rankings, NEGATED ---")
+    for name, y in (("T2  flip cost", [float(r["cost"]) for r in tr]),
+                    ("T1  residual ", [r["resid"] for r in tr])):
+        w = fit_ridge(Xtr, y)
+        pred = [(-(sum(a * b for a, b in zip(x, w[:-1])) + w[-1]), r) for x, r in zip(Xte, te)]
+        print(f"  NEG probe on {name}: AUC {auc(pred, costly):.3f}")
+    print(f"  NEG raw residual       : AUC {auc([(-r['resid'], r) for r in te], costly):.3f}")
+    print(f"  (random band was [{trials[10]:.3f}, {trials[189]:.3f}])")
+
     print("\n  lift ~1.0 means the ranking carries no information about which positions matter.")
     print("  A probe that cannot beat the random control is a head that cannot be trained to,")
     print("  because spread_from IS this hypothesis class -- there is no richer function for it")

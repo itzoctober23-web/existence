@@ -17,6 +17,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [unc_signal_is_inverted_RESULT.md](unc_signal_is_inverted_RESULT.md) | The uncertainty signal is REAL and its SIGN IS BACKWARDS — allocate where the net looks most confident |
 | [flip_cost_concentration_RESULT.md](flip_cost_concentration_RESULT.md) | The prize is concentrated — 38% of all flip cost sits in the top decile — and the proposed key does not fit it |
 | [yardstick_reachability_RESULT.md](yardstick_reachability_RESULT.md) | The nearest decision-theoretic shape is the one nothing can build, and the farthest is reachable |
 | [add_fn_drops_writes_RESULT.md](add_fn_drops_writes_RESULT.md) | `Op::AddFn` was NOT behaviour-preserving — it lifted alpha-beta's score update and dropped the write, playing a different move 91x cheaper. Found, root-caused and fixed 2026-09-11 |
@@ -146,7 +147,7 @@ being asked.
 | epochs | EXPERIMENTS,epochs_ab epochs_2v3,NET_TRACK_STATE learning_rate_is_the_plateau |
 | seeds & noise | depth2x2,blend p1_deceleration,blend_sweep low_sweep2 |
 | gate & thresholds | gate_power,gate_arithmetic EXPERIMENTS,replay_ab_CAVEAT ladder_valley |
-| calibration | static_deep_residual,uncertainty_target_PREREG confident_when_wrong,flip_cost_concentration search_track_FINDING |
+| calibration | static_deep_residual,uncertainty_target_PREREG confident_when_wrong,unc_signal_is_inverted flip_cost_concentration |
 | speed/nps | speed_cannot_pay,throughput movegen_leaf,depth2x2 path1_is_empty |
 | plateau | EXPERIMENTS,ceiling_ANALYSIS ruler_trend,learning_rate_is_the_plateau fitness_saturation |
 
