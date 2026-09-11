@@ -39,9 +39,23 @@ consuming 95% of wall clock to re-derive the same answer.
 **Pointed at: the lever is SPEED, and the plan already names it.** The only thing that changes this
 verdict is making evaluation cheap enough that the node loss shrinks — MASTER_PLAN's "the real
 unlock is making deep search cheap enough that both hold at once: incremental accumulator, then the
-bytecode". The accumulator has landed and is measured as a 0.91× LOSS at width 16 (`arch.rs:150`),
+bytecode". ~~The accumulator has landed and is measured as a 0.91× LOSS at width 16 (`arch.rs:150`),
 which is consistent with everything above: at narrow widths its bookkeeping is not amortised. It
-should become a WIN at width 64+, which is exactly the regime ARCH cannot reach.
+should become a WIN at width 64+, which is exactly the regime ARCH cannot reach.~~
+
+⚠ **CORRECTED 2026-09-10 22:3x — that sentence cited a SUPERSEDED table and was wrong twice.** The
+0.91× figure is at width **32**, not 16 (`arch.rs:117`), and it predates `cd3e924`, which made the
+accumulator's diff O(features CHANGED). Re-measured on `search_bench` depth 4 with node counts
+identical between arms: **w32 refresh 1,718,107 vs incremental 2,255,016 — a 1.31× WIN, not a
+0.91× loss**; w128 1.34×. The refresh arm reproduces the original to 0.05%, so the harness is sound
+and the incremental path genuinely got faster.
+
+So **the accumulator already pays at every width**, and the hope expressed above — that it "should
+become a WIN at width 64+", leaving an unlock waiting in a regime ARCH cannot reach — is spent.
+There is nothing banked there. `incremental_delta_RESULT.md` recorded this hours earlier
+(*"The accumulator's crossover was a property of its DIFF, not of the width"*); this file cited the
+stale copy of the table instead, which is the same failure as launching ARCH without reading this
+file.
 
 That is the shape of the remaining problem, stated precisely: **the accumulator pays where the
 search cannot go, and the search cannot go there because eval is expensive.** Breaking it needs a

@@ -118,7 +118,33 @@ impl ArchProposal {
 /// | 128 | 889406 | 1014240 | 1.14x win |
 /// | 512 | 240701 | 363458 | 1.51x win |
 ///
-/// The incremental accumulator does not pay until ~128, so width 32 carries a wider net's cost
+/// ⚠ **SUPERSEDED 2026-09-10 -- THE CLIFF THIS DESCRIBES IS GONE.** The table predates `cd3e924`
+/// (02:01), which replaced the accumulator's diff with `FeatSnap::delta`, a per-plane bitboard XOR
+/// that is O(features CHANGED) (typically 2-6) rather than O(features ACTIVE). That commit edited
+/// this crate's `search.rs` and relabelled the copy of the table THERE as "the ORIGINAL finding",
+/// but did not touch this copy -- so the stale figure survived in the file that reasons about the
+/// menu, and `width_clock_RESULT.md` later cited it.
+///
+/// Re-measured 22:3x on `search_bench` depth 4, node counts IDENTICAL between arms
+/// (144321 = 144321 at w32; 77146 = 77146 at w128), best-of-5:
+///
+/// | width | refresh | incremental | |
+/// |---|---|---|---|
+/// | 32 | 1718107 | 2255016 | **1.31x WIN** (was 0.91x LOSS) |
+/// | 128 | 940805 | 1264689 | 1.34x win |
+///
+/// The refresh arm reproduces the old number to **0.05%** (1718107 against 1718969) -- that is what
+/// establishes the harness is unchanged and the incremental path genuinely got faster, rather than
+/// the measurement having drifted.
+///
+/// **What still holds:** a wider net is still slower per SECOND (w128 incremental is 0.56x w32
+/// incremental), so the clock gate still rejects widening and every ARCH verdict in
+/// `width_clock_RESULT.md` stands. What is no longer true is the REASON -- there is no cost cliff
+/// at 32 specifically, and the accumulator does not "start paying at 128". It pays at every width.
+/// The stride growth below is still wanted, but for menu REACH, not to clear a cliff.
+///
+/// The historical reading, kept because the stride logic was built on it: the incremental
+/// accumulator did not pay until ~128, so width 32 carried a wider net's cost
 /// with none of its saving. That is precisely what the first widening ever to reach a game gate
 /// measured: `ARCH w 16 -> w 32 (loss 0.0746 vs 0.0847, paired z 4.21) fixed-cost 0.525 ok,
 /// clock 0.372 [5962 vs 6985 nodes] => hold` -- better per NODE, much worse per SECOND, rejected
