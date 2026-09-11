@@ -120,6 +120,19 @@ fn every_declared_rung_is_constructible() {
         ("capture extension (rung 6)", reference::capture_extension()),
         ("table reduction (rung 7)", reference::table_reduction()),
         ("alpha-beta + hash reuse", reference::ab_hash()),
+        // The three decision-theoretic yardsticks (2026-09-11). They are NOT rungs and nothing
+        // plans to seed them; they are here for the same reason the rungs are -- to answer
+        // "could the loop build this at all?" before anyone reads meaning into it never having.
+        //
+        // This check is NECESSARY AND NOT SUFFICIENT, and this file already says why louder than
+        // anywhere else: hash reuse has been constructible since the memory operators landed and
+        // is still not built, because the payoff is CONJUNCTIVE -- probe-only 0.991x, store-only
+        // 0.997x, the pair 1.024x. Every single step downhill. Reachable is a statement about the
+        // search SPACE; whether a monotone path exists through the FITNESS is a separate question
+        // this instrument cannot answer.
+        ("extend-by-uncertainty (yardstick a)", reference::uncertainty_extension()),
+        ("mix-backup (yardstick b)", reference::mix_backup_program()),
+        ("bound-gap stopping (yardstick c)", reference::bound_gap_stopping()),
     ];
 
     let mut unreachable = Vec::new();
@@ -132,6 +145,24 @@ fn every_declared_rung_is_constructible() {
         if !needed.is_empty() { unreachable.push((*name, needed)); }
     }
     println!("\noperators can introduce: {buildable:?}");
+
+    // PIN the yardsticks' measured reachability. Same discipline as the constructible-set
+    // assertion below: the state is allowed to change, but only on purpose and with the reason
+    // recorded. If (b) becomes reachable, an operator gained the ability to emit Avg/Mix and that
+    // should be a decision someone wrote down.
+    let yard_unreachable: BTreeSet<&str> = unreachable
+        .iter()
+        .filter(|(n, _)| n.contains("yardstick"))
+        .map(|(n, _)| *n)
+        .collect();
+    assert_eq!(
+        yard_unreachable,
+        ["mix-backup (yardstick b)"].into_iter().collect::<BTreeSet<_>>(),
+        "the set of UNREACHABLE yardsticks changed. Measured 2026-09-11: (a) and (c) are \
+         constructible, (b) is not because no operator emits Avg or Mix. Note that (b) is the \
+         NEAREST of the three to the seed (+7 nodes) and (c) the farthest (+56), so this is not a \
+         function of edit distance."
+    );
 
     // THIS TEST DOCUMENTS A KNOWN DEFECT AND MUST NOT BE "FIXED" BY DELETING IT. It asserts the
     // CURRENT, BROKEN state on purpose; when an insert-primitive operator lands, this FAILS, and
@@ -189,11 +220,33 @@ fn every_declared_rung_is_constructible() {
     // Both blockers had to be lifted together, which is why the operators and the population /
     // plateau-tolerant acceptance landed in the same change. Lifting either alone would have
     // produced a negative result that could not be attributed to a cause.
+    // THE RUNGS AND THE YARDSTICKS GET DIFFERENT TREATMENT, and conflating them would have turned a
+    // measurement into a false alarm. A rung going unreachable is a REGRESSION -- every one has been
+    // constructible since the memory operators landed. A yardstick's reachability is a FINDING: the
+    // three were added to be measured, not to be guaranteed.
+    //
+    // MEASURED 2026-09-11, and it is the opposite of what node distance suggests:
+    //
+    //     (a) extend-by-uncertainty   +14 nodes   REACHABLE
+    //     (b) mix-backup              + 7 nodes   NOT reachable -- needs Avg and Mix
+    //     (c) bound-gap stopping      +56 nodes   REACHABLE
+    //
+    // The NEAREST shape to the seed is the one nothing can build, and the FARTHEST -- as far out as
+    // MCTS -- is buildable. Edit distance and reachability are independent, so a plan that ranks
+    // candidates by "how small a change is it" is ranking on the wrong axis.
+    //
+    // (b) is blocked because no operator emits `Avg` or `Mix`. That is a statement about the
+    // operator set, not about the idea: a blend backup is a two-primitive shape and the mutation
+    // operators build hand-written shapes, none of which is a three-argument blend. Whether to add
+    // a source that can emit one is a deliberate decision like the ProbeRead extension was, and it
+    // belongs in a commit that says so -- not in a quiet edit here.
+    let rung_unreachable: Vec<_> =
+        unreachable.iter().filter(|(n, _)| !n.contains("yardstick")).collect();
     assert!(
-        unreachable.is_empty(),
+        rung_unreachable.is_empty(),
         "a rung became UNREACHABLE again -- an operator that could build one of its primitives was \
          removed or narrowed. Every declared rung has been constructible since the memory \
-         operators landed, so this is a regression in the search space itself: {unreachable:?}"
+         operators landed, so this is a regression in the search space itself: {rung_unreachable:?}"
     );
     assert_eq!(
         buildable,
