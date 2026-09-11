@@ -16,13 +16,18 @@
 #                  was a hardcoded literal that had never been varied.
 #
 #
-#   --lr-decay     DEFAULT 1.0 = OFF, so this script is unchanged until a verdict says otherwise.
-#                  MEASURED 2026-09-11 (`lr_sweep_RESULT.md`), 2000 gens per arm from this champion:
-#                  lr 0.01 -> 0.358 +/- 0.026, lr 0.002 -> 0.544 +/- 0.025, lr 0.0005 -> 0.589 +/-
-#                  0.026. The 0.0005-vs-0.002 gap is 0.045 against a between-seed sd of 0.047, so it
-#                  is INSIDE the noise floor and production was deliberately NOT switched on it.
-#                  `lr_decay_ab.sh` is testing whether a constant rate is the wrong SHAPE; set
-#                  DECAY=0.9993 here only once that returns a verdict that says so.
+#   --lr 0.0005    SHIPPED 2026-09-11 (`lr_decay_RESULT.md`). Three arms from one start, one seed:
+#                  lr 0.002 constant 0.484 +/- 0.032, lr 0.002 decaying 0.586 +/- 0.027, lr 0.0005
+#                  constant 0.628 +/- 0.027. Replicated three times from this lineage (0.589, 0.628,
+#                  0.625) while lr 0.002 read 0.544 / 0.484 / 0.478 / 0.471, the last an outright
+#                  REGRESSION after 12,283 generations. The winning net cleared the bar at
+#                  0.628 - 0.027 = 0.601 and is the current champion.
+#
+#   --lr-decay     DEFAULT 1.0 = OFF, and that is now a MEASURED negative, not a placeholder. Arm B
+#                  above decayed 0.002 -> 0.000493 and arm C sat at a constant 0.0005; they END at
+#                  the same rate by design, so if the large early steps did real work B would beat
+#                  C. It did not. There is no schedule to tune -- do not set DECAY without a new
+#                  measurement that contradicts this one.
 #
 #   --arch-every 0 WIDTH IS A CLOSED QUESTION. `width_clock_RESULT.md`: 11 ARCH attempts across
 #                  widths 32/64/128, fixed-cost 8 of 9 ABOVE 0.5 (wider is better per NODE), clock
