@@ -135,3 +135,22 @@ story told afterwards about whatever number arrives. If it survives, the next qu
 the mate guard can be made a gradient instead of a pass/fail filter — which is exactly what
 `hardn_probe` was trying to establish with the HARD set before it turned out to be measuring an
 inert knob.
+
+---
+
+## NOTE ON THE FIGURES IN THIS FILE — they are deliberately NOT updated
+
+The gate baseline quoted throughout is **14.3% decisive (36/252 over 21 matches)**, which is what was
+measured at the time each reading was registered. The arms have since produced 29 matches and the
+figure is **14.7% (51/348)**.
+
+**The numbers above are left as written on purpose.** A pre-registration records what a prediction
+was made against; editing it afterwards to match better data destroys the only thing it is for. The
+result files (`gate_arithmetic_RESULT.md`, `gate_candidates_are_game_neutral_RESULT.md`) carry the
+current figures and are the place to read them.
+
+Effect on the readings registered here: **none.** Every threshold was crossed by a margin far larger
+than 0.4 percentage points — capture came in at 41.7% against a 14.3% or 14.7% baseline either way,
+and the falsifier ("at or below the gate's rate") is not close to triggering under either. Had the
+margin been near the difference, this note would say the registration needed re-running rather than
+annotating.
