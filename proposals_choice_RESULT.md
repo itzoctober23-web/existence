@@ -67,3 +67,48 @@ around 20-32 at a 10.5% guard, and it should be re-derived if the guard rate cha
   positions the seed fails BY CONSTRUCTION, scoring 0/8, so `f` itself can vary where the shipped
   guard set is saturated at 25/25). The two are not the same fix: more candidates landing on one
   identical rate would still be no choice.
+
+---
+
+## ADDENDUM 10:2x — the model validates on its own input, and the population inverts
+
+Two more prop32 generations landed. The arm now independently reproduces the parameter the
+binomial assumed, which is the strongest form this argument can take: the prediction and the thing
+predicted were measured on different data.
+
+    prop32 guard survival        7 / 64 proposed  =  10.9%
+    documented rate (79 gens)   61 / 580          =  10.5%
+
+Re-running the arithmetic at the arm's OWN observed rate rather than the historical one:
+
+    4 proposals  ->  P(a choice) = 0.062
+    32 proposals ->  P(a choice) = 0.879
+
+**The historical rate was 5/79 = 6.3%. The model predicts 6.2%.** A tenth of a point, from a
+parameter measured in a different arm on different generations.
+
+### The generation lines, which show the spread arriving
+
+    gen 1 MAIN  32 cand, mate-ok 2, rates 0.994-0.998707x  distinct:2   pop 3
+    gen 2 MAIN  32 cand, mate-ok 5, rates 0.497-0.998707x  distinct:5   pop 7
+
+Generation 2 produced **five survivors with five distinct rates** spanning 0.497 to 0.999. That is
+not a marginal improvement on "one value" -- it is a population with real structure for selection
+to act on, in a track that had produced 1,062 proposals and 0 accepts.
+
+### The population collapse reverses
+
+    control  pop by generation:  1  2  2  2  3  4
+    prop32   pop by generation:  3  7
+
+Retention keeps DISTINCT survivors. The control starts at 1 because generation 1 gave it nothing to
+keep; prop32 starts at 3 and doubles. This is the death spiral running backwards, and it follows
+mechanically -- nothing about retention changed.
+
+### What is still NOT claimed
+
+**No accept.** Both arms are still short (the reporter flags them as unequal; prop32 costs ~8x per
+generation and hit its timeout). A choice is a precondition for progress, and every stage after it
+-- EPS retention, the acceptance floor, the game gate -- is untested under a working funnel.
+`search_long_run.sh` runs 40 generations on a FRESH seed to answer exactly that, with the accept
+count as the primary metric and both informative nulls written in advance.
