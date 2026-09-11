@@ -3309,13 +3309,33 @@ pool = select_survivors(pool, MU, dslots_cfg());
                 //
                 // It is still not proof, and the honest bound is: identical on 33 positions chosen
                 // to be maximally sensitive to depth, window and mate behaviour.
-                let same_play = {
+                // COUNT, do not merely test. `.all()` returned a bool, so a candidate that differed on
+                // ONE of 33 positions and one that differed on all 33 were recorded identically --
+                // both simply "not PATH 1".
+                //
+                // That distinction is the whole question for this track. PATH 1 accepts identical play
+                // with NO game; everything else falls to a 6-pair game gate which, by exact enumeration
+                // of all 210 possible outcomes, CANNOT accept a candidate drawing >=4 of 6 pairs
+                // (ceiling 0.48 -- gate_arithmetic_RESULT.md). A candidate identical on 32 of 33
+                // positions plays almost the same games, therefore draws almost all of them, therefore
+                // lands in the unpassable region. A candidate differing on 20 of 33 is a genuinely
+                // different program the gate is right to judge on games.
+                //
+                // Those two cases need OPPOSITE fixes -- widen PATH 1, or fix the mutation operators --
+                // and they were indistinguishable in the logs. This count separates them. It is
+                // printed and changes NO decision: `same_play` still means identical on every position.
+                let (n_same, n_tot) = {
                     let mut ic = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
                     let mut ih = Interp::new(&net, vec![depth, 32_000, interp::uct_exploration()]);
-                    set.iter().chain(hard.iter()).all(|(p, _)| {
-                        ic.run(&c, p, bud) == ih.run(&lineages[li].champ, p, bud)
-                    })
+                    let mut same = 0usize;
+                    let mut tot = 0usize;
+                    for (p, _) in set.iter().chain(hard.iter()) {
+                        tot += 1;
+                        if ic.run(&c, p, bud) == ih.run(&lineages[li].champ, p, bud) { same += 1; }
+                    }
+                    (same, tot)
                 };
+                let same_play = n_tot > 0 && n_same == n_tot;
                 // PATH 1 MUST RE-CHECK COST, and until now it did not.
                 //
                 // Its own comment defines the path as "returns the SAME move as the champion on every
@@ -3591,7 +3611,7 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                         v.sort(); v.dedup(); v.len()
                     };
                     println!("  gen {g:>3} {:<5} gate {} {:.3}+/-{:.3} ({} games W-D-L {}-{}-{})  mates {f}  hard {hlo}-{hhi}  surrogate \
-{rate:.6}  ABOVE:{above}  needed >{:.3}  pop {g_pop} distinct:{g_distinct}  plycap:{g_ceiling}",
+{rate:.6}  ABOVE:{above}  needed >{:.3}  pop {g_pop} distinct:{g_distinct}  plycap:{g_ceiling}  identity:{n_same}/{n_tot}",
                              lineages[li].name,
                                match sprt_verdict {
                                    Some(gate::Sprt::Inconclusive) => format!("INCONCLUSIVE llr {sprt_llr:+.2}"),
