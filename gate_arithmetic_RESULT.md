@@ -163,11 +163,36 @@ STRONGER** — 0 in 489 gate decisions across every evolve log on disk, against 
 this file's 21. The variance share is **stale**: 28.6% now, not 46.8%, because more runs have
 accumulated since the comment was written and the mix changed. Use 489/0 and 28.6%.
 
-A trap worth naming: `ledger.jsonl` parses to 41 entries with **24 "accepts"**, which flatly
-contradicts 0. Those are the artifact `gate.rs:72-83` documents — matches that played ZERO games,
-where `rate() = 0/1` and the binomial fallback gives `ci95 = 0`, so `resolved` was written true for a
-match that measured nothing. The honest count is 0. Any future claim sourced from the ledger's accept
-field is reading manufactured data.
+### The ledger looked like it contradicted this. It does not — and it supplies the control.
+
+`ledger.jsonl` parses to 41 entries with **24 "accepts"**. Checked one by one rather than assumed:
+
+```
+22 of 24   pent=[0,0,0,0,0]  rate=0.0  ci95=0.0  resolved=True   <- ZERO pairs played
+ 2 of 24   real 224-pair matches                                  <- genuine
+```
+
+The 22 are exactly the artifact `gate.rs:72-83` documents: a match that played no games had
+`rate() = 0/1` and a binomial `ci95 = 0`, so `resolved` was written true for a measurement that never
+happened. That comment records the count as 22, and 22 is what is there.
+
+**But the ledger holds only NET (40) and ARCH (1) entries — no MAIN/MCTS rows at all.** It is a
+NET-track record, so it never contradicted the search-track count; that was two different populations
+being compared. Corrected.
+
+**The two real accepts are the control this whole file needed**, because they ran the SAME
+acceptance rule at a different pair count:
+
+```
+NET gen 1   pent=[0,27,134,58,5]  224 pairs   rate 0.5458 +/- 0.0216   rate-ci95 = 0.5241  ACCEPT
+NET gen 2   pent=[2,22,150,45,5]  224 pairs   rate 0.5324 +/- 0.0209   rate-ci95 = 0.5114  ACCEPT
+```
+
+Same rule `rate - ci95 > 0.5`. At **224 pairs it accepts** candidates whose true edge is ~0.53-0.55.
+At **6 pairs it has never accepted, in 489 decisions.** That is a measured natural experiment sitting
+in the project's own records, and it is stronger evidence than the simulated power curve above: the
+rule is not broken, it is starved. Note also that both accepted pents are spread across four buckets
+— real variance, not the degenerate all-drawn shape the 6-pair search gate produces 28.6% of the time.
 
 Zero observed variance means every pair landed in one bucket, so `ci95 = 1.5/n = 0.25`, and
 acceptance would need `rate > 0.75` from a match whose rate is 0.5 by construction. Those 46.8% were
