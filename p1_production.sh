@@ -15,6 +15,15 @@
 #                  0.692 +/- 0.028. Disjoint intervals, ~4x the between-seed sd. The shipped 0.01
 #                  was a hardcoded literal that had never been varied.
 #
+#
+#   --lr-decay     DEFAULT 1.0 = OFF, so this script is unchanged until a verdict says otherwise.
+#                  MEASURED 2026-09-11 (`lr_sweep_RESULT.md`), 2000 gens per arm from this champion:
+#                  lr 0.01 -> 0.358 +/- 0.026, lr 0.002 -> 0.544 +/- 0.025, lr 0.0005 -> 0.589 +/-
+#                  0.026. The 0.0005-vs-0.002 gap is 0.045 against a between-seed sd of 0.047, so it
+#                  is INSIDE the noise floor and production was deliberately NOT switched on it.
+#                  `lr_decay_ab.sh` is testing whether a constant rate is the wrong SHAPE; set
+#                  DECAY=0.9993 here only once that returns a verdict that says so.
+#
 #   --arch-every 0 WIDTH IS A CLOSED QUESTION. `width_clock_RESULT.md`: 11 ARCH attempts across
 #                  widths 32/64/128, fixed-cost 8 of 9 ABOVE 0.5 (wider is better per NODE), clock
 #                  9 of 9 BELOW 0.5 (wider is worse per SECOND), zero accepted. That file moved
@@ -53,7 +62,7 @@ echo "$(date '+%H:%M') $TAG: start $(md5sum ${TAG}_start.net | cut -c1-12), ${SE
 
 timeout "$SECS" taskset -c "$CORES" nice -n 19 ionice -c 3 "$LEARN" \
   --init "${TAG}_start.net" --gens 1000000 --games 8 --threads 4 --depth 3 --epochs 3 \
-  --lr "${LR:-0.002}" --gate-every 1000000 --arch-every 0 --control-every 0 \
+  --lr "${LR:-0.002}" --lr-decay "${DECAY:-1.0}" --gate-every 1000000 --arch-every 0 --control-every 0 \
   --seed 20260910 --out "${TAG}.net" --ledger "ledger_${TAG}.jsonl" > "${TAG}.log" 2>&1
 
 G=$(grep -cE '^gen ' "${TAG}.log")
