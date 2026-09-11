@@ -47,3 +47,50 @@ extension exists to see tactics a flat search misses, and `evolve.rs` records it
   is read.
 
 Arm 1 is the control and is checked FIRST. If it fails, arm 2 is not interpreted.
+
+---
+
+## RE-REGISTRATION (2026-09-11, after the control FAILED and before arm 2 finished)
+
+The control did not behave as predicted: hash reuse went **8W-33D-7L, 15 decisive of 48**, when
+identical play would have forced every pair into the middle bucket. Full account in
+`identity_does_not_predict_games_RESULT.md`. The original arm-2 readings assumed a zero-decisive
+baseline and are void.
+
+**The failure supplies a better baseline than the one it destroyed.** A structurally different
+program that agrees on 40/40 test positions gives a measurable decisive rate, and the real gate gives
+another:
+
+```
+hash reuse vs seed (arm 1)        decisive  15/48  = 0.312 +/- 0.067
+real gate matches (21 of them)    decisive  36/252 = 0.143 +/- 0.022
+difference                        +0.170 +/- 0.070   ->  z = 2.41, SIGNIFICANT
+```
+
+**The gate's own candidates diverge in games LESS than hash reuse does** — and hash reuse is the
+program the codebase documents as playing identically to the seed. So the mutation operators are
+producing candidates that are, in GAME terms, closer to the champion than a transposition table is.
+
+CAVEAT on that comparison, stated because it is not perfectly matched: the 21 gate matches mix MAIN
+(budget 16) with MCTS (budget 256-1024), while `refmatch` runs at budget 16 throughout. The z = 2.41
+is a first calibration, not a controlled contrast.
+
+### Arm 2 now reads against 31.2%, not against zero
+
+`capture` is a larger behavioural difference than hash reuse — an extension that exists to see
+tactics a flat search misses, at 1.679x the cost.
+
+* **decisive rate clearly ABOVE 31.2%** → the games respond in a GRADED way to how different a
+  program is. The gate's problem is then that its candidates are too similar to the champion, and
+  the lever is the mutation operators, not the gate.
+* **decisive rate ~= 31.2%** → the decisive rate SATURATES: once two programs differ at all, games
+  diverge at a fixed rate regardless of how much. That would make the gate's draw rate a property of
+  the game conditions, and no operator change would fix it.
+* **decisive rate near the gate's 14.3%** → capture extension behaves in games like an ordinary
+  mutation despite being a hand-built structural change, which would say the position sets and the
+  cost model are measuring something games are largely blind to. That is the most uncomfortable
+  outcome and the one that would most change the plan.
+
+The strength question (which program is better) is NOT part of this reading. Arm 1 already showed
+0.510 +/- 0.020 is unresolvable at this pair count, and the same will be true of arm 2. **This is a
+test about VARIANCE and divergence, not about Elo**, and it must not be reported as one.
