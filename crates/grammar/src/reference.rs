@@ -40,7 +40,7 @@ pub fn depth_one() -> Program {
 
 /// Main-lineage seed: BARE alpha-beta. Depth and INF are TABLE READS, not constants, so even
 /// the seed's search depth is a tuned value rather than a given (GRAMMAR 5.2).
-pub fn bare_alpha_beta() -> Program { ab_program(false, false, false) }
+pub fn bare_alpha_beta() -> Program { ab_program(false, false, false, false) }
 
 /// RUNG 6 of the GRAMMAR 9 ladder: capture extension at the horizon (qsearch in embryo).
 ///
@@ -58,7 +58,7 @@ pub fn bare_alpha_beta() -> Program { ab_program(false, false, false) }
 /// every step is fitter", using the test eval "for this rig only". This function is that check
 /// and lives only in the reference set the ladder measures; nothing in the search or the
 /// evolution loop reads it.
-pub fn capture_extension() -> Program { ab_program(true, false, false) }
+pub fn capture_extension() -> Program { ab_program(true, false, false, false) }
 
 /// RUNG 7 of the GRAMMAR 9 ladder: table-driven reduction (LMR in embryo).
 ///
@@ -73,7 +73,7 @@ pub fn capture_extension() -> Program { ab_program(true, false, false) }
 /// declared ONLY for this variant -- declaring it unconditionally moved the seed from 71 to 73
 /// nodes, silently rewriting the declared prior that GRAMMAR 6 and every ladder distance are
 /// measured against. `examples/prior` caught that.
-pub fn table_reduction() -> Program { ab_program(false, true, false) }
+pub fn table_reduction() -> Program { ab_program(false, true, false, false) }
 
 /// (a) EXTEND-BY-UNCERTAINTY: spend depth where the eval says it is unreliable.
 ///
@@ -82,9 +82,16 @@ pub fn table_reduction() -> Program { ab_program(false, true, false) }
 /// Its job is to put a NUMBER on the distance from the seed -- so if the population ever assembles
 /// this shape we know how far it travelled, and if it never does we know how far it would have
 /// had to.
-pub fn uncertainty_extension() -> Program { ab_program(false, false, true) }
+pub fn uncertainty_extension() -> Program { ab_program(false, false, true, false) }
 
-fn ab_program(cap_ext: bool, reduce: bool, unc_ext: bool) -> Program {
+/// (b) MIX-BACKUP: back up a blend of max and average, weighted by the net's own uncertainty.
+///
+/// A YARDSTICK, NOT A SEED. `bare_alpha_beta()` is untouched. Untuned it is a pure average and
+/// therefore much weaker than the seed -- which is the point of measuring it rather than shipping
+/// it: it puts a number on how far this shape sits from where the loop starts.
+pub fn mix_backup_program() -> Program { ab_program(false, false, false, true) }
+
+fn ab_program(cap_ext: bool, reduce: bool, unc_ext: bool, mix_backup: bool) -> Program {
     let d = Node::TRead(0, vec![]); // table "D"
     let inf = Node::TRead(1, vec![]); // table "INF"
 
@@ -239,7 +246,37 @@ fn ab_program(cap_ext: bool, reduce: bool, unc_ext: bool) -> Program {
             )),
             b(Node::Nop),
         ),
-        Node::Set("best".into(), b(Node::Max(b(v("best")), b(v("vv"))))),
+        // (b) MIX-BACKUP -- the value backup becomes a weighted blend of max and average.
+        //
+        // `mix(a, b, w)` is `(a*w + b*(16-w))/16`, so w = 16 is pure max (exactly the seed) and
+        // w = 0 is pure average. The weight comes from a LEARNED table indexed by the net's own
+        // uncertainty, which is the `mix(max, avg, tread(W, unc_bucket))` the plan asks for: "back
+        // up something richer than a max of noisy numbers", with HOW MUCH richer left to be
+        // discovered rather than written in.
+        //
+        // THE BUCKETING IS THE TABLE'S, not a hand-written quantiser. `unc` returns Score units, and
+        // an indexed `tread` clamps each index with `v.min(dim-1)`, so the table's own dimension
+        // defines the buckets. Writing `unc / K` here would invent the quantisation policy, which is
+        // exactly the kind of choice that belongs to the search.
+        //
+        // ONLY THE VALUE IS MIXED. The alpha update on the next line stays a MAX deliberately:
+        // alpha is a BOUND, and averaging it would cut branches the bound no longer justifies --
+        // alpha-beta's soundness rests on alpha being a true lower bound, not an estimate.
+        //
+        // WITH NO TABLE SUPPLIED THIS IS A PURE AVERAGE, not the seed. `tread` falls back to
+        // `tables.get(i).unwrap_or(&0)` and w = 0 means all-average, so an untuned mix-backup is a
+        // genuinely different and much weaker program. That is a true property of it and the
+        // reason it is a YARDSTICK: the ladder measures what this shape costs, it is not a
+        // candidate anyone ships.
+        Node::Set("best".into(), if mix_backup {
+            b(Node::Mix(
+                b(Node::Max(b(v("best")), b(v("vv")))),
+                b(Node::Avg(b(v("best")), b(v("vv")))),
+                b(Node::TRead(5, vec![Node::Unc(b(v("p")))])),   // table "W", indexed by unc
+            ))
+        } else {
+            b(Node::Max(b(v("best")), b(v("vv"))))
+        }),
         Node::Set("a".into(), b(Node::Max(b(v("a")), b(v("vv"))))),
         Node::If(
             b(Node::Cmp(b(v("a")), b(v("b")), Rel::Ge)),
@@ -964,6 +1001,7 @@ pub fn all() -> Vec<(&'static str, Program)> {
         ("UCT-style MCTS (blend selection, historical)", uct_mcts_mix()),
         ("capture extension (rung 6)", capture_extension()),
         ("extend-by-uncertainty (yardstick a)", uncertainty_extension()),
+        ("mix-backup (yardstick b)", mix_backup_program()),
         ("table reduction (rung 7)", table_reduction()),
         ("proof-number search", proof_number()),
     ]
