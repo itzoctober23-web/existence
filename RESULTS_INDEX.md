@@ -136,4 +136,4 @@ being asked.
 | [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md) | Existence — Master Plan |
 | [refmatch_discrimination_PREREG.md](refmatch_discrimination_PREREG.md) | PRE-REGISTRATION: can the gate's games discriminate at all — predictions, falsifier and a registered mechanism, all written before the numbers existed. Its 14.3% baseline is deliberately NOT updated |
 | [low_sweep2_PREREG.md](low_sweep2_PREREG.md) | PRE-REGISTRATION for the full-length low-lr sweep, committed before any verdict existed |
-| [STATE.md](STATE.md) | Existence — current state, 2026-09-10 |
+| [STATE.md](STATE.md) | Existence — current state, 2026-09-11: measured champion strength, the search track's blocker, and the position-set/game decoupling |
