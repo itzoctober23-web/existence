@@ -341,14 +341,27 @@ impl Searcher {
             return 0; // discarded by the root; never compared against a real score
         }
         self.nodes += 1;
-        let list = pos.legal_moves();
-        if list.is_empty() {
-            return match pos.outcome() {
-                Outcome::Loss => -MATE + (64 - depth as Score),
-                _ => 0,
-            };
-        }
+        // A LEAF NEVER READS THE MOVE LIST, so do not build one.
+        //
+        // This used to call `legal_moves()` unconditionally and, at depth 0, use the result for
+        // exactly one thing: `is_empty()`, to tell mate and stalemate from an ordinary position.
+        // The list was then dropped. `node_profile` prices that discarded work at **393.4 ns of a
+        // 657.9 ns leaf (59.8%)** -- against eval's 223.7 (34.0%) -- and leaves are ~66% of a
+        // depth-4 frontier, so it was the largest single piece of waste in the engine.
+        //
+        // `has_legal_move()` answers the only question asked, and answers it from work the
+        // generator does first anyway (checkers, then the danger map). Semantics are UNCHANGED by
+        // construction -- it delegates to `legal_moves()` in every case it cannot settle -- so node
+        // counts must be byte-identical before and after. That identity is the correctness proof
+        // and it is what makes the speed ratio honest: `throughput_RESULT.md` records a change here
+        // that raised nps while LOSING wall-clock, because the two arms did different work.
         if depth == 0 {
+            if !pos.has_legal_move() {
+                return match pos.outcome() {
+                    Outcome::Loss => -MATE + (64 - depth as Score),
+                    _ => 0,
+                };
+            }
             // A/B switch: the incremental path only pays once the hidden width makes the ~38
             // saved row-adds outweigh its fixed bookkeeping (two active() scans, the bitset
             // diff, the memcpy). Measured, not assumed -- see examples/search_bench.rs.
@@ -356,6 +369,13 @@ impl Searcher {
                 self.acc.score(net, pos)
             } else {
                 net.eval(pos, &mut self.scratch)
+            };
+        }
+        let list = pos.legal_moves();
+        if list.is_empty() {
+            return match pos.outcome() {
+                Outcome::Loss => -MATE + (64 - depth as Score),
+                _ => 0,
             };
         }
         // Shuffle the children, as the seed program declares. Reuses a per-depth buffer, so

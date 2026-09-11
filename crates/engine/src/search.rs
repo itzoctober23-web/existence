@@ -159,17 +159,30 @@ impl Search {
         }
         self.nodes += 1;
 
+        // A LEAF NEVER READS THE MOVE LIST, so do not build one. The list was used at depth 0 for
+        // exactly one thing -- `is_empty()`, to tell mate and stalemate apart from an ordinary
+        // position -- and then dropped. `node_profile` prices the discarded work at 393.4 ns of a
+        // 657.9 ns leaf (59.8%), against eval's 34.0%, and leaves are ~66% of a depth-4 frontier.
+        // `has_legal_move()` is semantics-preserving BY CONSTRUCTION (it delegates to
+        // `legal_moves()` in every case it cannot settle), so node counts are unchanged -- which is
+        // both the correctness proof and what makes the measured speedup honest.
+        if depth == 0 {
+            if !pos.has_legal_move() {
+                // Terminal. Symbolic outcome -> score. At iteration zero this mapping is fixed
+                // here; it becomes the learned `score_of` table when the grammar lands.
+                return match pos.outcome() {
+                    Outcome::Loss => -MATE + (64 - depth as Score),
+                    _ => 0,
+                };
+            }
+            return self.acc.score(&self.net, pos);
+        }
         let list = pos.legal_moves();
         if list.is_empty() {
-            // Terminal. Symbolic outcome -> score. At iteration zero this mapping is fixed
-            // here; it becomes the learned `score_of` table when the grammar lands.
             return match pos.outcome() {
                 Outcome::Loss => -MATE + (64 - depth as Score),
                 _ => 0,
             };
-        }
-        if depth == 0 {
-            return self.acc.score(&self.net, pos);
         }
 
         let mut moves: Vec<Move> = list.as_slice().to_vec();

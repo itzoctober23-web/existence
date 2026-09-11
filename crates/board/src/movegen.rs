@@ -149,6 +149,53 @@ impl Position {
         list
     }
 
+    /// Is there ANY legal move? Equivalent to `!legal_moves().is_empty()`, without materialising
+    /// the list.
+    ///
+    /// WHY THIS EXISTS. At a leaf the search calls `legal_moves()` and uses the result for exactly
+    /// one thing -- `is_empty()`, to tell mate and stalemate from an ordinary position -- and then
+    /// throws the list away. `node_profile` prices that: `legal_moves()` is **393.4 ns of a 657.9 ns
+    /// leaf (59.8%)**, against eval's 223.7 (34.0%), and 89% of movegen is the pin-and-emit
+    /// residual that a leaf never reads. Leaves are ~66% of a depth-4 frontier, so this is the
+    /// largest single piece of wasted work in the engine.
+    ///
+    /// `throughput_RESULT.md` decomposed movegen hunting a hot spot INSIDE it, found none, and
+    /// concluded "there is no cheap throughput win available in this engine". That conclusion is
+    /// about making movegen faster. This does not make it faster; it declines to call it.
+    ///
+    /// CORRECTNESS IS BY CONSTRUCTION, not by a parallel reimplementation. Duplicating the pawn,
+    /// castling and en-passant rules here would create two generators that can silently disagree --
+    /// and a disagreement means the search mistakes a position for mate. So this answers only the
+    /// two cases it can answer from work `legal_moves()` already does first, and DELEGATES
+    /// everything else to the real generator:
+    ///
+    ///   * the king has a legal destination -> `legal_moves()` would push it, so non-empty. TRUE.
+    ///   * double check and the king has none -> `legal_moves()` returns right after the king loop
+    ///     (`n_checkers >= 2`), so the list holds nothing. FALSE.
+    ///   * anything else -> call `legal_moves()` and ask it.
+    ///
+    /// The fallback costs the king probe on top of a full generation, so this is a bet that the
+    /// king can usually move. That bet is MEASURED in `movegen_leaf_RESULT.md`, not assumed, and
+    /// `board/tests/has_legal_move.rs` asserts the equivalence over a random-play corpus including
+    /// the mate and stalemate positions where it matters most.
+    pub fn has_legal_move(&self) -> bool {
+        let us = self.stm;
+        let them = us.flip();
+        let ksq = self.king_sq(us);
+        let checkers = self.attackers_to(ksq, them, self.all);
+        // Same occupancy trick as `legal_moves`: remove our king so a slider's ray extends through
+        // the square it stands on, or the king would look safe stepping straight back along it.
+        let occ_no_king = self.all ^ bb::bit(ksq);
+        let danger = self.attacks_by(them, occ_no_king);
+        if attacks::king(ksq) & !self.occ[us.idx()] & !danger != 0 {
+            return true;
+        }
+        if checkers.count_ones() >= 2 {
+            return false;
+        }
+        !self.legal_moves().is_empty()
+    }
+
     fn gen_pawns(
         &self,
         list: &mut MoveList,
