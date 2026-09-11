@@ -119,6 +119,8 @@ fn main() {
         };
         let mut s = Searcher::with_seed(seed);
         let mut scratch = Vec::new();
+        let dump_path = std::env::var("UNC_DUMP").ok();
+        let fname = f.clone();
         let mut resid: Vec<f64> = Vec::new();
         let mut flip: Vec<bool> = Vec::new();
         let mut n_mate = 0usize;
@@ -180,6 +182,25 @@ fn main() {
             }
             costs.push(cost);
             let st = net.eval(p, &mut scratch) as f64;
+            // FEATURE DUMP for the uncertainty-head probe, env-gated so the default run is
+            // byte-identical to every measurement taken with this tool so far.
+            //
+            // `eval` leaves the HIDDEN LAYER in `scratch`, which is exactly what the head reads --
+            // `Net::spread_from` is a dot product over these same numbers. So a probe fitted on
+            // these columns answers the question the head would face, with the head's own features,
+            // rather than a proxy for them.
+            //
+            // Raw sums are written, NOT post-ReLU: the head applies its own ReLU and dumping the
+            // pre-activation lets the probe test both without a second expensive run.
+            if let Some(path) = dump_path.as_ref() {
+                use std::io::Write;
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                    let acts: Vec<String> = scratch.iter().map(|x| format!("{x:.6}")).collect();
+                    let _ = writeln!(f, "{}\t{}\t{}\t{}\t{}", fname, cost,
+                                     if cheap_mv != rich_mv { 1 } else { 0 },
+                                     (rich_sc as f64 - st).abs(), acts.join("\t"));
+                }
+            }
             // Both are mover-relative already, so the residual needs no POV flip -- and taking the
             // absolute value makes the frame irrelevant regardless.
             resid.push((rich_sc as f64 - st).abs());
