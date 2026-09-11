@@ -25,14 +25,31 @@ behaviourally identical candidates. The canonical identical candidate does not p
 enumeration and the 0.48 ceiling stand (arithmetic), the 28.6% count stands (from logs), the CAUSE
 does not.
 
-**REGISTERED, with its falsifier already running:** the mate guard may be selecting for
-game-neutrality. `WHY_NOTHING` establishes that the guard is `f >= best_found` and the seed scores
-25/25, so every candidate reaching the gate solves the SAME tactical positions as the champion —
-anything that changed tactical behaviour was filtered upstream. If so, the fitness's halves are in
-direct tension: the guard demands PRESERVATION, the gate demands DIFFERENCE, and zero promotions
-follow from the fitness's structure rather than from a bug. The `capture` arm breaks tactical
-preservation by construction and is the falsifier; at or below the gate's 14.7% the mechanism is
-wrong. Pre-registered in `refmatch_discrimination_PREREG.md` before the number arrived.
+**REGISTERED THEN REFUTED, same day — the mechanism was wrong and the prediction was right.**
+I registered that the mate guard selects for game-neutrality by requiring candidates to solve the
+SAME tactical positions as the champion, on `WHY_NOTHING`'s statement that the guard is
+`f >= best_found` with the seed at 25/25. **That premise is false in the running configuration.**
+`guard_floor = max(seed_mates - tolerance, ceil(0.84 * seed_mates))` (`evolve.rs:399-404`), which for
+MAIN's seed of 19 at tolerance 4 is **16** — a candidate may lose THREE of nineteen mates and pass.
+The run header says `19/19 mates (floor 16)` and I read past it.
+
+Measured across every gate call on disk: **MAIN's gated candidates scored exactly 16 in 4 of 4 —
+the floor, none at 19.** They lost the maximum allowed and still draw 85.3% of games. The registered
+falsifier (capture extension at or below the gate's rate) did NOT trigger, so a wrong mechanism made
+a correct prediction — the ordinary case of one confirming test underdetermining an explanation.
+
+**What the plan says this actually means.** `docs/MASTER_PLAN.md` item 1 gives the mate objective TWO
+jobs: (A) a rules-derived COUNTERWEIGHT, since unsound pruning shows up as missed mates — and the
+tree has receipts, the depth exploit losing 8 guard positions and the alpha exploit 5; (B) "deeper/
+tighter programs pay off on mate-finding immediately", an early strength GRADIENT. **Job A works.
+Job B does not** — mates is saturated, and today's measurement adds that the filter is loose as well.
+
+So the honest statement is narrower than "the fitness is broken": the halves have different jobs by
+design, and what is missing is the strength gradient. A counterweight is ALLOWED to be uncorrelated
+with strength — that is what makes it a counterweight rather than a second opinion. It becomes a
+fault only because nothing else supplies the gradient and the game gate cannot resolve at 6 pairs,
+which is exactly what the HARD set exists to fix. See
+`gate_candidates_are_game_neutral_RESULT.md`.
 
 **And the fix has an in-house precedent.** `maswabe_corpus/gate_dgnodes.sh` stage 2 rules that for a
 cost-reducing change "a tie is a win for it, because it buys corpus rate at no measured cost" — a
