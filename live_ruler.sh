@@ -5,7 +5,17 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 while true; do
-  for arm in deep1 deep5 w64; do
+  # Only arms whose trainer is STILL RUNNING. Measuring a stopped arm spends 120 games on a net
+  # that cannot change, and with three arms in the list that was a third of the ruler's cycles.
+  live=""
+  for p in $(pgrep -f "release/learn" 2>/dev/null); do
+    e=$(readlink /proc/$p/exe 2>/dev/null); e=${e% (deleted)}
+    case "$e" in */release/learn)
+      t=$(tr '\0' ' ' < /proc/$p/cmdline 2>/dev/null | grep -oE 'run-tag [a-z0-9]+' | awk '{print $2}')
+      [ -n "$t" ] && live="$live $t";;
+    esac
+  done
+  for arm in $live; do
     net="${arm}.net"; log="${arm}.log"
     [ -s "$net" ] || continue
     G=$(grep -cE '^gen ' "$log" 2>/dev/null)
