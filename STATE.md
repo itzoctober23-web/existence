@@ -5423,3 +5423,17 @@ the point. `evolve.rs` emits only `gen N (typed, ill-typed, oracle, surrogate, p
 beat it)`; no Probe/Store/crossover event is ever printed. Counting them would have returned 0 from
 a pattern that can never match, which is a broken probe reported as a measurement. **Building that
 emitter is the prerequisite for this line carrying its intended content.**
+
+## Ruler, POOLED per rung (emitted by `ruler_pool.py`)
+
+```text
+RULER prod5 gen 7219: pooled 1364 +/- 51 (n=1 sample, each +/-51)
+prod4 gen 2052: pooled 1466 +/- 20   (n=8, each +/-60, raw span 1424-1543)
+```
+
+Eight readings of the **same unchanged net** at gen 2052 read 1424 / 1431 / 1440 / 1460 / 1481 /
+1481 / 1496 / 1543. Plotted individually that is a wildly volatile engine; it is one number
+measured eight times at ±60. The headline is now the **pool (1466 ± 20)**; the individual samples
+stay in `live_ruler.out`, which is the ledger. Two pooled rungs differing by less than their
+combined SE is still not a trend — the day-7 stop condition (1600, rising) must be read across
+**pooled** rungs, never across raw samples.
