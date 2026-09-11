@@ -77,3 +77,21 @@ the comparison, not about the generator.
 * **Not that the acceptance filter is fine.** `batch_gate_saturated_RESULT.md` stands: the shipped
   batch gate decides on a metric that saturates at 0.96 and has reversed signs, and that is a real
   defect independent of what the generator does.
+
+
+## PRE-REGISTERED, written before the replication landed
+
+The headline above rests on ONE long-range match that clears 0.5 by 0.001 at its lower bound. An
+independent replication is running: **gen 6,803 vs the same gen-2,162 baseline — a 4,641-generation
+gap, against the first reading's 2,650** — at 224 pairs rather than 160.
+
+| outcome | reading |
+|---|---|
+| **> 0.541, interval clear of 0.5** | improvement is real and roughly scales with span. The headline stands and stops being marginal. |
+| **≈ 0.541** | improvement is real but SATURATING — the run gained in 2,162→4,818 and little since. That would be the more interesting result: it dates the plateau to a generation number. |
+| **≈ 0.5, interval containing it** | the first reading was noise at the edge of resolution. The headline must be withdrawn: one match clearing 0.5 by 0.001 is exactly the kind of result that does not replicate. |
+| **< 0.5** | the run is declining and the first reading was a fluke in the other direction. |
+
+Written down now because the first reading is *marginal by its own instrument's note* — `netmatch`
+printed "A leads, but MARGINALLY ... needs more pairs" — and a marginal result that gets talked into
+a headline is the failure this project has already recorded three times tonight.
