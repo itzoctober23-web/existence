@@ -56,6 +56,25 @@ pub struct Score {
     pub pent: [u32; 5],
 }
 
+/// The cheap pre-gate screen's reject rule, in ONE place so the caller and its test cannot drift.
+///
+/// The screen plays a few games before the full sequential gate and drops only what is
+/// CONFIDENTLY WORSE, so the expensive gate is spent on live candidates. It is deliberately
+/// one-sided: it never accepts, and the full gate's acceptance rule (`rate - ci95 >= 0.5`) is the
+/// mirror image of this one, so the two can never disagree about the same evidence.
+///
+/// THE COMPLETION TERM IS NOT DEFENSIVE PADDING. `rate + ci95 < 0.5` is the identical expression
+/// that `ci95()` records marking an UNPLAYED match as "resolved in the WORSE direction", which put
+/// 22 fabricated accepts in the ledger. `games() == 0` is handled there now, but a second
+/// degenerate branch survives: below 2 recorded pairs `ci95()` falls back to the binomial, and at
+/// p = 0 that has ZERO WIDTH. A candidate that forfeited down to one pair would read
+/// `0.000 +/- 0.000` and be rejected on the strength of a match that never happened. Requiring a
+/// finished match -- two games for every pair asked for -- is what keeps an ABSENCE of evidence
+/// from being read as evidence.
+pub fn screen_rejects(s: &Score, pairs: usize) -> bool {
+    s.games() >= 2 * pairs as u32 && s.pent_rate() + s.ci95() < 0.5
+}
+
 impl Score {
     pub fn points(&self) -> f64 {
         self.wins as f64 + 0.5 * self.draws as f64

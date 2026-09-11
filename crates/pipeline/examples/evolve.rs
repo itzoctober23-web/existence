@@ -2932,13 +2932,29 @@ any n-scaling claim is bounded by THIS number, not the request", hard.len());
             // four running arms varies." Population size and proposal count are two different
             // quantities and only one of them should be doing this job.
             //
-            // DEFAULT IS `pop`, so an unset variable is BYTE-IDENTICAL to every measurement taken so
-            // far -- the same discipline `--lr-decay 1.0` was added under. Parent selection already
-            // wraps (`popsnap[i % popsnap.len()]`), so i beyond pop simply draws the same parents
-            // again with a different per-slot seed, which is what more mutation attempts per parent
-            // means.
+            // DEFAULT RAISED FROM `pop` TO 32, 2026-09-11. Parent selection already wraps
+            // (`popsnap[i % popsnap.len()]`), so i beyond pop draws the same parents again with a
+            // different per-slot seed -- more mutation attempts per parent, which is the point.
+            //
+            // WHY THE OLD DEFAULT WAS A TRAP. It was `pop` so that an unset variable reproduced every
+            // prior measurement byte-for-byte, which was the right call when the knob was new. But
+            // `search_has_no_choice_RESULT.md` measures that pop COLLAPSES TO 2 in every arm, and the
+            // comment above works out what that costs: 2 proposals at the guard's 10.5% survival is
+            // 0.21 expected survivors, so the population can never climb back out, and 94% of
+            // generations hand selection zero or one distinct fitness. Defaulting to `pop` therefore
+            // meant "default to the death spiral", and every arm avoided it only by REMEMBERING an
+            // env var. A default that is wrong unless overridden is a trap, not a baseline --
+            // `hardn_inert_RESULT.md` is what happens when a knob's real value goes unnoticed.
+            //
+            // 32 is not a guess: `proposals_choice_RESULT.md` measures it as the value that restores
+            // choice ("94% of generations offer no choice is BINOMIAL ARITHMETIC ... and 32 proposals
+            // fixes it"), and it is what the live arms already pass by hand.
+            //
+            // REPRODUCING AN OLD RUN now needs `EXISTENCE_PROPOSALS=<pop>` set explicitly. That is a
+            // real cost and it is the smaller one: the runs worth reproducing are recorded with their
+            // env, while the runs NOT worth having are the ones that silently proposed twice.
             let n_prop = std::env::var("EXISTENCE_PROPOSALS").ok()
-                .and_then(|v| v.parse::<usize>().ok()).filter(|v| *v > 0).unwrap_or(pop);
+                .and_then(|v| v.parse::<usize>().ok()).filter(|v| *v > 0).unwrap_or(32);
             let cands: Vec<(Program, bool)> = (0..n_prop)
                 .filter_map(|i| {
                     let parent = &popsnap[i % popsnap.len()].0;
@@ -3423,6 +3439,95 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                       .and_then(|s| s.parse().ok()).unwrap_or(elo1 - 2.0);
                   let sprt_max: usize = std::env::var("EXISTENCE_GATE_MAXPAIRS").ok()
                       .and_then(|s| s.parse().ok()).unwrap_or(400);
+                  // ---- STAGE 1: A CHEAP SCREEN BEFORE THE EXPENSIVE GATE ------------------------
+                  // The ladder idea applied to P2: play a few games cheaply, and spend the full
+                  // sequential gate only on what survives. `match_progs_sprt` runs to `sprt_max`
+                  // (400) pairs, so anything it can reject early is compute returned to the loop.
+                  //
+                  // THE FILTER IS DELIBERATELY ONE-SIDED. It rejects only when the interval lies
+                  // ENTIRELY BELOW 0.5 (`rate + ci95 < 0.5`) -- confidently worse. It never accepts,
+                  // and anything unresolved goes through. That asymmetry is what makes it safe to
+                  // run in front of a gate whose acceptance rule is the mirror image
+                  // (`rate - ci95 >= 0.5`): the two conditions are disjoint, so a screen-out can
+                  // never be a candidate the full gate would have accepted ON THE SAME EVIDENCE.
+                  //
+                  // The all-draw case is safe for free, which matters because
+                  // `gate_arithmetic_RESULT.md` measures 85.3% draws. With zero observed variance
+                  // `ci95()` returns the rule-of-three placeholder `1.5/n`, so at 4 pairs an
+                  // all-drawn screen reads 0.500 +/- 0.375 and passes. The screen cannot reject a
+                  // candidate it failed to measure.
+                  //
+                  // SEEDED DIFFERENTLY from the full gate on purpose. Sharing the seed would make
+                  // the screen a prefix of the same games, so a candidate unlucky in the first pairs
+                  // would be unlucky again; an independent draw makes the screen independent
+                  // evidence rather than a rehearsal.
+                  //
+                  // WRAPPED IN `catch_unwind` for the same reason the gate below is: this RUNS AN
+                  // EVOLVED PROGRAM ON A BOARD and is exactly as exposed to a malformed candidate.
+                  // A panic here is a rejection, matching the gate's own handling -- unwrapped, it
+                  // would take down a run that the existing code is careful to survive.
+                  //
+                  // COST BUDGET IS NOT SET BY DEFAULT, and that is deliberate rather than timid.
+                  // `COST_PER_MOVE` is `u64::MAX` today, so the gate has never had a per-move
+                  // budget. Picking one by eye would silently change WHICH PROGRAM WINS, because a
+                  // cheaper program is favoured as the budget tightens -- that is the whole premise
+                  // of mates-per-cost. `microbenchmark_bounds` and the three retractions from
+                  // invented magnitudes say the number has to be measured against the real cost
+                  // distribution first. The knob is here, defaulted OFF, for that calibration.
+                  let screen_pairs: usize = std::env::var("EXISTENCE_GATE_SCREEN_PAIRS").ok()
+                      .and_then(|s| s.parse().ok()).unwrap_or(4);
+                  let screen_cost: u64 = std::env::var("EXISTENCE_GATE_SCREEN_COST").ok()
+                      .and_then(|s| s.parse().ok()).filter(|v| *v > 0).unwrap_or(COST_PER_MOVE);
+                  if screen_pairs > 0 {
+                      let sc = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                          gate::PLY_CEILING.store(0, std::sync::atomic::Ordering::Relaxed);
+                          gate::match_progs(&c, &lineages[li].champ, &net,
+                                            vec![depth, 32_000, interp::uct_exploration()], bud,
+                                            screen_pairs,
+                                            0x5C_2EE1 ^ g as u64 ^ (li as u64) << 8, 4,
+                                            screen_cost)
+                      }));
+                      // THE COMPLETION GUARD IS LOAD-BEARING, and `ci95()`'s own comments say why.
+                      // `rate + ci95 < 0.5` is the EXACT expression that once marked a match nobody
+                      // played as "resolved in the WORSE direction" and put 22 fabricated accepts in
+                      // the ledger. The `games() == 0` case is fixed there (it returns 1.0), but a
+                      // second degenerate branch remains: with fewer than 2 PAIRS recorded, `ci95()`
+                      // falls back to the binomial, and at p = 0 that is `1.96*sqrt(0)` = ZERO WIDTH.
+                      // A candidate that forfeited its way down to one recorded pair would then read
+                      // `0.000 +/- 0.000` and be screened out on a non-measurement.
+                      //
+                      // So the screen may only reject a match that actually FINISHED: 2 games per
+                      // pair, all of them played. Anything short of that is an absence of evidence
+                      // and goes through to the full gate, which is equipped to judge it.
+                      //
+                      // Checked, not assumed, for the case that matters: at 4 pairs an all-drawn
+                      // match takes the `var <= 0` branch and reads 0.500 +/- 1.5/4 = 0.375, so
+                      // 0.875 -- comfortably above the bar. The screen cannot reject the 85.3%-draw
+                      // population it will mostly see.
+                      // The rule itself lives in `gate::screen_rejects` so this call site and
+                      // `tests/gate_screen.rs` cannot drift apart. Its doc comment carries the
+                      // reason the completion term is load-bearing.
+                      let drop_it = match &sc {
+                          Ok(s) => gate::screen_rejects(s, screen_pairs),
+                          Err(_) => true,
+                      };
+                      if drop_it {
+                          match &sc {
+                              Ok(s) => println!(
+                                  "  gen {g:>3} {:<5} screen REJECT {:.3}+/-{:.3} over {screen_pairs} pairs \
+                                   -- interval entirely below 0.5, full gate skipped",
+                                  lineages[li].name, s.pent_rate(), s.ci95()),
+                              Err(_) => println!(
+                                  "  gen {g:>3} {:<5} screen PANIC -- candidate cannot play, rejected",
+                                  lineages[li].name),
+                          }
+                          // Same bookkeeping as every other rejection: a rejected program must not
+                          // be re-proposed, and must not become the reference for the next one.
+                          lineages[li].gated.insert(format!("{c:?}"));
+                          continue;
+                      }
+                  }
+
                   let (gsc, sprt_verdict, sprt_llr) = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                       if sprt_gate {
                           // FITNESS 7.3: random-ply openings until the unbalanced book exists. Same
