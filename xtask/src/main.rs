@@ -132,11 +132,31 @@ fn read_rungs() -> Vec<Rung> {
     for p in files_matching(|n| n.ends_with("_ruler.log") || n == "sf_ruler.log") {
         let txt = fs::read_to_string(&p).unwrap_or_default();
         let net = grab(&txt, "net      ").unwrap_or_else(|| p.display().to_string());
-        let Some(line) = txt.lines().find(|l| l.contains("Elo vs this opponent:")) else { continue };
-        let rest = line.split(':').nth(1).unwrap_or("").trim();
-        let mut it = rest.split("+/-");
-        let (Some(e), Some(c)) = (it.next(), it.next()) else { continue };
-        let (Ok(elo), Ok(ci)) = (e.trim().parse::<f64>(), c.trim().parse::<f64>()) else { continue };
+        // POOL EVERY READING IN THE FILE, do not take the first.
+        //
+        // This used to be `.find(...)`, i.e. the FIRST "Elo vs this opponent:" line and the rest
+        // discarded. At prod4 gen 2052 that first line is +223 -> 1543, the most extreme of EIGHT
+        // samples whose pool is 1466 +/- 20 (raw span 1424-1543). The page was therefore publishing
+        // an outlier as the headline, and plotting one 120-game sample per rung invents movement:
+        // eight measurements of one UNCHANGED net span 119 Elo purely because each is +/-60.
+        // CHAMPIONS.md already records the ruler "produced a four-reading DECLINE while the net was
+        // genuinely stronger" -- this is that failure at the presentation layer.
+        //
+        // Inverse-variance pooling; for near-equal sigmas this is the mean with SE = sigma/sqrt(n).
+        // The individual samples are NOT lost -- they stay in the ruler logs, which are the ledger.
+        let mut obs: Vec<(f64, f64)> = Vec::new();
+        for line in txt.lines().filter(|l| l.contains("Elo vs this opponent:")) {
+            let rest = line.split(':').nth(1).unwrap_or("").trim();
+            let mut it = rest.split("+/-");
+            let (Some(e), Some(c)) = (it.next(), it.next()) else { continue };
+            let (Ok(v), Ok(s)) = (e.trim().parse::<f64>(), c.trim().parse::<f64>()) else { continue };
+            if s > 0.0 { obs.push((v, s)); }
+        }
+        if obs.is_empty() { continue }
+        let wsum: f64 = obs.iter().map(|(_, c)| 1.0 / (c * c)).sum();
+        let elo: f64 = obs.iter().map(|(v, c)| v / (c * c)).sum::<f64>() / wsum;
+        let ci: f64 = (1.0 / wsum).sqrt();
+        let nsamp = obs.len();
         // `gen1400.net` carries its number; `dr_r1_d3.net` does not. For the latter the arm's own
         // log is the only record of how many generations it ran, so count them rather than
         // plotting the rung at 0 and flattening the trend line.
@@ -154,8 +174,53 @@ fn read_rungs() -> Vec<Rung> {
             }
         }
         let mtime = fs::metadata(&p).and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
-        out.push(Rung { generation: gnum, elo, ci, label: net.trim().to_string(), champion, mtime });
+        let label = if nsamp > 1 { format!("{} [pooled n={nsamp}]", net.trim()) } else { net.trim().to_string() };
+        out.push(Rung { generation: gnum, elo, ci, label, champion, mtime });
     }
+    // AND `live_ruler.out`, WHICH IS WHERE THE READINGS ACTUALLY ARE.
+    //
+    // The loop above reads `*_ruler.log`, one reading per file, generation recovered from the net
+    // NAME. But the continuous ruler writes somewhere else entirely: `live_ruler.out`, one line per
+    // measurement, with the run and generation INLINE:
+    //
+    //     03:20 prod4 gen 2052 Elo vs this opponent: +223 +/- 63
+    //
+    // Checked 2026-09-11: `prod4_ruler.log` holds ZERO readings while `live_ruler.out` holds all
+    // eight for gen 2052. So the page was not merely showing an unpooled sample for that rung -- it
+    // was not showing that rung at all, and every rung the live ruler has measured since was
+    // invisible to it. Pooling the file it does read fixes nothing on its own.
+    {
+        let txt = fs::read_to_string("live_ruler.out").unwrap_or_default();
+        let mut by: std::collections::BTreeMap<(String, u64), Vec<(f64, f64)>> = Default::default();
+        let mut order: std::collections::HashMap<(String, u64), usize> = Default::default();
+        for line in txt.lines() {
+            let Some(pos) = line.find(" Elo vs this opponent:") else { continue };
+            let head: Vec<&str> = line[..pos].split_whitespace().collect();
+            // [hh:mm, run, "gen", N]
+            if head.len() < 4 || head[2] != "gen" { continue }
+            // `gen` is a reserved keyword in this edition -- name it gnum.
+            let (run, Ok(gnum)) = (head[1].to_string(), head[3].parse::<u64>()) else { continue };
+            let rest = line[pos..].split(':').nth(1).unwrap_or("").trim();
+            let mut it = rest.split("+/-");
+            let (Some(e), Some(c)) = (it.next(), it.next()) else { continue };
+            let (Ok(v), Ok(sg)) = (e.trim().parse::<f64>(), c.trim().parse::<f64>()) else { continue };
+            if sg <= 0.0 { continue }
+            let k = (run, gnum);
+            let n = order.len();
+            order.entry(k.clone()).or_insert(n);
+            by.entry(k).or_default().push((v, sg));
+        }
+        let mtime = fs::metadata("live_ruler.out").and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
+        for ((run, gnum), obs) in by {
+            let wsum: f64 = obs.iter().map(|(_, c)| 1.0 / (c * c)).sum();
+            let elo: f64 = obs.iter().map(|(v, c)| v / (c * c)).sum::<f64>() / wsum;
+            let ci: f64 = (1.0 / wsum).sqrt();
+            let n = obs.len();
+            let label = if n > 1 { format!("{run} gen{gnum} [pooled n={n}]") } else { format!("{run} gen{gnum}") };
+            out.push(Rung { generation: gnum, elo, ci, label, champion: run.starts_with("prod"), mtime });
+        }
+    }
+
     out.sort_by_key(|r| r.generation);
     out
 }
