@@ -55,6 +55,18 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 SCR=/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad
+# BLEND IS PASSED EXPLICITLY, not left to the binary's compiled default.
+#
+# SHIPPED 2026-09-11: the default moved 0.75 -> 0.85 on two full-length seeds (pooled
+# 0.574 +/- 0.021 head to head, lower bound 0.553 against a between-seed sd of 0.047). But this
+# script runs a SNAPSHOT binary from $SCR built BEFORE that change -- the running job's own
+# header reads `lr=0.0002 blend=0.75`. A ship that reaches the source does NOT reach a job
+# running an older binary.
+#
+# That is the 4PC defect already on file: "the 09:36 ship reached the RECIPE but not the ENGINE",
+# which passed verification because the check only confirmed the recipe had moved. Passing the
+# value on the command line puts the run's configuration in its own argv and log header, where it
+# can be CHECKED rather than inferred from which binary happened to be snapshotted.
 LEARN=$SCR/xt_cap/release/learn
 SECS=${SECS:-21600}          # 6h; auto_promote banks progress along the way
 CORES=${CORES:-6-11}
@@ -67,7 +79,8 @@ echo "$(date '+%H:%M') $TAG: start $(md5sum ${TAG}_start.net | cut -c1-12), ${SE
 
 timeout "$SECS" taskset -c "$CORES" nice -n 19 ionice -c 3 "$LEARN" \
   --init "${TAG}_start.net" --gens 1000000 --games 8 --threads 4 --depth 3 --epochs 3 \
-  --lr "${LR:-0.002}" --lr-decay "${DECAY:-1.0}" --gate-every 1000000 --arch-every 0 --control-every 0 \
+    --lr "${LR:-0.002}" --lr-decay "${DECAY:-1.0}" --blend "${BLEND:-0.85}" \
+    --gate-every 1000000 --arch-every 0 --control-every 0 \
   --seed 20260910 --out "${TAG}.net" --ledger "ledger_${TAG}.jsonl" > "${TAG}.log" 2>&1
 
 G=$(grep -cE '^gen ' "${TAG}.log")
