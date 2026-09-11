@@ -44,8 +44,7 @@ say "waiting for choice-2x2 so the box is not oversubscribed"
 while systemctl --user is-active choice-2x2.service >/dev/null 2>&1; do sleep 30; done
 sleep 10
 say "n_hard=40, proposals=32, 4 generations, seed 1 (same as the 2x2 cells)"
-EXISTENCE_EVOLVE_SEED=1 EXISTENCE_PROPOSALS=32 EXISTENCE_HARD_FITNESS=1 EXISTENCE_HARD_N=40 \
-  # GENERATIONS: 4 could not have resolved anything and that was the probe's SECOND fault.
+# GENERATIONS: 4 could not have resolved anything and that was the probe's SECOND fault.
 #
 # MAIN scores on the hard set in 2 of 28 funnel-era generations, a base rate of 0.071, so
 # P(zero in 4) = 0.74 -- zero was the single most likely outcome whether or not n=40 changed
@@ -55,7 +54,15 @@ EXISTENCE_EVOLVE_SEED=1 EXISTENCE_PROPOSALS=32 EXISTENCE_HARD_FITNESS=1 EXISTENC
 # under-length run cannot produce a conclusion even if this default is lowered.
 GENS=${GENS:-24}
 CAP=${CAP:-32400}
-nice -n 19 taskset -c 6-11 timeout "$CAP" "$SNAP" "$GENS" 4 10 4 > prop_hardn40.log 2>&1 || true
+
+# THE ENV PREFIX MUST TOUCH THE COMMAND. Nothing may come between the backslash and `nice` --
+# not even a comment. An earlier edit of this file put the comment block here, between the
+# continuation and the command, which detaches the EXISTENCE_* assignments: they become a bare
+# shell assignment and the run receives NONE of them. gate_hybrid_power.sh carries the same
+# warning from when it cost a whole sprt run its SPRT_* vars and still printed a verdict.
+# The assert_setting_took gate below would have caught it, but a guard is not a licence.
+EXISTENCE_EVOLVE_SEED=1 EXISTENCE_PROPOSALS=32 EXISTENCE_HARD_FITNESS=1 EXISTENCE_HARD_N=40 \
+  nice -n 19 taskset -c 6-11 timeout "$CAP" "$SNAP" "$GENS" 4 10 4 > prop_hardn40.log 2>&1 || true
 
 # ---- DID THE SETTING ACTUALLY TAKE? THIS GATES THE REPORT --------------------------------------
 # The 2026-09-11 run of this script set EXISTENCE_HARD_N=40 against a binary that built the set with
