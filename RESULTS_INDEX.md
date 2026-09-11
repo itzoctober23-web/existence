@@ -9,6 +9,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [confident_when_wrong_RESULT.md](confident_when_wrong_RESULT.md) | The engine is MORE confident where its cheap search is wrong — FITNESS §8, implemented and failing |
 | [learning_rate_is_the_plateau_RESULT.md](learning_rate_is_the_plateau_RESULT.md) | The plateau was the learning rate — 0.692 against 0.499, on a knob never once varied |
 | [lr_sweep_RESULT.md](lr_sweep_RESULT.md) | The lr result replicates on a fresh seed and a different start — and the optimum is lower still |
 | [static_deep_residual_RESULT.md](static_deep_residual_RESULT.md) | Half of the P1 kill criterion has never been measurable — the static-vs-deep residual, built and refuted |

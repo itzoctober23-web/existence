@@ -123,6 +123,7 @@ fn main() {
         let mut flip: Vec<bool> = Vec::new();
         let mut n_mate = 0usize;
         let mut ratios: Vec<f64> = Vec::new();
+        let mut costs: Vec<i32> = Vec::new();
 
         for p in &ps {
             // DEPTH, NOT A NODE CAP -- and the cost multiple is MEASURED rather than assumed.
@@ -157,6 +158,27 @@ fn main() {
 
             // A mate verdict is a search result, not an evaluation error; excluded as elsewhere.
             if rich_sc.abs() >= MATE_BAND { n_mate += 1; continue; }
+
+            // DOES THE FLIP COST ANYTHING? A raw move-flip rate conflates two very different events:
+            // a genuine error, and a coin-flip between two moves the engine rates as equal. The
+            // latter should dominate in quiet positions -- which are ALSO the positions where any
+            // sane eval has a small residual, i.e. looks "confident". That confound predicts
+            // exactly the anti-correlation the first run showed (35.3% against a 50% base rate), so
+            // it has to be measured rather than argued about.
+            //
+            // The honest cost of the cheap move is what the RICH search thinks of it: play it, let
+            // the opponent search at rich depth, negate. `rich_sc - cheap_value` is then how much
+            // the cheap move actually gave away, in the same units, from one search's opinion.
+            let mut cost = 0i32;
+            if cheap_mv != rich_mv {
+                let mut q3 = p.clone();
+                q3.make_move(cheap_mv);
+                let (_, opp) = s.best_move(&mut q3, depth + extra - 1, &net);
+                if opp.abs() < MATE_BAND {
+                    cost = rich_sc - (-opp);
+                }
+            }
+            costs.push(cost);
             let st = net.eval(p, &mut scratch) as f64;
             // Both are mover-relative already, so the residual needs no POV flip -- and taking the
             // absolute value makes the frame irrelevant regardless.
@@ -179,6 +201,16 @@ fn main() {
         }
         let thr = median(&mut resid.clone());
         let n_flip = flip.iter().filter(|x| **x).count();
+        // MATERIAL = the cheap move gave away more than a tenth of a pawn by the rich search's own
+        // reckoning. Below that the "flip" is a tie-break between moves the engine rates as equal,
+        // and calling it a wrong answer is a category error.
+        const MATERIAL_CP: i32 = 10;
+        let n_material = costs.iter().zip(&flip)
+            .filter(|(_, fl)| **fl).filter(|(c, _)| **c >= MATERIAL_CP).count();
+        let mat_low = resid.iter().zip(&flip).zip(&costs)
+            .filter(|((_, fl), c)| **fl && **c >= MATERIAL_CP)
+            .filter(|((r, _), _)| **r > thr).count();
+        let mat_pct = if n_material > 0 { mat_low as f64 / n_material as f64 } else { f64::NAN };
         // "LOW confidence" = residual ABOVE the median: search revised the static opinion a lot.
         let low_conf = resid.iter().zip(&flip)
             .filter(|(_, fl)| **fl)
@@ -195,9 +227,12 @@ fn main() {
         } else {
             "NO SIGNAL"
         };
-        println!("  {:<26} {:>7} {:>7} {:>8.1}% {:>9.1}% {:>7.1}x {:>8}",
+        println!("  {:<26} {:>7} {:>7} {:>8.1}% {:>9.1}% {:>7.0}x {:>8}",
                  f, resid.len(), n_flip,
                  100.0 * n_flip as f64 / resid.len() as f64, 100.0 * pct, med_ratio, verdict);
+        println!("  {:<26} of those, {} cost >= {}cp (a real error, not a tie-break); \
+                  low-conf on THOSE: {:.1}%",
+                 "", n_material, MATERIAL_CP, 100.0 * mat_pct);
     }
 
     println!("\n  low-conf % near 50 means confidence carries NO information about reliability:");
