@@ -275,3 +275,36 @@ The reporter now carries this as a footnote and refuses to let the `hard` row be
 gradient result. The cost was three generations of compute, not a wrong conclusion — the check
 happened before the cell was interpreted, which is the only reason it is a note rather than a
 retraction.
+
+---
+
+## 2x2 IN PROGRESS 10:4x — and a conclusion I did NOT draw
+
+    cell        configuration              gens  prop   ok  >1 distinct  pop
+    control     proposals=pop, guard set      6    24    3         0/6     4
+    prop32      proposals=32,  guard set      4   128   22         4/4     8
+    hard        proposals=pop, HARD set *     6    24    3         0/6     4
+    hard+p32    proposals=32,  HARD set       1    32    2         1/1     3
+
+`hard` is identical to `control` on every column, as predicted from the source: HARD_FITNESS
+changes the RATE, never `f`, and the guard tests `f`. With ~0.4 survivors per generation there is
+nothing to re-rank. (Not *bit*-identical — the rates differ in the 5th decimal, 0.997650 against
+0.997639, so the formula IS active. It is simply impotent with one survivor.)
+
+### The claim I was about to make, and why I did not
+
+`hard+p32` generation 1 reads `hard 0-0` — the HARD-set score range across guard-passing
+candidates — and its rate spread (0.004705) is indistinguishable from `prop32`'s (0.004707). The
+obvious reading is "the HARD set is inert: nothing scores on it, so it cannot differentiate".
+
+**The adjacent arm refutes that.** `prop_hard.log` contains `hard 1-2` and `hard 2-2` in later
+generations. Candidates DO score above zero on the HARD set. `hard+p32` has exactly ONE generation,
+and `hard 0-0` there is a sample of one.
+
+This is the third time today a direction would have been published from too few points — after
+"the guard rate compounds" (refuted by generation 4) and the selection-effect hypothesis for the
+ICC inversion (refuted at four group sizes). The difference is that this one was caught before
+being written down, by checking whether the other arm had ever produced a non-zero value.
+
+**Status: the gradient lever is UNMEASURED, not inert.** It needs `hard+p32` to reach several
+generations with survivors to rank, which is the only configuration in which it can act at all.
