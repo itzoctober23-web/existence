@@ -96,3 +96,39 @@ without an estimate the run never checked.
 This is the same lesson as `hardn_inert_RESULT.md` one level up: there, a zero was uninterpretable
 because the power was never computed. Here the power depends on a quantity the run can measure for
 itself, so it should.
+
+## The file's OWN larger table gives a better attempt rate, and it is 2.3x worse than the headline
+
+`ladder_valley_RESULT.md:783-800` tabulates the quantity directly, per generation, across every arm
+log — "counting per generation how many population members carry the probe half (P and no S) versus
+the store half (S and no P)" — and reports `P(random pair is P x S)` for each. That is the same
+quantity the projection calls `P(union attempted per generation)`, measured over **14 generations**
+rather than one.
+
+```
+mean 0.087    median 0.062    max 0.245
+generations that cannot union AT ALL (p = 0): 5 of 14 = 36%
+```
+
+(The section heading says 43%; I count 36% over the 14 rows I can parse. The difference is which
+rows are included and does not affect the conclusion.)
+
+**The projection uses 0.20 for this. The table says 0.087.** Re-sizing on the table:
+
+```
+attempt rate   rate/gen (reserve ON)   generations for 50%   wall clock at 15 min/gen
+0.200                 0.00648                   107                   27 h
+0.087 (mean)          0.00282                   245                   61 h
+0.062 (median)        0.00201                   345                   86 h
+```
+
+So the documented path to the only improvement this project has ever measured costs roughly **2.3x
+the headline projection** — around **245 generations, ~61 hours of one arm**, and that is still a
+coin flip rather than a guarantee.
+
+This does not weaken the case for instrumenting `P(attempted)` during the run; it strengthens it.
+The two estimates available differ by 2.3x and the run can settle the question for itself in its
+first dozen generations. It does change what a sensible commitment looks like: this is a multi-day
+arm, not an overnight one, and it should be launched only with that understood and with the attempt
+rate reported continuously so it can be stopped early if the population composition turns out worse
+than the table.
