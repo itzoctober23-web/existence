@@ -105,6 +105,7 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
+| [uncertainty_target_PREREG.md](uncertainty_target_PREREG.md) | PRE-REGISTRATION — the uncertainty head's TARGET, before either track is built on it |
 | [structural_next_PREREG.md](structural_next_PREREG.md) | PRE-REGISTRATION — what the loop does after the configuration wins run out |
 | [refmatch_discrimination_PREREG.md](refmatch_discrimination_PREREG.md) | PRE-REGISTRATION — can the gate's games discriminate at all? (written before the results exist) |
 | [low_sweep2_PREREG.md](low_sweep2_PREREG.md) | Pre-registration: the full-length low-lr sweep tests a claim the truncated run made |
@@ -139,11 +140,11 @@ being asked.
 | surrogate/proxy | EXPERIMENTS,fitness_saturation surrogate_inverts,surrogate_validation specfilter_admits_noops |
 | net width | EXPERIMENTS,ladder_valley throughput,width_clock search_track_WHY_NOTHING |
 | search depth | EXPERIMENTS,depth2x2 blend,speed_cannot_pay depth5_vs_depth3 |
-| blend/target | EXPERIMENTS,blend blend_sweep,NET_TRACK_STATE depth2x2 |
+| blend/target | EXPERIMENTS,blend blend_sweep,NET_TRACK_STATE uncertainty_target_PREREG |
 | epochs | EXPERIMENTS,epochs_ab epochs_2v3,NET_TRACK_STATE learning_rate_is_the_plateau |
 | seeds & noise | depth2x2,blend p1_deceleration,blend_sweep low_sweep2 |
 | gate & thresholds | gate_power,gate_arithmetic EXPERIMENTS,replay_ab_CAVEAT ladder_valley |
-| calibration | static_deep_residual,confident_when_wrong search_track_FINDING,nps_calibration_PREREG movegen_leaf |
+| calibration | static_deep_residual,uncertainty_target_PREREG confident_when_wrong,search_track_FINDING nps_calibration_PREREG |
 | speed/nps | speed_cannot_pay,throughput movegen_leaf,depth2x2 path1_is_empty |
 | plateau | EXPERIMENTS,ceiling_ANALYSIS ruler_trend,learning_rate_is_the_plateau fitness_saturation |
 
