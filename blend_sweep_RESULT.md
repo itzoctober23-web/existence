@@ -170,3 +170,51 @@ at the pooled 0.574, but that is a paired self-play number, not a rating — and
 which is the instrument the 1600 stop condition is written against, puts the 0.85 arm at
 **1544 +/- 32** against the 0.75 arm's **1490 +/- 30**, a contrast of `+54 +/- 44` that it cannot
 itself resolve.
+
+## SHIPPED — default blend 0.85, and the net promoted
+
+**Both halves of the change are now live.**
+
+### The configuration (committed earlier this tick)
+
+`main.rs` default blend `0.75 -> 0.85`, on the cross-seed contrast:
+
+    seed 20260917   0.541 +/- 0.032   lower bound 0.509
+    seed 20260918   0.606 +/- 0.026   lower bound 0.580
+    POOLED          0.574 +/- 0.021   lower bound 0.553
+
+### The net
+
+Both seeds' 0.85 arms independently clear the normal promotion rule against the incumbent:
+
+    seed 20260917   0.583 +/- 0.027   lower bound 0.556   CLEARS
+    seed 20260918   0.558 +/- 0.029   lower bound 0.529   CLEARS
+    POOLED          0.571 +/- 0.020   lower bound 0.551   CLEARS
+
+    champion  044e754f57ba  ->  abbbd0d0c5e0  (blend_085_s1.net, 2000 generations)
+    previous kept as p1_champion_prev_pre_blend085.net
+
+**The choice between the two nets is a TIEBREAK, not a measurement.** 0.583 against 0.558 is a
+difference of 0.025 with a combined SE of 0.040 — **0.6 sigma, not separable**. Seed 1's net was
+taken because it has the higher point estimate AND is the better characterised arm: it also carries
+four absolute-ruler samples (**1544 +/- 32**), where seed 2's net has none. Either would have been
+defensible; pretending the 0.025 meant something would not be.
+
+### Checks run before the swap, not after
+
+* `blend_start.net` and `p1_champion.net` verified byte-identical (`044e754f57ba`), so the 0.583
+  measurement was against the CURRENT incumbent rather than a stale baseline.
+* `auto_promote` verified NOT mid-match — swapping the champion file under a running comparison
+  would misattribute its verdict.
+* Previous champion copied aside before the overwrite, and the new champion verified byte-identical
+  to the candidate afterwards.
+
+### Where this leaves the stop condition
+
+    champion (old)  1476 +/- 11   22,141 generations, slope -0.6 +/- 1.6 per 1000 gens (FLAT)
+    champion (new)  1544 +/- 32   2,000 generations from that champion at blend 0.85
+    target          1600          now +56 away (1.8 SE), from +119 (6.3 SE) this morning
+
+No Elo is quoted for the change itself — it passed its gates. The 1544 is a pooled absolute-ruler
+reading of the promoted net, not a claim about the size of the blend effect, which netmatch puts at
+0.574 +/- 0.021 head to head.
