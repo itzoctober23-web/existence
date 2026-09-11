@@ -152,6 +152,37 @@ the table have no implementation under any spelling.
 | `add-arg` — "add an Int/Score parameter and thread a value at each call site" | **still absent** | no operator adds a FUNCTION PARAMETER. (`Op::TReadIndex`, added 2026-09-10, lengthens a tread's index list — a different move, see the correction below) |
 | `add-fn` — "split a subtree into a new function and call it" | **absent** | **0 of 823** applied mutations changed `funcs.len()`, across all 10 reference programs |
 
+**⚠ THE `add-fn` ROW ABOVE IS OUT OF DATE — IT WAS IMPLEMENTED THE SAME DAY, AND IS PARKED.
+Corrected 2026-09-11.** The "absent / no implementation under any spelling" wording was committed at
+`9a56364` (2026-09-10 09:38). `try_add_fn` landed eight hours later at `21d7d73` (17:56) —
+`mutate.rs:485`, with `crates/grammar/tests/add_fn.rs` asserting it raises the function count,
+scope-checks, type-checks, never lifts a `ret`, and applies somewhere. It threads the lifted
+subtree's free variables as typed parameters, and it also SUBSUMES `add-arg` here: `add-arg` as
+declared cannot apply to a 1-function program at all, because `check_program` pins the entry to
+`choose(Pos, Int) -> Move`, so there is no function to add a parameter to until this operator makes
+one.
+
+**The CONSEQUENCE is unchanged; only the CAUSE is.** `Op::AddFn` sits in `mutate::PARKED_OPS`, not
+in `ALL_OPS`, so it is never drawn: function count still never changes in a real run, and §4's
+"the search is confined to one function forever" below remains true as written. The operator is not
+missing — it is deliberately not dealt.
+
+**REFINEMENT to the parking rationale, verified 2026-09-11 by reading the code path.** `mutate.rs:144`
+justifies parking with "its parent plus a `Call` node, which `interp::cost_of` charges 2". The
+charge is 2, but it is not paid once. `Interp::exec` does `self.cost += cost_of(n)` on EVERY NODE
+VISIT (`crates/interp/src/lib.rs:637`), against a cost cap — cost is RUNTIME, not static program
+size. So a lift costs **2 × the number of times the lifted site executes**, which for a site inside
+alpha-beta's recursion is thousands, not 2. The park decision is therefore better supported than its
+own comment claims, and it carries a corollary: if a lift is ever to be cheap, it must land on a
+COLD site, and nothing in `try_add_fn` currently prefers one — `get_nth` picks by index.
+
+This also kills an attractive-looking fix before anyone builds it: *lift a subtree that occurs k
+times and replace all k sites with calls, so one body of N nodes replaces kN.* That arithmetic is
+about STATIC SIZE and this cost model does not measure static size. Sharing a body does not reduce
+how often it runs; it adds a call charge to every execution. A multi-site lift is strictly worse
+than the single-site lift, not better. (Recorded as reasoning from the code, NOT as a measurement
+on a program — no lift has been benchmarked.)
+
 Two consequences follow, and both were previously open:
 
 **CORRECTION 2026-09-10, same day, before anything was built on it.** The row above pairs the
@@ -175,7 +206,7 @@ did not:
 | TRead arities constructible in ONE edit | `[]` | **`[1]`** |
 | `TRead/2`, which rung 7 needs | unreachable at any edit count | **reachable in TWO edits — measured** by composing the operator with itself (but the operator is PARKED, see below) |
 | does appending an index change BEHAVIOUR? | n/a | **no — measured inert**, `tables_nd` is never populated |
-| function count changed by a mutation | 0 of 823 | **0 of 858 — still zero**, `add-fn` remains absent |
+| function count changed by a mutation | 0 of 823 | **0 of 858 — still zero**. (`add-fn` was implemented later the same day and PARKED, so this stays zero in any real run — see the correction above. "remains absent" was the original wording and is superseded) |
 
 The operator appends ONE in-scope Int as a tread index and never picks the table id, so reaching
 `TRead(3, [d, i])` still costs two edits plus finding table 3. That is deliberate: MASTER_PLAN:53
@@ -209,6 +240,11 @@ the valley is a separate one; `reachability.rs`'s header records hash reuse as r
    neither mutation nor `crossover()` can change the count — crossover writes
    `out.funcs[rfi].body` and never pushes a func. Seeded with a 1-function program, three quarters
    of the declared program space is unreachable. Not unlikely: unreachable.
+   **STILL TRUE OPERATIONALLY, for a changed reason (2026-09-11).** `try_add_fn` now exists and does
+   push a func, so "neither mutation nor `crossover()` CAN change the count" is no longer true of the
+   code. `Op::AddFn` is in `PARKED_OPS` and is never drawn, so the count still never changes in a
+   run and three quarters of the space is still unreached. The barrier moved from *cannot* to
+   *not dealt*, and the unpark condition is recorded at `mutate.rs:148`.
 
 This is an EXPRESSIVENESS gap and it is narrow. `reachability.rs`'s header records that the last
 claim of this shape was stale — hash reuse turned out to be reachable, and the barrier there is a
