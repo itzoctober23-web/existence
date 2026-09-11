@@ -186,3 +186,45 @@ The two derivations share `elo_per_ply_RESULT.md` as an input, so this is a cons
 `elo_vs_time.sh`, which measures Elo against the CLOCK directly — now possible for the first time,
 because until today the engine ignored `go` parameters and every point on that curve would have
 returned the same number.
+
+
+## 6. CORRECTION 2026-09-10 23:0x — the leaf formula billed a shuffle a leaf never performs
+
+§2 sizes every eval conclusion on `node_profile`'s `eval's share of a leaf: 25.4%`, from
+`leaf = movegen + make/unmake + eval + shuffle = 972.2 ns`. **A leaf does not shuffle.**
+`pipeline/src/search.rs::ab()` runs in this order: `nodes += 1`, `legal_moves()`, then the
+`depth == 0` early return with the eval — and only *after* that return does it take the per-depth
+buffer and shuffle. So a leaf pays movegen (which runs before the check, to detect mate/stalemate)
+and eval, and never reaches the shuffle. The formula added it anyway.
+
+| | leaf | eval share | ceiling on eval work |
+|---|---|---|---|
+| as recorded | 972.2 ns | 25.4% | 1.34× |
+| corrected (no shuffle at a leaf) | 651.6 ns | **35.4%** | **1.54×** |
+
+At the measured 30 Elo/doubling that moves a **completely free eval** from ~13 Elo to **~19**. The
+direction of §2 is unchanged — eval is still not a ply, and the plies are still in the branching
+factor — but the eval track was under-valued by about 50%.
+
+### And the self-check that should have caught this could not fail
+
+The `CROSS-CHECK` block was two `println!` lines asserting *"width 16 = 796145 nps = 1256
+ns/node"* — a **hardcoded string**. That figure was true when written and is now 3.3× wrong (live
+`search_bench` at width 16 reads ~2.6M nps), and being a string it could never notice. It printed
+its own falsification condition — *"if the primitives do not roughly bracket that, the attribution
+is INCOMPLETE"* — while supplying a constant that made the test pass forever.
+
+It now measures. Running the real search on the same positions and net:
+
+```text
+  depth 4, same net: 423733 nodes in 0.159s = 2,663,824 nps = 375 ns/node
+  primitives imply a LEAF of 645 ns -> 1.72x the measured node cost
+  ** ATTRIBUTION INCOMPLETE ** primitives over-predict by more than 1.6x.
+```
+
+**It still fires after the fix, and that is the honest state.** The shuffle bug explained part of the
+gap (2.41× → 1.72×); the rest is that isolated timings are an UPPER BOUND — each primitive carries
+its own loop and timing overhead, and a node inside a real search pipelines and hits warm caches. So
+the corrected 35.4% is better than the 25.4% it replaces and is **still not safe to quote an Elo
+figure from**. Naming the gap is the requirement the tool's own comment sets, and it is now named
+rather than papered over with a stale constant.

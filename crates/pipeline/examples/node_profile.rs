@@ -250,16 +250,57 @@ fn main() {
 
     // A node costs one legal_moves, one make/unmake as its parent's child, and -- at a leaf -- one
     // eval. Interior nodes skip the eval, so this brackets rather than pinpoints.
-    let leaf = mg + mu + ev + sh;
+    // A LEAF DOES NOT SHUFFLE, and billing it for one understates eval's share.
+    //
+    // `pipeline/src/search.rs::ab()` in order: `nodes += 1`, then `legal_moves()`, then the
+    // `depth == 0` early return with the eval -- and only AFTER that return does it take the
+    // per-depth buffer and shuffle. So a leaf pays movegen (it runs before the check, to detect
+    // mate/stalemate) and eval, and never reaches the shuffle. The old formula added `sh` to the
+    // leaf anyway.
+    //
+    // make/unmake is billed to the child by convention: it is paid by the parent on this node's
+    // behalf, once per node either way.
+    let leaf = mg + mu + ev;
     let interior = mg + mu + sh;
     println!("\n  implied node cost:");
     println!("    interior (movegen + make/unmake)      {:>8.1} ns", interior);
     println!("    leaf     (+ eval)                     {:>8.1} ns", leaf);
     println!("    eval's share of a LEAF                {:>8.1}%", 100.0 * ev / leaf);
 
-    println!("\n  CROSS-CHECK against search_bench, measured independently:");
-    println!("    width 16 = 796145 nps = 1256 ns/node; width 256 = 260334 nps = 3841 ns/node.");
-    println!("    If the primitives above do not roughly bracket that, the attribution is");
-    println!("    INCOMPLETE -- something outside these three is taking the time, and the honest");
-    println!("    answer is to name that rather than to optimise one of these.");
+    // CROSS-CHECK, MEASURED HERE rather than quoted.
+    //
+    // This block used to be two `println!` lines asserting "width 16 = 796145 nps = 1256 ns/node".
+    // That was true when written and became 3.3x wrong as the engine got faster (the O(changed)
+    // accumulator delta, the shuffle-division fix) -- and because it was a STRING it could never
+    // notice. A self-check that cannot fail is decoration: it printed its own falsification
+    // condition ("if the primitives do not roughly bracket that, the attribution is INCOMPLETE")
+    // while supplying a stale constant that made the check pass forever.
+    //
+    // It now runs the search and compares. The primitives are timed in ISOLATION, so each carries
+    // its own loop and timing overhead and they are UPPER BOUNDS; a node inside a real search also
+    // pipelines and hits warm caches. The expected relation is primitives >= actual; the
+    // interesting quantity is BY HOW MUCH, because that gap is the part the shares do not explain.
+    let mut bench_nodes = 0u64;
+    let t0 = Instant::now();
+    for p0 in ps.iter().take(20) {
+        let mut p = p0.clone();
+        let mut s = pipeline::search::Searcher::new();
+        let _ = s.best_move(&mut p, 4, &net);
+        bench_nodes += s.nodes;
+    }
+    let bench_s = t0.elapsed().as_secs_f64();
+    let actual_ns = 1e9 * bench_s / bench_nodes.max(1) as f64;
+    let ratio = leaf / actual_ns;
+    println!("\n  CROSS-CHECK against a real search, measured NOW (not quoted):");
+    println!("    depth 4, same net: {bench_nodes} nodes in {bench_s:.3}s = {:>9.0} nps = {actual_ns:.0} ns/node",
+             bench_nodes as f64 / bench_s);
+    println!("    primitives imply a LEAF of {leaf:.0} ns -> {ratio:.2}x the measured node cost");
+    if ratio > 1.6 {
+        println!("    ** ATTRIBUTION INCOMPLETE ** primitives over-predict by more than 1.6x.");
+        println!("    Isolated timings are an UPPER BOUND, so part of this is loop/timing overhead");
+        println!("    and warm caches -- but at this size the SHARES above are NOT safe to size an");
+        println!("    optimisation against. Name the gap before quoting an Elo figure from them.");
+    } else {
+        println!("    within 1.6x -- the three primitives account for the node, shares are usable.");
+    }
 }
