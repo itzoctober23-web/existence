@@ -128,3 +128,45 @@ the pool must clear before the default moves.
 champion, and the 0.75 arm ALSO improved (0.536 +/- 0.030 against the shared start). The ruler
 difference is blend-plus-training against training-alone; the netmatch head-to-head is the clean
 attribution, and it says +29 Elo.
+
+## CROSS-SEED VERDICT — both seeds clear, and the pool clears the between-seed spread
+
+Seed 20260918 ran the identical experiment: 2000 generations per arm, exactly matched, shared
+start from the same champion, only `--blend` differing, binding re-verified from each arm's own
+log header.
+
+    seed 20260917   0.541 +/- 0.032   lower bound 0.509   clears 0.500
+    seed 20260918   0.606 +/- 0.026   lower bound 0.580   clears 0.500
+    POOLED          0.574 +/- 0.021   lower bound 0.553   clears 0.500
+
+**Both seeds point the same way and the pool clears.** The margin above 0.5 is now **0.074**
+against a measured between-seed sd of **0.047** — the quantity that made a single-seed result
+insufficient. Seed 1 alone had a margin of 0.041, SMALLER than that spread, which is why it was
+refused. Two seeds move the margin above it.
+
+### The staleness guard earned its place
+
+`blend_sweep.sh` writes FIXED filenames, so the unsuffixed logs held SEED 1's numbers until seed
+2's netmatch overwrote them — verified at 10:33, both slots reading an identical
+`0.541 +/- 0.032`. A reader that simply opened both files would have compared seed 1 against
+ITSELF, found perfect agreement, and printed the sentence that licenses a default change.
+`blend_crossseed.py` refuses on an mtime check and reported "STALE" until 10:43, when the real
+seed-2 verdict landed. The number above is `blend_085_vs_075.log` at mtime 10:43:14 against an
+archive at 09:55:27.
+
+### Against the normal promotion rule
+
+    blend_085 (seed 1) vs the shared start, which IS the champion:
+        0.583 +/- 0.027   lower bound 0.556   CLEARS (rule needs >= 0.500)
+
+So both halves hold: the CONTRAST is established across seeds, and the candidate clears the normal
+rule against the incumbent. Seed 2's own vs-champion match is still running and will add a second
+independent measurement of the same thing.
+
+### What is still not claimed
+
+No Elo figure is quoted for an unshipped change. The head-to-head score converts to roughly +52 Elo
+at the pooled 0.574, but that is a paired self-play number, not a rating — and the absolute ruler,
+which is the instrument the 1600 stop condition is written against, puts the 0.85 arm at
+**1544 +/- 32** against the 0.75 arm's **1490 +/- 30**, a contrast of `+54 +/- 44` that it cannot
+itself resolve.
