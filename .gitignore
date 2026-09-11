@@ -39,3 +39,8 @@ __pycache__/
 # `cargo xtask watch` output: regenerated every 60s, and events.log is a local
 # append-only stream. Artifacts of the instrument, not inputs to the loop.
 watch/
+
+# Live experiment stdout. Regenerated every run, never source. Untracked *.out was
+# permanent `git status` noise, and the one time a rejected edit reached a commit here it
+# went in via `git add -A` sweeping untracked files.
+*.out
