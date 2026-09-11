@@ -120,3 +120,37 @@ the only void one.
 It is wired as a GATE, not a decoration: `hardn_probe.sh` now runs it BEFORE the reporter and exits
 non-zero on mismatch, with the status taken directly rather than through a pipe, so the verdict
 cannot be written when the configuration under test was not the one that ran.
+
+## The new instrumentation is validated live, and its first reading already complicates a hypothesis
+
+Built and run 2026-09-11 on the same seed/proposals as the live arm (seed 7, 32 proposals), so the
+output is directly comparable to `prop_verify96.log`.
+
+**Non-regression, checked first.** The 6-line header md5 is identical (`8b686983345d`), and the
+`gen 1 MAIN` line is BYTE-IDENTICAL to the running snapshot's. On the gate line, everything before
+the new fields matches exactly — `0.458+/-0.082`, `W-D-L 0-11-1`, `mates 10`, `surrogate 0.003529`,
+`ABOVE:2`, `needed >0.582`, `pop 1 distinct:1`. The changes decide nothing, as claimed.
+
+**The gate line now reads:**
+
+```
+gen 1 MCTS gate REJECT 0.458+/-0.082 (12 games W-D-L 0-11-1) ... identity:12/27  rel[>=.98:6 .90-.98:0 .50-.90:2 <.50:1]
+```
+
+**`identity:12/27` is not what I expected.** `gate_arithmetic_RESULT.md` reasons that a candidate
+identical on 32 of 33 positions plays almost the same games, draws nearly all of them, and so lands
+in the region the 6-pair gate cannot accept. That made near-identity the suspected shape of the
+rejected candidates. This one agrees on **12 of 27 — 44%** — and is a substantially different
+program, **yet it still drew 11 of 12 games.**
+
+So behavioural difference on the position set does NOT translate into game divergence, at least here.
+That is a different and more interesting problem than near-identity: the games are not sensitive to
+the thing the position set measures.
+
+**One data point, MCTS lineage, and not a finding.** It is recorded because it points somewhere the
+existing reasoning did not, and because the field now exists to accumulate more. The MAIN lineage,
+which is the one that has never promoted anything, has not produced an instrumented gate line yet.
+
+**Minor correction while here:** the code comment says identity is checked on "33 positions". In this
+configuration it is **27** — the guard set is 19 (10+4+5) plus 8 hard. The 33 assumed 25 guard
+positions. The count is printed now, so the number in the log is the number that was checked.
