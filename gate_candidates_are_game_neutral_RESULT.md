@@ -171,3 +171,40 @@ games are largely blind to, which produces game-neutral candidates as a side eff
 existing position sets are decoupled from games, a new position-set gradient must be shown to track
 game outcomes before anything is built on it. That caveat is already in `hardn_probe.sh`'s header,
 written before this measurement, and it now has a third piece of evidence behind it.
+
+## Against the plan's own intent: one of the mate objective's TWO jobs is being served
+
+I had been treating the position-set/game decoupling as a defect. `docs/MASTER_PLAN.md` item 1 gives
+the mate objective TWO declared jobs, and reading it changes what "decoupled" means:
+
+> add "mates found per node" to search-program fitness **alongside fixed-time SPRT**. Deeper/tighter
+> programs pay off on mate-finding immediately, before the eval knows anything. **More importantly:**
+> the characteristic failure of UNSOUND pruning is missing a forced mate, so this objective punishes
+> the "prune everything" degenerate solution directly. It is a rules-derived **counterweight** to
+> fixed-time fitness rewarding recklessness.
+
+**Job A — the counterweight — is WORKING, and the tree has the receipts.** `evolve.rs` records both
+known exploits being caught by exactly this: the depth exploit loses 8 guard positions and the alpha
+exploit 5. The guard blocks the degenerate "prune everything" solution, which the plan calls the more
+important of the two purposes. That job does not require any correlation with game outcomes at all —
+it only requires that unsound pruning show up as missed mates, and it does.
+
+**Job B — "deeper/tighter programs pay off on mate-finding immediately" — is NOT being served.**
+`search_track_WHY_NOTHING.md` established why: mates is saturated, a pass/fail filter rather than a
+gradient. Today's measurements add that the filter is loose as well as saturated — gated candidates
+sit at the FLOOR (16 of 19), having lost the maximum allowed, and still play near-identically in
+games.
+
+**So the honest statement is narrower than "the fitness is broken".** The fitness has two halves with
+different jobs, and the division of labour is deliberate: mates blocks recklessness, games measure
+strength. What is missing is a STRENGTH GRADIENT — job B — which mates was expected to supply early
+"before the eval knows anything" and does not.
+
+That is also why the decoupling is not, on its own, an argument against the position sets. A
+counterweight is allowed to be uncorrelated with strength; that is what makes it a counterweight
+rather than a second opinion. The problem is that nothing else is currently supplying the gradient,
+and the game gate — the half that is supposed to — cannot resolve at 6 pairs.
+
+**Correction to my own framing, recorded because I argued the other way earlier today:** "the guard
+filters on a dimension the games are blind to" is true and is NOT automatically a fault. It becomes a
+fault only because job B is unfilled, and the HARD set exists precisely to fill it.
