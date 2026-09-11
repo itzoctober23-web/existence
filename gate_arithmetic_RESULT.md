@@ -99,3 +99,37 @@ can distinguish "the gate is discarding winners" from "the candidates are genuin
 which is the question the search track has actually been stuck on.
 
 Readings are pre-registered in the script header.
+
+## What raising `gate_pairs` would actually buy
+
+The enumeration above says acceptance is impossible *conditional on* drawing >=4 of 6 pairs. The
+matching question is how often a genuinely better candidate escapes that condition — i.e. the gate's
+POWER. Simulated at the observed 85.7% draw rate, using the same `gate.rs` formula, 6000 trials per
+cell:
+
+```
+pairs |  true 0.500   true 0.530   true 0.550
+    6 |      2.1%         6.4%        10.6%
+   12 |      2.1%         8.8%        19.3%
+   24 |      3.3%        22.8%        53.0%
+   48 |      2.9%        35.8%        79.2%
+   96 |      1.9%        61.1%        98.1%
+  192 |      2.6%        89.2%       100.0%
+```
+
+The first column is the FALSE-ACCEPT rate and stays near 2-3% at every size: the rule is properly
+conservative and is not what needs fixing. The others are power. **At the shipped 6 pairs, a
+candidate that is truly 0.550 — roughly +35 Elo — is accepted 10.6% of the time.** Nine out of ten
+real improvements would be thrown away, which is fully consistent with 0 promotions in 21 calls.
+
+A ceiling worth stating separately: at an 85.7% draw rate a candidate winning EVERY decisive game
+still only scores `0.5*0.857 + 0.143 = 0.5714`. So ci95 must fall below 0.0714 before ANY candidate
+can pass, and at 6 pairs ci95 runs 0.08-0.25.
+
+**If the verify96 arm shows the gate discarding winners, 24 pairs is the recommended setting** — 53%
+power at 4x the cost, against 98% at 16x. It is `gate_pairs`, argument 7 of the binary.
+
+CAVEAT, because this is a model and not a measurement: it assumes the draw rate stays at 0.857 and
+that a candidate has one fixed true rate. Both are calibrated to the 21 matches on disk and neither
+is guaranteed for candidates the search has not produced yet. The power column is a design aid for
+choosing a pair count, not a result about any specific candidate.
