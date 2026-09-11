@@ -181,7 +181,22 @@ times and replace all k sites with calls, so one body of N nodes replaces kN.* T
 about STATIC SIZE and this cost model does not measure static size. Sharing a body does not reduce
 how often it runs; it adds a call charge to every execution. A multi-site lift is strictly worse
 than the single-site lift, not better. (Recorded as reasoning from the code, NOT as a measurement
-on a program — no lift has been benchmarked.)
+on a program.) **Superseded the same day: lifts HAVE now been benchmarked — see below.**
+
+**AND THE OTHER HALF OF THE PARKING RATIONALE WAS FALSE — measured 2026-09-11.** "AddFn is
+behaviour-preserving by construction" was asserted in three places and tested in none. It lifted
+`Set("best", Max(Var("best"), Var("vv")))` — alpha-beta's own score update — out of the seed and
+dropped the write, because `Node::Call` discards the callee's frame and `free_vars` does not report
+an assignment target as free (its comment says so explicitly, and that is right for what a site
+REQUIRES and wrong for what a lift must THREAD OUT). The program stayed well-typed and well-scoped,
+played a different move, and cost **91x LESS** — which under mates-per-cost makes a gutted candidate
+look FITTER, not worse, so the safety argument for parking pointed the wrong way.
+
+Fixed by a `contains_set` refusal mirroring `contains_ret`. Behaviour is now pinned by
+`interp/tests/add_fn_is_behaviour_preserving.rs` (180 of 180 comparisons identical, all returning a
+real move), the cost claim is measured at **≤ 1.004x** the parent rather than asserted as a bare
+"+2", and coverage is intact (539 applications still). Full account, including the controls that
+cleared the harness first, in `add_fn_drops_writes_RESULT.md`.
 
 Two consequences follow, and both were previously open:
 

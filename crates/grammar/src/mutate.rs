@@ -141,7 +141,15 @@ pub const ALL_OPS: [Op; 11] = [
 /// `Op::AddFn` is parked for a DIFFERENT reason than TReadIndex, and the distinction matters.
 /// TReadIndex is inert (it cannot change behaviour at all). AddFn is behaviour-PRESERVING by
 /// construction -- it is a refactor -- so every candidate it produces is its parent plus a `Call`
-/// node, which `interp::cost_of` charges 2. Under FITNESS 3 (mates per COST) that is strictly
+/// node, which `interp::cost_of` charges 2.
+///
+/// ⚠ "BEHAVIOUR-PRESERVING BY CONSTRUCTION" WAS FALSE UNTIL 2026-09-11, and the sentence is kept
+/// above because the correction is the point. AddFn lifted `Set("best", Max(Var("best"),
+/// Var("vv")))` -- alpha-beta's score update -- out of the seed and dropped the write, because
+/// `Node::Call` discards the callee's frame. The program played a different move and cost 91x LESS,
+/// which under mates-per-cost makes a gutted candidate look FITTER, not worse. `contains_set` now
+/// refuses it, `interp/tests/add_fn_is_behaviour_preserving.rs` pins it, and the cost claim is
+/// measured at <= 1.004x rather than asserted. See `add_fn_drops_writes_RESULT.md`. Under FITNESS 3 (mates per COST) that is strictly
 /// worse, so it cannot be accepted ON ITS OWN. Its value is as an ENABLER: it is the only operator
 /// that can raise `funcs.len()`, which `shape_reachability.rs` measured at 0 of 858, and
 /// `add-arg` cannot apply to anything until it runs (the entry is pinned to `choose(Pos, Int)`).
@@ -465,6 +473,36 @@ fn contains_ret(n: &Node) -> bool {
     matches!(n, Node::Ret(_)) || children(n).iter().any(|c| contains_ret(c))
 }
 
+/// A lift cannot carry a WRITE across a call boundary, so a subtree containing one must be refused.
+///
+/// MEASURED 2026-09-11, `interp/tests/add_fn_diagnose.rs`. On the bare alpha-beta seed AddFn lifted
+/// `Set("best", Max(Var("best"), Var("vv")))` -- the score update at the heart of the algorithm --
+/// into `lifted2(vv: Score) -> Unit`. `Node::Call` builds a FRESH env from the parameters, runs the
+/// body against it and DROPS it; only the return value escapes. So the callee assigned its own local
+/// `best` and the caller's was never updated. The seed played Move(6030); the "refactored" program
+/// played Move(1025) and cost 1,463,398 against 133,906,979 -- 91x CHEAPER, because the search had
+/// been gutted.
+///
+/// Nothing upstream catches this. `typecheck::free_vars` states the reason in its own comment --
+/// "a `Set` inside the subtree creates its own name, so it is not a requirement on the site" --
+/// which is right for deciding what a site REQUIRES and wrong for deciding what a lift must THREAD
+/// OUT. `best` was therefore never made a parameter, and `scope_check` sees the `Set` as a binder,
+/// so it reports no unbound read. A well-typed, well-scoped, semantically destroyed program.
+///
+/// THIS ALSO REVERSES THE SAFETY ARGUMENT FOR PARKING. `PARKED_OPS` says AddFn "cannot be accepted
+/// ON ITS OWN" because a candidate is its parent plus a `Call` and so strictly costlier. A lift that
+/// drops a write is not costlier, it is 91x cheaper, and FITNESS 3 is mates per COST. The operator
+/// was not harmlessly-worse; it could be spuriously-BETTER. (Whether such a candidate still finds
+/// enough mates to be selected is NOT measured here and is not claimed.)
+///
+/// Conservative on purpose: it refuses every `Set`, including one whose target the subtree itself
+/// binds and which would lift correctly. Deciding that needs exactly the binder analysis shown above
+/// to be wrong for this question, and the operator is parked, so a lost valid lift costs nothing
+/// while a lost write corrupts a candidate silently. Same shape as the `contains_ret` refusal.
+fn contains_set(n: &Node) -> bool {
+    matches!(n, Node::Set(..)) || children(n).iter().any(|c| contains_set(c))
+}
+
 /// GRAMMAR 4's `add-fn`: "split a subtree into a new function and call it."
 ///
 /// Measured absent for as long as anything has looked — `shape_reachability.rs` reports **0 of 858
@@ -490,6 +528,9 @@ fn try_add_fn(p: &Program, fi: usize, k0: usize) -> (Option<Program>, Placement)
     let sub = match get_nth(&p.funcs[fi].body, &mut k) { Some(x) => x, None => return (None, Placement::NoMatch) };
 
     if contains_ret(&sub) { return (None, Placement::NoMatch); }
+    // A write inside the lifted body would be made to the callee's discarded frame. See
+    // `contains_set` for the measurement that found this on the alpha-beta seed.
+    if contains_set(&sub) { return (None, Placement::NoMatch); }
     // Lifting a leaf buys a call node and nothing else; lifting the whole body just renames it.
     if matches!(sub, Node::Const(_) | Node::Var(_) | Node::Nop | Node::Budget) {
         return (None, Placement::NoMatch);

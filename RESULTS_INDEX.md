@@ -17,6 +17,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [add_fn_drops_writes_RESULT.md](add_fn_drops_writes_RESULT.md) | `Op::AddFn` was NOT behaviour-preserving — it lifted alpha-beta's score update and dropped the write, playing a different move 91x cheaper. Found, root-caused and fixed 2026-09-11 |
 | [gate_arithmetic_RESULT.md](gate_arithmetic_RESULT.md) | The 6-pair game gate cannot accept a candidate that draws, and 85.3% of its games are draws — this is arithmetic about the 6-pair RULE and is NOT an argument for raising `gate_pairs`, which `gate_power_RESULT.md` measured as buying more draws |
 | [gate_power_RESULT.md](gate_power_RESULT.md) | The P2 game gate: 0 accepts in 203 decisions — the GATE is settled, and the binding constraint is UPSTREAM: the GENERATOR has no gradient. Raising `gate_pairs`, swapping in a trained net, and any further acceptance rule are all MEASURED WRONG. Next P2 work is GRAMMAR 4 (type checker + mutation operators) |
 | [identity_does_not_predict_games_RESULT.md](identity_does_not_predict_games_RESULT.md) | Position-set identity does NOT imply identical games — measured, and PATH 1 rests on the inference |
