@@ -72,3 +72,45 @@ is what the HARD set was meant to supply before `hardn_probe` turned out to be r
 The 21 gate matches mix MAIN (budget 16) with MCTS (budget 256-1024) while `refmatch` runs at budget
 16 throughout, so the gate-vs-reference comparison is a first calibration rather than a controlled
 contrast. Matching the budgets would sharpen it and has not been done.
+
+## A natural experiment already in the logs: the SATURATED lineage almost never reaches the gate
+
+`search_track_WHY_NOTHING.md` argues qualitatively that MAIN's mate dimension is saturated — the
+seed scores 25/25, the guard is `f >= best_found`, so mates is "a pass/fail filter, never a
+gradient". The two lineages run side by side in every arm and differ in exactly that respect,
+which the run headers state:
+
+```
+lineage MAIN  seed  71 nodes, budget 16    -> 19/19 mates (floor 16)   SATURATED
+lineage MCTS  seed 131 nodes, budget 1024  -> 11/19 mates (floor 10)   PARTIAL
+```
+
+Counting how often each reaches the game gate at all, over the same 29 generations:
+
+```
+MAIN    3 gate calls / 29 generations = 0.10
+MCTS   26 gate calls / 29 generations = 0.90
+difference +0.79 +/- 0.08   z = +9.92
+```
+
+**A nine-fold difference.** The lineage whose fitness dimension has room to improve reaches the gate
+in nine generations out of ten; the saturated one reaches it in one. That is the consequence of
+saturation, measured, where the existing account had only the mechanism.
+
+### This is an ASSOCIATION, not a controlled test, and the confound is large
+
+MAIN and MCTS differ in far more than saturation: budget 16 against 256-1024, guard floor 16 against
+10, and two different search paradigms. Any of those could drive the gap. **Nothing here attributes
+the 9x to saturation** — it is consistent with the mechanism and would have embarrassed it had the
+saturated lineage gated MORE, which is the useful thing about it.
+
+The controlled version is the HARD-set experiment (`hardn_probe.sh`, now pointed at a binary where
+`EXISTENCE_HARD_N` actually works): add an unsaturated dimension to MAIN itself and see whether its
+gate rate moves, holding budget, floor and paradigm fixed.
+
+### Robustness of the numbers published above
+
+The gate figures in this file were computed on 21 completed matches; the arms have since produced
+29. Recomputed on all of them (348 games): draw rate 0.853 against 0.857, decisive 51/348 = 0.147
+against 0.143, and the two comparisons move from z = +3.68 to +3.67 and from +2.41 to +2.39. The
+conclusions are unchanged on a 38% larger sample.
