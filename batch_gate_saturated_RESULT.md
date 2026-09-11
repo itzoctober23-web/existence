@@ -94,3 +94,31 @@ Elo hole first.
   untouched, and a change that only fixes the *scale* may still reject everything.
 * K=5 is one setting, one seed, 7 decisions. What is solid is the operating point (0.948–0.972,
   measured) against a saturation band recorded two days earlier — that part needs no more data.
+
+
+## ⚠ CORRECTION — I published "0 KEEPs" from a RUNNING measurement, for the third time tonight
+
+The section above was written at 7 decisions and reported **"7 decisions, 0 KEEPs"**. The run
+continued. At 10 decisions it reads:
+
+```text
+batch gate g45  champ-vs-origin 0.981+/-0.010  base 0.960+/-0.014  increment +0.021+/-0.017 -> KEEP
+batch gate g50  champ-vs-origin 0.969+/-0.012  base 0.973+/-0.012  increment -0.004+/-0.017 -> ROLL BACK
+```
+
+**1 KEEP in 10.** So "K=5 freezes the loop" is too strong: it advances, roughly once per fifty
+generations, against K=1's 3 accepts in 45. The batch gate is not inert. It is *very* slow.
+
+Everything about the saturation stands and is now measured over more decisions, not fewer:
+**operating points 0.948–0.981, mean 0.963, and 10 of 10 at or above the 0.861 reversal point** —
+including the KEEP itself at **0.981**, the most saturated reading in the set, which is precisely
+where `instrument_saturation_RESULT.md` says the metric is least trustworthy.
+
+And the KEEP is worth reading closely: increment **+0.021 ± 0.017**, so it cleared its interval by
+0.004. On a scale whose top is 1.0 and whose sign has reversed at 0.967, a decision resting on
+0.004 of margin at an operating point of 0.981 is not a measurement anyone should bank.
+
+**The error is mine and it is a repeat.** Tonight I also called the 4PC anchor "saturated" from
+31-0-0 and retracted it three games later, and read a ruler trend as a 136 Elo collapse that
+`netmatch` refuted. `fourpc-truncated-llr-is-noise` exists for exactly this. **A partial result is
+not a result** — and the rule applies to a KEEP/ROLL-BACK tally as squarely as to an LLR.
