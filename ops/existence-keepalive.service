@@ -1,0 +1,13 @@
+[Unit]
+Description=Existence production trainer keepalive (restarts training if it dies; no decisions)
+
+[Service]
+Type=simple
+WorkingDirectory=/home/maswabe/existence
+ExecStart=/home/maswabe/existence/keepalive.sh
+Restart=always
+RestartSec=30
+Nice=19
+
+[Install]
+WantedBy=default.target
