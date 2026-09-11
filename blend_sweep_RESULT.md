@@ -218,3 +218,40 @@ defensible; pretending the 0.025 meant something would not be.
 No Elo is quoted for the change itself — it passed its gates. The 1544 is a pooled absolute-ruler
 reading of the promoted net, not a claim about the size of the blend effect, which netmatch puts at
 0.574 +/- 0.021 head to head.
+
+## THE UNANTICIPATED HALF — blend 0.75 LOSES to its own start on seed 2
+
+The full cross-seed table, all six matches:
+
+    comparison              seed 20260917        seed 20260918
+    0.85 vs 0.75            0.541 +/- 0.032      0.606 +/- 0.026     both clear
+    0.85 vs shared start    0.583 +/- 0.027      0.558 +/- 0.029     both clear
+    0.75 vs shared start    0.536 +/- 0.030      0.438 +/- 0.029     seed 2 does NOT clear
+
+**On seed 2, 2000 generations at the OLD blend made the net WORSE than the champion it started
+from.** That is not a small effect: the two 0.75 arms differ by `0.098 +/- 0.042` = **2.3 sigma**,
+a real seed-to-seed swing. The two 0.85 arms differ by `0.025 +/- 0.040` = 0.6 sigma — consistent.
+
+### So the ship rests on more than a mean
+
+The argument for 0.85 was "it beats 0.75 on the pooled contrast". The six matches say something
+stronger and different: **0.85 improves reliably, 0.75 does not improve reliably.** One arm of the
+shipped configuration actively degraded a champion over 2000 generations, and only the seed
+decided which.
+
+### This is the SECOND time today the shipped setting lost to its own start
+
+    lr sweep, this morning:  lr 0.0005 (then shipped) scored 0.412 against its own start
+    blend sweep, now:        blend 0.75 (then shipped) scored 0.438 on seed 2
+
+Both were the incumbent. Both were measured on matched full-length arms from a shared champion.
+The pattern is worth naming: **a shipped default that has never been re-measured at full length can
+be actively harmful, not merely suboptimal**, and the single-arm runs that shipped it originally
+could not have seen that — an arm that degrades its start looks identical to one that stalls unless
+you gate it against the start.
+
+### What it does not change
+
+The promotion decision is unaffected: `blend_085_s1.net` cleared against the incumbent on its own
+measurement (0.583 +/- 0.027) and that measurement is unchanged. And the 0.438 is one arm on one
+seed — it establishes that 0.75 CAN degrade, not that it usually does.
