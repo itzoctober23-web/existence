@@ -27,7 +27,28 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 ///
 /// It is a calibration constant and it is machine-specific. It affects only how much searching a
 /// given millisecond buys; it does not affect determinism, because the search stops on NODES.
-const NPS_PER_MS: u64 = 1000;
+/// **RE-MEASURED 2026-09-10: 1000 -> 2000.** The figure above was right when written and the engine
+/// has since got faster (the incremental accumulator, the shuffle-division fix), so the constant
+/// was silently costing time. Measured on the engine's OWN `go` at fixed depth 6 -- node counts are
+/// identical run to run, so only the time varies -- over 5 positions x 5 repeats, with two trainers,
+/// a 240-game 4PC anchor and a 224-pair netmatch all live on the box:
+///
+/// ```text
+///   min nps        3.34M - 4.38M
+///   median         2.37M - 4.07M
+///   WORST observed 2,239,873      <- under full contention
+/// ```
+///
+/// 2000 is below the WORST contended observation, i.e. rounded DOWN in the same spirit as the
+/// original. It is not set to 3000: that exceeds the worst case, and overspending is unsafe here
+/// because without iterative deepening an aborted search has no completed root move and returns
+/// `score cp -32000` with a random move.
+///
+/// Measured consequence of the stale value: `go movetime 8000` used **1.2% of its clock** (depth 5,
+/// 93 ms of 8 s). The remaining waste is the d5->d6 threshold being a 10x step, which only
+/// ITERATIVE DEEPENING would fix -- and MASTER_PLAN line 38 forbids seeding that, so it must be
+/// discovered by the search track rather than written in here.
+const NPS_PER_MS: u64 = 2000;
 
 /// How many nodes a full-width search costs at each depth, MEASURED BY THIS ENGINE on a single
 /// position, which is what a `go` actually has to pay for.
