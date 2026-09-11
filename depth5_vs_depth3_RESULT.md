@@ -88,3 +88,38 @@ levers are **capacity or search**, not labels.
 
 ⚠ The obvious capacity experiment is currently **mis-specified and would have silently measured
 nothing** — see `w64_misspecified_RESULT.md`.
+
+
+## ⚠ CORRECTED 2026-09-10 23:1x — the two arms sat at different depths in a RESUME TRANSIENT
+
+`resume_dip_RESULT.md` measured what a **depth-3** run does after resuming from this same champion,
+with the same flags, judged on the same instrument:
+
+| generations | score vs the champion it resumed from |
+|---|---|
+| 5 | 0.492 |
+| 25 | 0.411 |
+| 100 | **0.366** |
+| 4,327 | 0.557 |
+
+A resumed run gets **~95 Elo worse before it recovers**, and the dip has nothing to do with label
+depth. Interpolating, a depth-3 arm at **45** generations sits at **~0.39–0.40**.
+
+**The d5 arm ran 45 generations and scored 0.397.** That is indistinguishable from where a depth-3
+arm sits at the same generation count. So this experiment **cannot separate** *"depth-5 labels are
+worse"* from *"depth 5 completed too few generations to escape the transient"*. The control existed
+and was still not enough, because it ran 4,327 generations against d5's 45 — it did not match on the
+axis carrying the confound.
+
+**What still stands:** the practitioner's question — *given 2,400 seconds from this champion, which
+depth do I pick?* At the end of that budget depth 3 is at +39.8 Elo and depth 5 at −79.8, so **do
+not use depth 5 at this budget**. That conclusion is unaffected.
+
+**What is WITHDRAWN:** every claim about label QUALITY. "The datagen-depth lever is not monotone",
+"3 → 5 is a regression", and "the knee is at or below 3" are **not established**. Depth-5 labels
+have not been shown to be worse — only to be too slow, at this budget, to reach the part of the
+curve where they could show anything. Testing them properly needs matched GENERATION counts, which
+means giving the depth-5 arm roughly 96× the wall clock.
+
+The section above headed "The prediction, and it held" should be read as: the prediction about the
+BUDGET held; the reasoning offered for it (label information) was not tested by this design.
