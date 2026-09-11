@@ -73,3 +73,31 @@ replication"). Neither is closed.
    a floating-point crumb rather than exactly 0 and a `<= 0` guard misses it. The fit reported
    slope +354.7 with an SE of **1.2e17**. Now refused explicitly, and the row still PRINTS as
    "NO TREND DEFINED" -- a dropped row reads as "not measured".
+
+## UPDATE 10:3x — the flat bound tightens by 4x, and a configuration change clears it
+
+`prodk0759` has since reached 22,141 generations and 28 ruler rungs. The same weighted fit, now on
+2.6x the span and 2.8x the rungs:
+
+    earlier   n=10  gens 26-8584    1481 +/- 19   slope +1.0 +/- 7.1   z=+0.14
+    now       n=28  gens 26-22141   1476 +/- 11   slope -0.6 +/- 1.6   z=-0.38   chi2/dof 0.31
+
+**The slope's error bar shrank 4.4x and the answer did not move.** Over the full 22,115-generation
+span the implied total change is `-13 +/- 35` Elo — zero, measured tightly rather than merely
+unresolved. chi2/dof of 0.31 says the quoted per-sample error bars more than account for the
+scatter.
+
+### What that makes of the blend arms
+
+    production, 22,141 generations at blend 0.75    1476 +/- 11
+    blend 0.75 arm, 2,000 generations               1490 +/- 30
+    blend 0.85 arm, 2,000 generations               1544 +/- 32
+
+The 0.85 arm sits `+68 +/- 34` above the production lineage — 2.0 sigma. Stated carefully, because
+this is NOT a controlled contrast: production and the arms share a champion but differ in elapsed
+training and in when they branched. **The controlled comparison remains the paired head-to-head,
+0.541 +/- 0.032 = +29 Elo**, and the arms-vs-each-other ruler contrast, `+54 +/- 44`.
+
+What the production number does establish is the BASELINE the configuration change is being asked
+to beat: 22,000 generations of training at the shipped blend bought `-13 +/- 35` Elo, and 2,000
+generations at a different blend is the only thing on file that has moved the altitude at all.
