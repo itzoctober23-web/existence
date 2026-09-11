@@ -54,7 +54,11 @@ cp -f "$BIN" "$SNAP/evolve"
 say "snapshot $(md5sum "$SNAP/evolve" | cut -c1-12)"
 
 run_arm(){ # $1=label $2=proposals(empty=default)
-  local lab=$1 prop=$2 out="prop_${lab}.log"
+  # SPLIT, and not for style: in `local a=$1 b="x${a}"` bash expands EVERY right-hand side
+  # BEFORE performing any of the assignments, so ${a} is still unbound at expansion time and
+  # `set -u` aborts. That is what killed the first run at line 57.
+  local lab=$1 prop=$2
+  local out="prop_${lab}.log"
   say "arm $lab: EXISTENCE_PROPOSALS=${prop:-<unset, = pop>}  $GENS gens, seed $SEED"
   if [ -n "$prop" ]; then
     EXISTENCE_EVOLVE_SEED=$SEED EXISTENCE_PROPOSALS="$prop" \
