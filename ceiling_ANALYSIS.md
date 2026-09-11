@@ -176,3 +176,39 @@ luck, not design.
 
 The rule has no safe version: do not edit a running script. Not "edit carefully", not "edit and
 revert quickly".
+
+---
+
+## RESOLVED 2026-09-11 — the ceiling was the LEARNING RATE, and this file named the right suspect
+
+This analysis concluded, from 44 readings mined at zero compute, that the flat band was **the
+training procedure's ceiling rather than a gating failure**. That was the correct call, and it is
+now settled by a lever inside the training procedure.
+
+`lr` was a hardcoded literal `0.01` in `main.rs`, never exposed and never varied — the one generator
+knob adjacent to everything this file examined that nobody had tested. Matched arms, same start,
+same seed, 2,000 generations each:
+
+| lr | vs the shared start |
+|---|---|
+| 0.01 (what every run above used) | 0.358 – 0.499 |
+| 0.002 | 0.544 – 0.692 |
+| **0.0005** | **0.589 / 0.625 / 0.628** across three independent runs |
+
+`trainer.rs` is plain SGD with no momentum and no schedule, so a constant step keeps displacing the
+weights by the same amount however close to a basin they are. Measured in weight space: the 0.01 arm
+travelled **1.73× farther** than the 0.002 arm and gained nothing — displacement without progress,
+which is exactly the flat band this file plotted.
+
+**So the "FLAT" trajectories above are not a property of the method. They are a property of one
+number.** Every run in the table was taken at lr 0.01, including both long runs whose flatness was
+the evidence. That is not a criticism of the analysis — it is the analysis being right: it located
+the failure inside the training procedure and said so while the gating explanation was still live.
+
+**Also closed:** `lr_decay_RESULT.md` shows the fix is not a schedule. A constant 0.0005 beats a
+decay from 0.002 that *ends* at the same rate, so there is no ceiling-shaped curve to ride down —
+just a step size that was too large.
+
+**Still open, and this file's framing still applies to it:** where the optimum sits. 0.01 → 0.002 →
+0.0005 improved at every step and nothing brackets it from below; `lr_sweep_low.sh` is testing
+0.0002 and 0.0001. If those do not pay, the rate lever is spent and the next ceiling is elsewhere.

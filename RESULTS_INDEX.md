@@ -86,10 +86,10 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
+| [ceiling_ANALYSIS.md](ceiling_ANALYSIS.md) | The plateau is the TRAINING PROCEDURE'S CEILING, not a gating failure |
 | [search_track_WHY_NOTHING.md](search_track_WHY_NOTHING.md) | Why the MAIN lineage has never produced an improvement, and structurally cannot |
 | [EXPERIMENTS.md](EXPERIMENTS.md) | EXPERIMENTS — what was tried, and why it failed |
 | [fitness_spec_gap_FINDING.md](fitness_spec_gap_FINDING.md) | The surrogate is not the one FITNESS §3 specifies — and that explains the saturation |
-| [ceiling_ANALYSIS.md](ceiling_ANALYSIS.md) | The plateau is the TRAINING PROCEDURE'S CEILING, not a gating failure |
 | [search_track_FINDING.md](search_track_FINDING.md) | The search track's surrogate rewarded searching LESS (2026-09-08) |
 | [NET_TRACK_STATE.md](NET_TRACK_STATE.md) | The NET track, summarised across every configuration tried (2026-09-08) |
 | [surrogate_validation.md](surrogate_validation.md) | The accept/reject surrogate does not predict strength — measured (2026-09-08) |
@@ -116,7 +116,7 @@ being asked.
 | gate & thresholds | gate_power,EXPERIMENTS replay_ab_CAVEAT,ladder_valley search_track_WHY_NOTHING |
 | calibration | static_deep_residual,confident_when_wrong search_track_FINDING,movegen_leaf lr_sweep |
 | speed/nps | speed_cannot_pay,throughput movegen_leaf,depth2x2 path1_is_empty |
-| plateau | EXPERIMENTS,learning_rate_is_the_plateau fitness_saturation,ceiling_ANALYSIS width |
+| plateau | EXPERIMENTS,ceiling_ANALYSIS learning_rate_is_the_plateau,fitness_saturation width |
 
 ## Non-`_RESULT` files worth knowing
 
