@@ -84,7 +84,7 @@ are a sweep (0.005 / 0.002 / 0.001 / 0.0005) and a **decay schedule**, which is 
 above actually argues for — a large step early and a small one late, rather than a small step
 throughout. A fixed lower rate may simply be trading early progress for late convergence.
 
-**Not replicated.** One seed. The effect is ~4× the between-seed sd, which is far stronger than
+**~~Not replicated.~~ REPLICATED 2026-09-11 02:15** (`lr_sweep_RESULT.md`): a fresh seed (20260912) and a *different start* — the new champion, already trained at 0.002 — gave lr 0.01 → 0.358 ± 0.026 against lr 0.002 → 0.544 ± 0.025. That also kills the rival reading that the effect was only recovery from a net plateaued AT 0.01. Corroborated by a second *instrument* too (`static_deep_residual --ref`), which predicted the full ordering before the matches reported. Originally:  One seed. The effect is ~4× the between-seed sd, which is far stronger than
 anything else measured tonight, but a second seed is cheap and should be run before this is treated
 as settled.
 

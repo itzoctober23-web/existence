@@ -9,8 +9,9 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
-| [static_deep_residual_RESULT.md](static_deep_residual_RESULT.md) | Half of the P1 kill criterion has never been measurable — the static-vs-deep residual, built and refuted |
 | [learning_rate_is_the_plateau_RESULT.md](learning_rate_is_the_plateau_RESULT.md) | The plateau was the learning rate — 0.692 against 0.499, on a knob never once varied |
+| [lr_sweep_RESULT.md](lr_sweep_RESULT.md) | The lr result replicates on a fresh seed and a different start — and the optimum is lower still |
+| [static_deep_residual_RESULT.md](static_deep_residual_RESULT.md) | Half of the P1 kill criterion has never been measurable — the static-vs-deep residual, built and refuted |
 | [promotion_was_sound_RESULT.md](promotion_was_sound_RESULT.md) | The champion's promotion was sound — my suspicion that it was a lucky seed is refuted |
 | [nontransitive_walk_RESULT.md](nontransitive_walk_RESULT.md) | The production run IS improving — 0.541 over 2,650 generations, while its 5-generation steps are not |
 | [games_per_gen_RESULT.md](games_per_gen_RESULT.md) | Quadrupling the data per generation changes nothing — 0.4642 against 0.4684 |
