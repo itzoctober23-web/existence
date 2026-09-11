@@ -94,3 +94,44 @@ tactics a flat search misses, at 1.679x the cost.
 The strength question (which program is better) is NOT part of this reading. Arm 1 already showed
 0.510 +/- 0.020 is unresolvable at this pair count, and the same will be true of arm 2. **This is a
 test about VARIANCE and divergence, not about Elo**, and it must not be reported as one.
+
+## A MECHANISM, registered before arm 2 reported, because arm 2 is already its discriminator
+
+The two measurements now on record point at the same thing from opposite sides:
+
+* `identity:12/27` (44% agreement on the position set) with `W-D-L 0-11-1` — a near-total draw.
+* hash reuse, ~100% agreement on the position set, **31.2% decisive**.
+* real gate candidates, **14.3% decisive**, significantly BELOW hash reuse at z = 2.41.
+
+**HYPOTHESIS: the mate guard selects for game-neutrality, and the game gate then cannot resolve what
+the guard let through.**
+
+The chain, each link already established in the tree rather than assumed:
+
+1. `search_track_WHY_NOTHING.md`: the guard is `f >= best_found`, the seed scores 25/25, so **every
+   surviving candidate also scores exactly 25**. Mates is a pass/fail filter, not a gradient.
+2. Therefore every candidate that reaches the game gate solves the SAME tactical positions as the
+   champion. The guard has already filtered out anything that changed tactical behaviour.
+3. Tactical equivalence on the mate set implies similar play in the tactical moments that decide
+   weak-engine games, so the games draw.
+4. Draws collapse the pentanomial variance, which is the condition `gate_arithmetic_RESULT.md` proves
+   makes acceptance impossible at 6 pairs.
+
+If this holds, the fitness's two halves are in **direct tension**: the mate guard demands behavioural
+PRESERVATION, and the game gate demands behavioural DIFFERENCE. A candidate cannot supply both, and
+the search track's zero promotions follow from the fitness's own structure rather than from any bug.
+
+**WHAT WOULD FALSIFY IT, and it is already running.** `capture` breaks tactical preservation by
+construction — the extension exists precisely to see tactics a flat search misses. So:
+
+* capture's decisive rate **clearly above the gate's 14.3%** → consistent with the mechanism. A
+  program that changes tactics diverges in games; guard-survivors, which cannot change tactics, do
+  not.
+* capture's decisive rate **at or below 14.3%** → **the mechanism is WRONG.** Breaking tactical
+  preservation would then not increase game divergence, and step 3 fails.
+
+Registered now, with the discriminator already in flight, so this is a prediction rather than a
+story told afterwards about whatever number arrives. If it survives, the next question is whether
+the mate guard can be made a gradient instead of a pass/fail filter — which is exactly what
+`hardn_probe` was trying to establish with the HARD set before it turned out to be measuring an
+inert knob.
