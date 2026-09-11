@@ -19,7 +19,30 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 say(){ printf '%s\n' "$*"; }
+# TRAINER logs emit exactly ONE line per generation -- verified 2026-09-11 on prodk1056.log:
+# 28,121 lines, 28,121 distinct generation numbers, max gen 28,121. So counting lines is correct
+# HERE and the ~70 scripts in this tree that do it are not buggy.
 gens(){ local n; n=$(grep -cE '^[[:space:]]*gen ' "$1" 2>/dev/null); echo "${n:-0}"; }
+
+# EVOLVE logs are NOT the same shape and must never use the counter above. Each generation emits a
+# line per LINEAGE (MAIN, MCTS) plus a VERIFY line when the observer is on, so the line count
+# overstates generations -- measured at 3.5x on prop_verify96.log, where 7 lines were 2 generations.
+#
+# I made exactly that error in status checks on 2026-09-11, reporting "7 gens" for an arm that had
+# completed 2, which also made the arm look 3.5x faster than it is. This exists so the number comes
+# from a tool that knows the difference instead of an ad-hoc grep that does not.
+evolve_gens(){
+  python3 - "$1" <<'PYX' 2>/dev/null
+import re, sys
+try: txt = open(sys.argv[1], errors='ignore').read()
+except OSError: print("0 0 0"); raise SystemExit
+lines = [l for l in txt.split('\n') if re.match(r'\s*gen\s+\d+', l)]
+gens  = {int(re.match(r'\s*gen\s+(\d+)', l).group(1)) for l in lines}
+ver   = sum(1 for l in lines if 'VERIFY' in l)
+gate  = sum(1 for l in lines if re.search(r'gate (REJECT|ACCEPT)', l))
+print(f"{len(gens)} {ver} {gate}")
+PYX
+}
 
 say "=== EXISTENCE EXPERIMENTS  $(date '+%H:%M:%S') ==="
 
@@ -81,3 +104,13 @@ done
 
 say "-- repo"
 say "   existence: $(git status --porcelain 2>/dev/null | wc -l) dirty"
+
+# ---- EVOLVE ARMS: distinct generations, not line counts ---------------------------------------
+say "-- evolve arms (DISTINCT generations; a line count overstates these ~3.5x)"
+for lg in prop_verify96.log prop_hardn40.log prop_long32.log; do
+  [ -f "$lg" ] || continue
+  read -r g v gt <<EOF
+$(evolve_gens "$lg")
+EOF
+  printf '   %-22s %3s generations  %2s VERIFY  %2s gate calls\n' "$lg" "${g:-0}" "${v:-0}" "${gt:-0}"
+done
