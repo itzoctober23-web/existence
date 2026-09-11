@@ -100,6 +100,24 @@ def main():
         print("  result in either direction.")
         return 1
 
+    # UNEQUAL ARMS. Each cell is wrapped in a `timeout`, and the prop32 cells propose 8x the
+    # candidates per generation, so they can be CUT OFF after fewer generations than the control.
+    # Comparing a 6-generation arm against a 2-generation one confounds the lever with the amount
+    # of training -- the exact failure that invalidated the first low-lr sweep, whose arms were
+    # unmatched at ~650 generations. Report it loudly rather than quietly dividing by a different n.
+    ns = {lab: d['n'] for lab, d in res.items()}
+    lo, hi = min(ns.values()), max(ns.values())
+    if hi > 0 and lo < hi:
+        print(f"  ** UNEQUAL ARMS: generations per cell {ns}")
+        if lo * 2 <= hi:
+            print("     The shortest arm has less than HALF the generations of the longest. The")
+            print("     comparison below is CONFOUNDED with training amount and is not a verdict --")
+            print("     re-run with a longer timeout before reading any direction from it.")
+        else:
+            print("     Mild imbalance; the per-generation rates below are still comparable, but the")
+            print("     absolute totals are not.")
+        print()
+
     def rate(lab, key):
         d = res.get(lab)
         return (d[key] / d['n']) if d else None
