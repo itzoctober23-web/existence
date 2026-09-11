@@ -47,6 +47,49 @@ fn agrees_with_legal_moves_on_a_random_corpus() {
     eprintln!("checked {checked} positions, {terminal} of them terminal");
 }
 
+/// Play games to ACTUAL termination and collect the positions with no legal move, plus the ply
+/// before each. The bounded walk above reached only 2 terminal positions in 4,000 — which is a
+/// coverage problem, not a chess fact: `has_legal_move`'s whole purpose is to return `false`
+/// correctly, and a wrong `true` means the search scores a mate as an ordinary position.
+fn terminal_corpus(games: usize, seed: u64) -> (Vec<Position>, Vec<Position>) {
+    let mut rng = seed | 1;
+    let mut rnd = move || { rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17; rng };
+    let (mut terminal, mut near) = (Vec::new(), Vec::new());
+    for _ in 0..games {
+        let mut p = Position::startpos();
+        let mut prev = p.clone();
+        for _ in 0..400 {
+            let l = p.legal_moves();
+            if l.is_empty() { terminal.push(p.clone()); near.push(prev.clone()); break; }
+            prev = p.clone();
+            p.make_move(l.as_slice()[(rnd() % l.len() as u64) as usize]);
+        }
+    }
+    (terminal, near)
+}
+
+#[test]
+fn agrees_on_positions_that_really_have_no_legal_move() {
+    let (terminal, near) = terminal_corpus(3000, 0xDEADBEEF);
+    // COVERAGE IS PART OF THE ASSERTION. If random play stopped reaching terminal positions this
+    // test would pass while proving nothing about the branch it exists for.
+    assert!(terminal.len() >= 50,
+        "only {} terminal positions found -- the `false` branch is effectively untested and this \
+         file's guarantee is hollow", terminal.len());
+    for p in &terminal {
+        assert!(!p.has_legal_move(),
+            "has_legal_move returned TRUE for a position with no legal move: {}", p.to_fen());
+        assert!(p.legal_moves().is_empty(), "corpus invariant broken at {}", p.to_fen());
+    }
+    // The ply BEFORE termination is where the fast path is under most pressure: the king is usually
+    // boxed in, so the cheap check fails and the fallback decides.
+    for p in &near {
+        assert_eq!(p.has_legal_move(), !p.legal_moves().is_empty(),
+            "disagreement one ply before termination: {}", p.to_fen());
+    }
+    eprintln!("terminal positions checked: {}, near-terminal: {}", terminal.len(), near.len());
+}
+
 #[test]
 fn agrees_on_hand_written_terminal_positions() {
     // Each of these exercises a branch the random walk reaches too rarely to rely on.
