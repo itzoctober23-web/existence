@@ -1,4 +1,4 @@
-# The schedule is not the lever — ending low is. lr 0.0005 shipped, and loss tracks strength backwards
+# The schedule is not the lever — ending low is. lr 0.0005 shipped
 
 **2026-09-11 03:00.** Three arms, 2,000 generations each, same start (`p1_champion`), **same seed
 (20260914)**, differing only in the learning-rate schedule. Verdict by `netmatch` against the shared
@@ -79,7 +79,7 @@ configuration and itself. It is also why the C-over-B gap above is left unclaime
 > **What survives:** loss must not be used to select or veto candidates here. That conclusion is
 > unchanged — it just rests on `proxies_RESULT.md`, not on these three points.
 
-## The cleanest evidence yet that training loss runs BACKWARDS to strength
+## Loss and strength ordered oppositely here — but lr drives both, so this is not evidence
 
 All three arms are matched — one run, one seed, one start — so loss and strength are directly
 comparable:
@@ -90,10 +90,11 @@ comparable:
 | B (decaying) | 0.02690 | 0.586 |
 | C (0.0005) | **0.03550** | **0.628** |
 
-**Perfectly monotone, and inverted: the arm with the lowest training loss is the weakest, and the
-arm with the highest is the strongest.** Every previous statement of this came from comparing
-different runs or different instruments (`epochs_ab`, `depth5_vs_depth3`). Here it is one run, three
-matched arms.
+Perfectly monotone, and inverted. **It is still not evidence of a causal relationship**, for the
+reason in the correction above: the three arms differ in learning rate, and a lower rate mechanically
+fits the data less per generation whatever it does to strength. One variable moves both columns.
+Recorded because it is a real property of these runs and because the temptation to read it as a
+finding is exactly what `proxies_RESULT.md` already ruled out at n=239.
 
 The decaying arm's loss also *interpolates* from A's level to C's as its rate falls (0.0231 over
 generations 1–200 → 0.0384 over the last 200), which is an independent confirmation that
@@ -101,7 +102,8 @@ generations 1–200 → 0.0384 over the last 200), which is an independent confi
 
 **Consequence, already recorded separately:** `arch_surrogate_filter_RESULT.md` — the ARCH arm vetoes
 candidates whose held-out loss is >0.5% worse than the champion's, 33 of 97 proposals killed that way
-without ever playing a game. On this evidence that filter points the wrong way.
+without ever playing a game. Not because the filter points the wrong way, but because it filters on a
+signal measured at r ≈ 0: a one-sided veto built on noise discards a third of the search for nothing.
 
 ## What this closes and what it opens
 
