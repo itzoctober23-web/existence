@@ -154,14 +154,25 @@ alpha = beta = 0.05 (LLR bound 2.944), `EXISTENCE_GATE_MAXPAIRS` default 400.
 n than the 21 matches used here:
 
 ```
-0 accepts in 203 decisions
-46.8% of decisions had ZERO observed variance
+evolve.rs comment claims:   0 accepts in 203 decisions,  46.8% zero observed variance
+RE-MEASURED 2026-09-11:     0 accepts in 489 decisions,  28.6% zero observed variance (140/489)
 ```
+
+The comment is a HYPOTHESIS until re-measured, so it was. **The zero-accept finding is confirmed and
+STRONGER** — 0 in 489 gate decisions across every evolve log on disk, against the comment's 203 and
+this file's 21. The variance share is **stale**: 28.6% now, not 46.8%, because more runs have
+accumulated since the comment was written and the mix changed. Use 489/0 and 28.6%.
+
+A trap worth naming: `ledger.jsonl` parses to 41 entries with **24 "accepts"**, which flatly
+contradicts 0. Those are the artifact `gate.rs:72-83` documents — matches that played ZERO games,
+where `rate() = 0/1` and the binomial fallback gives `ci95 = 0`, so `resolved` was written true for a
+match that measured nothing. The honest count is 0. Any future claim sourced from the ledger's accept
+field is reading manufactured data.
 
 Zero observed variance means every pair landed in one bucket, so `ci95 = 1.5/n = 0.25`, and
 acceptance would need `rate > 0.75` from a match whose rate is 0.5 by construction. Those 46.8% were
-unacceptable before a single game was played. That is an independent corroboration of the
-enumeration above, and it supersedes the 21-match sample as the headline number.
+unacceptable before a single game was played. That is an independent corroboration of the enumeration above at 23x the sample, and it
+supersedes the 21-match count as the headline number.
 
 ### The bound to use is NOT the default, and the spec says why
 
