@@ -47,11 +47,17 @@ def summarise(path, label):
         rows.append(dict(gen=int(m.group(1)), lineage=m.group(2),
                          cand=g(CAND), ill=g(ILL), mate_ok=g(MATEOK),
                          distinct=g(DISTINCT), pop=g(POP)))
+    # MAIN ONLY. evolve runs two INDEPENDENT lineages (MAIN and MCTS) and logs one line each per
+    # generation, so counting lines as generations both inflates the denominator and pools two
+    # populations that are not comparable -- MAIN proposes 4 candidates per generation here and
+    # MCTS proposes 2. Read uncorrected, the control cell showed "1/7 generations with a choice";
+    # the single qualifying row was an MCTS row and MAIN's true figure is 0/4.
+    rows = [r for r in rows if r['lineage'] == 'MAIN']
     if not rows:
         print(f"  {label:<9} 0 generation lines parsed -- check the PATTERN before concluding the")
         print(f"  {'':<9} arm failed; these lines are INDENTED and an anchored '^gen ' finds none.")
         return None
-    n = len(rows)
+    n = len({r['gen'] for r in rows})   # DISTINCT generations, not log lines
     tot_cand = sum(r['cand'] for r in rows)
     tot_ok = sum(r['mate_ok'] for r in rows)
     multi = sum(1 for r in rows if r['distinct'] > 1)

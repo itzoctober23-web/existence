@@ -33,6 +33,15 @@ CELLS = [
 
 
 def parse(path):
+    """Rows keyed by (generation, LINEAGE).
+
+    EVOLVE RUNS TWO INDEPENDENT LINEAGES -- MAIN and MCTS -- and logs ONE LINE EACH per
+    generation. Counting lines as generations is a unit error twice over: it inflates the
+    denominator (7 lines were only 4 generations) and it POOLS two populations that are not
+    comparable -- in the control arm MAIN proposes 4 candidates per generation and MCTS proposes 2,
+    with different seeds and different reference programs. A "1/7" built that way understates a
+    1/4 and mixes two searches into one fraction.
+    """
     if not os.path.exists(path):
         return None
     rows = []
@@ -48,10 +57,19 @@ def parse(path):
     return rows or None
 
 
+def by_lineage(rows):
+    out = {}
+    for r in rows:
+        out.setdefault(r['lineage'], []).append(r)
+    return out
+
+
 def main():
     print("  WHICH LEVER GIVES SELECTION A CHOICE?")
     print("  baseline on file: 5 of 79 generations (6%) had more than one distinct fitness")
     print()
+    print("  (MAIN lineage only -- MCTS is a separate search with its own population and is not")
+    print("   pooled with it; generations are DISTINCT gen numbers, not log lines)")
     print(f"  {'cell':<10} {'configuration':<26} {'gens':>4} {'prop':>5} {'ok':>4} "
           f"{'>1 distinct':>12} {'>=1':>5} {'pop':>4}")
     res = {}
@@ -60,14 +78,22 @@ def main():
         if not rows:
             print(f"  {lab:<10} {cfg:<26} {'--':>4}  (no parseable generations)")
             continue
-        n = len(rows)
-        prop = sum(r['cand'] for r in rows)
-        ok = sum(r['mate_ok'] for r in rows)
-        multi = sum(1 for r in rows if r['distinct'] > 1)
-        anyd = sum(1 for r in rows if r['distinct'] > 0)
-        res[lab] = dict(n=n, prop=prop, ok=ok, multi=multi, anyd=anyd, pop=rows[-1]['pop'])
+        lins = by_lineage(rows)
+        # MAIN is the lineage the search track's accepts would come from; report it as the cell's
+        # headline and show MCTS beside it rather than averaging two different searches together.
+        main = lins.get('MAIN', [])
+        if not main:
+            print(f"  {lab:<10} {cfg:<26} (no MAIN lineage rows)")
+            continue
+        n = len({r['gen'] for r in main})
+        prop = sum(r['cand'] for r in main)
+        ok = sum(r['mate_ok'] for r in main)
+        multi = sum(1 for r in main if r['distinct'] > 1)
+        anyd = sum(1 for r in main if r['distinct'] > 0)
+        res[lab] = dict(n=n, prop=prop, ok=ok, multi=multi, anyd=anyd, pop=main[-1]['pop'],
+                        others={k: len({r['gen'] for r in v}) for k, v in lins.items() if k != 'MAIN'})
         print(f"  {lab:<10} {cfg:<26} {n:>4} {prop:>5} {ok:>4} "
-              f"{str(multi)+'/'+str(n):>12} {anyd:>5} {rows[-1]['pop']:>4}")
+              f"{str(multi)+'/'+str(n):>12} {anyd:>5} {main[-1]['pop']:>4}")
     print()
     if len(res) < 2:
         print("  Fewer than two cells have run. No comparison is made -- a missing arm is not a")
