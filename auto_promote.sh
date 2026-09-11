@@ -76,8 +76,20 @@ print('PROMOTE' if r-c>=0.5 else ('REGRESSION' if r+c<0.5 else 'hold'))" 2>/dev/
       # Measured as better, but $n arms are training: promoting one into the champion both arms
       # are judged against would change the A/B's baseline mid-experiment.
       echo "$(date '+%H:%M') $(basename $cand) gen $G: PASSES but $n arms training -- NOT promoting  $rate +/- $ci"
+    elif [ "$verdict" = "REGRESSION" ] && [ "${G:-0}" -lt 1000 ]; then
+      # THE RESUME TRANSIENT IS NOT A REGRESSION, and calling it one makes this a false alarm on
+      # every fresh run. resume_dip_RESULT.md measured a resumed arm against the champion it
+      # resumed from: 0.492 at gen 5, 0.411 at gen 25, 0.366 at gen 100 (-95.4 Elo), recovering to
+      # 0.557 by gen 4,327. Sub-parity before ~1,000 generations is the EXPECTED shape, reproduced
+      # independently by this very script (it read 0.362 +/- 0.031 at gen 108 against that run's
+      # 0.366 +/- 0.035 at gen 100 -- two harnesses agreeing to 0.004).
+      #
+      # A monitor that fires on normal behaviour trains its reader to ignore it, which is worse
+      # than silence. Still REPORTED, because a deeper-than-expected dip is worth seeing -- just
+      # not labelled as a fault.
+      echo "$(date '+%H:%M') $(basename $cand) gen $G: transient $rate +/- $ci  (below 0.5, but gen $G < 1000 -- expected resume dip, see resume_dip_RESULT.md)"
     elif [ "$verdict" = "REGRESSION" ]; then
-      echo "$(date '+%H:%M') $(basename $cand) gen $G: REGRESSION $rate +/- $ci  (interval entirely below 0.5)"
+      echo "$(date '+%H:%M') $(basename $cand) gen $G: REGRESSION $rate +/- $ci  (interval entirely below 0.5, PAST the resume transient)"
     else
       echo "$(date '+%H:%M') $(basename $cand) gen $G: hold       $rate +/- $ci"
     fi
