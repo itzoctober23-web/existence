@@ -204,3 +204,40 @@ An ascending run of three noisy points is not a trend, and I published it as one
 seeing it. The guard against this is the one already applied to the ruler: **quote the noise with
 the number**. Had the first addendum carried the +/-4.3 / +/-6.4 / +/-8.2 columns, "five-fold"
 would not have survived writing it down.
+
+---
+
+## FINAL — the matched paired comparison, both arms complete
+
+Both arms finished. prop32 costs ~8x per generation and stopped at 4 generations against the
+control's 6, so the comparison is taken on the COMMON RANGE — the first 4 generations of each,
+which is a like-for-like paired read (same seed, same pop, same sets, same binary).
+
+    cell      gens  proposed  guard survivors  generations with a CHOICE
+    control      4        16                1                    0/4
+    prop32       4       128               22                    4/4
+
+    choices:  Fisher exact two-sided  p = 0.029
+    guard:    6.2% (1/16) vs 17.2% (22/128) = +10.9 +/- 6.9  (1.6 sigma) -- NOT separable
+
+**The choice column is the primary and it is decisive.** The guard-rate difference is not, and the
+control's 1/16 is consistent with both the historical 10.5% and prop32's 17.2% — so nothing here
+claims the fix improves candidate QUALITY, only that it stops starving selection.
+
+### Why the arms being unequal did not cost the result
+
+The reporter flagged `{control: 6, prop32: 4}` as a mild imbalance and compared on the common range
+rather than discarding the data or dividing by different denominators. Comparing gens 1-4 against
+gens 1-6 would have confounded the lever with training amount — the exact failure that invalidated
+the first low-lr sweep, whose arms were unmatched at ~650 generations.
+
+### The claim, stated at the size the evidence supports
+
+* **Established:** 32 proposals per generation gives selection a choice in every generation
+  measured, where 4 proposals gave none in six. p = 0.029, and the binomial predicts it
+  (`P(>=2 survivors)` = 0.062 at 4 proposals against 0.879 at 32, using the arm's own measured
+  guard rate).
+* **Not established:** that the guard rate improves, that the effect compounds (refuted above —
+  it STEPS), or that any of it produces an ACCEPT.
+* **The open question is unchanged and is the one that matters:** `search_long_run.sh`, 40
+  generations on a fresh seed, with the accept count as the primary metric.
