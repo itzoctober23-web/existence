@@ -1,5 +1,53 @@
 # Existence — current state, 2026-09-11
 
+## 🎯 TRACK A — UNCERTAINTY HEAD: built at parity, exposed, measured, and the sign is backwards
+
+Status line he asked for, 2026-09-11 18:1x.
+
+**Head: BUILT, PARITY PROVEN, UNTRAINED.** A second linear output over the shared trunk
+(`nnue::Net::spread`/`spread_from`). Zero-initialised, so it reports exactly 0 and cannot move a
+game. Asserted rather than reviewed (`crates/nnue/tests/uncertainty_head_parity.rs`): `eval` is
+unchanged with a populated head, the champion still loads, a zero head round-trips byte-identical to
+the champion file, schema v2 is a strict prefix-extension of v1, and widening preserves spread and
+eval. Save still writes **v1** when the head is zero, because the trainer, the P2 arms and the ruler
+all run from snapshot binaries that cannot read v2.
+
+**Grammar: `unc(p) -> Int` is a GIVEN ROW and is CONSTRUCTIBLE.** Priced as an eval (165), not the
+`_ => 2` default that would have made it 80x underpriced under mates-per-cost. Exposing it did not
+put it in the search space — `tests/reachability.rs` measured that nothing could emit it — so
+`ProbeRead` took a sixth source. That is a new SOURCE, not a new shape; nothing emits the
+combination.
+
+**Yardsticks in GRAMMAR 6, parser-measured:** mix-backup +7, extend-by-uncertainty +14, bound-gap
+stopping +56 (MCTS is +60 for scale). **Edit distance does not predict reachability:** the NEAREST
+shape (+7) is the one nothing can build — it needs `Avg`/`Mix` — and the FARTHEST is buildable.
+
+**The target question is SETTLED, and the answer is inverted — on some nets.**
+```
+                        p1_champion   prev_g34789   epochs_03      random band
+probe on flip cost         0.363         0.365        0.521       ~[.37,.63]
+probe on residual          0.305         0.429        0.485
+rank by RAW residual       0.349         0.340        0.457
+```
+Below the band means the ranking is INVERTED, not absent; negated, the champion-lineage numbers rise
+to 0.64-0.70. But `epochs_03` sits ON 0.5 — **the effect is a property of some nets, not of the
+architecture.** The portable form is the RAW RESIDUAL (replicates on both champion-lineage nets where
+fitted probes do not). Anything built on this must name the net it was calibrated on and re-check
+after a promotion.
+
+**The prize is worth chasing:** the top decile of flips carries 38% of all flip cost, 3.8x uniform.
+So the opportunity is concentrated and the intuitive key points the wrong way.
+
+**Watch events live:** `UNC_READ_IN_MAIN` (a MAIN member holds an unc read for >=5 generations) and
+`UNC_GATED_EXTENSION` (population-level, and the emitted line says so — the data cannot tie an ACCEPT
+to the accepted program's structure). Neither has fired; no arm runs the new binary yet.
+
+**TRACK B: NOT STARTED, and blocked on one thing.** `tune_hybrid` is queued and self-defers `rc=75`
+because the installed 4PC engine answers `unknown search param` for `hybridPriorDepth`/`Temp`. The
+rebuilt binary is verified and waiting for a gate-free moment. `gate_hybrid_power` is at 297/300 and
+is **not champion-relative** (baseline captured three minutes before the depthgates ship) and tests
+`handoff 300` with `basePct` inert, so a FAIL indicts that configuration, not the hybrid.
+
 ## 🧭 THE SEARCH TRACK'S REAL PROBLEM — the position sets and the games are DECOUPLED
 
 Two measurements today, from opposite directions, and a pre-registered control that FAILED:
