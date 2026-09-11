@@ -7,17 +7,25 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 > one burned 95% of its wall clock re-deriving `width_clock_RESULT.md` at the exact
 > setting that file abandoned. The cost of checking is one grep.
 
+> **P2 / SEARCH TRACK — the binding constraint is the GENERATOR, not the gate.** Several of
+> the newest entries below are gate measurements, and read top-down they invite more gate
+> work. They are downstream. `gate_power_RESULT.md` settles the gate: the SPRT gate is built,
+> wired, and resolves in 37 games; more pairs buy more draws; a trained net would defeat the
+> track's purpose. That file records TWO occasions of cores spent re-testing SELECTION after
+> the measurement had moved the problem to GENERATION. On 2026-09-11 a third was begun and
+> stopped at the audit. Next P2 work is GRAMMAR 4 — the type checker and mutation operators.
+
 | result | headline |
 |---|---|
-| [diversity_reserve_SIZING.md](diversity_reserve_SIZING.md) | the diversity reserve HAS run (19 gens, dsl engaged) and found nothing — expected 88% of the time; a real test needs ~107 generations for 50% |
-| [epochs_2v3_RESULT.md](epochs_2v3_RESULT.md) | epochs 2 vs shipped 3 is FLAT at full length (0.513 +/- 0.026, matched 2000/2000) — degrades above 3, flat below, and no cost advantage; epochs CLOSED |
-| [hardn_inert_RESULT.md](hardn_inert_RESULT.md) | EXISTENCE_HARD_N is INERT on the code path that runs (hardcoded 8 at evolve.rs:2627) — the n=40 probe measured the default set, and its verdict came from 4 generations where P(zero)=0.74 |
-| [gate_candidates_are_game_neutral_RESULT.md](gate_candidates_are_game_neutral_RESULT.md) | the gate's own candidates are 14.7% decisive against 31-42% for two reference programs (z=2.39, z=3.67) — the registered "mate guard selects for game-neutrality" mechanism survived its falsifier |
-| [identity_does_not_predict_games_RESULT.md](identity_does_not_predict_games_RESULT.md) | PRE-REGISTERED CONTROL FAILED: hash reuse agrees with the seed on 40/40 positions and still went 8W-33D-7L — position-set identity does NOT imply identical games, and PATH 1 accepts with no game on exactly that inference |
-| [gate_arithmetic_RESULT.md](gate_arithmetic_RESULT.md) | the 6-pair game gate CANNOT accept a candidate that draws >=4 of 6 pairs (ceiling 0.48) — and 85.7% of its games are draws; the constraint is PAIRS, not the rule |
+| [gate_arithmetic_RESULT.md](gate_arithmetic_RESULT.md) | The 6-pair game gate cannot accept a candidate that draws, and 85.3% of its games are draws — this is arithmetic about the 6-pair RULE and is NOT an argument for raising `gate_pairs`, which `gate_power_RESULT.md` measured as buying more draws |
+| [gate_power_RESULT.md](gate_power_RESULT.md) | The P2 game gate: 0 accepts in 203 decisions — the GATE is settled, and the binding constraint is UPSTREAM: the GENERATOR has no gradient. Raising `gate_pairs`, swapping in a trained net, and any further acceptance rule are all MEASURED WRONG. Next P2 work is GRAMMAR 4 (type checker + mutation operators) |
+| [identity_does_not_predict_games_RESULT.md](identity_does_not_predict_games_RESULT.md) | Position-set identity does NOT imply identical games — measured, and PATH 1 rests on the inference |
+| [gate_candidates_are_game_neutral_RESULT.md](gate_candidates_are_game_neutral_RESULT.md) | The gate's own candidates are anomalously game-neutral — 14.7% decisive against 31-42% for reference programs |
+| [blend_sweep_RESULT.md](blend_sweep_RESULT.md) | blend 0.85 clears the promotion rule at FULL LENGTH — on one seed, by less than the between-seed spread |
+| [hardn_inert_RESULT.md](hardn_inert_RESULT.md) | EXISTENCE_HARD_N was inert on the code path that runs, and an experiment concluded from it |
+| [epochs_2v3_RESULT.md](epochs_2v3_RESULT.md) | epochs 2 vs the shipped 3 — FLAT at full length, in both directions and on cost |
 | [proposals_choice_RESULT.md](proposals_choice_RESULT.md) | "94% of generations offer no choice" is BINOMIAL ARITHMETIC, not a pathology — and 32 proposals fixes it |
 | [horizon_RESULT.md](horizon_RESULT.md) | The horizon cap is OBSOLETE past bootstrap: uncapped beats capped-at-10 by +0.064 ± 0.034 |
-| [blend_sweep_RESULT.md](blend_sweep_RESULT.md) | blend 0.85 clears the promotion rule at FULL LENGTH — on one seed, by less than the between-seed spread |
 | [ruler_trend_RESULT.md](ruler_trend_RESULT.md) | Every production run is FLAT on the absolute ruler — all 166 Elo came from BETWEEN runs, not within them |
 | [low_sweep2_RESULT.md](low_sweep2_RESULT.md) | lr 0.0002 SHIPPED — the shipped rate lost to its own start, on exactly matched arms |
 | [low_sweep_RESULT.md](low_sweep_RESULT.md) | Below the shipped rate: 0.0002 wins, 0.0005 LOSES to its own start — on a run that was cut short |
@@ -45,7 +53,6 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 | [proxies_RESULT.md](proxies_RESULT.md) | Every cheap proxy for strength has failed. Only games measure strength here. |
 | [datagen_depth_RESULT.md](datagen_depth_RESULT.md) | Six generations of depth-3 datagen match a champion built from 2,200 — datagen depth IS the lever |
 | [label_source_RESULT.md](label_source_RESULT.md) | Better labels ARE learned and do NOT become strength — and 4× the width changes nothing either |
-| [gate_power_RESULT.md](gate_power_RESULT.md) | The P2 game gate: why 0 accepts in 203 decisions, and what replaced it |
 | [untrained_baseline_RESULT.md](untrained_baseline_RESULT.md) | Training DID work — ~235 Elo, all of it before generation 200, then flat for 1200 generations |
 | [elo_per_ply_RESULT.md](elo_per_ply_RESULT.md) | One ply of search is worth ~93 Elo. Twelve hundred generations of training bought ~0. |
 | [guard_tolerance_worst_of_both_RESULT.md](guard_tolerance_worst_of_both_RESULT.md) | The shipped guard tolerance admits an exploit AND excludes the target — worst of both |
@@ -122,9 +129,9 @@ being asked.
 | net width | EXPERIMENTS,ladder_valley throughput,width_clock search_track_WHY_NOTHING |
 | search depth | EXPERIMENTS,depth2x2 blend,speed_cannot_pay depth5_vs_depth3 |
 | blend/target | EXPERIMENTS,blend blend_sweep,NET_TRACK_STATE depth2x2 |
-| epochs | EXPERIMENTS,epochs_ab NET_TRACK_STATE,learning_rate_is_the_plateau label_source |
+| epochs | EXPERIMENTS,epochs_ab epochs_2v3,NET_TRACK_STATE learning_rate_is_the_plateau |
 | seeds & noise | depth2x2,blend p1_deceleration,blend_sweep low_sweep2 |
-| gate & thresholds | gate_power,EXPERIMENTS replay_ab_CAVEAT,ladder_valley search_track_WHY_NOTHING |
+| gate & thresholds | gate_power,gate_arithmetic EXPERIMENTS,replay_ab_CAVEAT ladder_valley |
 | calibration | static_deep_residual,confident_when_wrong search_track_FINDING,movegen_leaf lr_sweep |
 | speed/nps | speed_cannot_pay,throughput movegen_leaf,depth2x2 path1_is_empty |
 | plateau | EXPERIMENTS,ceiling_ANALYSIS ruler_trend,learning_rate_is_the_plateau fitness_saturation |
@@ -134,6 +141,4 @@ being asked.
 | file | what it is |
 |---|---|
 | [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md) | Existence — Master Plan |
-| [refmatch_discrimination_PREREG.md](refmatch_discrimination_PREREG.md) | PRE-REGISTRATION: can the gate's games discriminate at all — predictions, falsifier and a registered mechanism, all written before the numbers existed. Its 14.3% baseline is deliberately NOT updated |
-| [low_sweep2_PREREG.md](low_sweep2_PREREG.md) | PRE-REGISTRATION for the full-length low-lr sweep, committed before any verdict existed |
-| [STATE.md](STATE.md) | Existence — current state, 2026-09-11: measured champion strength, the search track's blocker, and the position-set/game decoupling |
+| [STATE.md](STATE.md) | Existence — current state, 2026-09-11 |

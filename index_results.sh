@@ -43,6 +43,19 @@ FINDINGS=$(ls -t *_RESULT.md *_FINDING.md *_ANALYSIS.md *_WHY_NOTHING.md *_CAVEA
   echo "> one burned 95% of its wall clock re-deriving \`width_clock_RESULT.md\` at the exact"
   echo "> setting that file abandoned. The cost of checking is one grep."
   echo
+  # THE P2 STEER LIVES HERE, NOT IN RESULTS_INDEX.md. This script regenerates that file with `>`,
+  # so a banner hand-written into the index is erased by the next run -- which is what happened to
+  # the first version of this note on 2026-09-11. A steer that a routine command deletes is a
+  # decoration. The same applies to the per-file headlines: they come from each file's H1, so a
+  # caveat belongs in the H1, not in the table.
+  echo "> **P2 / SEARCH TRACK — the binding constraint is the GENERATOR, not the gate.** Several of"
+  echo "> the newest entries below are gate measurements, and read top-down they invite more gate"
+  echo "> work. They are downstream. \`gate_power_RESULT.md\` settles the gate: the SPRT gate is built,"
+  echo "> wired, and resolves in 37 games; more pairs buy more draws; a trained net would defeat the"
+  echo "> track's purpose. That file records TWO occasions of cores spent re-testing SELECTION after"
+  echo "> the measurement had moved the problem to GENERATION. On 2026-09-11 a third was begun and"
+  echo "> stopped at the audit. Next P2 work is GRAMMAR 4 — the type checker and mutation operators."
+  echo
   echo "| result | headline |"
   echo "|---|---|"
   for f in $(ls -t *_RESULT.md 2>/dev/null); do

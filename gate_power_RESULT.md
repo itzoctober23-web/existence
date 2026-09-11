@@ -1,4 +1,4 @@
-# The P2 game gate: why 0 accepts in 203 decisions, and what replaced it
+# The P2 game gate: 0 accepts in 203 decisions — the GATE is settled, and the binding constraint is UPSTREAM: the GENERATOR has no gradient. Raising `gate_pairs`, swapping in a trained net, and any further acceptance rule are all MEASURED WRONG. Next P2 work is GRAMMAR 4 (type checker + mutation operators)
 
 **STATUS 2026-09-09, end of day — the symptom is explained, the cause is measured, and the fix is
 BUILT AND RUNNING. This file was written top-down over a day and later sections CORRECT earlier ones;

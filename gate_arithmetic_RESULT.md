@@ -1,4 +1,4 @@
-# The 6-pair game gate cannot accept a candidate that draws, and 85.3% of its games are draws
+# The 6-pair game gate cannot accept a candidate that draws, and 85.3% of its games are draws — this is arithmetic about the 6-pair RULE and is NOT an argument for raising `gate_pairs`, which `gate_power_RESULT.md` measured as buying more draws
 
 2026-09-11. Exact enumeration plus 29 completed matches. No running experiment was read for this.
 See the provenance note at the end: the sample grew from 21 to 29 while this was written, and the
