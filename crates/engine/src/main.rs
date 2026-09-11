@@ -48,7 +48,21 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// 93 ms of 8 s). The remaining waste is the d5->d6 threshold being a 10x step, which only
 /// ITERATIVE DEEPENING would fix -- and MASTER_PLAN line 38 forbids seeding that, so it must be
 /// discovered by the search track rather than written in here.
-const NPS_PER_MS: u64 = 2000;
+/// **RE-MEASURED AGAIN 2026-09-10 23:2x: 2000 -> 2500.** The 2000 above was set from a worst
+/// contended observation of 2,239,873 — measured BEFORE `has_legal_move()` landed, which stopped
+/// the search materialising a move list at leaves and made the engine **1.729×** faster on
+/// identical node counts (`movegen_leaf_RESULT.md`).
+///
+/// Same method as the previous calibration, deliberately: 4 positions × 4 repeats at fixed depth on
+/// the LOADED box (production trainer, gated discriminator and the 4PC anchor all live), take the
+/// WORST, round down. The engine now floors at **2,862,630 nps**, so 2000 left 30% of every
+/// movetime unspent — the exact defect that made a previously shipped +6.3% worth zero.
+///
+/// 2500 keeps ~13% margin below the worst contended figure, matching the 11% the 2000 setting kept.
+/// It is NOT set from the uncontended best-of-7 (4.9M): overspending is unsafe here, because
+/// without iterative deepening an aborted search has no completed root move and returns
+/// `score cp -32000` with a random move.
+const NPS_PER_MS: u64 = 2500;
 
 /// How many nodes a full-width search costs at each depth, MEASURED BY THIS ENGINE on a single
 /// position, which is what a `go` actually has to pay for.
