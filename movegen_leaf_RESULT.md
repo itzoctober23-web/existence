@@ -120,3 +120,33 @@ Recomputing the pre-change leaf with the eval a leaf actually runs:
 
 **The 1.72× is unaffected.** It was measured end-to-end, wall clock, at proven-identical node counts,
 and was never derived from `node_profile`. Only the explanatory share table moved.
+
+
+## Does the speedup reach the TRAINING LOOP? Measured: yes, 1.68×
+
+The "Scope" section above asserts this is 1.7× on the training loop as well as on play. That was an
+inference from the pipeline search being the thing datagen and netmatch run; it is now measured.
+
+Recovered the pre-change binary from the running production trainer's own inode
+(`cp /proc/<pid>/exe`), which is the only copy left after the deploy, then ran both binaries
+**fresh, same flags, same seed, same window, back to back**:
+
+| ordering | old | new | ratio |
+|---|---|---|---|
+| old first, 45 s | 85 gens | 143 gens | **1.68×** |
+| new first, 35 s | 66 gens | 113 gens | **1.71×** |
+
+Both orderings agree, so load drifting between arms is not carrying it. The training loop gets
+essentially the full search speedup — at `--games 8` it is search-bound, not training-bound.
+
+### The first attempt read 1.15× and it was a confound
+
+I first compared the *running* production trainer (167 gens/60 s) against a freshly started new
+binary and got **1.15×**, and was one step from recording "the training loop is not search-bound,
+Amdahl dilutes the win to 1.15×" — complete with an arithmetic derivation that search is only 31% of
+a generation. It is not a real number. `prod1` had been running 90 minutes with a full replay pool
+and a warm allocator; the new arm was starting cold. **Different work, so the ratio measured the
+warm-up, not the change.**
+
+That is the standing rule — *prove both arms did the same work before believing a speed ratio* —
+failing in a costume I had not seen: not different node counts, but different process AGE.
