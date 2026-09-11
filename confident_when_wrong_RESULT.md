@@ -1,8 +1,13 @@
 # The engine is MORE confident where its cheap search is wrong — FITNESS §8, implemented and failing
 
 **2026-09-11 02:44.** The second specified-but-never-implemented check. It runs, it is consistent
-across three nets, and the direction is the bad one — **with one confound still untested, named
-below.**
+across three nets, and the direction is the bad one.
+
+> **STATUS, updated 03:09:** the confound named below was the reason this file first withheld its
+> conclusion. It has since been tested and **refuted** — see the second half. The finding stands and
+> is stronger: on flips that genuinely cost material the champion scores **17.1%** against a spec
+> threshold of 80%. Read the caveat below as the reasoning that earned the follow-up, not as an open
+> question.
 
 ## The check
 
