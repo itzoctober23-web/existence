@@ -35,7 +35,7 @@ for target in 5 25 100; do
     sleep 2
   done
   kill -0 "$TR" 2>/dev/null || { echo "  trainer exited before gen $target"; break; }
-  [ -s "$OUT" ] && cp -f "$OUT" "gr_g${target}.net" \
+  if [ -s "$OUT" ]; then cp -f "$OUT" "gr_g${target}.net" && echo "  snapshot gen $target at $(( $(date +%s) - t0 ))s"; else echo "  NO SNAPSHOT at gen $target -- $OUT does not exist yet (the gate has accepted nothing, so the champion is still byte-identical to the start)"; fi
     && echo "  snapshot gen $target at $(( $(date +%s) - t0 ))s"
 done
 wait "$TR" 2>/dev/null
