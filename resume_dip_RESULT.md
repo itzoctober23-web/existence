@@ -98,3 +98,43 @@ intended generation.
 This file also corrects its own PREREG: that file described the champion as fine-tuned on "~100–300"
 samples, true of generation 1 and misleading about the rest, since the pool is 72% full by gen 5. A
 sharper test of the (now dead) pool mechanism would have snapshotted at generation 1–2.
+
+
+## The mechanism, assembled from measurements that already existed — and where it does NOT close
+
+The surviving candidate is that adopting every candidate drifts the champion down. Three files
+already measure the pieces, so this costs no compute:
+
+| quantity | value | source |
+|---|---|---|
+| mean score of a **rejected** candidate vs the champion | **0.4907** [0.4755, 0.5059] | `reject_holdout_RESULT.md` |
+| mean score of an **accepted** candidate | **0.5179** [0.4994, 0.5364] | `accept_audit_RESULT.md` |
+| accept rate | **8.87%** (vs a 2.50% false-positive floor, z = +29.1) | `accept_rate_vs_noise_RESULT.md` |
+
+An ungated run adopts **all** of them, so the average thing it adopts scores
+
+```text
+  0.0887 x 0.5179 + 0.9113 x 0.4907 = 0.4931  =  -4.8 Elo per generation
+```
+
+**The direction matches.** The mean candidate is below parity, so adopting every one is a random
+walk with a downward bias — which is the shape of the dip.
+
+**The magnitude does not, and that is the honest part.** Naively compounding −4.8 Elo over 100
+generations gives **−479 Elo** against a **measured −95**, an over-prediction of **5×**. The steps
+do not sum, because each candidate is measured against the *current* champion rather than the
+original — it is a biased random walk, not a ladder, and a walk's displacement grows far slower than
+its step count. So:
+
+* the mechanism is **consistent in direction** and **not established in magnitude**;
+* closing that 5× gap needs a measurement, not a paragraph. The obvious one is the per-generation
+  score against the **original** champion rather than the current one, which the gated run produces
+  as a by-product.
+
+This is recorded rather than asserted because the arithmetic was run *after* the story was written,
+and it did not agree with it. A mechanism that only reproduces the sign is a hypothesis.
+
+Live confirmation that these distributions are real, from the gated discriminator's first
+generations — each is a genuine 400+ game match against the champion, and **every one was
+rejected**: 0.518, 0.433, 0.489. The 0.518 is the acceptance floor in action: `0.518 − 0.034 =
+0.484 < 0.5`, so a candidate that outscored the champion was still refused.
