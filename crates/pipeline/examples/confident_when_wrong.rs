@@ -28,9 +28,17 @@
 //! that moves with every position and cannot be set from the command line.
 //!
 //! So the cheap and rich sides differ by PLIES, which never starves, and the resulting cost
-//! multiple is measured per position from `Searcher::nodes` and reported as a median. +3 plies
-//! lands near 32x at this branching factor, but the table prints what it actually was: an
-//! approximation that is stated is honest, one that is hidden is not.
+//! multiple is measured per position from `Searcher::nodes` and reported as a median.
+//!
+//! **AND THE MEASUREMENT IMMEDIATELY REFUTED THE GUESS THAT WENT WITH IT.** This comment first read
+//! "+3 plies lands near 32x at this branching factor". Measured: **+3 plies is ~710x** (depth 3 vs
+//! depth 6, 118 positions). That is ~8.9x per ply, so no integer ply count hits 32x — it is
+//! bracketed by +1 (~9x) and +2 (~79x). The spec's exact 32x is therefore NOT reproducible this
+//! way, and the honest report is the measured multiple beside every row rather than the number the
+//! spec asked for.
+//!
+//! This is the whole reason the ratio is printed instead of assumed: the guess was wrong by a
+//! factor of 22 and said so on its own first run.
 //!
 //! ---------------------------------------------------------------------------------------------
 //! DEFINING "CONFIDENCE" WITHOUT INVENTING A THRESHOLD
