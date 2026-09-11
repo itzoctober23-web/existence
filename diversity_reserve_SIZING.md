@@ -132,3 +132,31 @@ first dozen generations. It does change what a sensible commitment looks like: t
 arm, not an overnight one, and it should be launched only with that understood and with the attempt
 rate reported continuously so it can be stopped early if the population composition turns out worse
 than the table.
+
+## Sizing lesson from the verify96 arm: VERIFY cost is driven by the lineage you are NOT studying
+
+`search-verify96` runs `EXISTENCE_GATE_VERIFY=96`, an observer priced at ~16x the 6-pair gate and
+paid on every gate call. Measured pacing: roughly **80 minutes per generation** when both lineages
+gate, against ~8 minutes for the same 32-proposal configuration without the observer
+(`prop_long32.log`).
+
+The cost is not evenly shared. Measured over 29 generations:
+
+```
+MAIN   3 gate calls / 29 = 0.10    <- the lineage the search track's open question is about
+MCTS  26 gate calls / 29 = 0.90    <- pays ~9x the verify bill
+```
+
+So an arm that wants VERIFY readings for MAIN spends about nine tenths of its verify budget on MCTS.
+The arm still produces MAIN readings — it has four — but it is paying roughly ten times over for
+them.
+
+**Not fixed, and deliberately so.** `EXISTENCE_ARM` is only an artifact filename prefix, not a
+lineage selector, so restricting to MAIN needs a source change and a rebuild. The NEXT arm,
+`hardn_probe`, does not set `GATE_VERIFY` at all and so gains nothing from it — building the
+optimisation now would be speculative work for a run that does not want it.
+
+**Recorded for whoever next wants VERIFY readings on MAIN specifically.** The options are: accept the
+9x and size the arm accordingly; add a lineage filter and rebuild; or lower `GATE_VERIFY` (48 pairs
+gives ci95 ~0.067 against 96's ~0.047, which is still far tighter than the 6-pair gate's 0.25 and
+costs half). The third is the cheapest and needs no code change.
