@@ -68,3 +68,29 @@ fault, when the *feedback path* is what is broken.
   study.
 * A within-run analysis at a fixed protocol would be stronger. It is not free, and the three
   agreeing measurements above already carry the conclusion.
+
+
+## CONFIRMED AGAIN, 2026-09-10 — training loss ROSE 31% while the net got measurably stronger
+
+The deep-datagen run, mean training loss binned over its own log:
+
+```
+  gens     1-  443   0.01643
+  gens   444-  886   0.01837
+  gens   887- 1329   0.01971
+  gens  1330- 1772   0.02034
+  gens  1773- 2215   0.02153     <- +31% over the run
+```
+
+Over the same span the net passed two head-to-head gates against successive champions
+(**0.622 ± 0.022**, then **0.586 ± 0.020**, 448 pairs each at depth 4). So loss rose monotonically
+while strength rose.
+
+**The mechanism is a moving target, not divergence.** The label is the net's OWN deeper search, so as
+the net improves the labels become more informative and harder to fit, and the replay pool grows more
+varied (20,323 positions at the point of measurement). A falling loss here would more likely mean the
+labels had stopped carrying new information.
+
+This matters because rising loss is the obvious thing to read as "something is wrong" and act on. It
+is not. **Nothing in this file has changed: only games measure strength.** Loss is not merely a weak
+proxy here, it points the wrong way.
