@@ -1,6 +1,8 @@
-# The 6-pair game gate cannot accept a candidate that draws, and 85.7% of its games are draws
+# The 6-pair game gate cannot accept a candidate that draws, and 85.3% of its games are draws
 
-2026-09-11. Exact enumeration plus 21 completed matches. No running experiment was read for this.
+2026-09-11. Exact enumeration plus 29 completed matches. No running experiment was read for this.
+See the provenance note at the end: the sample grew from 21 to 29 while this was written, and the
+counts below are recomputed on all 29.
 
 ## The question
 
@@ -31,14 +33,14 @@ Not unlikely — arithmetically impossible.
 
 ## What the candidates actually do
 
-21 completed gate matches on disk, from the funnel-fixed era:
+29 completed gate matches on disk, from the funnel-fixed era:
 
 ```
-pooled       W=2  D=216  L=34   of 252 games      DRAW RATE 85.7%
+pooled       W=4  D=297  L=47   of 348 games      DRAW RATE 85.3%
 modal match  0 wins, 11 draws, 1 loss  ->  0.458 +/- 0.082,  needed > 0.582
 ```
 
-Every one of the 21 sits inside the unpassable region. The gate has rejected 21 of 21, and for the
+Every one of the 29 sits inside the unpassable region. The gate has rejected 29 of 29, and for the
 observed class of candidate it could not have done anything else.
 
 ## The rule punishes the candidate that earns it
@@ -57,14 +59,15 @@ six pairs is too few for consistency to show.
 ## The alternative rule is not the fix either
 
 `EXISTENCE_GATE_VETO=1` already exists and tests non-inferiority (`rate + ci95 >= 0.5`). Re-scoring
-all 21 completed matches under both rules — free, since both quantities are printed:
+all 29 completed matches under both rules — free, since both quantities are printed:
 
 ```
-shipped  (rate - ci95 >  0.5)      0/21 promote
-veto     (rate + ci95 >= 0.5)     20/21 promote     including nine matches at 0.417
+shipped  (rate - ci95 >  0.5)      0/29 promote
+veto     (rate + ci95 >= 0.5)     28/29 promote     including ten at 0.417 and one at 0.375
 ```
 
-A rule that promotes a candidate which lost 10 of 12 games is not a veto, it is a rubber stamp. This
+A rule that promotes a candidate which lost 10 of 12 games -- and, at 29 matches, one that lost 9
+of 12 at a rate of 0.375 -- is not a veto, it is a rubber stamp. This
 also **corrects the claim in `evolve.rs`'s own comment** that the veto "DISCRIMINATES rather than
 waving everything through" — that was measured on the mcts_ab arms, where MAIN calls sat at
 0.292-0.375. On funnel-era data the MAIN calls sit at 0.417-0.458 with tighter intervals and flip to
@@ -283,3 +286,24 @@ does not.
 It does NOT license flipping the default silently — §7.2 fixes the acceptance criterion as HUMAN,
 and the comparison must still be run as an experiment. But the "is this even reasonable" question is
 answered by an existing, working instance.
+
+
+## Provenance: which numbers were recomputed when the sample grew, and which were not
+
+This file was written on 21 completed gate matches. The arms produced 29 while it was being written,
+so the COUNTS above are recomputed on all 29 and the file carries one vintage of each.
+
+RECOMPUTED: the pooled W-D-L and draw rate (0.857 -> 0.853), the rejection count (21/21 -> 29/29),
+and the veto re-scoring (0/21 and 20/21 -> 0/29 and 28/29). All are direct counts from printed
+values, so redoing them costs nothing and leaving two vintages in one document costs a reader.
+
+NOT RECOMPUTED, deliberately:
+* **The 210-outcome enumeration and the 0.48 ceiling.** Pure arithmetic on `gate.rs`'s formula. It
+  does not depend on the sample at all.
+* **The power simulation.** It was run at the then-measured 0.857 draw rate; the rate is now 0.853.
+  Re-running it would move the power figures by far less than the 6000-trial Monte Carlo noise
+  already in them, and re-running an analysis to change a number in its fourth significant figure
+  invites reading precision that is not there.
+
+The distinction matters more than the numbers: a COUNT should track the data, an ANALYSIS should be
+reported at the sample it was performed on and re-run only if the answer could change.
