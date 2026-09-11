@@ -255,3 +255,38 @@ you gate it against the start.
 The promotion decision is unaffected: `blend_085_s1.net` cleared against the incumbent on its own
 measurement (0.583 +/- 0.027) and that measurement is unchanged. And the 0.438 is one arm on one
 seed — it establishes that 0.75 CAN degrade, not that it usually does.
+
+## CROSS-INSTRUMENT CHECK, COMPLETED — the 0.85 arm lands within 0.1 sigma of its prediction
+
+The 0.85 arm's four ruler samples have since completed: **+236 +223 +228 +211**, pooling to
+**1544 +/- 32** absolute. Running the same prediction the 0.75 arm got:
+
+```
+netmatch  0.85 arm vs shared start = 0.583   ->  +58 Elo over the start
+the shared start IS the champion, pooling to 1481 +/- 19
+predicted ruler reading                       ->  ~1539
+measured                                      ->   1544 +/- 32
+difference  +5 +/- 37  =  0.1 sigma
+```
+
+And the direct contrast is now available on BOTH instruments:
+
+```
+netmatch  0.85 vs 0.75  0.541 +/- 0.032  =  +29 Elo   RESOLVED (lower bound 0.509)
+ruler     1544 +/- 32 minus 1490 +/- 30  =  +53 +/- 44
+agreement 0.6 sigma
+```
+
+**Both arms now have independent cross-instrument confirmation** — 0.4 sigma for 0.75, 0.1 sigma for
+0.85 — from two instruments sharing no machinery beyond the engine: one a PAIRED relative match
+between nets, the other an ABSOLUTE score against a fixed external SF-1320 rung.
+
+**What this does and does not add.** It does NOT re-decide the ship: blend 0.85 was promoted on the
+netmatch, which resolved the contrast, and this changes nothing about that. What it adds is that a
+second instrument, given only the netmatch scores and the champion's altitude, predicted where the
+0.85 net would land on an absolute scale and was right to within 5 Elo.
+
+**And it is corroboration, not independent proof.** The ruler's own contrast is +53 +/- 44, which is
+1.2 sigma and could not have resolved 0.85 against 0.75 on its own. The same caution recorded for
+the 0.75 arm applies here: agreement means the ALTITUDES are trustworthy, not that the ruler found
+the effect.
