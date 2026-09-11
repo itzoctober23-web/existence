@@ -9,6 +9,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [lr_decay_RESULT.md](lr_decay_RESULT.md) | The schedule is not the lever — ending low is. lr 0.0005 shipped, and loss tracks strength backwards |
 | [arch_surrogate_filter_RESULT.md](arch_surrogate_filter_RESULT.md) | A third of all ARCH proposals were killed on held-out loss, without ever playing a game |
 | [confident_when_wrong_RESULT.md](confident_when_wrong_RESULT.md) | The engine is MORE confident where its cheap search is wrong — FITNESS §8, implemented and failing |
 | [learning_rate_is_the_plateau_RESULT.md](learning_rate_is_the_plateau_RESULT.md) | The plateau was the learning rate — 0.692 against 0.499, on a knob never once varied |
