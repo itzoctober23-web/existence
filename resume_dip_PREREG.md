@@ -70,3 +70,25 @@ a transient the loop pays back. Sizing that needs the recovery curve, not this.
 
 Runs on Existence's own cores (6-11) at nice 19 alongside the production run, for ~2 minutes of
 training. The 4PC anchor on cores 0-5 is a TIMED benchmark and is not touched.
+
+
+## ⚠ Correction to this file's own framing (2026-09-10 22:5x, before the curve was read)
+
+The table above lists pool sizes for generations 1-6 and I described the champion as being
+"fine-tuned on ~100-300" samples. That is true of generation 1 and misleading about the rest. At the
+snapshot generations the pool reads:
+
+| snapshot | pool | fraction of steady state (~1,967) |
+|---|---|---|
+| gen 5 | 1,411 | **72%** |
+| gen 25 | 1,939 | 99% |
+| gen 100 | 1,967 | 100% |
+
+So the pool refills in roughly five generations, not the twenty the opening table implies. The gen-5
+arm therefore tests *"five generations that included the small-pool phase"*, not *"training at
+minimum pool"*. A sharper test of the mechanism would snapshot at generation 1-2, where the pool is
+295-571.
+
+This does not rescue the mechanism if the curve declines later — a pool that is full by gen 5 cannot
+be causing damage that appears at gen 100 — but it does mean a flat gen-5 reading is weaker evidence
+against it than this file originally implied.
