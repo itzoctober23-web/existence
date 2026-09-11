@@ -227,3 +227,33 @@ CAVEAT, and it is the spec's: §7.2 fixes the acceptance criterion as HUMAN, not
 "an instrument calibrated by its subject measures nothing". Changing e1 from 5 to 0 changes what
 counts as enough, so this is to be RUN AS AN EXPERIMENT against the existing rule, never silently
 shipped as a default.
+
+## What budget the gate games are actually played at — and why that is NOT the whole explanation
+
+Verified from `evolve.rs:608,669,776`:
+
+```rust
+let bud = if name.contains("MCTS") { 256 } else { 16 };   // 512 / 1024 at other sites
+```
+
+**MAIN plays its gate games at 16 nodes per move.** That is the same budget the fitness optimises
+against — `mates per cost` at budget 16 — so testing there is principled rather than an oversight:
+the program is judged at the budget it was selected for. But it does mean the games are played by two
+very weak searchers, and a 16-node search is barely a lookahead.
+
+That is an appealing explanation for the 85.7% draw rate, and **it does not survive the data.** The
+instrumented `gen 1 MCTS` gate ran at **budget 1024** — sixty-four times MAIN's — and still returned
+`W-D-L 0-11-1` with `identity:12/27`. Two programs differing on 15 of 27 positions, searching 1024
+nodes each, drew eleven of twelve games.
+
+So the draw rate is NOT explained by the budget alone. Recording the budget as verified context
+rather than as a cause, because the obvious causal story is refuted by the one instrumented reading
+available. Candidates left open by that reading, none of them yet tested:
+
+* the random-ply openings are balanced, and weak programs from balanced starts draw regardless;
+* the guard and hard sets are mate-heavy and tactical, so positional differences they detect need not
+  appear in game outcomes;
+* twelve games is simply too few to see the decisive fraction.
+
+The `identity:N/M` field now on every gate line is what separates these. It did not exist this
+morning, and one reading has already killed the first hypothesis I formed from it.
