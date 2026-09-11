@@ -87,3 +87,49 @@ Bugs 1 and 3 were caught only because a printed number was **impossible on its f
 table, and a 1.0× ratio. Bug 2 was caught by finally reading the function. The standing rule that
 two wrong hypotheses mean the harness is wrong fired here at three, and the fix each time was the
 same: read the code path being measured before naming what it does.
+
+---
+
+# The confound was tested and REFUTED — the miscalibration is real
+
+**Added 03:09, the same session.** The section above withheld the conclusion pending a
+discriminator. It has been run, and it refutes the caveat rather than the finding.
+
+For every flip: play the cheap move, let the opponent search at rich depth, negate. That is what the
+rich search thinks the cheap move was worth, so `rich_score − cheap_value` is what the flip actually
+**cost**. Flips costing ≥10cp are real errors; the rest are tie-breaks between moves the engine
+rates as equal.
+
+| net | flips | low-conf, ALL flips | real errors (≥10cp) | **low-conf on REAL ERRORS** |
+|---|---|---|---|---|
+| p1_champion (new) | 46 | 23.9% | **35 of 46 (76%)** | **17.1%** |
+| p1_champion_prev_pre_lr0005 | 51 | 33.3% | **42 of 51 (82%)** | 33.3% |
+
+**Both halves of the confound fail.**
+
+1. **Tie-breaks do not dominate.** The premise was that flips would be mostly coin-flips between
+   equal moves. They are not: **76% and 82% of flips cost at least a tenth of a pawn.** The
+   tie-break population is the minority.
+2. **Removing them makes the effect STRONGER, not weaker.** If tie-breaks were producing the
+   anti-correlation, filtering to real errors should pull the number toward the 50% base rate. For
+   the champion it moves the other way — 23.9% → **17.1%**, further from chance.
+
+**So the conclusion the earlier section declined to draw now stands:** on the positions where this
+engine's cheap search makes a move error that genuinely costs material, it is **more** confident
+than on an average position, not less. FITNESS.md:271 calls that "a regression in the property the
+project sells", and by its own §8 threshold of 80% the engine fails at 17%.
+
+## What this is and is not
+
+**Is:** a measured calibration failure, with the obvious alternative explanation tested and
+eliminated rather than argued away.
+
+**Is not:** a strength claim. Nothing here says the engine would play better if calibrated — the
+explanation layer is a stated product goal in its own right, not a proxy for Elo. Note also that the
+**new, stronger champion is the worse-calibrated of the two** (17.1% against 33.3%), on 35 and 42
+events respectively, which is a small sample and is recorded as an observation rather than a trend.
+
+**The method point worth keeping:** I named the confound *before* seeing the discriminator's result
+and wrote it into the file as a reason not to conclude. That is what made the follow-up worth
+running and its answer worth trusting — the prediction was on record, and it was wrong in a way that
+strengthened the finding rather than rescuing it.

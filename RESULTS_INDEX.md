@@ -9,9 +9,9 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [confident_when_wrong_RESULT.md](confident_when_wrong_RESULT.md) | The engine is MORE confident where its cheap search is wrong — FITNESS §8, implemented and failing |
 | [lr_decay_RESULT.md](lr_decay_RESULT.md) | The schedule is not the lever — ending low is. lr 0.0005 shipped, and loss tracks strength backwards |
 | [arch_surrogate_filter_RESULT.md](arch_surrogate_filter_RESULT.md) | A third of all ARCH proposals were killed on held-out loss, without ever playing a game |
-| [confident_when_wrong_RESULT.md](confident_when_wrong_RESULT.md) | The engine is MORE confident where its cheap search is wrong — FITNESS §8, implemented and failing |
 | [learning_rate_is_the_plateau_RESULT.md](learning_rate_is_the_plateau_RESULT.md) | The plateau was the learning rate — 0.692 against 0.499, on a knob never once varied |
 | [lr_sweep_RESULT.md](lr_sweep_RESULT.md) | The lr result replicates on a fresh seed and a different start — and the optimum is lower still |
 | [static_deep_residual_RESULT.md](static_deep_residual_RESULT.md) | Half of the P1 kill criterion has never been measurable — the static-vs-deep residual, built and refuted |
