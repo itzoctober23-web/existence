@@ -47,6 +47,22 @@ while true; do
   n=$(printf '%s\n' $arms | grep -c .)
   [ "$n" -gt 0 ] || { echo "$(date '+%H:%M') no trainer running -- skipping"; continue; }
 
+  # BOUND THE WORK PER CYCLE, AND SAY WHAT WAS DROPPED.
+  #
+  # This measures every live arm at 224 pairs. With the four arms running tonight that is ~16
+  # minutes of netmatch inside a 30-minute cycle; at six or more it would never finish a cycle and
+  # would hold cores permanently -- a watcher starving the experiments it exists to watch.
+  #
+  # Measured newest-first so a freshly launched arm is never the one dropped, and the skipped arms
+  # are NAMED. A silent cap reads as "everything was checked" when it was not, which is the failure
+  # this project records as "no silent caps: if a run bounds coverage, log what was dropped".
+  MAXARMS=${MAXARMS:-3}
+  if [ "$n" -gt "$MAXARMS" ]; then
+    keep=$(printf '%s\n' $arms | head -n "$MAXARMS")
+    drop=$(printf '%s\n' $arms | tail -n +$((MAXARMS+1)) | tr '\n' ' ')
+    echo "$(date '+%H:%M') $n arms live, measuring $MAXARMS this cycle; SKIPPED: $drop"
+    arms="$keep"
+  fi
   for cand in $arms; do
     [ -s "$cand" ] || continue
     clog="${cand%.net}.log"
