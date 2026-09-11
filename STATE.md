@@ -1,5 +1,24 @@
 # Existence — current state, 2026-09-11
 
+## 🚦 SCOPE AND REPORTING RULES IN FORCE (his directive, 2026-09-11 evening)
+
+**The ruler is flat at ~1530 and every gain this week was a configuration change. Nothing lateral
+until it moves.** Stop condition unchanged: **1600 pooled with a rising trend by day 7 — day 7 is
+tomorrow.** If it is not there, `WEEK1_RETRO.md` says which lever failed and why *before* anything
+new starts.
+
+**REPORTING DISCIPLINE, ENFORCED.** A running experiment writes to **STATE.md only**. A
+`_RESULT.md` requires **planned-N complete**. The four retractions today are the cost of not doing
+this.
+
+**PARKED — the Arena loader (`web/existence_arena.py`, `web/existence_pieces.py`) and anything like
+it.** No commits to it until the pooled ruler is **above 1600 with a trend**. It works and it is
+finished; it is parked, not abandoned. The web loader (`web/server.py`, `web/index.html`) is parked
+on the same terms.
+
+**Daily line is exactly:** pooled ruler ± CI and trend (with significance) · P1 compounding status ·
+P2 generation/accepts · Track B step and gate state. Nothing else.
+
 ## 🎯 TRACK A — UNCERTAINTY HEAD: built at parity, exposed, measured, and the sign is backwards
 
 Status line he asked for, 2026-09-11 18:1x.
@@ -85,6 +104,16 @@ caveat in `report_hybrid_gate.sh` was rewritten rather than kept.
 `errors 4`; an error **voids the whole pair** (`broken.add(pair)`, and the pentanomial skips it), so a
 crash never scores as a loss for the crashing arm. Nuance: game-level W-D-L still counts the surviving
 half of a voided pair, so the quoted game-elo is slightly contaminated while the deciding LLR is clean.
+
+**OPEN LEAD (STATE only, not a result — investigation halted, out of scope).** All four core dumps
+read `SP.hybridPlayouts = 256` at `quad::search::SP+172` — i.e. **every crash was the hybrid-ON arm**,
+while `gate_hybrid_power` ran an OFF arm (`playouts=0`) for half its games and produced none. Under a
+fair-coin null that is 3/3, **p ≈ 0.125 — suggestive, not proof.** Fault is
+`vmovdqu (%rsi),%ymm0` with `rsi = 0xfffffec8c169d980`, consistent with a **negative** feature index
+wrapping through `size_t(ff)` in `acc_move`. **My SQ_NONE hypothesis is REFUTED**: `nnue.cpp:169`
+guards it (`if (KB == 1 || kingSqRaw == SQ_NONE) return 0;`). That is two wrong hypotheses in a row,
+so the harness is the suspect and I stopped rather than guess a third time. Needs a `-g` build to go
+further; not scoped this week.
 
 ## 🧭 THE SEARCH TRACK'S REAL PROBLEM — the position sets and the games are DECOUPLED
 
