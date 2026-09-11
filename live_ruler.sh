@@ -7,12 +7,15 @@ cd "$(dirname "$0")"
 while true; do
   # Only arms whose trainer is STILL RUNNING. Measuring a stopped arm spends 120 games on a net
   # that cannot change, and with three arms in the list that was a third of the ruler's cycles.
+  # Arms are identified by the running trainer's --out, not --run-tag: the A/B arms were launched
+  # without a run-tag, so a tag-based list silently found nothing and the ruler measured NOTHING
+  # while reporting healthy. The --out net is what a trainer always has.
   live=""
-  for p in $(pgrep -f "release/learn" 2>/dev/null); do
+  for p in $(ls /proc 2>/dev/null | grep -E '^[0-9]+$'); do
     e=$(readlink /proc/$p/exe 2>/dev/null); e=${e% (deleted)}
     case "$e" in */release/learn)
-      t=$(tr '\0' ' ' < /proc/$p/cmdline 2>/dev/null | grep -oE 'run-tag [a-z0-9]+' | awk '{print $2}')
-      [ -n "$t" ] && live="$live $t";;
+      o=$(tr '\0' ' ' < /proc/$p/cmdline 2>/dev/null | grep -oE '[-][-]out [^ ]+' | awk '{print $2}')
+      [ -n "$o" ] && live="$live ${o%.net}";;
     esac
   done
   for arm in $live; do
