@@ -57,3 +57,42 @@ improvement this project has ever measured (the rung at 1.024x).
 That the reserve works. It has one run of 19 generations, which resolves nothing in either
 direction, and the 3.00x pricing is a projection from `ttsupply` draws rather than a live
 measurement. This note sizes the experiment; it does not pre-judge it.
+
+## CORRECTION to the number above — 107 generations is a point estimate on a very thin base
+
+Having published "~107 generations for 50%", I went and read where its inputs come from. The
+projection `0.20 x 0.0108` decomposes as (`ladder_valley_RESULT.md:471-474, 529-531, 811`):
+
+```
+0.20    = P(a union is even ATTEMPTED in one generation)
+          "measured from composition_s2's gen-6 population" -- ONE population, 2 of 10
+0.0108  = P(an attempted union is acceptable)  -- the minimal-halves PATH-1 rate, 13/1200
+```
+
+**The 0.20 is a single observation of 2 successes in 10.** Its binomial 95% interval runs roughly
+0.03-0.56, so the per-generation union rate spans about an order of magnitude and the 50%-chance run
+length spans roughly **40 to 700 generations**. The file itself offers a competing figure at :598 —
+`0.20 x 0.015 = 0.30%/generation` — which is a different second factor again.
+
+The table above is therefore a POINT ESTIMATE, not a plan. It is still enough to establish the thing
+it was written for: **19 generations could not have resolved anything at any plausible rate.** That
+conclusion is robust across the whole interval. The specific "107" is not.
+
+### What this changes about the experiment design
+
+Do not run a fixed 107 generations against a rate known only to within an order of magnitude. The
+run should MEASURE ITS OWN POWER, because the binding input is directly observable:
+
+* `P(union attempted per generation)` is countable from the generation lines — it is a property of
+  the population composition, which the `dsl{n}` field and the rate histogram already report.
+* With that measured over the first N generations, the required run length follows from the run's
+  own data rather than from one gen-6 population.
+
+So the design is: run, instrument `P(attempted)` continuously, and report BOTH the union count and
+the measured attempt rate. A null then yields a real bound — "over N generations at a measured
+attempt rate of X, no acceptable union appeared" — instead of a number that cannot be interpreted
+without an estimate the run never checked.
+
+This is the same lesson as `hardn_inert_RESULT.md` one level up: there, a zero was uninterpretable
+because the power was never computed. Here the power depends on a quantity the run can measure for
+itself, so it should.
