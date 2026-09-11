@@ -86,12 +86,12 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
+| [NET_TRACK_STATE.md](NET_TRACK_STATE.md) | The NET track, summarised across every configuration tried (2026-09-08) |
 | [ceiling_ANALYSIS.md](ceiling_ANALYSIS.md) | The plateau is the TRAINING PROCEDURE'S CEILING, not a gating failure |
 | [search_track_WHY_NOTHING.md](search_track_WHY_NOTHING.md) | Why the MAIN lineage has never produced an improvement, and structurally cannot |
 | [EXPERIMENTS.md](EXPERIMENTS.md) | EXPERIMENTS — what was tried, and why it failed |
 | [fitness_spec_gap_FINDING.md](fitness_spec_gap_FINDING.md) | The surrogate is not the one FITNESS §3 specifies — and that explains the saturation |
 | [search_track_FINDING.md](search_track_FINDING.md) | The search track's surrogate rewarded searching LESS (2026-09-08) |
-| [NET_TRACK_STATE.md](NET_TRACK_STATE.md) | The NET track, summarised across every configuration tried (2026-09-08) |
 | [surrogate_validation.md](surrogate_validation.md) | The accept/reject surrogate does not predict strength — measured (2026-09-08) |
 | [replay_ab_CAVEAT.md](replay_ab_CAVEAT.md) | replay_ab.sh — read the arms correctly (noted 2026-09-08, DURING the run) |
 
@@ -105,7 +105,7 @@ being asked.
 
 | topic | files that measure it |
 |---|---|
-| learning rate | lr_decay,static_deep_residual lr_sweep,learning_rate_is_the_plateau specfilter_admits_noops |
+| learning rate | lr_decay,static_deep_residual lr_sweep,learning_rate_is_the_plateau NET_TRACK_STATE |
 | training loss | proxies,EXPERIMENTS arch_surrogate_filter,replay_ab_CAVEAT epochs_ab |
 | surrogate/proxy | EXPERIMENTS,fitness_saturation surrogate_inverts,surrogate_validation specfilter_admits_noops |
 | net width | EXPERIMENTS,ladder_valley throughput,width_clock search_track_WHY_NOTHING |

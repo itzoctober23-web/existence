@@ -240,3 +240,48 @@ The options that remain are about the SIGNAL, not the instrument:
 
 Option 3 is already running. Options 1 and 2 are unexplored and are the first things worth trying
 that are not another parameter sweep on a gate that cannot see.
+
+---
+
+# Update 2026-09-11 — every run above was at lr 0.01, and lr was the lever
+
+**All eight runs in the table above varied the loop's bookkeeping** — gate pairs, replay window,
+epochs — and every one of them trained at `lr 0.01`, a hardcoded literal in `main.rs` that was not
+reachable from the command line and had never been varied. That is why the table's honest summary is
+"three WORSE, five dead heats, no accepts that held": the knob that mattered was not in it.
+
+## What moved
+
+| lr | evidence | vs the shared start |
+|---|---|---|
+| 0.01 | two matched A/Bs | 0.358, 0.499 |
+| 0.002 | two matched A/Bs | 0.544, 0.692 |
+| **0.0005** | **three independent runs** | **0.589, 0.625, 0.628** |
+
+The control is the load-bearing part: at lr 0.01 the arm scored **0.499 ± 0.030** against its own
+start, reproducing the independently-measured plateau to three decimals
+(`learning_rate_is_the_plateau_RESULT.md`). The treatment then left it.
+
+**Shipped.** `dec_C` cleared the promotion bar at 0.628 − 0.027 = **0.601 ≥ 0.5** and is the
+champion; production runs at `lr 0.0005`, verified from the run's own header. The previous
+production run was stopped after `auto_promote` read it as a **regression** (0.471 ± 0.027) following
+12,283 generations at lr 0.002. *Passed the gate — no Elo figure is quoted.*
+
+## What this closes
+
+* **The schedule question.** A constant 0.0005 beats a decay from 0.002 that *ends* at the same rate
+  (0.628 vs 0.586, matched seed). The large early steps buy nothing, so there is no schedule to tune
+  and `--lr-decay` stays defaulted off as a measured negative (`lr_decay_RESULT.md`).
+* **`ceiling_ANALYSIS.md`.** It concluded the flat band was the training procedure's ceiling rather
+  than a gating failure. Correct, and now resolved to a specific number inside that procedure.
+
+## What is still open
+
+* **Where the optimum sits.** 0.01 → 0.002 → 0.0005 improved at every step and nothing brackets it
+  from below. `lr_sweep_low.sh` is testing 0.0002 and 0.0001 from the new champion, with the control
+  arm at the shipped 0.0005 so the comparison separates "lower is better" from "a change of rate is
+  better" — every earlier drop was measured from a net trained at a *higher* rate, where those two
+  stories predict the same thing.
+* **The bookkeeping knobs above are NOT re-opened by this.** They were measured at lr 0.01 and would
+  need re-testing at 0.0005 before any of them could be called spent at the new rate — but none
+  showed a gain worth the cores, so this is a note, not a plan.
