@@ -9,6 +9,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [ruler_trend_RESULT.md](ruler_trend_RESULT.md) | Every production run is FLAT on the absolute ruler — all 166 Elo came from BETWEEN runs, not within them |
 | [low_sweep2_RESULT.md](low_sweep2_RESULT.md) | lr 0.0002 SHIPPED — the shipped rate lost to its own start, on exactly matched arms |
 | [low_sweep_RESULT.md](low_sweep_RESULT.md) | Below the shipped rate: 0.0002 wins, 0.0005 LOSES to its own start — on a run that was cut short |
 | [lr_decay_RESULT.md](lr_decay_RESULT.md) | The schedule is not the lever — ending low is. lr 0.0005 shipped |
@@ -114,11 +115,11 @@ being asked.
 | search depth | EXPERIMENTS,depth2x2 blend,speed_cannot_pay depth5_vs_depth3 |
 | blend/target | EXPERIMENTS,blend NET_TRACK_STATE,depth2x2 ladder_valley |
 | epochs | EXPERIMENTS,epochs_ab NET_TRACK_STATE,learning_rate_is_the_plateau label_source |
-| seeds & noise | depth2x2,blend p1_deceleration,promotion_was_sound lr_decay |
+| seeds & noise | depth2x2,blend p1_deceleration,low_sweep2 promotion_was_sound |
 | gate & thresholds | gate_power,EXPERIMENTS replay_ab_CAVEAT,ladder_valley search_track_WHY_NOTHING |
 | calibration | static_deep_residual,confident_when_wrong search_track_FINDING,movegen_leaf lr_sweep |
 | speed/nps | speed_cannot_pay,throughput movegen_leaf,depth2x2 path1_is_empty |
-| plateau | EXPERIMENTS,ceiling_ANALYSIS learning_rate_is_the_plateau,fitness_saturation width |
+| plateau | EXPERIMENTS,ceiling_ANALYSIS learning_rate_is_the_plateau,ruler_trend fitness_saturation |
 
 ## Non-`_RESULT` files worth knowing
 
