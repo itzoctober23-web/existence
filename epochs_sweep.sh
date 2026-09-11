@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+# EPOCHS 2 vs THE SHIPPED 3 — full length, matched arms, shared start.
+#
+# CORRECTED 2026-09-11. The version that RAN on 2026-09-11 was a half-converted copy of the blend
+# sweep: the arms were correctly switched to --epochs (its own log confirms "header reports epochs=2"
+# and "default epochs is 3, so the control arm IS the shipped setting"), but the verdict loop still
+# matched blend_02.net against blend_03.net. Those files do not exist, so all three pairs hit
+# "skip: missing net" and 2 x 2000 generations produced NO VERDICT. The comparison for that run was
+# done afterwards by epochs_compare.sh, which waits for the arms to exit before reading their nets.
+#
+# The commentary below is inherited from the blend sweep and describes why a FULL-LENGTH matched pair
+# is required at all; that reasoning carries over unchanged. The pre-registration that applies to
+# THIS script is at the bottom: epochs 2 ships only if it clears rate - ci95 >= 0.5 head to head, and
+# on one seed a margin inside the 0.047 between-seed sd buys a second seed rather than a default change.
 # BLEND 0.85 vs THE SHIPPED 0.75 — full length, matched arms, shared start.
 #
 # WHY THIS, AND WHY NOW.
@@ -99,7 +112,7 @@ say "both arms finished"
 # An unequal pair confounds the blend with the amount of training. The lr sweep's whole first
 # attempt was invalidated this way (arms unmatched at ~650 generations).
 g03=$(grep -cE '^gen ' epochs_03.log 2>/dev/null); g02=$(grep -cE '^gen ' epochs_02.log 2>/dev/null)
-say "generations completed: 0.75 -> ${g03:-0}, 0.85 -> ${g02:-0}"
+say "generations completed: epochs 3 -> ${g03:-0}, epochs 2 -> ${g02:-0}"
 if [ "${g03:-0}" -ne "${g02:-0}" ]; then
   say "UNEQUAL ARMS (${g03:-0} vs ${g02:-0}) -- the comparison is CONFOUNDED with training amount."
   say "  Reporting it rather than hiding it. Re-run with a larger CAP before drawing a verdict."
@@ -110,13 +123,14 @@ say "header check: 03 arm -> $(grep -oE 'epochs=[0-9]+' epochs_03.log | head -1)
 # ---- VERDICT: PAIRED, arm vs arm, and each vs the shared start ------------------------------
 for pair in "02:03" "02:start" "03:start"; do
   A=${pair%%:*}; Bp=${pair##*:}
-  NA="blend_$A.net"; NB=$([ "$Bp" = start ] && echo epochs_start.net || echo "blend_$Bp.net")
+  NA="epochs_$A.net"; NB=$([ "$Bp" = start ] && echo epochs_start.net || echo "epochs_$Bp.net")
   [ -s "$NA" ] && [ -s "$NB" ] || { say "skip $A vs $Bp: missing net"; continue; }
   out="epochs_${A}_vs_${Bp}.log"
   nice -n 19 taskset -c 6-11 "$NM" "$NA" "$NB" "$PAIRS" > "$out" 2>&1
   line=$(grep -oE 'scores 0\.[0-9]+ \+/- 0\.[0-9]+' "$out" | head -1)
-  say "  blend 0.$A vs $Bp: ${line:-NO VERDICT}"
+  say "  epochs $A vs $Bp: ${line:-NO VERDICT -- empty here is usually a broken run, not a null}"
 done
 
-say "REMINDER: the shipped default stays 0.75 unless 0.85 clears rate - ci95 >= 0.5 head to head."
-say "BLENDSWEEPDONE"
+say "REMINDER: the shipped default stays epochs 3 unless epochs 2 clears rate - ci95 >= 0.5 head"
+say "  to head -- and on ONE seed, a margin inside the 0.047 between-seed sd buys a second seed."
+say "EPOCHSSWEEPDONE"
