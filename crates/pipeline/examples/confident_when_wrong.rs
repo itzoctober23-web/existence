@@ -130,12 +130,21 @@ fn main() {
             // Depth never starves. The cost ratio is then not exactly 32x, so it is MEASURED per
             // position from `Searcher::nodes` and the median is reported: an approximation that is
             // stated is honest, one that is hidden is not.
+            // NODE COUNTS ARE DELTAS, because `best_move` does NOT reset the counter.
+            //
+            // `best_move_capped` sets `self.nodes = 0` (search.rs:303); `best_move` resets `ply`
+            // and the accumulator but leaves `nodes` ALONE. Reading `s.nodes` after each call
+            // therefore returns a RUNNING TOTAL over every position so far, and dividing two
+            // running totals gives ~1.0 — which is exactly what the first version printed for a
+            // depth-3 against depth-6 comparison, a ratio that is impossible on its face.
+            let n0 = s.nodes;
             let mut q = p.clone();
             let (cheap_mv, _) = s.best_move(&mut q, depth, &net);
-            let cheap_nodes = s.nodes.max(1);
+            let cheap_nodes = s.nodes.saturating_sub(n0).max(1);
+            let n1 = s.nodes;
             let mut q2 = p.clone();
             let (rich_mv, rich_sc) = s.best_move(&mut q2, depth + extra, &net);
-            let rich_nodes = s.nodes.max(1);
+            let rich_nodes = s.nodes.saturating_sub(n1).max(1);
             ratios.push(rich_nodes as f64 / cheap_nodes as f64);
 
             // A mate verdict is a search result, not an evaluation error; excluded as elsewhere.
@@ -152,6 +161,14 @@ fn main() {
             continue;
         }
         let med_ratio = median(&mut ratios.clone());
+        // SANITY GATE ON THE INSTRUMENT ITSELF. Searching +{extra} extra plies cannot cost the same
+        // as not searching them; a ratio at or below 1 means the node counter is not measuring what
+        // this code thinks it is, and the first version printed exactly 1.0x for depth 3 vs 6.
+        if med_ratio <= 1.0 {
+            eprintln!("ABORT: median cost ratio {med_ratio:.2}x for +{extra} plies is impossible.");
+            eprintln!("The node counter is not being read as a per-search delta. Do not read the table.");
+            std::process::exit(5);
+        }
         let thr = median(&mut resid.clone());
         let n_flip = flip.iter().filter(|x| **x).count();
         // "LOW confidence" = residual ABOVE the median: search revised the static opinion a lot.
