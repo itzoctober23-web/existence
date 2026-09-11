@@ -3611,7 +3611,8 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                         v.sort(); v.dedup(); v.len()
                     };
                     println!("  gen {g:>3} {:<5} gate {} {:.3}+/-{:.3} ({} games W-D-L {}-{}-{})  mates {f}  hard {hlo}-{hhi}  surrogate \
-{rate:.6}  ABOVE:{above}  needed >{:.3}  pop {g_pop} distinct:{g_distinct}  plycap:{g_ceiling}  identity:{n_same}/{n_tot}",
+{rate:.6}  ABOVE:{above}  needed >{:.3}  pop {g_pop} distinct:{g_distinct}  plycap:{g_ceiling}  identity:{n_same}/{n_tot}  \
+rel[>=.98:{} .90-.98:{} .50-.90:{} <.50:{}]",
                              lineages[li].name,
                                match sprt_verdict {
                                    Some(gate::Sprt::Inconclusive) => format!("INCONCLUSIVE llr {sprt_llr:+.2}"),
@@ -3628,7 +3629,24 @@ positions, {rate:.6} was {:.6}", lineages[li].name, set.len() + hard.len(), best
                              // describing a veto while the code demanded resolution, the anchor comment
                              // claiming 'same seed family, same openings' when it did not. Adding a third
                              // while fixing the first would be poor.
-                             if veto_only { 0.5 - gsc.ci95() } else { 0.5 + gsc.ci95() });
+                             if veto_only { 0.5 - gsc.ci95() } else { 0.5 + gsc.ci95() },
+                             // THE RATE HISTOGRAM ON THE GATE LINE -- the THIRD field to need this
+                             // move. `ABOVE` was moved here because it is "TAUTOLOGICALLY 0 wherever
+                             // `..none` prints it" (:3143), and `pop`/`distinct` followed (:3592)
+                             // because arms differ in how many lines of each kind they emit.
+                             //
+                             // `rel` is the same defect. Measured 2026-09-11 across every log on
+                             // disk: 21 `..none` lines carry a rates field and ZERO gate lines do.
+                             // So any statistic over it samples ONLY the generations where nothing
+                             // was picked -- which is definitionally where no candidate beat the
+                             // champion. I computed "the best candidate never exceeded 1.000x in 20
+                             // generations" from exactly that sample and it is circular.
+                             //
+                             // The BUCKETS are logged rather than the min-max span, for the reason
+                             // :3120 already gives: the max is always a neutral twin at 1.000x, so
+                             // min-max says nothing about whether informative candidates exist in
+                             // the .90-.98 band that EPS discards. That band is the diagnosis.
+                             hist.0, hist.1, hist.2, hist.3);
                     // EXPLOIT CAPTURE. A candidate whose surrogate is orders above the incumbent
                     // while its GAMES are far below parity is, by definition, a program that beats
                     // the fitness function without playing better. Those are the only examples that
