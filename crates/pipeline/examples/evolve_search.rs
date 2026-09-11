@@ -431,6 +431,8 @@ fn main() {
                     reason: Reason::FailedOracle,
                     gates: vec![],
                     surrogate: vec![("oracle_ok", co as f64), ("oracle_n", cn as f64)],
+                    e1: None,
+                    top_disagreement_fen: None,
                 });
                 continue;
             }
@@ -459,6 +461,8 @@ fn main() {
                     reason: Reason::Regression,
                     gates: vec![],
                     surrogate: vec![("mates", cm as f64), ("seed_mates", seed_mates as f64)],
+                    e1: None,
+                    top_disagreement_fen: None,
                 });
                 continue;
             }
@@ -483,6 +487,8 @@ fn main() {
                     ci95: sc.ci95(), resolved: llr.abs() >= pipeline::gate::LLR_BOUND,
                 }],
                 surrogate: vec![("llr", llr), ("mates", cm as f64), ("mates_per_mcost", cr)],
+                e1: None,
+                top_disagreement_fen: None,
             });
             if passed {
                 if best.as_ref().map_or(true, |(_, b, _)| sc.pent_rate() > b.pent_rate()) {
