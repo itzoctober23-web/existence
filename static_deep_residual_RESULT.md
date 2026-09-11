@@ -119,3 +119,69 @@ evidence is worse than no check**, because it launders an artefact as a result.
   handful would swamp the mean. 8 of 600 excluded, reported in the table.
 * **Untrained control, every run.** Following `eval_anatomy`. It is the control that refuted the
   instrument — which is the entire reason for carrying one.
+
+---
+
+# The repair works — and a game-free instrument independently reproduces the lr result
+
+Added the same hour. The proposal above ("score the deep side with a fixed reference") is
+implemented as `--ref`, and it does what the self-referential form could not.
+
+## The circular first run, caught by a repeated digit
+
+The first `--ref` run used `p1_champion.net` as the reference while measuring `lrB.net`, and printed
+`lrB 0.880`. **0.880 is exactly what lrB scored in the self-referential table.** Three matching
+decimals is not coincidence:
+
+```text
+p1_champion.net   dfd258b070264e53
+lrB.net           dfd258b070264e53      <- byte-identical
+```
+
+lrB was promoted to champion hours earlier, so the reference *was* the net under test. It scored
+against itself, and every other row measured distance-from-lrB rather than agreement with an
+independent opinion. **That run is void.**
+
+The tool now refuses it (`exit 4`) rather than printing: a reference byte-identical to any net under
+test aborts. The bug was invisible in the numbers except for that repeated digit, which is exactly
+the kind of tell that does not survive a busier table.
+
+## The adversarial re-run
+
+The reference was then chosen to be **biased against the conclusion**: `p1_champion_prev_pre_lr002`,
+the champion from *before* the lr change — the lr 0.01 lineage, i.e. lrA's side of the family.
+600 positions, depth 4.
+
+| net | corr | sign agree | sd static |
+|---|---|---|---|
+| origin(random) | **−0.019** | **47.8%** | 25.0 |
+| lr_start | 0.664 | 73.5% | 237.9 |
+| lrA (lr 0.01) | **0.613** | 66.6% | 262.7 |
+| **lrB (lr 0.002)** | **0.743** | **76.7%** | 388.3 |
+
+**lrB > lr_start > lrA**, with lrA landing *below the start it trained from*.
+
+## Why this is worth more than a fourth match
+
+`netmatch` scored the same pair 0.692 (lrB) against 0.499 (lrA) — lrB gained, lrA went nowhere. The
+table above is the same ranking from an instrument that shares **no machinery** with it: no games,
+no openings, no pairing, no seed lottery, and the between-seed sd of 0.047 that makes a single
+`netmatch` reading a lottery does not apply. And the reference was drawn from the **losing arm's**
+lineage, so the bias ran against the result.
+
+`learning_rate_is_the_plateau_RESULT.md` closes with "**Not replicated.** One seed." This is not a
+second seed, but it is a second *instrument*, which is the stronger of the two things one can add.
+
+The random control is the load-bearing row: **corr −0.019, sign agreement 47.8%** — indistinguishable
+from a coin flip. In the self-referential mode the same untrained net scored corr 0.900 and won the
+trainer's own metric outright. The mechanical coupling is gone, which is what the repair was for.
+
+## Status of the P1 kill criterion
+
+Still **not repaired as written** — MASTER_PLAN specifies the self-referential form, and that form
+remains unusable across checkpoints. What exists now is a working substitute with different
+semantics ("agreement with a fixed stronger opinion", scale-free), offered as a proposed amendment
+to the document rather than quietly swapped in behind the same name.
+
+Both conjuncts of the kill can now be evaluated. Neither fires: strength gain is **not** absent
+(the lr result), and agreement with a fixed reference is **not** flat across the lineage.

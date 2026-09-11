@@ -162,12 +162,51 @@ fn measure(name: &str, net: &Net, ps: &[Position], depth: u32, seed: u64) -> Row
     }
 }
 
+/// THE REPAIR. Score the deep side with ONE FROZEN REFERENCE NET for every checkpoint.
+///
+/// The self-referential form measured above is unusable across nets for two reasons: the search
+/// evaluates with the net under test, so the sides are mechanically coupled (corr 0.900 for an
+/// untrained net), and the residual scales with the net's own output range, so learning to
+/// distinguish positions makes the number WORSE. A fixed reference kills both: the target is
+/// identical for every net, so it cannot move with the net under test.
+///
+/// REPORTED AS A CORRELATION, NOT A RESIDUAL. Net A's eval is in net A's units and the reference's
+/// values are in the reference's units, so their raw difference is a UNIT MISMATCH — subtracting
+/// them would produce a confidently wrong number of exactly the kind this file already caught once.
+/// Correlation and sign agreement are scale-free, so they compare across nets honestly.
+///
+/// This is a DIFFERENT measurement from the one MASTER_PLAN specifies, which is why it is a
+/// separate mode behind a flag rather than a quiet redefinition of the one above.
+fn measure_vs_ref(name: &str, net: &Net, ps: &[Position], deep_ref: &[f64]) -> (String, f64, f64, f64) {
+    let mut scratch = Vec::new();
+    let st: Vec<f64> = ps
+        .iter()
+        .map(|p| {
+            let m = net.eval(p, &mut scratch) as f64;
+            if p.stm == Color::White { m } else { -m }
+        })
+        .collect();
+    let agree = st
+        .iter()
+        .zip(deep_ref)
+        .filter(|(a, b)| (**a >= 0.0) == (**b >= 0.0))
+        .count() as f64
+        / st.len() as f64;
+    (name.to_string(), corr(&st, deep_ref), agree, sd(&st))
+}
+
 fn main() {
     let a: Vec<String> = std::env::args().skip(1).collect();
     let n_pos: usize = a.first().and_then(|s| s.parse().ok()).unwrap_or(600);
     let depth: u32 = a.get(1).and_then(|s| s.parse().ok()).unwrap_or(4);
     let seed: u64 = a.get(2).and_then(|s| s.parse().ok()).unwrap_or(20260911);
-    let files: Vec<String> = a.iter().skip(3).cloned().collect();
+    let mut files: Vec<String> = a.iter().skip(3).cloned().collect();
+    // `--ref FILE` pulled out of the net list; everything else stays a net to measure.
+    let mut ref_file: Option<String> = None;
+    if let Some(i) = files.iter().position(|x| x == "--ref") {
+        ref_file = files.get(i + 1).cloned();
+        files.drain(i..=(i + 1).min(files.len() - 1));
+    }
 
     // netmatch rejects a depth outside 1..=12 after a seed landed in the depth slot and searched to
     // depth 911,911. Same guard, same reason. Depth 0 additionally underflows at the root.
@@ -198,6 +237,79 @@ fn main() {
 
     println!("static_deep_residual: {n_pos} positions, depth {depth}, seed {seed}");
     println!("  residual = deep_search_value - static_eval, both in WHITE's point of view\n");
+
+    if let Some(rf) = ref_file {
+        let rnet = match Net::load(&rf) {
+            Ok(n) => n,
+            Err(e) => {
+                eprintln!("reference {rf} failed to load: {e}");
+                std::process::exit(1);
+            }
+        };
+        // CIRCULARITY GUARD. The first ref-mode run used `p1_champion.net` as the reference while
+        // measuring `lrB.net` -- and those two files are BYTE-IDENTICAL, because lrB was promoted
+        // to champion hours earlier. lrB "scored" 0.880 against itself, which is exactly the
+        // self-referential number this mode exists to escape. The tell was that 0.880 appeared in
+        // both tables to three decimals.
+        //
+        // A reference that IS one of the nets under test makes that net's row meaningless and every
+        // other row a measure of distance-from-it. Refuse rather than print.
+        if let Ok(rbytes) = std::fs::read(&rf) {
+            for f in &files {
+                if std::fs::read(f).map(|b| b == rbytes).unwrap_or(false) {
+                    eprintln!("ABORT: reference {rf} is BYTE-IDENTICAL to {f}, which is under test.");
+                    eprintln!("That net would score against itself and the ranking would be");
+                    eprintln!("distance-from-{f}, not agreement with an independent opinion.");
+                    std::process::exit(4);
+                }
+            }
+        }
+
+        // Computed ONCE. Every net is scored against this same target, which is the whole point --
+        // and it makes the ref mode cheaper than the self-referential one for multi-net runs.
+        let mut s = Searcher::with_seed(seed);
+        let mut keep: Vec<Position> = Vec::new();
+        let mut deep_ref: Vec<f64> = Vec::new();
+        let mut n_mate = 0usize;
+        for p in &ps {
+            let mut q = p.clone();
+            let (_, d) = s.best_move(&mut q, depth, &rnet);
+            if d.abs() >= MATE_BAND {
+                n_mate += 1;
+                continue;
+            }
+            let flip = if p.stm == Color::White { 1.0 } else { -1.0 };
+            deep_ref.push(d as f64 * flip);
+            keep.push(p.clone());
+        }
+
+        println!("static_deep_residual --ref {rf}: {} positions, depth {depth}, seed {seed}", keep.len());
+        println!("  fixed reference for the deep side; {n_mate} mate-scored positions excluded");
+        println!("  scale-free by construction -- a raw difference here would be a UNIT MISMATCH\n");
+        println!("  {:<34} {:>8} {:>10} {:>9}", "net", "corr", "sign agree", "sd static");
+
+        let mut out = vec![measure_vs_ref("origin(random)", &Net::random(16, 20260907), &keep, &deep_ref)];
+        for f in &files {
+            match Net::load(f) {
+                Ok(n) => out.push(measure_vs_ref(f, &n, &keep, &deep_ref)),
+                Err(e) => println!("  {f}: LOAD FAILED ({e})"),
+            }
+        }
+        for (n, c, ag, sdv) in &out {
+            println!("  {:<34} {:>8.3} {:>9.1}% {:>9.1}", n, c, ag * 100.0, sdv);
+        }
+        let rnd = out[0].1;
+        println!(
+            "\n  origin(random) corr {rnd:.3} is the floor. Unlike the self-referential mode, an"
+        );
+        println!("  untrained net has no mechanical advantage here: the target is not its own search.");
+        if out[1..].iter().any(|r| r.1 > rnd + 0.10) {
+            println!("  => separation achieved; this form IS readable across nets.");
+        } else {
+            println!("  => NO SEPARATION from random. Do not read the ranking.");
+        }
+        return;
+    }
 
     let mut rows = vec![measure("origin(random)", &Net::random(16, 20260907), &ps, depth, seed)];
     for f in &files {
