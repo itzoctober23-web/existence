@@ -1,4 +1,4 @@
-# Existence — current state, 2026-09-10
+# Existence — current state, 2026-09-11
 
 ## ✅ THE STANDING TASK LIST IS COMPLETE — all six, with where each was verified
 
@@ -5445,3 +5445,62 @@ Existence carries alpha-beta, MCTS and proof-number primitives precisely so the 
 any of them — or a **hybrid** — if that is what wins. Nothing here steers it toward a paradigm.
 
 RULER 2026-09-11 — prodk0759 pooled 1481 +/- 19 (n=10 rungs) | trend +1.0 +/- 7.1 Elo/1000 gens = FLAT (indistinguishable from zero) | stop condition 1600: 119 short (6.3 SE)
+
+---
+
+# 2026-09-11 — TWO SHIPS, AND THE SEARCH TRACK'S FUNNEL OPENED
+
+## Shipped (both gated, no Elo quoted)
+
+    lr     0.0005 -> 0.0002   full-length matched arms; the incumbent LOST to its own start (0.412)
+    blend  0.75   -> 0.85     two seeds, pooled 0.574 +/- 0.021, lower bound 0.553
+
+**Champion `044e754f57ba` -> `abbbd0d0c5e0`** (`blend_085_s1.net`, 2000 generations). Both seeds'
+0.85 arms cleared the normal rule against the incumbent (0.583 +/- 0.027 and 0.558 +/- 0.029); the
+choice between the two nets was a 0.6-sigma TIEBREAK, not a measurement. Previous champion kept as
+`p1_champion_prev_pre_blend085.net`.
+
+Production is `prodk1056`, header verified `lr=0.0002 blend=0.85`, started from the new champion.
+`p1_production.sh` now passes `--blend` EXPLICITLY: it previously relied on the compiled default of
+a snapshot binary built before the ship, so the change would never have reached the run.
+
+## The ruler, and the 1600 stop condition
+
+    old champion   1476 +/- 11   over 22,141 generations, slope -0.6 +/- 1.6 /1000 gens (FLAT)
+    new champion   1544 +/- 32   2,000 generations from it at blend 0.85
+    target         1600          +56 away (1.8 SE), from +119 (6.3 SE) this morning
+
+The flat bound tightened 4.4x on 2.6x the span and did not move: **22,000 generations of training
+at the old configuration bought -13 +/- 35 Elo.** Every gain this week came from changing the
+configuration, none from running longer.
+
+## Search track (P2) — the funnel was the constraint, and it is fixed
+
+`search_has_no_choice_RESULT.md` measured that 94% of generations hand selection <= 1 distinct
+fitness. That is **binomial arithmetic**, not a pathology: a choice needs TWO guard survivors in
+the same generation, and at the measured 10.5% guard rate 4 proposals give P(>=2) = 0.057 against
+0.879 at 32. The historical rate was 6.3% and the model predicts 6.2%.
+
+Candidates were proposed as `(0..pop)` — the proposal count WAS the population size, and pop
+collapses to 2. `EXISTENCE_PROPOSALS` separates them (default `pop`, so unset is byte-identical).
+Matched result: control 0/4 generations with a choice, prop32 4/4, Fisher p = 0.029.
+
+**A game gate has now fired** for the first time in any arm — `gate REJECT 0.375 +/- 0.110` on 12
+games. The pipeline runs end to end where it previously stalled at the first stage. One 12-game
+gate does not establish that the candidates are bad.
+
+## Running, not concluded
+
+    epochs-sweep       epochs 2 vs shipped 3, 2000 gens/arm, fresh seed 20260919
+    choice-2x2         final cell (hard+p32) at 5 of 6 generations
+    hardn-probe        pre-registered HARD_N=40 scaling test, waits on the 2x2
+    search-long-run    40 generations at 32 proposals, fresh seed, accepts as the primary metric
+    build-prior-knobs  builds/verifies hybridPriorDepth+Temp once 4PC's tune releases the binary
+
+## Process note, because it cost four corrections today
+
+Four directions were published from too few points and retracted. Three were reads of a STILL
+RUNNING experiment. The rule now recorded: **a running experiment produces STATE, not FINDINGS** —
+report progress until the planned N, and use the reporters (`choice_report.py`,
+`blend_crossseed.py`, `ruler_trend.py`), each of which refuses a verdict where hand-reading a log
+did not.
