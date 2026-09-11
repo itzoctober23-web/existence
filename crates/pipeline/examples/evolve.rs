@@ -1459,7 +1459,7 @@ fn shape_sig(p: &Program) -> String {
         match n {
             Budget => "Budget", Const(_) => "Const", Var(_) => "Var", OutcomeLit(_) => "OutcomeLit",
             Nop => "Nop", Moves(_) => "Moves", Terminal(_) => "Terminal", Key(_) => "Key",
-            Eval(_) => "Eval", Ret(_) => "Ret", Probe(_) => "Probe", Field(..) => "Field",
+            Eval(_) => "Eval", Unc(_) => "Unc", Ret(_) => "Ret", Probe(_) => "Probe", Field(..) => "Field",
             Set(..) => "Set", Apply(..) => "Apply", Max(..) => "Max", Min(..) => "Min",
             Avg(..) => "Avg", ScoreOf(..) => "ScoreOf", Cmp(..) => "Cmp", Pred(..) => "Pred",
             Loop(..) => "Loop", Store(..) => "Store", Mix(..) => "Mix", Foreach(..) => "Foreach",
@@ -1472,7 +1472,7 @@ fn shape_sig(p: &Program) -> String {
         *m.entry(kind(n)).or_insert(0) += 1;
         match n {
             Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => {}
-            Moves(a) | Terminal(a) | Key(a) | Eval(a) | Ret(a) | Probe(a) | Field(a, _)
+            Moves(a) | Terminal(a) | Key(a) | Eval(a) | Unc(a) | Ret(a) | Probe(a) | Field(a, _)
             | Set(_, a) => walk(a, m),
             Apply(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) | Cmp(a, b, _)
             | Pred(a, b, _) | Loop(a, b) | Store(a, _, b) => { walk(a, m); walk(b, m) }
@@ -1644,7 +1644,7 @@ fn flag_tests(p: &Program) -> usize {
         }
         match n {
             Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => {}
-            Moves(a) | Terminal(a) | Key(a) | Eval(a) | Ret(a) | Probe(a) | Field(a, _)
+            Moves(a) | Terminal(a) | Key(a) | Eval(a) | Unc(a) | Ret(a) | Probe(a) | Field(a, _)
             | Set(_, a) => walk(a, out),
             Apply(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) | Cmp(a, b, _)
             | Pred(a, b, _) | Loop(a, b) | Store(a, _, b) => { walk(a, out); walk(b, out) }
@@ -1841,7 +1841,7 @@ fn flag_reads(p: &Program) -> usize {
         if let Field(_, f) = n { if *f == grammar::ast::FieldId::Flag { *out += 1; } }
         match n {
             Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => {}
-            Moves(a) | Terminal(a) | Key(a) | Eval(a) | Ret(a) | Probe(a) | Field(a, _)
+            Moves(a) | Terminal(a) | Key(a) | Eval(a) | Unc(a) | Ret(a) | Probe(a) | Field(a, _)
             | Set(_, a) => walk(a, out),
             Apply(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) | Cmp(a, b, _)
             | Pred(a, b, _) | Loop(a, b) | Store(a, _, b) => { walk(a, out); walk(b, out) }
@@ -1862,8 +1862,8 @@ fn flag_reads(p: &Program) -> usize {
 /// meant. Slots 4..8 are the MCTS-material kinds the watch panel needs: an `Avg` or a
 /// `Field(Count)` appearing in a MAIN member is averaging backup showing up inside an alpha-beta
 /// program, which is the crossover result this project is watching for.
-fn tt_counts(p: &Program) -> [usize; 8] {
-    fn walk(n: &Node, out: &mut [usize; 8]) {
+fn tt_counts(p: &Program) -> [usize; 9] {
+    fn walk(n: &Node, out: &mut [usize; 9]) {
         use Node::*;
         match n {
             Probe(_) => out[0] += 1,
@@ -1877,11 +1877,12 @@ fn tt_counts(p: &Program) -> [usize; 8] {
             Sample(..) => out[5] += 1,
             Field(_, FieldId::Count) => out[6] += 1,
             Field(_, FieldId::Sum) => out[7] += 1,
+                Unc(_) => out[8] += 1,
             _ => {}
         }
         match n {
             Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => {}
-            Moves(a) | Terminal(a) | Key(a) | Eval(a) | Ret(a) | Probe(a) | Field(a, _)
+            Moves(a) | Terminal(a) | Key(a) | Eval(a) | Unc(a) | Ret(a) | Probe(a) | Field(a, _)
             | Set(_, a) => walk(a, out),
             Apply(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) | Cmp(a, b, _)
             | Pred(a, b, _) | Loop(a, b) | Store(a, _, b) => { walk(a, out); walk(b, out) }
@@ -1892,7 +1893,7 @@ fn tt_counts(p: &Program) -> [usize; 8] {
             Call(_, args) | Arith(_, args) | TRead(_, args) => { for a in args { walk(a, out) } }
         }
     }
-    let mut out = [0usize; 8];
+    let mut out = [0usize; 9];
     for f in &p.funcs { walk(&f.body, &mut out); }
     out
 }
@@ -1906,8 +1907,11 @@ fn tt_kind_tag(p: &Program) -> String {
     let c = tt_counts(p);
     if c.iter().all(|&x| x == 0) { return "-".to_string(); }
     let mut s = String::new();
-    // P/S/K/F are the TT four; A=Avg, M=Sample, c=Field(Count), u=Field(Sum) are MCTS material.
-    for (ch, n) in ["P", "S", "K", "F", "A", "M", "c", "u"].iter().zip(c.iter()) {
+    // P/S/K/F are the TT four; A=Avg, M=Sample, c=Field(Count), u=Field(Sum) are MCTS material;
+        // U=Unc is the uncertainty read (2026-09-11). Lowercase u and uppercase U are DIFFERENT
+        // kinds -- u is a slot's Sum field, U is the net's own uncertainty head -- so anything
+        // matching case-insensitively would conflate them.
+    for (ch, n) in ["P", "S", "K", "F", "A", "M", "c", "u", "U"].iter().zip(c.iter()) {
         if *n > 0 { s.push_str(&format!("{ch}{n}")); }
     }
     s
@@ -1989,10 +1993,34 @@ fn tt_kinds_control() {
             "hash-reuse tagged {both:?} -- the tag cannot identify the united rung, so ttk is unusable");
     // The count must equal the sum of the kinds, or the two printed fields disagree on the same run.
     for (name, p) in &cases {
-        assert_eq!(tt_prims(p), tt_counts(p).iter().sum::<usize>(),
-                   "{name}: pooled count and per-kind counts disagree");
+        // THE FIRST FOUR, not all of them. `tt_prims` is defined as `tt_counts(p)[..4].sum()` --
+        // the TT four -- while slots 4..8 hold MCTS material (A=Avg, M=Sample, c=Count, u=Sum) and
+        // slot 8 holds the unc read. Comparing it against the sum of EVERY slot asserted that no
+        // program carries MCTS material, which UCT MCTS does by construction: it tags
+        // P10S5K15F10A1c7u3, so the check demanded 40 == 51 and this control could not pass.
+        //
+        // FOUND 2026-09-11 by running it. It is a POSITIVE CONTROL whose stated purpose is to
+        // license reading `ttk` off a live run, and it was mis-specified against the very function
+        // it checks -- so the licence had never actually been granted. Pre-existing: slot 8 is zero
+        // for every case here, so the ninth kind cannot be the cause.
+        assert_eq!(tt_prims(p), tt_counts(p)[..4].iter().sum::<usize>(),
+                   "{name}: pooled count and per-kind counts disagree over the TT four");
     }
+    // U MUST BE VISIBLE AND MUST NOT LEAK, added 2026-09-11 with the unc read. Checked here rather
+    // than by adding the yardstick to `cases` above: that loop asserts tt_prims == the sum of ALL
+    // kinds, which holds only while the extra slots are zero, so a program carrying unc would break
+    // it for the wrong reason.
+    let unc = tt_kind_tag(&reference::uncertainty_extension());
+    assert!(unc.contains('U'),
+            "uncertainty extension tagged {unc:?} -- ttk cannot see the unc read, so the two UNC_* \
+             watch events could never fire no matter what the population did");
+    assert!(!unc.contains('P') && !unc.contains('S'),
+            "uncertainty extension tagged {unc:?} -- unc is leaking into the TT slots, which would \
+             fire a hash-reuse event on a program that has no memory at all");
+    assert_eq!(tt_prims(&reference::uncertainty_extension()), 0,
+               "unc inflated the pooled TT count; tt_prims must stay the first four kinds");
     println!("  PASS: probe={probe}  store={store}  hash={both}  (halves are distinguishable)");
+    println!("  PASS: unc={unc}  (the uncertainty read is visible and distinct from the TT four)");
 }
 
 /// Score REAL crossover children that carry both TT halves, on the valley set.
