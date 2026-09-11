@@ -233,6 +233,35 @@ fn main() {
         println!("  {:<26} of those, {} cost >= {}cp (a real error, not a tie-break); \
                   low-conf on THOSE: {:.1}%",
                  "", n_material, MATERIAL_CP, 100.0 * mat_pct);
+
+        // COST CONCENTRATION -- the precondition for allocation being worth anything at all.
+        //
+        // Decision-theoretic search spends compute where it changes the ROOT DECISION. That only
+        // pays if the opportunity is CONCENTRATED. If every position is equally likely to flip, and
+        // flips cost about the same everywhere, then a PERFECT allocator has nothing to allocate
+        // toward and the ceiling on the whole paradigm is zero -- no uncertainty head, however well
+        // calibrated, can beat a flat distribution.
+        //
+        // That bound is independent of whether the head's TARGET is right, which is the separate
+        // question uncertainty_target_PREREG.md registers. It is measured here because the numbers
+        // already exist once `costs` is computed: it costs nothing to ask, and it bounds everything
+        // downstream.
+        let mut cs: Vec<i64> = costs.iter().zip(&flip)
+            .filter(|(_, fl)| **fl)
+            .map(|(c, _)| (*c).max(0) as i64)
+            .collect();
+        cs.sort_unstable_by(|a, b| b.cmp(a));
+        let total: i64 = cs.iter().sum();
+        if total > 0 && !cs.is_empty() {
+            let decile = ((cs.len() as f64) * 0.1).ceil().max(1.0) as usize;
+            let top: i64 = cs.iter().take(decile).sum();
+            let (mut acc, mut n_half) = (0i64, 0usize);
+            for &c in &cs { acc += c; n_half += 1; if acc * 2 >= total { break } }
+            println!("  {:<26} COST CONCENTRATION: top decile ({} of {} flips) holds {:.0}% of all \
+                      flip cost; {} flips hold half. Flat would be 10% / {}.",
+                     "", decile, cs.len(), 100.0 * top as f64 / total as f64,
+                     n_half, cs.len() / 2);
+        }
     }
 
     println!("\n  low-conf % near 50 means confidence carries NO information about reliability:");
