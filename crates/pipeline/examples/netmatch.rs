@@ -28,6 +28,26 @@ fn main() {
     // better at depth 2" while I read them as "which net is stronger".
     // A careless invocation should measure the thing that decides, so the careless case is now d4.
     let depth: u32 = a.next().and_then(|s| s.parse().ok()).unwrap_or(4);
+    // REJECT AN ABSURD DEPTH INSTEAD OF ATTEMPTING IT.
+    //
+    // The argument order is `netA netB PAIRS DEPTH SEED`, and putting a seed in the depth slot is an
+    // easy slip: both are bare integers and the seed is the one you are thinking about. Done on
+    // 2026-09-11 with `... 224 911911`, which searched toward depth 911,911 and died with
+    // "thread 'main' has overflowed its stack".
+    //
+    // The cost was not the crash, it was HOW IT FAILED. The log held only netmatch's own header, so
+    // a grep for `scores` returned nothing -- indistinguishable from a match still running. It was
+    // read as "still in progress" until someone opened the file. A run that dies must say so in a
+    // way a summary reader cannot mistake for patience.
+    //
+    // 12 is above anything this project gates at: the standard is depth 4 and the deepest
+    // measurement on record is 11.
+    if depth == 0 || depth > 12 {
+        eprintln!("netmatch: depth {depth} is out of range (1..=12).");
+        eprintln!("  argument order is <netA> <netB> [pairs] [depth] [seed]");
+        eprintln!("  a SEED in the depth slot is the usual cause; refusing rather than overflowing the stack");
+        std::process::exit(2);
+    }
     let seed: u64 = a.next().and_then(|s| s.parse().ok()).unwrap_or(20260907);
 
     // "random:<width>:<seed>" constructs a net instead of loading one, so the ORIGIN can be an
