@@ -273,6 +273,38 @@ exposed: it will confidently explain a blind spot. Therefore:
   Kill: no iteration-over-iteration gain across iterations 4-8 AND the static-vs-deep
   residual is not shrinking -> pipeline bug; stop and find it. (Early iterations are
   noisy by design; do not fire the kill on iterations 0-3.)
+
+  > **Correction, 2026-09-11 — THIS KILL COULD NEVER HAVE FIRED, because its second conjunct is not
+  > a measurable quantity as written.** The residual was implemented for the first time on that date
+  > (`crates/pipeline/examples/static_deep_residual.rs`, `static_deep_residual_RESULT.md`) and the
+  > measurement refuted the metric, not the engine. Two mechanical defects:
+  >
+  > 1. **The two sides are the same function.** The search evaluates leaves with the net under test
+  >    (`datagen.rs:187`), so static and deep are one function at two depths. An **untrained random
+  >    net scores corr 0.900** — the agreement is mechanical and carries no information.
+  > 2. **The residual scales with the net's output range**, and learning to distinguish positions
+  >    necessarily widens that range. The direction that indicates learning is the direction that
+  >    makes the number grow, and the untrained net wins the trainer's own tanh metric outright
+  >    (0.0181 against 0.167–0.260).
+  >
+  > A conjunctive kill with one unmeasurable conjunct never fires — which is exactly what happened:
+  > the first conjunct was measured repeatedly through the 2026-09-10/11 plateau while the
+  > conjunction stayed un-evaluable. **The plateau was ultimately explained without it** — the
+  > learning rate, a hardcoded literal that had never been varied (`lr_sweep_RESULT.md`,
+  > `lr_decay_RESULT.md`) — so no pipeline bug was hiding behind the dead conjunct.
+  >
+  > **Replacement, implemented and validated rather than proposed:** score the deep side with ONE
+  > FROZEN REFERENCE net for every checkpoint (`static_deep_residual --ref`). The target then stops
+  > moving with the net under test and both defects vanish — the untrained control falls from corr
+  > 0.900 to **−0.019**, sign agreement 47.8%, chance. It reports a correlation rather than a
+  > residual because the two sides are in different nets' units and subtracting them would be a unit
+  > mismatch. Validated by predicting the complete ordering of a three-arm learning-rate sweep, in a
+  > pre-registration committed before the matches reported.
+  >
+  > **Known limitation, recorded because it would otherwise mislead:** the replacement RANKS but
+  > does not CALIBRATE. It ordered those arms correctly while also reporting "no arm beat its own
+  > start" about a run in which two arms beat it decisively. Use it to compare candidates, never to
+  > decide whether one has improved.
 - **P2** (open-ended, runs from day one) Search learning from the bare alpha-beta
   seed. Milestones, each a timestamped ledger entry: hash reuse; iterative deepening;
   hash-move-first ordering; capture extension (qsearch); first ordering statistic;

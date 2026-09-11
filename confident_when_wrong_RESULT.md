@@ -139,27 +139,34 @@ and wrote it into the file as a reason not to conclude. That is what made the fo
 running and its answer worth trusting — the prediction was on record, and it was wrong in a way that
 strengthened the finding rather than rescuing it.
 
-## And §8 is not wired into the gate — which is, for now, the only reason the loop still runs
+## ~~And §8 is not wired into the gate~~ — RETRACTED: it is deferred BY DESIGN until P3
 
-FITNESS.md:273 says of this check:
+**Retracted 2026-09-11 03:5x, within the hour.** This section claimed §8 was "the third
+specified-but-absent check found tonight" and that a literal implementation "would halt the
+project". **Both claims are wrong, and the spec says so three lines above the text I quoted.**
 
-> **Fail = REJECT even if the ladder passed.** Recorded with the entry.
+`FITNESS.md:263-265`, the heading and preamble of the very section I cited:
 
-That makes it a **gate**, not a diagnostic. It is implemented nowhere: `gate.rs` and `main.rs`
-contain no adversarial set, no explanation-layer confidence, and no §8 rejection path. The gate
-decides on `pent_rate − ci95 ≥ 0.5` and nothing else. This is the third specified-but-absent check
-found tonight, after the P1 residual and this measurement itself.
+```text
+## 8. Explanation-honesty check (stage 6, all classes; ACTIVE FROM P3)
+The explanation layer does not exist before P3. Until it does, stage 6 is recorded in
+every ledger entry as N/A (not as PASS). It becomes mandatory the day the layer ships.
+```
 
-**Do not wire it as written.** The engine scores **17.1%** against §8's 80% threshold, so a literal
-implementation would reject *every* candidate, including the one promoted an hour ago on a clean
-0.601. The spec would halt the project.
+The project is in **P1**. So §8 is absent from the gate **exactly as specified**, `gate.rs`
+deciding on `pent_rate − ci95 ≥ 0.5` alone is correct, and there is **no spec-versus-reality
+conflict here at all**. The champion promoted tonight was not shipped past a gate that should have
+stopped it.
 
-So this is a genuine spec-versus-reality conflict and it is recorded as one rather than resolved by
-quietly picking a side:
+I quoted lines 269-272 and did not read 263-265 immediately above them — the governing sentence of
+the section. That is the standing rule *read the governing section verbatim first*, failed on the
+one document I was auditing.
 
-* if 80% is right, the engine has a large outstanding defect and no candidate should be shipping;
-* if shipping is right, the 80% threshold was chosen before anything had measured what this quantity
-  actually does, and needs re-deriving from data rather than from intuition.
+**What survives, and it is the useful part.** The measurement is unaffected: the engine really is
+more confident where its cheap search errs, 17.1% against a threshold of 80%, with the tie-break
+confound tested and refuted. And measuring it **during P1, years before it becomes mandatory**, is
+worth more than it would have been as a late discovery — when the explanation layer ships in P3,
+the check already exists, its confound is already eliminated, and the baseline it has to beat is a
+measured 17.1% rather than an assumption. That is the honest framing: **not a violated gate, a
+pre-measured one.**
 
-Nothing here settles which. What it does settle is that the number is now **measurable**, so the
-question can be argued from evidence — which it could not be this morning.
