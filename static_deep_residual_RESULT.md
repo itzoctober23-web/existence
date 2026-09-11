@@ -64,7 +64,7 @@ quantity across checkpoints: it moves with output scale, and the direction that 
 (a widening range) is the direction that makes the residual *grow*. A conjunctive kill with one
 unmeasurable conjunct is a kill that never fires — which is what happened tonight.
 
-**Proposed repair, not yet implemented:** score the deep side with a **fixed reference** — one
+**Proposed repair — IMPLEMENTED an hour later, see the second half of this file:** score the deep side with a **fixed reference** — one
 frozen strong net for every checkpoint — so the target stops moving with the net under test. That
 makes the residual a comparable quantity and removes both defects at once. It is a different
 measurement from the one the docs specify, so it is proposed here rather than quietly substituted.
