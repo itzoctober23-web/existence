@@ -68,7 +68,11 @@ done
 
 echo "  matching $(ls /tmp/ssb/a*.net 2>/dev/null | wc -l) usable pairs at $PAIRS pairs each"
 : > /tmp/ssb/scores.txt
-for f in /tmp/ssb/a*.net; do
+# LC_ALL=C so the glob order is byte order. Under the default locale the "." is ignored in
+# collation, so a10.net sorts BEFORE a1.net -- verified: `printf 'a1.net\na10.net\n' | sort` gives
+# a10 first, LC_ALL=C gives a1. Harmless here (every pair is matched either way) but a surprising
+# order makes a partial run look like it skipped pairs, which cost a few minutes of diagnosis.
+for f in $(LC_ALL=C ls /tmp/ssb/a*.net); do
   i=$(basename "$f" .net); i=${i#a}
   [ -s "/tmp/ssb/b$i.net" ] || continue
   nice -n 19 taskset -c 6-11 "$NM" "/tmp/ssb/b$i.net" "/tmp/ssb/a$i.net" "$PAIRS" > "/tmp/ssb/m$i.log" 2>&1
