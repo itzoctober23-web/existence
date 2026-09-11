@@ -158,3 +158,49 @@ is not merely additive.
   settles it.
 * `search_long_run.sh` (40 generations, fresh seed) measures exactly this: whether the rate keeps
   climbing, plateaus, or collapses back, and whether any of it reaches an ACCEPT.
+
+---
+
+## CORRECTION 10:2x — "the guard rate COMPOUNDS" was over-stated. It STEPS, it does not compound.
+
+The addendum above read `6.2% -> 15.6% -> 31.2%` as five-fold compounding over three generations.
+Generation 4 landed at **15.6%** and refutes that reading. The full sequence, with the binomial
+noise each point actually carries on 32 trials:
+
+    gen  cand  ok   rate    +/- (binomial SE)
+      1    32    2   6.2%     +/-4.3
+      2    32    5  15.6%     +/-6.4
+      3    32   10  31.2%     +/-8.2
+      4    32    5  15.6%     +/-6.4
+
+**Not monotonic.** 31.2% against 15.6% is ~1.5 sigma — well inside noise. I was reading a sequence
+of four noisy points as a trend because the first three happened to ascend.
+
+### What survives the correction
+
+    gen 1        6.2%
+    gens 2-4    20.8%
+    difference +14.6 +/- 6.0  =  2.4 sigma
+
+**A real STEP, not a compounding curve.** The population goes from nothing-to-mutate-from to a
+working population within one generation, and the rate then sits at ~20% with generation-scale
+noise. Pooled across all four: 22/128 = **17.2%**, against the historical baseline of 10.5%.
+
+### What this does and does not change
+
+* **Unchanged:** the binomial explanation of the no-choice constraint. That used the HISTORICAL
+  10.5% and predicted the historical 6.3% rate to within 0.1 points. Nothing here touches it.
+* **Unchanged:** every generation of prop32 offered selection a choice (4/4), against 0/6 for the
+  control.
+* **Changed:** the claim that the fix is self-amplifying. A step is not a spiral. The mechanism I
+  proposed — mutations of guard-passing parents pass more often — predicts a step just as well as
+  it predicts compounding, and four points cannot separate them.
+* **Still open, and now the 40-generation run is the only thing that answers it:** whether the rate
+  keeps rising, plateaus near 20%, or decays as the population converges.
+
+### The lesson, since this is the second time today
+
+An ascending run of three noisy points is not a trend, and I published it as one within minutes of
+seeing it. The guard against this is the one already applied to the ruler: **quote the noise with
+the number**. Had the first addendum carried the +/-4.3 / +/-6.4 / +/-8.2 columns, "five-fold"
+would not have survived writing it down.
