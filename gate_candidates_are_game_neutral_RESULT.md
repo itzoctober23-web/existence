@@ -1,4 +1,4 @@
-# The gate's own candidates are anomalously game-neutral — 14.3% decisive against 31-42% for reference programs
+# The gate's own candidates are anomalously game-neutral — 14.7% decisive against 31-42% for reference programs
 
 2026-09-11. Two reference matches, 24 pairs each, run through `evolve refmatch` — the SAME
 `match_progs` the search track's gate calls, so the numbers are commensurable with in-loop results.
@@ -10,12 +10,12 @@ its falsifier, before either number existed.
 ```
 capture extension vs seed   10W-28D-10L   rate 0.500 +/- 0.093   decisive 20/48 = 41.7% +/- 7.1%
 hash reuse vs seed           8W-33D-7L    rate 0.510 +/- 0.020   decisive 15/48 = 31.2% +/- 6.7%
-real gate candidates         W=2 D=216 L=34 over 21 matches       decisive 36/252 = 14.3% +/- 2.2%
+real gate candidates         W=4 D=297 L=47 over 29 matches       decisive 51/348 = 14.7% +/- 1.9%
 ```
 
 ```
-capture vs gate    +0.274 +/- 0.074   z = +3.68   SIGNIFICANT
-hash    vs gate    +0.170 +/- 0.070   z = +2.41   SIGNIFICANT
+capture vs gate    +0.270 +/- 0.074   z = +3.67   SIGNIFICANT
+hash    vs gate    +0.166 +/- 0.070   z = +2.39   SIGNIFICANT
 capture vs hash    +0.104 +/- 0.098   z = +1.07   not significant
 ```
 
@@ -24,7 +24,7 @@ capture vs hash    +0.104 +/- 0.098   z = +1.07   not significant
 **The candidates reaching the search track's gate diverge in games far less than either reference
 program does.** Two structurally different programs — a transposition table, and a capture extension
 built to see tactics a flat search misses — both produce 2-3x the decisive rate of the mutations the
-loop actually produces. That holds against both, at z = 2.41 and z = 3.68.
+loop actually produces. That holds against both, at z = 2.39 and z = 3.67.
 
 ## What is NOT established, and I am not reporting it as a finding
 
@@ -48,8 +48,8 @@ weak-engine games, the games draw, and the collapsed variance is what
 `gate_arithmetic_RESULT.md` proves makes acceptance impossible at 6 pairs.
 
 The falsifier was stated as: *capture extension breaks tactical preservation by construction, so a
-decisive rate at or below the gate's 14.3% means the mechanism is WRONG.* It came in at **41.7%,
-z = +3.68 above the gate.** The falsifier did not trigger.
+decisive rate at or below the gate's 14.7% means the mechanism is WRONG.* It came in at **41.7%,
+z = +3.67 above the gate.** The falsifier did not trigger.
 
 That is survival, not proof. The mechanism predicts a difference and a difference appeared, but a
 single confirmed prediction does not exclude other explanations for why gate candidates are
@@ -69,7 +69,7 @@ is what the HARD set was meant to supply before `hardn_probe` turned out to be r
 
 ## Caveat carried forward
 
-The 21 gate matches mix MAIN (budget 16) with MCTS (budget 256-1024) while `refmatch` runs at budget
+The 29 gate matches mix MAIN (budget 16) with MCTS (budget 256-1024) while `refmatch` runs at budget
 16 throughout, so the gate-vs-reference comparison is a first calibration rather than a controlled
 contrast. Matching the budgets would sharpen it and has not been done.
 
@@ -108,9 +108,13 @@ The controlled version is the HARD-set experiment (`hardn_probe.sh`, now pointed
 `EXISTENCE_HARD_N` actually works): add an unsaturated dimension to MAIN itself and see whether its
 gate rate moves, holding budget, floor and paradigm fixed.
 
-### Robustness of the numbers published above
+### Provenance of the gate figures, and the robustness check
 
-The gate figures in this file were computed on 21 completed matches; the arms have since produced
-29. Recomputed on all of them (348 games): draw rate 0.853 against 0.857, decisive 51/348 = 0.147
-against 0.143, and the two comparisons move from z = +3.68 to +3.67 and from +2.41 to +2.39. The
-conclusions are unchanged on a 38% larger sample.
+This file was first written on 21 completed gate matches. The arms have since produced 29, and
+everything above has been RECOMPUTED on all of them (348 games) so the document is internally
+consistent rather than carrying two vintages of the same number.
+
+What the 38% larger sample changed: draw rate 0.857 -> 0.853, decisive 0.143 -> 0.147, and the two
+comparisons z = +3.68 -> +3.67 and +2.41 -> +2.39. Nothing material. The check is recorded because
+"my headline rests on a sample that has since grown" is a failure mode worth catching in one's own
+work, not because the answer moved.
