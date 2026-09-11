@@ -138,3 +138,24 @@ Live confirmation that these distributions are real, from the gated discriminato
 generations — each is a genuine 400+ game match against the champion, and **every one was
 rejected**: 0.518, 0.433, 0.489. The 0.518 is the acceptance floor in action: `0.518 − 0.034 =
 0.484 < 0.5`, so a candidate that outscored the champion was still refused.
+
+
+## RESOLVED 2026-09-10 23:5x — unguarded acceptance is the mechanism (4.2 sigma)
+
+`gated_resume_RESULT.md` ran the discriminator this file called for. At comparable generation
+counts, same champion, same instrument:
+
+| run | gens | vs its own start | interval |
+|---|---|---|---|
+| **gated** (`--gate-every 1`) | 37 | **0.520 ± 0.038** | [0.482, 0.558] |
+| ungated | 25 | 0.411 ± 0.034 | [0.377, 0.445] |
+
+**Disjoint intervals, +0.109 = 4.2 σ.** The pre-registered falsifier did not fire. The "what is left
+standing" section above is confirmed: the dip comes from adopting candidates that average **0.4931**
+against the champion.
+
+⚠ But the gate did not steer the run, it **refused almost everything** — 33 rejects to 2 accepts,
+and a candidate scoring 0.518 ± 0.034 was rejected because 0.518 − 0.034 < 0.5. So "the gate fixes
+the dip" is largely "the gate prevents change", and the ungated run still ends at **0.557 by gen
+4,327** while the gated one has nowhere to show it goes. Read `gated_resume_RESULT.md` before
+treating gating as the answer.
