@@ -17,13 +17,28 @@
 # pattern would otherwise match this script's own command line.
 set -uo pipefail
 
+# Returns the pid of an ASYMMETRIC timed gate, or nothing.
+#
+# ASYMMETRY IS THE TEST, NOT MOVETIME. Measured 2026-09-11: my Existence load destroyed the 240-game
+# anchor (loss rate 7.5% -> 42.9%, trend p=0.0008) because that match is our engine against an
+# EXTERNAL opponent at concurrency 1 -- no cancelling arm. But 18 of the 42 gate scripts are also
+# movetime and are PAIRED A/Bs: `gate_iir.sh` runs `sprt.py "$ENG" "$ENG" 0.2 12`, the same binary on
+# both sides at concurrency 12, where contention hits both arms and cancels. Waiting on those would
+# idle Existence for hours for nothing, and an idle box is the failure this loop exists to avoid.
+#
+# sprt.py's argv is: [1] script  [2] NEW engine  [3] OLD engine. Identical paths => paired => safe.
 gate_pid() {
-  local p exe a1
+  local p exe a1 a2 a3
   for p in $(ls /proc 2>/dev/null | grep -E '^[0-9]+$'); do
     exe=$(readlink "/proc/$p/exe" 2>/dev/null) || continue; exe=${exe% (deleted)}
     case "${exe##*/}" in python3*) ;; *) continue;; esac
     a1=$(tr '\0' '\n' < "/proc/$p/cmdline" 2>/dev/null | sed -n '2p')
-    [ "${a1##*/}" = "sprt.py" ] && { echo "$p"; return; }
+    [ "${a1##*/}" = "sprt.py" ] || continue
+    a2=$(tr '\0' '\n' < "/proc/$p/cmdline" 2>/dev/null | sed -n '3p')
+    a3=$(tr '\0' '\n' < "/proc/$p/cmdline" 2>/dev/null | sed -n '4p')
+    # Same binary on both sides is a paired A/B -- contention cancels, so it does not block us.
+    [ -n "$a2" ] && [ "$a2" = "$a3" ] && continue
+    echo "$p"; return
   done
 }
 
