@@ -1,0 +1,308 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Existence — Play &amp; Analyse</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>♞</text></svg>">
+<style>
+/* Palette and board lifted from the 4PC GUI (gui/style.css) so this matches it. */
+:root{
+  --bg:#14100a; --panel:#1d1810; --panel2:#262013; --text:#f2ead9; --muted:#b3a488;
+  --light:#e7ddc2; --dark:#8a6b3f; --accent:#d9a94a;
+  --sel:rgba(217,169,74,.5); --last:rgba(217,169,74,.4);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 ui-sans-serif,system-ui,sans-serif}
+#wrap{display:flex;gap:14px;padding:12px;align-items:flex-start;flex-wrap:wrap}
+#boardZone{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;min-width:0}
+#evalWrap{display:flex;flex-direction:column;align-items:center;gap:4px}
+#evalBar{width:16px;height:min(84vh,60vw);background:#2b2622;border-radius:8px;overflow:hidden;
+  box-shadow:inset 0 0 0 1px #3a332b;display:flex;flex-direction:column-reverse}
+#evalFill{background:linear-gradient(#f2ead9,#cfc3a6);height:50%;transition:height .35s ease}
+#evalText{font:600 12px ui-monospace,monospace;color:var(--muted)}
+#boardArea{display:grid;grid-template-columns:18px auto;grid-template-rows:auto 18px}
+#board{grid-column:2;grid-row:1;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);
+  width:min(84vh,60vw,100vh - 160px);height:min(84vh,60vw,100vh - 160px);
+  border-radius:6px;overflow:hidden;box-shadow:0 0 0 9px #1f1d1a,0 12px 34px rgba(0,0,0,.55);position:relative}
+.ranks{grid-column:1;grid-row:1;display:grid;grid-template-rows:repeat(8,1fr)}
+.files{grid-column:2;grid-row:2;display:grid;grid-template-columns:repeat(8,1fr)}
+.ranks div,.files div{display:flex;align-items:center;justify-content:center;font:600 11px ui-monospace,monospace;color:var(--muted)}
+.sq{position:relative;user-select:none;cursor:pointer}
+.sq.light{background:var(--light)} .sq.dark{background:var(--dark)}
+.sq.sel{box-shadow:inset 0 0 0 999px var(--sel)}
+.sq.last{box-shadow:inset 0 0 0 999px var(--last)}
+.sq.check{box-shadow:inset 0 0 0 999px rgba(209,73,91,.55)}
+.sq .dot{position:absolute;left:50%;top:50%;width:26%;height:26%;transform:translate(-50%,-50%);
+  border-radius:50%;background:rgba(20,16,10,.35);pointer-events:none}
+.sq .cap{position:absolute;inset:6%;border-radius:50%;box-shadow:inset 0 0 0 5px rgba(20,16,10,.35);pointer-events:none}
+.sq svg{position:absolute;inset:4%;width:92%;height:92%;pointer-events:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,.45))}
+#side{width:330px;max-width:100%;display:flex;flex-direction:column;gap:10px}
+.pan{background:var(--panel);border:1px solid #2e2619;border-radius:10px;padding:10px}
+.pan h3{margin:0 0 8px;font:600 12px ui-sans-serif;color:var(--accent);letter-spacing:.4px;text-transform:uppercase}
+button,select{background:var(--panel2);color:var(--text);border:1px solid #3a3020;border-radius:7px;padding:6px 10px;cursor:pointer;font:13px inherit}
+button:hover{filter:brightness(1.15)}
+#moves{max-height:230px;overflow:auto;font:13px ui-monospace,monospace;display:grid;grid-template-columns:2.2em 1fr 1fr;gap:2px 6px}
+#moves .n{color:var(--muted)}
+#moves span.m{padding:1px 4px;border-radius:4px;cursor:pointer}
+#moves span.m:hover{background:var(--panel2)}
+#moves span.m.cur{background:var(--accent);color:#1a1509;font-weight:700}
+#graph{width:100%;height:90px;background:var(--panel2);border-radius:7px}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.k{color:var(--muted)}
+#status{font:600 13px ui-sans-serif}
+#ana{font:12px ui-monospace,monospace;color:var(--muted);white-space:pre-wrap}
+</style>
+
+<div id="wrap">
+  <div id="boardZone">
+    <div id="evalWrap" title="White advantage (engine eval, white POV)">
+      <div id="evalBar"><div id="evalFill"></div></div>
+      <div id="evalText">0.0</div>
+    </div>
+    <div id="boardArea">
+      <div class="ranks" id="ranks"></div>
+      <div id="board"></div>
+      <div class="files" id="files"></div>
+    </div>
+  </div>
+
+  <div id="side">
+    <div class="pan">
+      <h3>Existence</h3>
+      <div id="status">—</div>
+      <div class="row" style="margin-top:8px">
+        <select id="side-sel"><option value="w">Play White</option><option value="b">Play Black</option></select>
+        <select id="depth"><option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select>
+        <button id="btnNew">New game</button>
+        <button id="btnFlip">Flip</button>
+        <button id="btnResign">Resign</button>
+      </div>
+    </div>
+
+    <div class="pan">
+      <h3>Moves</h3>
+      <div id="moves"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="btnStart">⏮</button><button id="btnPrev">◀</button>
+        <button id="btnNext">▶</button><button id="btnEnd">⏭</button>
+        <span class="k" id="plyLabel"></span>
+      </div>
+    </div>
+
+    <div class="pan">
+      <h3>Analysis</h3>
+      <div class="row">
+        <button id="btnAna">Analyse position</button>
+        <select id="anaDepth"><option>4</option><option>5</option><option selected>6</option><option>7</option><option>8</option></select>
+      </div>
+      <div id="ana" style="margin-top:8px">—</div>
+      <div class="row" style="margin-top:8px">
+        <button id="btnReview">Review whole game</button>
+      </div>
+      <canvas id="graph" width="600" height="180" style="margin-top:8px"></canvas>
+    </div>
+
+    <div class="pan">
+      <h3>PGN</h3>
+      <div class="row"><button id="btnPgn">Copy PGN</button><button id="btnImport">Import PGN</button></div>
+      <textarea id="pgnBox" style="width:100%;height:80px;margin-top:8px;background:var(--panel2);color:var(--text);border:1px solid #3a3020;border-radius:7px"></textarea>
+    </div>
+  </div>
+</div>
+
+<script src="/pieces.js"></script>
+<script>
+const FILES="abcdefgh", boardEl=document.getElementById("board");
+let flipped=false, state=null, sel=null, viewPly=null, reviewEvals=null;
+
+// ---- board construction (same model as the 4PC GUI: one div per square, dataset.sq = name) ----
+const cells={};
+function buildBoard(){
+  boardEl.innerHTML="";
+  for(let r=7;r>=0;r--) for(let f=0;f<8;f++){
+    const rr = flipped?7-r:r, ff = flipped?7-f:f;
+    const name = FILES[ff]+(rr+1);
+    const el=document.createElement("div");
+    el.className="sq "+(((ff+rr)%2)?"light":"dark");
+    el.dataset.sq=name; el.onclick=()=>onSquare(name);
+    boardEl.appendChild(el); cells[name]=el;
+  }
+  const ranksEl=document.getElementById("ranks"), filesEl=document.getElementById("files");
+  ranksEl.innerHTML=""; filesEl.innerHTML="";
+  for(let i=0;i<8;i++){
+    const r=document.createElement("div"); r.textContent = flipped?(i+1):(8-i); ranksEl.appendChild(r);
+    const f=document.createElement("div"); f.textContent = FILES[flipped?7-i:i]; filesEl.appendChild(f);
+  }
+}
+
+function fenBoard(fen){
+  const rows=fen.split(" ")[0].split("/"), out={};
+  rows.forEach((row,ri)=>{ let f=0;
+    for(const ch of row){
+      if(/\d/.test(ch)){ f+=+ch; continue; }
+      out[FILES[f]+(8-ri)] = ch; f++;
+    }});
+  return out;
+}
+
+function render(){
+  if(!state) return;
+  const showPly = viewPly===null ? state.ply : viewPly;
+  const fen = showPly===state.ply ? state.fen : fenAt(showPly);
+  const pos = fenBoard(fen);
+  for(const name in cells){
+    const el=cells[name]; el.className = el.className.replace(/ (sel|last|check)/g,"");
+    el.innerHTML="";
+    const p=pos[name];
+    if(p) el.innerHTML = pieceSVG(p.toUpperCase(), p===p.toUpperCase()?"w":"b");
+  }
+  const lm = showPly>0 ? state.moves[showPly-1] : null;
+  if(lm){ (cells[lm.slice(0,2)]||{}).className += " last"; (cells[lm.slice(2,4)]||{}).className += " last"; }
+  if(sel && cells[sel]) cells[sel].className += " sel";
+  if(sel) for(const u of state.legal) if(u.slice(0,2)===sel){
+    const to=u.slice(2,4), d=document.createElement("div");
+    d.className = pos[to] ? "cap" : "dot"; if(cells[to]) cells[to].appendChild(d);
+  }
+  // status + eval
+  const ev = (viewPly!==null && reviewEvals && reviewEvals[showPly]!=null) ? reviewEvals[showPly] : state.eval;
+  setEval(ev);
+  document.getElementById("status").textContent =
+    state.result ? "Game over — "+state.result
+    : (state.engineTurn ? "Existence is thinking…" : "Your move ("+(state.turn==="w"?"White":"Black")+")");
+  document.getElementById("plyLabel").textContent = "ply "+showPly+" / "+state.ply;
+  renderMoves(showPly);
+}
+
+// Positions for browsing are replayed client-side from the move list, so stepping through a game
+// costs no server round-trip and no engine time.
+function fenAt(ply){
+  const b=new MiniBoard(); for(let i=0;i<ply;i++) b.push(state.moves[i]); return b.fen();
+}
+
+function setEval(cp){
+  const t=document.getElementById("evalText"), fill=document.getElementById("evalFill");
+  if(cp==null){ t.textContent="—"; fill.style.height="50%"; return; }
+  const pawns=cp/100;
+  t.textContent=(pawns>0?"+":"")+pawns.toFixed(1);
+  // logistic squash so a huge score does not peg the bar and hide later movement
+  fill.style.height = (100/(1+Math.exp(-cp/300))).toFixed(1)+"%";
+}
+
+function renderMoves(cur){
+  const box=document.getElementById("moves"); box.innerHTML="";
+  for(let i=0;i<state.san.length;i+=2){
+    const n=document.createElement("div"); n.className="n"; n.textContent=(i/2+1)+"."; box.appendChild(n);
+    for(const j of [i,i+1]){
+      const s=document.createElement("span");
+      if(j<state.san.length){ s.className="m"+((j+1)===cur?" cur":""); s.textContent=state.san[j];
+        s.onclick=()=>{ viewPly=j+1; render(); }; }
+      box.appendChild(s);
+    }
+  }
+  box.scrollTop=box.scrollHeight;
+}
+
+async function onSquare(name){
+  if(!state || state.result || state.engineTurn) return;
+  if(viewPly!==null && viewPly!==state.ply) return;   // browsing history: not a live board
+  if(sel){
+    const uci=sel+name;
+    const hit=state.legal.filter(u=>u.slice(0,4)===uci);
+    if(hit.length){ sel=null; await play(hit[0].length>4?uci+"q":uci); return; }
+  }
+  sel = (sel===name)?null:name; render();
+}
+
+async function play(uci){
+  document.getElementById("status").textContent="Existence is thinking…";
+  const r=await fetch("/api/move",{method:"POST",body:uci});
+  state=await r.json(); viewPly=null; render();
+}
+
+async function refresh(){ state=await (await fetch("/api/state")).json(); render(); }
+
+document.getElementById("btnNew").onclick=async()=>{
+  const white=document.getElementById("side-sel").value==="w";
+  const depth=+document.getElementById("depth").value;
+  flipped=!white; buildBoard(); reviewEvals=null;
+  state=await (await fetch("/api/new",{method:"POST",body:JSON.stringify({white,depth})})).json();
+  viewPly=null; sel=null; render();
+};
+document.getElementById("btnFlip").onclick=()=>{flipped=!flipped;buildBoard();render();};
+document.getElementById("btnResign").onclick=async()=>{state=await (await fetch("/api/resign",{method:"POST"})).json();render();};
+document.getElementById("btnStart").onclick=()=>{viewPly=0;render();};
+document.getElementById("btnPrev").onclick=()=>{viewPly=Math.max(0,(viewPly===null?state.ply:viewPly)-1);render();};
+document.getElementById("btnNext").onclick=()=>{viewPly=Math.min(state.ply,(viewPly===null?state.ply:viewPly)+1);render();};
+document.getElementById("btnEnd").onclick=()=>{viewPly=null;render();};
+document.getElementById("btnAna").onclick=async()=>{
+  const ply=viewPly===null?state.ply:viewPly, d=+document.getElementById("anaDepth").value;
+  document.getElementById("ana").textContent="thinking at depth "+d+"…";
+  const r=await (await fetch(`/api/analyse?ply=${ply}&depth=${d}`)).json();
+  document.getElementById("ana").textContent =
+    `ply ${r.ply}  depth ${r.depth}\nscore ${r.score==null?"—":(r.score/100).toFixed(2)} (white POV)\nbest  ${r.best||"—"}\nnodes ${r.nodes.toLocaleString()}`;
+  if(r.score!=null) setEval(r.score);
+};
+document.getElementById("btnReview").onclick=async()=>{
+  const d=4; document.getElementById("ana").textContent="reviewing every position at depth "+d+"…";
+  const r=await (await fetch(`/api/review?depth=${d}`)).json();
+  reviewEvals={}; r.evals.forEach(e=>reviewEvals[e.ply]=e.score);
+  document.getElementById("ana").textContent="review done — "+r.evals.length+" positions at depth "+d;
+  drawGraph();
+};
+document.getElementById("btnPgn").onclick=async()=>{
+  document.getElementById("pgnBox").value=await (await fetch("/api/pgn")).text();
+};
+document.getElementById("btnImport").onclick=async()=>{
+  const t=document.getElementById("pgnBox").value;
+  state=await (await fetch("/api/import",{method:"POST",body:t})).json();
+  viewPly=null; reviewEvals=null; render();
+};
+
+function drawGraph(){
+  const c=document.getElementById("graph"), g=c.getContext("2d");
+  g.clearRect(0,0,c.width,c.height);
+  if(!reviewEvals) return;
+  const ks=Object.keys(reviewEvals).map(Number).sort((a,b)=>a-b);
+  g.strokeStyle="#3a332b"; g.beginPath(); g.moveTo(0,c.height/2); g.lineTo(c.width,c.height/2); g.stroke();
+  g.strokeStyle="#d9a94a"; g.lineWidth=2; g.beginPath();
+  ks.forEach((k,i)=>{
+    const v=reviewEvals[k]; if(v==null) return;
+    const x=(i/Math.max(1,ks.length-1))*c.width;
+    const y=c.height*(1-1/(1+Math.exp(-v/300)));
+    i?g.lineTo(x,y):g.moveTo(x,y);
+  });
+  g.stroke();
+}
+
+// Minimal client-side replayer so history browsing needs no server. Rules live on the server
+// (python-chess); this only has to REPLAY moves the server already validated, which is why it can
+// be this small -- it never decides legality.
+class MiniBoard{
+  constructor(){ this.b=fenBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"); }
+  push(u){
+    const from=u.slice(0,2), to=u.slice(2,4), pr=u[4];
+    const p=this.b[from]; if(!p) return;
+    delete this.b[from];
+    // en passant: a pawn moving diagonally to an empty square captures the passed pawn
+    if(p.toUpperCase()==="P" && from[0]!==to[0] && !this.b[to])
+      delete this.b[to[0]+from[1]];
+    this.b[to]= pr ? (p===p.toUpperCase()?pr.toUpperCase():pr) : p;
+    // castling: move the rook too
+    if(p.toUpperCase()==="K" && Math.abs(FILES.indexOf(to[0])-FILES.indexOf(from[0]))===2){
+      const r=from[1], k=to[0]==="g";
+      const rf=k?"h":"a", rt=k?"f":"d";
+      this.b[rt+r]=this.b[rf+r]; delete this.b[rf+r];
+    }
+  }
+  fen(){
+    let out=[];
+    for(let r=8;r>=1;r--){ let row="",e=0;
+      for(const f of FILES){ const p=this.b[f+r];
+        if(p){ if(e){row+=e;e=0;} row+=p; } else e++; }
+      if(e) row+=e; out.push(row); }
+    return out.join("/")+" w - - 0 1";
+  }
+}
+
+buildBoard(); refresh();
+setInterval(()=>{ if(state && state.engineTurn) refresh(); }, 900);
+</script>
