@@ -42,6 +42,23 @@ pub struct Net {
     pub b1: Vec<f32>,
     pub w2: Vec<f32>,
     pub b2: f32,
+    /// UNCERTAINTY HEAD — a SECOND linear output over the SAME hidden layer, predicting how far
+    /// this net's static opinion sits from what its own deeper search returns.
+    ///
+    /// Self-referential by construction: the referee is the engine's own search, so no external
+    /// judgment enters. It shares the trunk, so it costs one extra dot product over `n_hidden` and
+    /// nothing in the eval path -- `eval()` does not touch it.
+    ///
+    /// ZERO-INITIALISED EVERYWHERE, and that is the parity guarantee. `spread()` returns exactly
+    /// `bu` for a zero head, so a net that has never trained one is numerically identical to a net
+    /// that has no head at all. Nothing in search reads it yet; adding it cannot move a single game.
+    ///
+    /// The TARGET this is trained against is NOT settled -- `uncertainty_target_PREREG.md` records
+    /// that the obvious choice, |static - deep|, is measured ANTI-correlated with costly move flips
+    /// (17.1% against a spec threshold of 80%). The head is the mechanism; the label is a separate
+    /// question with a registered decision rule.
+    pub wu: Vec<f32>,
+    pub bu: f32,
     /// Multiplier from the network's natural units into `Score`. Declared, not learned-yet.
     pub scale: f32,
 }
@@ -98,6 +115,12 @@ impl Net {
             b1: (0..new_hidden).map(|k| self.b1[map[k]]).collect(),
             w2: (0..new_hidden).map(|k| self.w2[map[k]] / count[map[k]] as f32).collect(),
             b2: self.b2,
+            // The uncertainty head reads the SAME hidden layer, so it needs the SAME Net2WiderNet
+            // correction as w2: a unit split into `count` copies must have its outgoing weight
+            // divided by `count` or the output changes. Widening a net to its own width therefore
+            // reproduces its SPREAD byte-for-byte, exactly as it already does its eval.
+            wu: (0..new_hidden).map(|k| self.wu[map[k]] / count[map[k]] as f32).collect(),
+            bu: self.bu,
             scale: self.scale,
         }
     }
@@ -116,6 +139,11 @@ impl Net {
             b1: vec![0.0; n_hidden],
             w2: (0..n_hidden).map(|_| r.normal() * s2).collect(),
             b2: 0.0,
+            // ZERO, not He-scaled. A random net has no opinion about its own error, and a random
+            // one would be a confident lie. It also keeps `Net::random` byte-identical in behaviour
+            // to every measurement taken before this head existed.
+            wu: vec![0.0; n_hidden],
+            bu: 0.0,
             scale: 600.0,
         }
     }
@@ -198,6 +226,50 @@ impl Net {
         let white_pov = (acc + self.b2) * self.scale;
         let v = if pos.stm == Color::White { white_pov } else { -white_pov };
         v.clamp(-30_000.0, 30_000.0) as Score
+    }
+
+    /// The uncertainty head: how far this net expects its own static opinion to sit from what its
+    /// own deeper search would return, in `Score` units.
+    ///
+    /// THE TRUNK IS DUPLICATED FROM `eval` ON PURPOSE. Factoring the shared hidden-layer loop out
+    /// would be tidier and would touch the hottest function in the program -- whose own comments
+    /// record a malloc in this exact loop having been a large fraction of an eval at the shipped
+    /// width. The requirement on this change is that it cannot move a single game, and the way to
+    /// guarantee that is not to edit the path that plays them.
+    ///
+    /// NOT NEGATED BY SIDE TO MOVE, unlike `eval`. A spread is a MAGNITUDE -- "how wrong might I be
+    /// here" is the same quantity whoever is to move -- so applying eval's stm flip would make it
+    /// negative for one side and meaningless.
+    ///
+    /// Floored at zero because it predicts an ABSOLUTE residual. A zero head therefore returns
+    /// exactly 0, which is what every net written before this head existed reports.
+    pub fn spread(&self, pos: &Position, scratch: &mut Vec<f32>) -> Score {
+        let mut buf = [0u16; MAX_ACTIVE];
+        let mut n = 0usize;
+        Self::active_with(pos, |i| { buf[n] = i; n += 1; });
+        scratch.clear();
+        scratch.extend_from_slice(&self.b1);
+        for &i in &buf[..n] {
+            let row = &self.w1[i as usize * self.n_hidden..(i as usize + 1) * self.n_hidden];
+            for (a, w) in scratch.iter_mut().zip(row.iter()) {
+                *a += *w;
+            }
+        }
+        self.spread_from(scratch)
+    }
+
+    /// The head applied to an ALREADY-COMPUTED hidden layer, for callers that have just run the
+    /// trunk and should not pay for it twice.
+    pub fn spread_from(&self, scratch: &[f32]) -> Score {
+        let mut acc = 0.0f32;
+        for h in 0..self.n_hidden {
+            let s = scratch[h];
+            if s > 0.0 {
+                acc += s * self.wu[h]; // ReLU, same activation as the value head
+            }
+        }
+        let v = (acc + self.bu) * self.scale;
+        v.clamp(0.0, 30_000.0) as Score
     }
 }
 
@@ -359,14 +431,29 @@ impl Net {
     pub fn save(&self, path: &str) -> std::io::Result<()> {
         use std::io::Write;
         let mut f = std::io::BufWriter::new(std::fs::File::create(path)?);
+        // VERSION 2 IS WRITTEN ONLY WHEN THERE IS A HEAD TO WRITE, and that is deliberate rather
+        // than tidy. A v2 file is unreadable to any binary built before this change, and several
+        // long-lived processes on this box run from SNAPSHOT binaries (the trainer, the P2 arms,
+        // the ruler) that will not be rebuilt for hours. Emitting v2 unconditionally would make
+        // every net this build writes unloadable by all of them at once.
+        //
+        // So a net whose uncertainty head is all zeros -- which is every net until one is trained
+        // -- still serialises as v1, byte-for-byte what it always did. The head's bytes are
+        // APPENDED, so a v2 file is a strict prefix-extension of the v1 layout and the reader below
+        // needs one extra branch rather than a second format.
+        let has_unc = self.bu != 0.0 || self.wu.iter().any(|&x| x != 0.0);
         f.write_all(b"EXNT")?;                                  // magic
-        f.write_all(&1u16.to_le_bytes())?;                      // schema version
+        f.write_all(&(if has_unc { 2u16 } else { 1u16 }).to_le_bytes())?;   // schema version
         f.write_all(&(self.n_hidden as u32).to_le_bytes())?;
         f.write_all(&(N_INPUTS as u32).to_le_bytes())?;
         f.write_all(&self.scale.to_le_bytes())?;
         f.write_all(&self.b2.to_le_bytes())?;
         for v in self.b1.iter().chain(self.w2.iter()).chain(self.w1.iter()) {
             f.write_all(&v.to_le_bytes())?;
+        }
+        if has_unc {
+            f.write_all(&self.bu.to_le_bytes())?;
+            for v in self.wu.iter() { f.write_all(&v.to_le_bytes())?; }
         }
         f.flush()
     }
@@ -382,7 +469,11 @@ impl Net {
         let mut u16b = [0u8; 2];
         f.read_exact(&mut u16b)?;
         let ver = u16::from_le_bytes(u16b);
-        if ver != 1 {
+        // 1 = no uncertainty head (every net written before 2026-09-11, including the live
+        // champion and the whole banked set). 2 = the head's bytes are appended after w1.
+        // Reading v1 is not a compatibility shim to be removed later -- it is how the champion
+        // loads, and it must keep working.
+        if ver != 1 && ver != 2 {
             return Err(std::io::Error::new(std::io::ErrorKind::InvalidData,
                 format!("unknown schema version {ver}")));
         }
@@ -408,7 +499,17 @@ impl Net {
         for _ in 0..n_hidden { w2.push(rf(&mut f)?); }
         let mut w1 = Vec::with_capacity(N_INPUTS * n_hidden);
         for _ in 0..N_INPUTS * n_hidden { w1.push(rf(&mut f)?); }
-        Ok(Net { n_hidden, w1, b1, w2, b2, scale })
+            // A v1 net gets a ZERO head, which `spread()` reports as exactly 0. That is the honest
+            // value: a net trained before the head existed has no opinion about its own error.
+            let (bu, wu) = if ver >= 2 {
+                let bu = rf(&mut f)?;
+                let mut wu = Vec::with_capacity(n_hidden);
+                for _ in 0..n_hidden { wu.push(rf(&mut f)?); }
+                (bu, wu)
+            } else {
+                (0.0, vec![0.0; n_hidden])
+            };
+            Ok(Net { n_hidden, w1, b1, w2, b2, wu, bu, scale })
     }
 }
 
