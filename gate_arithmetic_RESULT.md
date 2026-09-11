@@ -133,3 +133,61 @@ CAVEAT, because this is a model and not a measurement: it assumes the draw rate 
 that a candidate has one fixed true rate. Both are calibrated to the 21 matches on disk and neither
 is guaranteed for candidates the search has not produced yet. The power column is a design aid for
 choosing a pair count, not a result about any specific candidate.
+
+## CORRECTION — "raise gate_pairs" is not the fix. The spec already specifies the fix, and it is built.
+
+The recommendation above (gate_pairs=24) is superseded. `docs/FITNESS.md` §7.2 states:
+
+> **How much evidence to gather — ENGINE-DECIDED, already.** SPRT is exactly that decision: a
+> candidate near a bound gets thousands of pairs, an obvious dud a few hundred; **nobody picks the
+> count, the evidence does.**
+
+The loop picked 6. Raising it to 24 would pick a different fixed number, which is the same mistake
+with a better constant — and it cannot spend more games on precisely the close cases that need them,
+which is the whole point of a sequential test.
+
+**The sequential gate is already implemented** and selected by `EXISTENCE_GATE_SPRT`; unset is
+byte-identical to the fixed-pair gate every prior measurement used. Its bounds come from the spec:
+alpha = beta = 0.05 (LLR bound 2.944), `EXISTENCE_GATE_MAXPAIRS` default 400.
+
+`evolve.rs`'s own comment at that site reports the same phenomenon this file measured, at far larger
+n than the 21 matches used here:
+
+```
+0 accepts in 203 decisions
+46.8% of decisions had ZERO observed variance
+```
+
+Zero observed variance means every pair landed in one bucket, so `ci95 = 1.5/n = 0.25`, and
+acceptance would need `rate > 0.75` from a match whose rate is 0.5 by construction. Those 46.8% were
+unacceptable before a single game was played. That is an independent corroboration of the
+enumeration above, and it supersedes the 21-match sample as the headline number.
+
+### The bound to use is NOT the default, and the spec says why
+
+`EXISTENCE_GATE_ELO1` defaults to 5 with `elo0 = elo1 − 2`, so the default SPRT tests H0 elo ≤ 3
+against H1 elo ≥ 5. §7.2 is explicit that this is a SUPERIORITY test:
+
+> PASSING means H1 accepted, i.e. the candidate is shown to gain at least ~e1 (not merely "not
+> negative"). A true NON-REGRESSION test therefore has e1 = 0 and e0 < 0, e.g. [-5, 0].
+
+A cost-reducing mutation at fixed depth returns the SAME move more cheaply. Its true Elo is ~0 by
+construction, so it fails a superiority test at ANY pair count — 400 pairs of a true 0.500 resolves
+to "not ≥5 Elo", correctly. **The pair count was never the binding constraint for this class of
+candidate; the HYPOTHESIS was.**
+
+This is also why PATH 1 exists (identical play on 33 positions → accept with no game). PATH 1 is a
+non-regression test done by proof instead of by sampling. Candidates that are NEARLY identical —
+differing on one of 33 — fall through to a gate that demands a rout. The gap between the two paths is
+where this track's candidates live.
+
+**So the experiment to run is `EXISTENCE_GATE_SPRT=1` with `ELO1=0 ELO0=-5`** — the spec's own
+non-regression bounds — not a larger fixed pair count. Not launched yet: the box is running the
+verify96 observer and the 4PC confirm gate, and verify96 answers the prior question (are the
+rejected candidates actually neutral?) which determines whether a non-regression gate would admit
+anything worth having.
+
+CAVEAT, and it is the spec's: §7.2 fixes the acceptance criterion as HUMAN, not engine-chosen —
+"an instrument calibrated by its subject measures nothing". Changing e1 from 5 to 0 changes what
+counts as enough, so this is to be RUN AS AN EXPERIMENT against the existing rule, never silently
+shipped as a default.
