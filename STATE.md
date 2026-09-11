@@ -7,7 +7,7 @@ Two measurements today, from opposite directions, and a pre-registered control t
 ```
 identity:12/27  (44% agreement on the position set)  ->  W-D-L 0-11-1, a near-total draw
 hash reuse      (~100% agreement, 40/40 at depth 3)  ->  8W-33D-7L, 31.2% DECISIVE
-real gate candidates                                 ->  14.3% decisive, BELOW hash reuse at z=2.41
+real gate candidates                                 ->  14.7% decisive, BELOW hash reuse at z=2.39
 ```
 
 **`evolve.rs:3283` claims "it agrees with the seed on 40/40 positions ... SO its game rate is exactly
@@ -31,7 +31,7 @@ game-neutrality. `WHY_NOTHING` establishes that the guard is `f >= best_found` a
 anything that changed tactical behaviour was filtered upstream. If so, the fitness's halves are in
 direct tension: the guard demands PRESERVATION, the gate demands DIFFERENCE, and zero promotions
 follow from the fitness's structure rather than from a bug. The `capture` arm breaks tactical
-preservation by construction and is the falsifier; at or below the gate's 14.3% the mechanism is
+preservation by construction and is the falsifier; at or below the gate's 14.7% the mechanism is
 wrong. Pre-registered in `refmatch_discrimination_PREREG.md` before the number arrived.
 
 **And the fix has an in-house precedent.** `maswabe_corpus/gate_dgnodes.sh` stage 2 rules that for a
