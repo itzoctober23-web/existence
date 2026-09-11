@@ -10,8 +10,9 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 | result | headline |
 |---|---|
 | [proposals_choice_RESULT.md](proposals_choice_RESULT.md) | "94% of generations offer no choice" is BINOMIAL ARITHMETIC, not a pathology — and 32 proposals fixes it |
-| [ruler_trend_RESULT.md](ruler_trend_RESULT.md) | Every production run is FLAT on the absolute ruler — all 166 Elo came from BETWEEN runs, not within them |
+| [horizon_RESULT.md](horizon_RESULT.md) | The horizon cap is OBSOLETE past bootstrap: uncapped beats capped-at-10 by +0.064 ± 0.034 |
 | [blend_sweep_RESULT.md](blend_sweep_RESULT.md) | blend 0.85 clears the promotion rule at FULL LENGTH — on one seed, by less than the between-seed spread |
+| [ruler_trend_RESULT.md](ruler_trend_RESULT.md) | Every production run is FLAT on the absolute ruler — all 166 Elo came from BETWEEN runs, not within them |
 | [low_sweep2_RESULT.md](low_sweep2_RESULT.md) | lr 0.0002 SHIPPED — the shipped rate lost to its own start, on exactly matched arms |
 | [low_sweep_RESULT.md](low_sweep_RESULT.md) | Below the shipped rate: 0.0002 wins, 0.0005 LOSES to its own start — on a run that was cut short |
 | [lr_decay_RESULT.md](lr_decay_RESULT.md) | The schedule is not the lever — ending low is. lr 0.0005 shipped |
@@ -54,7 +55,6 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 | [surrogate_rewards_giving_up_RESULT.md](surrogate_rewards_giving_up_RESULT.md) | The grammar search's fitness surrogate can be improved by SOLVING FEWER POSITIONS |
 | [control_caps_RESULT.md](control_caps_RESULT.md) | The origin control's node budget is STABLE to 1.9% — my "moving instrument" explanation is REFUTED |
 | [p1_deceleration_RESULT.md](p1_deceleration_RESULT.md) | P1 is still gaining, at ~+24 Elo per 100 generations — and BOTH instruments are now at their limit |
-| [horizon_RESULT.md](horizon_RESULT.md) | The horizon cap is OBSOLETE past bootstrap: uncapped beats capped-at-10 by +0.064 ± 0.034 |
 | [decisiveness_RESULT.md](decisiveness_RESULT.md) | Self-play decisiveness FALLS as the champion improves — so it cannot be the horizon's strength signal |
 | [depth2x2_RESULT.md](depth2x2_RESULT.md) | Depth is real; parity does not reach trained strength — 2026-09-09 |
 | [ladder_valley_RESULT.md](ladder_valley_RESULT.md) | The hash-reuse valley — CURRENT STATE (2026-09-10 05:1x) |
@@ -117,7 +117,7 @@ being asked.
 | search depth | EXPERIMENTS,depth2x2 blend,speed_cannot_pay depth5_vs_depth3 |
 | blend/target | EXPERIMENTS,blend blend_sweep,NET_TRACK_STATE depth2x2 |
 | epochs | EXPERIMENTS,epochs_ab NET_TRACK_STATE,learning_rate_is_the_plateau label_source |
-| seeds & noise | depth2x2,blend p1_deceleration,low_sweep2 blend_sweep |
+| seeds & noise | depth2x2,blend p1_deceleration,blend_sweep low_sweep2 |
 | gate & thresholds | gate_power,EXPERIMENTS replay_ab_CAVEAT,ladder_valley search_track_WHY_NOTHING |
 | calibration | static_deep_residual,confident_when_wrong search_track_FINDING,movegen_leaf lr_sweep |
 | speed/nps | speed_cannot_pay,throughput movegen_leaf,depth2x2 path1_is_empty |

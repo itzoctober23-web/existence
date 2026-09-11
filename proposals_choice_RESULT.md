@@ -308,3 +308,51 @@ being written down, by checking whether the other arm had ever produced a non-ze
 
 **Status: the gradient lever is UNMEASURED, not inert.** It needs `hard+p32` to reach several
 generations with survivors to rank, which is the only configuration in which it can act at all.
+
+---
+
+## THE 2x2 ANSWERS: proposals is the lever; the HARD set is INERT for the lineage that matters
+
+Common range, first 4 generations of every cell (paired: same seed, pop, sets, binary):
+
+    cell        configuration              proposed  survivors  gens with a CHOICE
+    control     proposals=pop, guard set         16          1          0/4
+    hard        proposals=pop, HARD set          16          1          0/4
+    prop32      proposals=32,  guard set        128         22          4/4
+    hard+p32    proposals=32,  HARD set         128         21          4/4
+
+**The proposals lever moves it; the gradient lever does not.** Adding the HARD set on top of 32
+proposals changes nothing — 21 survivors against 22, 4/4 against 4/4, and the rate spreads match to
+the sixth decimal in every generation where the arms had not yet diverged (0.004707 vs 0.004705,
+0.501707 vs 0.501705, 0.049707 vs 0.049705).
+
+### Why, measured rather than argued
+
+    generations where any MAIN candidate scored on the HARD set:  0 / 10
+
+`HARD_FITNESS` can only act through the RATE of guard survivors (`evolve.rs:2758` leaves `f`
+untouched and the guard tests `f`). If every candidate scores **0** on the hard set, the term it
+adds is CONSTANT across candidates and cannot re-rank anything. That is exactly what the `hard 0-0`
+field reports, in all ten MAIN generations across both HARD cells.
+
+### The reading I nearly published, and the check that stopped it
+
+I first saw `hard 1-2` and `hard 2-2` in `prop_hard.log` and concluded the HARD set does score, so
+the cell simply needed more generations. **Those were MCTS rows.** Split by lineage:
+
+    prop_hard.log      MAIN 0-0           MCTS 0-0, 1-2, 2-2
+    prop_hardp32.log   MAIN 0-0           MCTS 0-0, 0-1
+
+Same pooling error the reporter already carries a fix for — MAIN and MCTS are separate searches with
+separate populations — and it would have inverted this conclusion. The HARD set is not impossible:
+it discriminates for MCTS. It is inert **for MAIN**, which is the lineage an accept would come from.
+
+### What that makes actionable
+
+The HARD set is 8 positions the seed fails BY CONSTRUCTION, and MAIN's candidates fail them too —
+every one, every generation. A gradient needs positions the population can PARTIALLY solve. As
+built it is a second pass/fail filter stacked on a saturated one, not the gradient the header
+claims ("a real gradient, unlike the saturated 25/25 guard set").
+
+**So the search track's constraint is the proposal count, and that is now fixed.** The gradient
+question does not become live again until the HARD set is rebuilt at a difficulty MAIN can move on.
