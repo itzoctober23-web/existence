@@ -115,3 +115,41 @@ printing `+/-1.000` rather than `+/-0.000`.
 landed exactly on the shape the codebase already names as the canonical "no meaningful difference",
 which is independent support for treating arm 1's strength question as unresolved rather than as
 evidence of equality.
+
+## CORRECTION to the clarification above — champion promotions ARE game-gated, by a separate daemon
+
+I wrote above that "production promotions are surrogate-based rather than game-gated", reasoning
+from `--gate-every 1000000` in `p1_production.sh`. That is true of the TRAINER's in-loop ACCEPT and
+false of the thing I called a promotion.
+
+`auto_promote.sh` is a separate daemon. Every 30 minutes it finds the live trainer's net, runs a
+**224-pair netmatch against the champion**, and promotes only on the standard rule. Its record is in
+`auto_promote.out` — which I failed to find earlier because I looked for `auto_promote.log`, a
+broken probe rather than an absent log. Today's entries:
+
+```
+03:48 prod4.net      gen  2052: PROMOTED   0.531 +/- 0.027
+13:47 prodk1056.net  gen 23056: PROMOTED   0.544 +/- 0.029
+10:02 prodk0759.net  gen 19670: REGRESSION 0.454 +/- 0.027  (interval entirely below 0.5)
+11:17 prodk1056.net  gen  1769: REGRESSION 0.459 +/- 0.029  (interval entirely below 0.5, PAST the resume transient)
+01:08 lrB.net        gen  1392: PASSES but 2 arms training -- NOT promoting  0.593 +/- 0.029
+14:23 prodk1056.net  gen 28785: hold       0.501 +/- 0.030
+```
+
+**The 13:47 champion change was a gated promotion at 0.544 +/- 0.029** — lower bound 0.515, clearing
+`rate - ci95 >= 0.5` on 224 pairs. Not an unconditional checkpoint, which is what I implied.
+
+The daemon is also doing more than promote. It REJECTS regressions with the interval entirely below
+0.5, it annotates whether a reading is past the resume transient (the ~95-Elo effect
+`resume_transient` records), and it refuses to promote at all while multiple arms are training —
+`lrB` PASSED at 0.593 and was held because two arms were live, which is precisely the confound a
+promotion mid-experiment would create.
+
+**So the two-track picture is:** the trainer accepts every generation on the surrogate (by
+configuration), and a separate 224-pair game gate decides what becomes CHAMPION. My earlier
+paragraph conflated them and understated the rigour. The ruler figure (1515 +/- 12) is unaffected
+either way, being an external measurement.
+
+**What this cost:** nothing yet, because the claim had not been used for anything. What it shows is
+that "a required daemon writes no log" should have been "I could not find its log" — the standing
+rule about an empty result being a broken probe applies to files as well as greps.
