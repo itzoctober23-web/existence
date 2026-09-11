@@ -38,7 +38,7 @@ fn shape(n: &Node) -> (&'static str, usize) {
     let k = match n {
         Budget => "Budget", Const(_) => "Const", Var(_) => "Var", OutcomeLit(_) => "OutcomeLit",
         Nop => "Nop", Moves(_) => "Moves", Terminal(_) => "Terminal", Key(_) => "Key",
-        Eval(_) => "Eval", Ret(_) => "Ret", Probe(_) => "Probe", Field(..) => "Field",
+        Eval(_) => "Eval", Unc(_) => "Unc", Ret(_) => "Ret", Probe(_) => "Probe", Field(..) => "Field",
         Set(..) => "Set", Apply(..) => "Apply", Max(..) => "Max", Min(..) => "Min",
         Avg(..) => "Avg", ScoreOf(..) => "ScoreOf", Cmp(..) => "Cmp", Pred(..) => "Pred",
         Loop(..) => "Loop", Store(..) => "Store", Mix(..) => "Mix", Foreach(..) => "Foreach",
@@ -59,7 +59,7 @@ fn child_refs(n: &Node) -> Vec<&Node> {
     use Node::*;
     match n {
         Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => vec![],
-        Moves(a) | Terminal(a) | Key(a) | Eval(a) | Ret(a) | Probe(a) | Field(a, _) | Set(_, a) => vec![a],
+        Moves(a) | Terminal(a) | Key(a) | Eval(a) | Unc(a) | Ret(a) | Probe(a) | Field(a, _) | Set(_, a) => vec![a],
         Apply(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) | Cmp(a, b, _)
         | Pred(a, b, _) | Loop(a, b) => vec![a, b],
         Store(a, _, b) => vec![a, b],

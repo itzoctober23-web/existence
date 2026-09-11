@@ -160,7 +160,7 @@ fn kids(n: &Node) -> Vec<&Node> {
     use Node::*;
     match n {
         Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => vec![],
-        Moves(a) | Terminal(a) | Key(a) | Eval(a) | Ret(a) | Probe(a) | Field(a, _) | Set(_, a) => vec![a],
+        Moves(a) | Terminal(a) | Key(a) | Eval(a) | Unc(a) | Ret(a) | Probe(a) | Field(a, _) | Set(_, a) => vec![a],
         Apply(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) | Cmp(a, b, _)
         | Pred(a, b, _) | Loop(a, b) => vec![a, b],
         Store(a, _, b) => vec![a, b],
@@ -242,6 +242,10 @@ pub fn check(n: &Node, p: &Program, env: &mut Env) -> Result<Ty, TypeError> {
         Terminal(a) => { want(check(a, p, env)?, Ty::Pos, "terminal")?; Ty::Outcome }
         Key(a) => { want(check(a, p, env)?, Ty::Pos, "key")?; Ty::Key }
         Eval(a) => { want(check(a, p, env)?, Ty::Pos, "eval")?; Ty::Score }
+        // `unc(p) -> Int`. Int, not Score: a spread is not a position evaluation and must not
+        // be substitutable for one. Int is also what makes it usable as a `tread` index, which
+        // is how a program can learn a table keyed by its own uncertainty.
+        Unc(a) => { want(check(a, p, env)?, Ty::Pos, "unc")?; Ty::Int }
         Pred(a, b, _) => {
             want(check(a, p, env)?, Ty::Move, "pred move")?;
             want(check(b, p, env)?, Ty::Pos, "pred pos")?;

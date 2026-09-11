@@ -177,6 +177,20 @@ impl PosAcc {
         let v = if self.pos.stm == board::types::Color::White { white } else { -white };
         v.clamp(-30_000.0, 30_000.0) as i32
     }
+
+    /// The uncertainty head read off the SAME carried hidden layer `score_with` uses.
+    ///
+    /// Costs one dot product over `n_hidden` when the accumulator is live -- the trunk was already
+    /// paid for by `apply`. The fallback recomputes it, exactly as `score_with` falls back to
+    /// `net.eval`, so the two stay structurally identical and neither can silently diverge.
+    ///
+    /// NOT stm-flipped: a spread is a magnitude, not a score. See `Net::spread`.
+    pub fn spread_with(&self, net: &Net, scratch: &mut Vec<f32>) -> i32 {
+        if self.acc.is_empty() {
+            return net.spread(&self.pos, scratch);
+        }
+        net.spread_from(&self.acc)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -404,6 +418,11 @@ fn cost_of(n: &Node) -> u64 {
         // Incremental output layer at width >= 64 (from-scratch below it -- measured
         // crossover). Was 1365 when every eval was a from-scratch gather.
         Node::Eval(_) => 165,
+        // SAME PRICE AS AN EVAL, and it must be explicit. `cost_of` ends in `_ => 2`, so a new
+        // node that reads the net would otherwise be charged 2 -- eighty times under its real
+        // cost. FITNESS 3 is mates per COST, so an underpriced primitive is a standing invitation
+        // for the search to spend everything on it for free.
+        Node::Unc(_) => 165,
         Node::Moves(_) => 2232,
         // Now also carries the NNUE accumulator forward, so it costs more than a bare
         // make_move and eval costs far less. The pair is what matters, not either alone.
@@ -716,6 +735,21 @@ impl<'a> Interp<'a> {
                 let net = self.net;
                 Value::Num(match p.posacc() {
                     Some(a) => a.score_with(net, &mut self.scratch) as i64,
+                    None => 0,
+                })
+            }
+
+            // `unc(p)` -- the net's uncertainty head, read off the SAME carried hidden layer as
+            // `eval`. Counted as an eval because it is one: identical trunk, different output row.
+            //
+            // Returns 0 for a net whose head was never trained (schema v1), so a program that
+            // reads it on an old net reads a constant rather than noise.
+            Node::Unc(p) => {
+                self.evals += 1;
+                let p = val!(p);
+                let net = self.net;
+                Value::Num(match p.posacc() {
+                    Some(a) => a.spread_with(net, &mut self.scratch) as i64,
                     None => 0,
                 })
             }

@@ -107,6 +107,21 @@ pub enum Node {
 
     // 2.2 evaluation
     Eval(Box<Node>), // Pos -> Score
+    /// `unc(p) -> Int` — the net's own estimate of how far its static opinion at `p` sits from what
+    /// its own deeper search would return, in Score units and always >= 0.
+    ///
+    /// DECLARED AS A GIVEN, NOT AS A TECHNIQUE. It reports a quantity; it does not spend one. What a
+    /// program does with it -- gate an extension, index a table, weight a backup -- must be
+    /// assembled by mutation and crossover like anything else. The Given column gains a READING,
+    /// not an algorithm.
+    ///
+    /// Int, not Score, on purpose. A spread is not a position evaluation and must not be
+    /// substitutable for one wherever a Score is wanted. Int also makes it usable as a `tread`
+    /// index, which is what lets a program learn a table keyed by its own uncertainty.
+    ///
+    /// Reports 0 for every net trained before the head existed (`nnue::Net` schema v1), so a
+    /// program that reads it on such a net reads a constant -- inert, never wrong.
+    Unc(Box<Node>), // Pos -> Int
 
     // 2.3 control
     Foreach(Box<Node>, String, Box<Node>),  // List x var x body -> Unit
@@ -189,7 +204,7 @@ impl Node {
         use Node::*;
         1 + match self {
             Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => 0,
-            Moves(a) | Terminal(a) | Key(a) | Eval(a) | Ret(a) | Probe(a) | Field(a, _) => a.size(),
+            Moves(a) | Terminal(a) | Key(a) | Eval(a) | Unc(a) | Ret(a) | Probe(a) | Field(a, _) => a.size(),
             Apply(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) => {
                 a.size() + b.size()
             }

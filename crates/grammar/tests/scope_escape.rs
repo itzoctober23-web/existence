@@ -50,7 +50,7 @@ fn children(n: &Node) -> Vec<&Node> {
     use Node::*;
     match n {
         Budget | Const(_) | Var(_) | OutcomeLit(_) | Nop => vec![],
-        Moves(a) | Terminal(a) | Key(a) | Eval(a) | Ret(a) | Probe(a) | Field(a, _) | Set(_, a) => vec![a],
+        Moves(a) | Terminal(a) | Key(a) | Eval(a) | Unc(a) | Ret(a) | Probe(a) | Field(a, _) | Set(_, a) => vec![a],
         Apply(a, b) | Max(a, b) | Min(a, b) | Avg(a, b) | ScoreOf(a, b) | Cmp(a, b, _)
         | Pred(a, b, _) | Loop(a, b) => vec![a, b],
         Store(a, _, b) => vec![a, b],
