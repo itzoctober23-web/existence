@@ -141,6 +141,39 @@ def main():
     print(f"  rank RANDOM (control)  : top decile ({k}) = {100*top:4.1f}% costly, "
           f"base {100*base:4.1f}%, lift {top/base if base else float('nan'):.2f}x")
 
+    # ---- AUC, because the decile is too small to read -------------------------------------
+    # MEASURED 2026-09-11: at 296 rows the held-out decile is NINE positions, so 11.1% / 22.2% /
+    # 33.3% differ by one or two positions. The random control landed at 0.78x where it must sit at
+    # 1.0x in expectation -- that gap IS the variance of the metric, and it is larger than any
+    # effect being looked for. Reading "the probe fails" off those numbers would be reading the
+    # instrument.
+    #
+    # AUC uses every held-out point instead of nine: the probability that a random COSTLY flip is
+    # ranked above a random non-costly one. 0.50 is chance exactly, and it needs no binning.
+    def auc(scored, label):
+        pos = [sc for sc, r in scored if label(r)]
+        neg = [sc for sc, r in scored if not label(r)]
+        if not pos or not neg:
+            return None
+        wins = sum((1.0 if a > b else 0.5 if a == b else 0.0) for a in pos for b in neg)
+        return wins / (len(pos) * len(neg))
+
+    print("\n--- AUC on the SAME holdout (0.50 = chance, uses all points not just a decile) ---")
+    for name, y in (("T2  flip cost", [float(r["cost"]) for r in tr]),
+                    ("T1  residual ", [r["resid"] for r in tr])):
+        w = fit_ridge(Xtr, y)
+        pred = [(sum(a * b for a, b in zip(x, w[:-1])) + w[-1], r) for x, r in zip(Xte, te)]
+        print(f"  probe on {name}: AUC {auc(pred, costly):.3f}")
+    print(f"  rank by RAW residual   : AUC {auc([(r['resid'], r) for r in te], costly):.3f}")
+    trials = []
+    for t in range(200):
+        random.seed(1000 + t)
+        trials.append(auc([(random.random(), r) for r in te], costly))
+    trials.sort()
+    print(f"  RANDOM control         : AUC {trials[100]:.3f} median, "
+          f"90% of trials in [{trials[10]:.3f}, {trials[189]:.3f}]")
+    print("  -> a probe AUC inside the random band is indistinguishable from chance at this n.")
+
     print("\n  lift ~1.0 means the ranking carries no information about which positions matter.")
     print("  A probe that cannot beat the random control is a head that cannot be trained to,")
     print("  because spread_from IS this hypothesis class -- there is no richer function for it")

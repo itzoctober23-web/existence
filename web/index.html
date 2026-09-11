@@ -4,305 +4,344 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>♞</text></svg>">
 <style>
-/* Palette and board lifted from the 4PC GUI (gui/style.css) so this matches it. */
 :root{
-  --bg:#14100a; --panel:#1d1810; --panel2:#262013; --text:#f2ead9; --muted:#b3a488;
-  --light:#e7ddc2; --dark:#8a6b3f; --accent:#d9a94a;
-  --sel:rgba(217,169,74,.5); --last:rgba(217,169,74,.4);
+  --bg:#161512; --panel:#262421; --panel2:#302e2b; --text:#bababa; --text2:#edebe9;
+  --light:#f0d9b5; --dark:#b58863;
+  --last:rgba(155,199,0,.41); --sel:rgba(20,85,30,.5); --check:rgba(255,60,60,.55);
+  --accent:#629924;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 ui-sans-serif,system-ui,sans-serif}
-#wrap{display:flex;gap:14px;padding:12px;align-items:flex-start;flex-wrap:wrap}
-#boardZone{flex:1;display:flex;align-items:center;justify-content:center;gap:10px;min-width:0}
-#evalWrap{display:flex;flex-direction:column;align-items:center;gap:4px}
-#evalBar{width:16px;height:min(84vh,60vw);background:#2b2622;border-radius:8px;overflow:hidden;
-  box-shadow:inset 0 0 0 1px #3a332b;display:flex;flex-direction:column-reverse}
-#evalFill{background:linear-gradient(#f2ead9,#cfc3a6);height:50%;transition:height .35s ease}
-#evalText{font:600 12px ui-monospace,monospace;color:var(--muted)}
-#boardArea{display:grid;grid-template-columns:18px auto;grid-template-rows:auto 18px}
-#board{grid-column:2;grid-row:1;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);
-  width:min(84vh,60vw,100vh - 160px);height:min(84vh,60vw,100vh - 160px);
-  border-radius:6px;overflow:hidden;box-shadow:0 0 0 9px #1f1d1a,0 12px 34px rgba(0,0,0,.55);position:relative}
-.ranks{grid-column:1;grid-row:1;display:grid;grid-template-rows:repeat(8,1fr)}
-.files{grid-column:2;grid-row:2;display:grid;grid-template-columns:repeat(8,1fr)}
-.ranks div,.files div{display:flex;align-items:center;justify-content:center;font:600 11px ui-monospace,monospace;color:var(--muted)}
-.sq{position:relative;user-select:none;cursor:pointer}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 "Noto Sans",ui-sans-serif,system-ui,sans-serif}
+#wrap{display:flex;gap:16px;padding:16px;align-items:flex-start;flex-wrap:wrap;justify-content:center}
+
+#boardZone{display:flex;gap:10px;align-items:flex-start}
+#evalBar{width:14px;height:var(--bs,640px);background:#3a3734;border-radius:3px;overflow:hidden;
+  display:flex;flex-direction:column-reverse;flex:none}
+#evalFill{background:#f0f0f0;height:50%;transition:height .4s cubic-bezier(.4,0,.2,1)}
+#board{position:relative;width:var(--bs,640px);height:var(--bs,640px);border-radius:4px;overflow:hidden;
+  box-shadow:0 3px 18px rgba(0,0,0,.55);flex:none;touch-action:none;user-select:none}
+.sq{position:absolute;width:12.5%;height:12.5%;top:0;left:0}
 .sq.light{background:var(--light)} .sq.dark{background:var(--dark)}
-.sq.sel{box-shadow:inset 0 0 0 999px var(--sel)}
-.sq.last{box-shadow:inset 0 0 0 999px var(--last)}
-.sq.check{box-shadow:inset 0 0 0 999px rgba(209,73,91,.55)}
-.sq .dot{position:absolute;left:50%;top:50%;width:26%;height:26%;transform:translate(-50%,-50%);
-  border-radius:50%;background:rgba(20,16,10,.35);pointer-events:none}
-.sq .cap{position:absolute;inset:6%;border-radius:50%;box-shadow:inset 0 0 0 5px rgba(20,16,10,.35);pointer-events:none}
-.sq svg{position:absolute;inset:4%;width:92%;height:92%;pointer-events:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,.45))}
-#side{width:330px;max-width:100%;display:flex;flex-direction:column;gap:10px}
-.pan{background:var(--panel);border:1px solid #2e2619;border-radius:10px;padding:10px}
-.pan h3{margin:0 0 8px;font:600 12px ui-sans-serif;color:var(--accent);letter-spacing:.4px;text-transform:uppercase}
-button,select{background:var(--panel2);color:var(--text);border:1px solid #3a3020;border-radius:7px;padding:6px 10px;cursor:pointer;font:13px inherit}
-button:hover{filter:brightness(1.15)}
-#moves{max-height:230px;overflow:auto;font:13px ui-monospace,monospace;display:grid;grid-template-columns:2.2em 1fr 1fr;gap:2px 6px}
-#moves .n{color:var(--muted)}
-#moves span.m{padding:1px 4px;border-radius:4px;cursor:pointer}
+.hl{position:absolute;width:12.5%;height:12.5%;top:0;left:0;pointer-events:none;z-index:1}
+.hl.last{background:var(--last)} .hl.sel{background:var(--sel)}
+.hl.check{background:radial-gradient(circle,var(--check) 0%,rgba(255,60,60,0) 72%)}
+.mv{position:absolute;width:12.5%;height:12.5%;top:0;left:0;pointer-events:none;z-index:1;
+  display:flex;align-items:center;justify-content:center}
+.mv::after{content:"";width:30%;height:30%;border-radius:50%;background:rgba(20,85,30,.42)}
+.mv.cap::after{width:92%;height:92%;background:none;box-shadow:inset 0 0 0 6px rgba(20,85,30,.42)}
+
+/* ONE ELEMENT PER PIECE, moved by transform. This is the whole reason moves glide: the old
+   version rebuilt innerHTML on every render, which destroys the node and kills the transition,
+   so pieces teleported instead of sliding. */
+.pc{position:absolute;width:12.5%;height:12.5%;top:0;left:0;will-change:transform;
+  transition:transform .15s cubic-bezier(.22,.61,.36,1);z-index:2;cursor:grab}
+.pc svg{width:100%;height:100%;display:block;pointer-events:none}
+.pc.drag{transition:none;z-index:9;cursor:grabbing;filter:drop-shadow(0 5px 7px rgba(0,0,0,.5))}
+.coord{position:absolute;font:700 10px/1 "Noto Sans",sans-serif;pointer-events:none;z-index:3}
+.coord.f{bottom:2px;right:3px} .coord.r{top:2px;left:3px}
+
+#side{width:340px;max-width:100%;display:flex;flex-direction:column;gap:12px}
+.pan{background:var(--panel);border-radius:5px;padding:12px}
+.pan h3{margin:0 0 9px;font:600 11px/1 "Noto Sans";color:#8d8880;letter-spacing:.9px;text-transform:uppercase}
+button,select{background:var(--panel2);color:var(--text2);border:none;border-radius:3px;padding:7px 11px;cursor:pointer;font:13px inherit}
+button:hover{background:#3d3a37} button.pri{background:var(--accent);color:#fff} button.pri:hover{background:#6fa82a}
+.row{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+#status{font:600 14px/1.3 "Noto Sans";color:var(--text2)}
+#moves{max-height:250px;overflow:auto;font:13px/1.7 "Noto Sans";display:grid;grid-template-columns:2.4em 1fr 1fr;gap:0 4px}
+#moves .n{color:#7a756e;text-align:right;padding-right:4px}
+#moves span.m{padding:1px 5px;border-radius:3px;cursor:pointer}
 #moves span.m:hover{background:var(--panel2)}
-#moves span.m.cur{background:var(--accent);color:#1a1509;font-weight:700}
-#graph{width:100%;height:90px;background:var(--panel2);border-radius:7px}
-.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.k{color:var(--muted)}
-#status{font:600 13px ui-sans-serif}
-#ana{font:12px ui-monospace,monospace;color:var(--muted);white-space:pre-wrap}
+#moves span.m.cur{background:var(--accent);color:#fff}
+#ana{font:12px/1.6 ui-monospace,monospace;color:#9a948c;white-space:pre-wrap}
+#graph{width:100%;height:80px;background:var(--panel2);border-radius:3px;margin-top:8px}
+textarea{width:100%;height:74px;background:var(--panel2);color:var(--text);border:none;border-radius:3px;padding:6px;font:12px ui-monospace,monospace}
+.think{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);
+  animation:pulse 1s infinite ease-in-out;margin-right:6px;vertical-align:middle}
+@keyframes pulse{0%,100%{opacity:.25}50%{opacity:1}}
 </style>
 
 <div id="wrap">
   <div id="boardZone">
-    <div id="evalWrap" title="White advantage (engine eval, white POV)">
-      <div id="evalBar"><div id="evalFill"></div></div>
-      <div id="evalText">0.0</div>
-    </div>
-    <div id="boardArea">
-      <div class="ranks" id="ranks"></div>
-      <div id="board"></div>
-      <div class="files" id="files"></div>
-    </div>
+    <div id="evalBar" title="White advantage"><div id="evalFill"></div></div>
+    <div id="board"></div>
   </div>
-
   <div id="side">
     <div class="pan">
       <h3>Existence</h3>
       <div id="status">—</div>
-      <div class="row" style="margin-top:8px">
-        <select id="side-sel"><option value="w">Play White</option><option value="b">Play Black</option></select>
+      <div class="row" style="margin-top:10px">
+        <select id="side-sel"><option value="w">White</option><option value="b">Black</option></select>
         <select id="depth"><option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select>
-        <button id="btnNew">New game</button>
+        <button class="pri" id="btnNew">New game</button>
         <button id="btnFlip">Flip</button>
         <button id="btnResign">Resign</button>
       </div>
     </div>
-
     <div class="pan">
       <h3>Moves</h3>
       <div id="moves"></div>
-      <div class="row" style="margin-top:8px">
+      <div class="row" style="margin-top:9px">
         <button id="btnStart">⏮</button><button id="btnPrev">◀</button>
         <button id="btnNext">▶</button><button id="btnEnd">⏭</button>
-        <span class="k" id="plyLabel"></span>
+        <span style="color:#7a756e" id="plyLabel"></span>
       </div>
     </div>
-
     <div class="pan">
       <h3>Analysis</h3>
       <div class="row">
-        <button id="btnAna">Analyse position</button>
+        <button id="btnAna">Analyse</button>
         <select id="anaDepth"><option>4</option><option>5</option><option selected>6</option><option>7</option><option>8</option></select>
+        <button id="btnReview">Review game</button>
       </div>
-      <div id="ana" style="margin-top:8px">—</div>
-      <div class="row" style="margin-top:8px">
-        <button id="btnReview">Review whole game</button>
-      </div>
-      <canvas id="graph" width="600" height="180" style="margin-top:8px"></canvas>
+      <div id="ana" style="margin-top:9px">—</div>
+      <canvas id="graph" width="640" height="160"></canvas>
     </div>
-
     <div class="pan">
       <h3>PGN</h3>
-      <div class="row"><button id="btnPgn">Copy PGN</button><button id="btnImport">Import PGN</button></div>
-      <textarea id="pgnBox" style="width:100%;height:80px;margin-top:8px;background:var(--panel2);color:var(--text);border:1px solid #3a3020;border-radius:7px"></textarea>
+      <div class="row"><button id="btnPgn">Copy out</button><button id="btnImport">Import</button></div>
+      <textarea id="pgnBox" style="margin-top:8px"></textarea>
     </div>
   </div>
 </div>
 
 <script src="/pieces.js"></script>
 <script>
-const FILES="abcdefgh", boardEl=document.getElementById("board");
+const F="abcdefgh";
+const boardEl=document.getElementById("board");
 let flipped=false, state=null, sel=null, viewPly=null, reviewEvals=null;
+let pieces={}, squares={};
 
-// ---- board construction (same model as the 4PC GUI: one div per square, dataset.sq = name) ----
-const cells={};
-function buildBoard(){
-  boardEl.innerHTML="";
+function sizeBoard(){
+  const s=Math.min(window.innerHeight-110, window.innerWidth-420, 720);
+  document.documentElement.style.setProperty("--bs", Math.max(300,s)+"px");
+}
+window.addEventListener("resize",sizeBoard); sizeBoard();
+
+function xy(sq){
+  const f=F.indexOf(sq[0]), r=+sq[1]-1;
+  const col=flipped?7-f:f, row=flipped?r:7-r;
+  return [col*100, row*100];
+}
+function place(el,sq){ const [x,y]=xy(sq); el.style.transform=`translate(${x}%,${y}%)`; }
+
+function buildSquares(){
+  boardEl.innerHTML=""; squares={}; pieces={};
   for(let r=7;r>=0;r--) for(let f=0;f<8;f++){
-    const rr = flipped?7-r:r, ff = flipped?7-f:f;
-    const name = FILES[ff]+(rr+1);
-    const el=document.createElement("div");
-    el.className="sq "+(((ff+rr)%2)?"light":"dark");
-    el.dataset.sq=name; el.onclick=()=>onSquare(name);
-    boardEl.appendChild(el); cells[name]=el;
+    const name=F[f]+(r+1), d=document.createElement("div");
+    d.className="sq "+(((f+r)%2)?"light":"dark"); place(d,name);
+    boardEl.appendChild(d); squares[name]=d;
   }
-  const ranksEl=document.getElementById("ranks"), filesEl=document.getElementById("files");
-  ranksEl.innerHTML=""; filesEl.innerHTML="";
   for(let i=0;i<8;i++){
-    const r=document.createElement("div"); r.textContent = flipped?(i+1):(8-i); ranksEl.appendChild(r);
-    const f=document.createElement("div"); f.textContent = FILES[flipped?7-i:i]; filesEl.appendChild(f);
+    const fs=squares[F[flipped?7-i:i]+(flipped?8:1)], rs=squares[(flipped?"h":"a")+(flipped?i+1:8-i)];
+    if(fs){const c=document.createElement("div");c.className="coord f";c.textContent=F[flipped?7-i:i];
+      c.style.color=fs.classList.contains("light")?"#b58863":"#f0d9b5";fs.appendChild(c);}
+    if(rs){const c=document.createElement("div");c.className="coord r";c.textContent=flipped?i+1:8-i;
+      c.style.color=rs.classList.contains("light")?"#b58863":"#f0d9b5";rs.appendChild(c);}
   }
 }
 
-function fenBoard(fen){
-  const rows=fen.split(" ")[0].split("/"), out={};
-  rows.forEach((row,ri)=>{ let f=0;
-    for(const ch of row){
-      if(/\d/.test(ch)){ f+=+ch; continue; }
-      out[FILES[f]+(8-ri)] = ch; f++;
-    }});
+function fenMap(fen){
+  const out={}, rows=fen.split(" ")[0].split("/");
+  rows.forEach((row,ri)=>{let f=0;for(const ch of row){
+    if(/\d/.test(ch)){f+=+ch;continue;} out[F[f]+(8-ri)]=ch; f++;}});
   return out;
 }
+function makePiece(code,sq){
+  const el=document.createElement("div"); el.className="pc";
+  el.innerHTML=pieceSVG(code.toUpperCase(), code===code.toUpperCase()?"w":"b");
+  place(el,sq); boardEl.appendChild(el); return el;
+}
 
-function render(){
+// Reconcile against a target position, REUSING nodes so a moved piece animates.
+function setPosition(map,animate=true){
+  const next={}, taken=new Set();
+  for(const sq in map) if(pieces[sq]&&pieces[sq].code===map[sq]){ next[sq]=pieces[sq]; taken.add(sq); }
+  for(const sq in map){
+    if(next[sq]) continue;
+    let src=null;
+    for(const osq in pieces){
+      if(taken.has(osq)) continue;
+      if(pieces[osq].code===map[sq] && !(osq in map)){ src=osq; break; }
+    }
+    if(src===null) for(const osq in pieces){
+      if(taken.has(osq)) continue;
+      if(pieces[osq].code===map[sq]){ src=osq; break; }
+    }
+    if(src!==null){
+      const p=pieces[src]; taken.add(src);
+      if(!animate){ p.el.style.transition="none"; place(p.el,sq); p.el.offsetHeight; p.el.style.transition=""; }
+      else place(p.el,sq);
+      next[sq]={el:p.el,code:map[sq]};
+    } else next[sq]={el:makePiece(map[sq],sq),code:map[sq]};
+  }
+  const keep=new Set(Object.values(next).map(n=>n.el));
+  for(const sq in pieces) if(!keep.has(pieces[sq].el)) pieces[sq].el.remove();
+  pieces=next;
+}
+
+function clearOverlays(){ boardEl.querySelectorAll(".hl,.mv").forEach(n=>n.remove()); }
+function overlay(cls,sq){
+  const d=document.createElement("div"); d.className=cls; place(d,sq);
+  boardEl.insertBefore(d, boardEl.querySelector(".pc")||null);
+}
+
+function render(animate=true){
   if(!state) return;
-  const showPly = viewPly===null ? state.ply : viewPly;
-  const fen = showPly===state.ply ? state.fen : fenAt(showPly);
-  const pos = fenBoard(fen);
-  for(const name in cells){
-    const el=cells[name]; el.className = el.className.replace(/ (sel|last|check)/g,"");
-    el.innerHTML="";
-    const p=pos[name];
-    if(p) el.innerHTML = pieceSVG(p.toUpperCase(), p===p.toUpperCase()?"w":"b");
-  }
-  const lm = showPly>0 ? state.moves[showPly-1] : null;
-  if(lm){ (cells[lm.slice(0,2)]||{}).className += " last"; (cells[lm.slice(2,4)]||{}).className += " last"; }
-  if(sel && cells[sel]) cells[sel].className += " sel";
-  if(sel) for(const u of state.legal) if(u.slice(0,2)===sel){
-    const to=u.slice(2,4), d=document.createElement("div");
-    d.className = pos[to] ? "cap" : "dot"; if(cells[to]) cells[to].appendChild(d);
-  }
-  // status + eval
-  const ev = (viewPly!==null && reviewEvals && reviewEvals[showPly]!=null) ? reviewEvals[showPly] : state.eval;
-  setEval(ev);
-  document.getElementById("status").textContent =
-    state.result ? "Game over — "+state.result
-    : (state.engineTurn ? "Existence is thinking…" : "Your move ("+(state.turn==="w"?"White":"Black")+")");
-  document.getElementById("plyLabel").textContent = "ply "+showPly+" / "+state.ply;
+  const showPly=viewPly===null?state.ply:viewPly;
+  const fen=showPly===state.ply?state.fen:fenAt(showPly);
+  const map=fenMap(fen);
+  setPosition(map,animate);
+  clearOverlays();
+  const lm=showPly>0?state.moves[showPly-1]:null;
+  if(lm){ overlay("hl last",lm.slice(0,2)); overlay("hl last",lm.slice(2,4)); }
+  if(sel){ overlay("hl sel",sel);
+    for(const u of state.legal) if(u.slice(0,2)===sel) overlay("mv"+(map[u.slice(2,4)]?" cap":""),u.slice(2,4)); }
+  if(state.check&&showPly===state.ply)
+    for(const sq in map){const c=map[sq];
+      if(c.toUpperCase()==="K"&&(c===c.toUpperCase())===(state.turn==="w")) overlay("hl check",sq);}
+  const ev=(viewPly!==null&&reviewEvals&&reviewEvals[showPly]!=null)?reviewEvals[showPly]:state.eval;
+  document.getElementById("evalFill").style.height = ev==null?"50%":(100/(1+Math.exp(-ev/320))).toFixed(1)+"%";
+  document.getElementById("status").innerHTML =
+    state.result?"Game over — "+state.result
+    :state.engineTurn?'<span class="think"></span>Existence is thinking…':"Your move";
+  document.getElementById("plyLabel").textContent=showPly+" / "+state.ply;
   renderMoves(showPly);
-}
-
-// Positions for browsing are replayed client-side from the move list, so stepping through a game
-// costs no server round-trip and no engine time.
-function fenAt(ply){
-  const b=new MiniBoard(); for(let i=0;i<ply;i++) b.push(state.moves[i]); return b.fen();
-}
-
-function setEval(cp){
-  const t=document.getElementById("evalText"), fill=document.getElementById("evalFill");
-  if(cp==null){ t.textContent="—"; fill.style.height="50%"; return; }
-  const pawns=cp/100;
-  t.textContent=(pawns>0?"+":"")+pawns.toFixed(1);
-  // logistic squash so a huge score does not peg the bar and hide later movement
-  fill.style.height = (100/(1+Math.exp(-cp/300))).toFixed(1)+"%";
 }
 
 function renderMoves(cur){
   const box=document.getElementById("moves"); box.innerHTML="";
   for(let i=0;i<state.san.length;i+=2){
-    const n=document.createElement("div"); n.className="n"; n.textContent=(i/2+1)+"."; box.appendChild(n);
+    const n=document.createElement("div");n.className="n";n.textContent=(i/2+1);box.appendChild(n);
     for(const j of [i,i+1]){
       const s=document.createElement("span");
-      if(j<state.san.length){ s.className="m"+((j+1)===cur?" cur":""); s.textContent=state.san[j];
-        s.onclick=()=>{ viewPly=j+1; render(); }; }
+      if(j<state.san.length){s.className="m"+((j+1)===cur?" cur":"");s.textContent=state.san[j];
+        s.onclick=()=>{viewPly=j+1;render();};}
       box.appendChild(s);
     }
   }
-  box.scrollTop=box.scrollHeight;
+  const cu=box.querySelector(".cur"); if(cu) cu.scrollIntoView({block:"nearest"});
 }
 
-async function onSquare(name){
-  if(!state || state.result || state.engineTurn) return;
-  if(viewPly!==null && viewPly!==state.ply) return;   // browsing history: not a live board
-  if(sel){
-    const uci=sel+name;
-    const hit=state.legal.filter(u=>u.slice(0,4)===uci);
-    if(hit.length){ sel=null; await play(hit[0].length>4?uci+"q":uci); return; }
+function fenAt(ply){const b=new Mini();for(let i=0;i<ply;i++)b.push(state.moves[i]);return b.fen();}
+
+let drag=null;
+function sqAt(e){
+  const r=boardEl.getBoundingClientRect();
+  const cx=(e.clientX-r.left)/r.width*8, cy=(e.clientY-r.top)/r.height*8;
+  if(cx<0||cx>=8||cy<0||cy>=8) return null;
+  const col=Math.floor(cx), row=Math.floor(cy);
+  return F[flipped?7-col:col]+((flipped?row:7-row)+1);
+}
+const canMove=()=>state&&!state.result&&!state.engineTurn&&(viewPly===null||viewPly===state.ply);
+
+boardEl.addEventListener("pointerdown",e=>{
+  if(!canMove())return;
+  const sq=sqAt(e); if(!sq)return;
+  e.preventDefault();
+  if(sel&&sel!==sq){
+    const hit=state.legal.filter(u=>u.slice(0,4)===sel+sq);
+    if(hit.length){const from=sel;sel=null;doMove(from+sq,hit[0].length>4);return;}
   }
-  sel = (sel===name)?null:name; render();
+  const p=pieces[sq];
+  const mine=p&&((p.code===p.code.toUpperCase())===(state.turn==="w"));
+  if(!mine){sel=null;render(false);return;}
+  sel=sq; render(false);
+  drag={sq,el:pieces[sq].el,r:boardEl.getBoundingClientRect()};
+  drag.el.classList.add("drag");
+  boardEl.setPointerCapture(e.pointerId); dragTo(e);
+});
+function dragTo(e){
+  if(!drag)return;
+  const sz=drag.r.width/8;
+  const x=e.clientX-drag.r.left-sz/2, y=e.clientY-drag.r.top-sz/2;
+  drag.el.style.transform=`translate(${x/sz*100}%,${y/sz*100}%)`;
 }
+boardEl.addEventListener("pointermove",e=>{if(drag){e.preventDefault();dragTo(e);}});
+boardEl.addEventListener("pointerup",e=>{
+  if(!drag)return;
+  const from=drag.sq, el=drag.el; drag=null; el.classList.remove("drag");
+  const to=sqAt(e);
+  if(to&&to!==from){
+    const hit=state.legal.filter(u=>u.slice(0,4)===from+to);
+    if(hit.length){sel=null;doMove(from+to,hit[0].length>4);return;}
+  }
+  render(false);
+});
 
-async function play(uci){
-  document.getElementById("status").textContent="Existence is thinking…";
+async function doMove(uci,promo){
+  if(promo)uci+="q";
+  const m=fenMap(state.fen), code=m[uci.slice(0,2)];
+  if(code){delete m[uci.slice(0,2)];m[uci.slice(2,4)]=promo?(code===code.toUpperCase()?"Q":"q"):code;setPosition(m);}
+  document.getElementById("status").innerHTML='<span class="think"></span>Existence is thinking…';
   const r=await fetch("/api/move",{method:"POST",body:uci});
+  if(!r.ok){await refresh();return;}
   state=await r.json(); viewPly=null; render();
 }
-
-async function refresh(){ state=await (await fetch("/api/state")).json(); render(); }
+async function refresh(){state=await (await fetch("/api/state")).json();render();}
 
 document.getElementById("btnNew").onclick=async()=>{
-  const white=document.getElementById("side-sel").value==="w";
-  const depth=+document.getElementById("depth").value;
-  flipped=!white; buildBoard(); reviewEvals=null;
+  const white=document.getElementById("side-sel").value==="w", depth=+document.getElementById("depth").value;
+  flipped=!white; buildSquares(); reviewEvals=null; sel=null; viewPly=null;
   state=await (await fetch("/api/new",{method:"POST",body:JSON.stringify({white,depth})})).json();
-  viewPly=null; sel=null; render();
+  render(false);
 };
-document.getElementById("btnFlip").onclick=()=>{flipped=!flipped;buildBoard();render();};
+document.getElementById("btnFlip").onclick=()=>{flipped=!flipped;buildSquares();render(false);};
 document.getElementById("btnResign").onclick=async()=>{state=await (await fetch("/api/resign",{method:"POST"})).json();render();};
 document.getElementById("btnStart").onclick=()=>{viewPly=0;render();};
 document.getElementById("btnPrev").onclick=()=>{viewPly=Math.max(0,(viewPly===null?state.ply:viewPly)-1);render();};
 document.getElementById("btnNext").onclick=()=>{viewPly=Math.min(state.ply,(viewPly===null?state.ply:viewPly)+1);render();};
 document.getElementById("btnEnd").onclick=()=>{viewPly=null;render();};
+document.addEventListener("keydown",e=>{
+  if(e.key==="ArrowLeft")document.getElementById("btnPrev").click();
+  if(e.key==="ArrowRight")document.getElementById("btnNext").click();
+});
 document.getElementById("btnAna").onclick=async()=>{
-  const ply=viewPly===null?state.ply:viewPly, d=+document.getElementById("anaDepth").value;
+  const ply=viewPly===null?state.ply:viewPly,d=+document.getElementById("anaDepth").value;
   document.getElementById("ana").textContent="thinking at depth "+d+"…";
   const r=await (await fetch(`/api/analyse?ply=${ply}&depth=${d}`)).json();
-  document.getElementById("ana").textContent =
-    `ply ${r.ply}  depth ${r.depth}\nscore ${r.score==null?"—":(r.score/100).toFixed(2)} (white POV)\nbest  ${r.best||"—"}\nnodes ${r.nodes.toLocaleString()}`;
-  if(r.score!=null) setEval(r.score);
+  document.getElementById("ana").textContent=
+    `ply ${r.ply}  depth ${r.depth}\nscore ${r.score==null?"—":(r.score/100).toFixed(2)} (white)\nbest  ${r.best||"—"}\nnodes ${r.nodes.toLocaleString()}`;
 };
 document.getElementById("btnReview").onclick=async()=>{
-  const d=4; document.getElementById("ana").textContent="reviewing every position at depth "+d+"…";
-  const r=await (await fetch(`/api/review?depth=${d}`)).json();
-  reviewEvals={}; r.evals.forEach(e=>reviewEvals[e.ply]=e.score);
-  document.getElementById("ana").textContent="review done — "+r.evals.length+" positions at depth "+d;
+  document.getElementById("ana").textContent="reviewing every position…";
+  const r=await (await fetch("/api/review?depth=4")).json();
+  reviewEvals={};r.evals.forEach(e=>reviewEvals[e.ply]=e.score);
+  document.getElementById("ana").textContent="review done — "+r.evals.length+" positions at depth "+r.depth;
   drawGraph();
 };
-document.getElementById("btnPgn").onclick=async()=>{
-  document.getElementById("pgnBox").value=await (await fetch("/api/pgn")).text();
-};
+document.getElementById("btnPgn").onclick=async()=>{document.getElementById("pgnBox").value=await (await fetch("/api/pgn")).text();};
 document.getElementById("btnImport").onclick=async()=>{
-  const t=document.getElementById("pgnBox").value;
-  state=await (await fetch("/api/import",{method:"POST",body:t})).json();
-  viewPly=null; reviewEvals=null; render();
+  state=await (await fetch("/api/import",{method:"POST",body:document.getElementById("pgnBox").value})).json();
+  viewPly=null;reviewEvals=null;buildSquares();render(false);
 };
 
 function drawGraph(){
-  const c=document.getElementById("graph"), g=c.getContext("2d");
-  g.clearRect(0,0,c.width,c.height);
-  if(!reviewEvals) return;
+  const c=document.getElementById("graph"),g=c.getContext("2d");
+  g.clearRect(0,0,c.width,c.height); if(!reviewEvals)return;
   const ks=Object.keys(reviewEvals).map(Number).sort((a,b)=>a-b);
-  g.strokeStyle="#3a332b"; g.beginPath(); g.moveTo(0,c.height/2); g.lineTo(c.width,c.height/2); g.stroke();
-  g.strokeStyle="#d9a94a"; g.lineWidth=2; g.beginPath();
-  ks.forEach((k,i)=>{
-    const v=reviewEvals[k]; if(v==null) return;
-    const x=(i/Math.max(1,ks.length-1))*c.width;
-    const y=c.height*(1-1/(1+Math.exp(-v/300)));
-    i?g.lineTo(x,y):g.moveTo(x,y);
-  });
+  g.strokeStyle="#4a4744";g.beginPath();g.moveTo(0,c.height/2);g.lineTo(c.width,c.height/2);g.stroke();
+  g.strokeStyle="#629924";g.lineWidth=2;g.beginPath();
+  ks.forEach((k,i)=>{const v=reviewEvals[k];if(v==null)return;
+    const x=(i/Math.max(1,ks.length-1))*c.width,y=c.height*(1-1/(1+Math.exp(-v/320)));
+    i?g.lineTo(x,y):g.moveTo(x,y);});
   g.stroke();
 }
 
-// Minimal client-side replayer so history browsing needs no server. Rules live on the server
-// (python-chess); this only has to REPLAY moves the server already validated, which is why it can
-// be this small -- it never decides legality.
-class MiniBoard{
-  constructor(){ this.b=fenBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"); }
-  push(u){
-    const from=u.slice(0,2), to=u.slice(2,4), pr=u[4];
-    const p=this.b[from]; if(!p) return;
-    delete this.b[from];
-    // en passant: a pawn moving diagonally to an empty square captures the passed pawn
-    if(p.toUpperCase()==="P" && from[0]!==to[0] && !this.b[to])
-      delete this.b[to[0]+from[1]];
-    this.b[to]= pr ? (p===p.toUpperCase()?pr.toUpperCase():pr) : p;
-    // castling: move the rook too
-    if(p.toUpperCase()==="K" && Math.abs(FILES.indexOf(to[0])-FILES.indexOf(from[0]))===2){
-      const r=from[1], k=to[0]==="g";
-      const rf=k?"h":"a", rt=k?"f":"d";
-      this.b[rt+r]=this.b[rf+r]; delete this.b[rf+r];
-    }
-  }
-  fen(){
-    let out=[];
-    for(let r=8;r>=1;r--){ let row="",e=0;
-      for(const f of FILES){ const p=this.b[f+r];
-        if(p){ if(e){row+=e;e=0;} row+=p; } else e++; }
-      if(e) row+=e; out.push(row); }
-    return out.join("/")+" w - - 0 1";
-  }
+class Mini{
+  constructor(){this.b=fenMap("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");}
+  push(u){const f=u.slice(0,2),t=u.slice(2,4),pr=u[4],p=this.b[f];if(!p)return;
+    delete this.b[f];
+    if(p.toUpperCase()==="P"&&f[0]!==t[0]&&!this.b[t])delete this.b[t[0]+f[1]];
+    this.b[t]=pr?(p===p.toUpperCase()?pr.toUpperCase():pr):p;
+    if(p.toUpperCase()==="K"&&Math.abs(F.indexOf(t[0])-F.indexOf(f[0]))===2){
+      const r=f[1],k=t[0]==="g",rf=k?"h":"a",rt=k?"f":"d";
+      this.b[rt+r]=this.b[rf+r];delete this.b[rf+r];}}
+  fen(){let o=[];for(let r=8;r>=1;r--){let row="",e=0;
+    for(const f of F){const p=this.b[f+r];if(p){if(e){row+=e;e=0;}row+=p;}else e++;}
+    if(e)row+=e;o.push(row);}return o.join("/")+" w - - 0 1";}
 }
 
-buildBoard(); refresh();
-setInterval(()=>{ if(state && state.engineTurn) refresh(); }, 900);
+buildSquares();
+refresh().then(()=>render(false));
+setInterval(()=>{if(state&&state.engineTurn)refresh();},700);
 </script>

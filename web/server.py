@@ -26,6 +26,7 @@ burst cannot starve it.
 """
 import json
 import os
+import random
 import re
 import subprocess
 import threading
@@ -45,6 +46,8 @@ ENGINE = os.path.join(EXIST, "target/release/engine")
 NET = os.path.join(EXIST, "p1_champion.net")
 PORT = int(os.environ.get("PORT", "8800"))
 CORES = os.environ.get("EXIST_CORES", "6-11")
+# Floor on how long a reply takes, seconds. Not a handicap -- the search is already done.
+MIN_THINK = float(os.environ.get("MIN_THINK", "0.75"))
 
 
 class Engine:
@@ -330,10 +333,21 @@ class H(BaseHTTPRequestHandler):
         return self._send(404, "not found", "text/plain")
 
     def _engine_move(self):
+        # MINIMUM THINK TIME. At depth 4 the engine answers in well under a second, so the reply
+        # landed the instant the move was released -- it reads as a canned response rather than a
+        # search, and it gives the board no time to finish animating the human's move (the glide is
+        # 150ms). Waiting out the remainder costs nothing: the search has already happened.
+        t0 = time.time()
         with GLOCK:
             mv = list(GAME.moves)
             depth = GAME.depth
         sc, best, _ = PLAY.analyse(mv, depth)
+        # Scale a little with depth so a deeper setting feels like it is working harder, and add a
+        # small jitter so the cadence is not metronomic.
+        want = MIN_THINK + 0.12 * max(0, depth - 3) + random.uniform(0, 0.25)
+        left = want - (time.time() - t0)
+        if left > 0:
+            time.sleep(left)
         with GLOCK:
             if best and best != "(none)":
                 GAME.push(best)
