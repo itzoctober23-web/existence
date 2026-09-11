@@ -527,7 +527,22 @@ fn main() {
     // it is a single champion -- re-measure when a stronger one exists.
     let blend: f32 = a.iter().position(|x| x == "--blend")
         .and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(0.75);
-    let tr = Trainer::new(0.01, blend);
+    // LEARNING RATE, now a flag. It was the literal 0.01 here -- constant, no decay, no momentum,
+    // no schedule, and not reachable from the command line, so it is the one generator knob this
+    // project has never varied. Every other one is measured: label depth (spent at 3), blend (flat
+    // across 0.75-1.00), epochs (under-fitting refuted), horizon (cap obsolete), games per
+    // generation (4x changes nothing, `games_per_gen_RESULT.md`).
+    //
+    // WHY IT IS THE LIVE SUSPECT. `nontransitive_walk_RESULT.md` dates the plateau: prod2 gained
+    // +28.6 Elo between generations 2,162 and 4,818 and then **-0.7 Elo over the next 1,985**, with
+    // its 5-generation steps sitting at 0.4869 [0.4364, 0.5374] -- indistinguishable from a coin
+    // flip. A net that moves every generation but goes nowhere is what a CONSTANT step size
+    // produces: it keeps kicking the weights around a basin instead of settling into it.
+    //
+    // Default 0.01 so this is byte-identical to every measurement taken so far.
+    let lr: f32 = a.iter().position(|x| x == "--lr")
+        .and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(0.01);
+    let tr = Trainer::new(lr, blend);
     let mut rung = start_rung;
     // anchor-pairs is printed with the rest of the settings, and that is load-bearing rather than
     // cosmetic. chain_anchor.sh verified the flag existed by grepping the BINARY for the string --
@@ -536,7 +551,7 @@ fn main() {
     // greps 1 only because it appears in THIS format string.) That false negative aborted the
     // anchor A/B. A setting that cannot be observed in the program's own output cannot be verified
     // by anything except reading the source.
-    println!("gens={gens} games/gen={games} depth={depth} gate-match-depth={gate_match_depth} epochs={epochs} gate-pairs={gate_pairs} gate-nodes={gate_nodes} gate-every={gate_every} include-draws={include_draws} anchor-pairs={anchor_pairs} rollback={rollback} blend={blend}");
+    println!("lr={lr} gens={gens} games/gen={games} depth={depth} gate-match-depth={gate_match_depth} epochs={epochs} gate-pairs={gate_pairs} gate-nodes={gate_nodes} gate-every={gate_every} include-draws={include_draws} anchor-pairs={anchor_pairs} rollback={rollback} blend={blend}");
     println!("ARCH menu {WIDTH_MENU:?}  start rung {rung} (width {})  arch-every {arch_every}",
              WIDTH_MENU[rung]);
     // ORIGIN is always the reproducible iteration-zero net, even when we resume. The control
