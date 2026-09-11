@@ -95,3 +95,34 @@ and the run header now **prints** `lr` — `lr_ab.sh` aborts unless the header m
 value. A flag that does not appear in the log is one nobody can verify took, and this project
 retracted a published finding today for exactly that: an environment variable set on a process that
 never read it.
+
+
+## The mechanism, measured in weight space — displacement without progress
+
+The explanation above ("a constant step keeps displacing the weights however close to a basin they
+are") was a story about what SGD does. It is now a measurement, and it needs no games: both arms ran
+2,000 generations from the same start, so their L2 distance from that start is directly comparable.
+
+| arm | L2 displacement from the shared start | strength vs that start |
+|---|---|---|
+| lr 0.01 (control) | **8.595** | 0.499 |
+| lr 0.002 | **4.973** | **0.692** |
+
+**The control travelled 1.73× farther through weight space and arrived nowhere.** That is the
+random-walk signature stated quantitatively: a larger step is not doing more learning, it is doing
+more wandering.
+
+### The ratio is NOT 5×, and that is worth stating
+
+The learning rates differ by 5×. For a pure random walk (displacement ∝ step × √n) and for directed
+motion (∝ step × n) alike, equal generation counts should give ~5× more displacement for the larger
+step. Measured: **1.73×**. The low-lr arm moved far more than proportionally.
+
+The likely cause is in `train_from()`: it early-stops on held-out loss with patience 3. A smaller
+step improves the loss more slowly per epoch, so it runs **more epochs** before stopping, partially
+compensating. So this comparison is *lr with early stopping*, not lr alone — which also means the
+shipped change may be doing two things at once, and `epochs_at_low_lr.sh` (queued) tests exactly
+that coupling.
+
+What survives regardless of the explanation: **the arm that moved farther gained nothing, and the
+arm that moved less gained.**
