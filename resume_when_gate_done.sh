@@ -35,13 +35,23 @@ while :; do
 done
 sleep 10
 
-# Resume every STOPPED learn process. State 'T' in /proc/PID/stat is stopped; resuming a process
-# that is already running is harmless, so this is safe to run twice.
-n=0
-for p in $(ls /proc 2>/dev/null | grep -E '^[0-9]+$'); do
-  exe=$(readlink "/proc/$p/exe" 2>/dev/null) || continue; exe=${exe% (deleted)}
-  case "${exe##*/}" in learn) ;; *) continue;; esac
-  st=$(awk '{print $3}' "/proc/$p/stat" 2>/dev/null)
-  [ "$st" = "T" ] && { kill -CONT "$p" 2>/dev/null && n=$((n+1)); echo "  resumed pid $p"; }
-done
-echo "$(date +%F_%H:%M) gate finished; resumed $n stopped learn process(es)"
+# Resume EXACTLY the PIDs recorded in paused_by_agent.pids.
+#
+# The first version resumed "every stopped `learn` process", which would have stranded five of the
+# nine things actually paused: `auto_promote.sh` and `live_ruler.sh` (both loops that periodically
+# spawn measurement jobs) plus a live `sf_ruler.py` with its engine and stockfish children. The
+# `live_ruler` loop was the surprise -- I had paused the trainers, believed the box quiet, and
+# `ops/box_quiet.sh` immediately caught stockfish at 97% of a core contaminating the very gate the
+# pause existed to protect.
+#
+# Resuming by RECORDED PID rather than by name also means this cannot wake something it did not
+# stop. A PID that has since exited is skipped; SIGCONT on an already-running process is harmless.
+LIST=$(dirname "$0")/paused_by_agent.pids
+[ -f "$LIST" ] || { echo "no $LIST -- nothing recorded to resume"; exit 0; }
+n=0; gone=0
+while read -r p; do
+  case "$p" in ''|\#*) continue;; esac
+  [ -d "/proc/$p" ] || { gone=$((gone+1)); continue; }
+  kill -CONT "$p" 2>/dev/null && { n=$((n+1)); echo "  resumed pid $p ($(tr '\0' ' ' < /proc/$p/cmdline 2>/dev/null | cut -c1-50))"; }
+done < "$LIST"
+echo "$(date +%F_%H:%M) gate finished; resumed $n process(es), $gone had already exited"
