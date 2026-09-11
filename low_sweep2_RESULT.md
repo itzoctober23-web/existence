@@ -59,3 +59,38 @@ not.
 * **`low_00001_vs_start.log` was a stale file from the truncated run** (mtime 06:04, value 0.516)
   and would have been read as this run's arm-3 verdict. Only files written after 07:40 belong here.
   Timestamps, not filenames, decide which run a file came from.
+
+## THE RULER HALF OF THE VERDICT (2026-09-11 08:35) — 12 samples, 4 per arm, pooled
+
+His instruction was "Verdict on the shared start and on the ruler." The netmatch half (vs the
+shared start) is above. This is the absolute half, and it is POOLED per his first directive:
+individual 120-game samples stay in `live_ruler.out` as the ledger, the headline is the pool.
+
+    arm                  n   samples (rel to SF-1320)    POOLED absolute   raw span
+    lr 0.0005 (deposed)  4   +80 +83 +76 +53             1392 +/- 26       1373-1403
+    lr 0.0002 (SHIPPED)  4   +191 +161 +130 +199         1488 +/- 30       1450-1519
+    lr 0.0001            4   +191 +154 +181 +165         1501 +/- 31       1474-1539
+
+**Both instruments agree, on both calls.**
+
+1. **0.0002 > 0.0005 is confirmed absolutely.** +96 Elo with a combined SE of
+   sqrt(26^2+30^2) = 39.7, i.e. 2.4 sigma. netmatch said 0.535 vs 0.412 against the same
+   shared start. The ship stands on two independent measurements, not one.
+
+2. **0.0001 vs 0.0002 is NOT a difference, and the ruler says so too.** +13 Elo against a
+   combined SE of 43.1 = 0.30 sigma. netmatch put the gap at 0.011 against a between-seed
+   noise floor of 0.047. Two instruments, two ways of being unable to separate them. The
+   decision not to ship 0.0001 was made on netmatch before this ran, and the ruler did not
+   overturn it. The optimum remains UNBRACKETED FROM BELOW -- 0.0001 is not shown to be worse,
+   only not shown to be better.
+
+**Why the raw spans matter more than they look.** Arm 1's first three samples spanned 7 Elo
+(+80 +83 +76) and the fourth was +53. Three samples from sigma~54 should span ~90 Elo, so that
+tightness was luck, not precision, and reading a trend from it would have been the exact error
+the pooling directive exists to prevent. Every arm here spans 45-65 Elo raw and collapses to
++/-26-31 pooled.
+
+### Against the stop condition
+The day-7 condition is **1600 on the pooled ruler with a rising trend**. The shipped arm sits at
+**1488 +/- 30**, which is 112 Elo short -- 3.7 SE below the bar. NOT met, and not close enough
+that noise could be hiding it. The trend must be read across POOLED rungs only.
