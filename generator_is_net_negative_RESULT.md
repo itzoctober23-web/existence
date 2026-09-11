@@ -97,3 +97,31 @@ was +128 ± 72 Elo), and `depth5_vs_depth3_RESULT.md` showed it is spent at 3. T
 the generator side — games per generation, epochs, blend, replay window — have not been measured
 against this instrument, and this instrument is the one that can now see a five-generation effect
 directly.
+
+
+## ⚠ SCOPE LIMIT I did not state when publishing this — all 20 samples are POST-RESUME
+
+The batch gate rolls back on reject, so the **base only moves on a KEEP**, and there was exactly one
+KEEP, at g10. Decisions 1–2 therefore measured from the start net and decisions 3–20 from the g10
+champion. **Every one of the 20 samples is "five generations from a net at most ten generations past
+the champion."**
+
+That is precisely the regime `resume_dip_RESULT.md` shows is anomalous: a resumed run loses ~95 Elo
+by generation 100 before recovering to **+39.8 by generation 4,327**. So **0.4684 may simply be the
+resume transient, measured per batch**, rather than a property of the loop in general — in which case
+this file and `resume_dip_RESULT.md` are one finding seen from two directions, and "the generator is
+net-negative" is overstated.
+
+It also resolves a tension this file left open. If every five-generation step really had expectation
+0.4684, a 4,327-generation run could not arrive at **0.557 against its own start** — it would be far
+worse, not better. Restricting the claim to the post-resume regime removes the contradiction; leaving
+it general does not.
+
+**The discriminator is running and costs no training.** `prod2` is already training ungated, adopting
+every candidate, so two snapshots of its output five generations apart *are* base and base+5 in the
+steady state. `steady_state_batches.sh` samples ten such pairs from the live production run at
+generation ~2,200 and matches them head-to-head. Pre-registered: a mean near 0.4684 makes the finding
+general; a mean at or above 0.5 narrows it to the post-resume regime.
+
+Until that lands, **read every number above as applying to the first ten generations after a resume**,
+which is the only regime they were drawn from.
