@@ -91,6 +91,7 @@ def main():
         multi = sum(1 for r in main if r['distinct'] > 1)
         anyd = sum(1 for r in main if r['distinct'] > 0)
         res[lab] = dict(n=n, prop=prop, ok=ok, multi=multi, anyd=anyd, pop=main[-1]['pop'],
+                        rows=main,
                         others={k: len({r['gen'] for r in v}) for k, v in lins.items() if k != 'MAIN'})
         print(f"  {lab:<10} {cfg:<26} {n:>4} {prop:>5} {ok:>4} "
               f"{str(multi)+'/'+str(n):>12} {anyd:>5} {main[-1]['pop']:>4}")
@@ -121,6 +122,27 @@ def main():
     def rate(lab, key):
         d = res.get(lab)
         return (d[key] / d['n']) if d else None
+
+    # COMMON-RANGE COMPARISON. Unequal arms do not have to be thrown away: the cells are PAIRED
+    # (same seed, same pop, same sets), so truncating every cell to the shortest arm's generation
+    # count compares like with like. This matters because the prop32 cells propose 8x the
+    # candidates and can hit their timeout after 1-2 generations while the control reaches 6 --
+    # and a funnel rate is not constant across a run, since later generations act on a population
+    # that earlier ones shaped. Comparing gens 1-2 against gens 1-6 confounds the lever with
+    # training amount; comparing gens 1-2 against gens 1-2 does not.
+    if len(res) >= 2:
+        k = min(d['n'] for d in res.values())
+        if k >= 1 and any(d['n'] != k for d in res.values()):
+            print(f"  COMMON RANGE -- every cell truncated to its first {k} generation(s), which is")
+            print("  the paired comparison the unequal arms still support:")
+            for lab, d in res.items():
+                rr = [r for r in d['rows'] if r['gen'] <= k]
+                gg = len({r['gen'] for r in rr})
+                pm = sum(1 for r in rr if r['distinct'] > 1)
+                po = sum(r['mate_ok'] for r in rr)
+                pc = sum(r['cand'] for r in rr)
+                print(f"    {lab:<10} gens {gg}  proposed {pc:<5} mate-ok {po:<3} >1 distinct {pm}/{gg}")
+            print()
 
     c, p, h = res.get('control'), res.get('prop32'), res.get('hard')
     if c and p:
