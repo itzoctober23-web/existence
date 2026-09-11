@@ -5410,3 +5410,16 @@ cost of hours.
 `lr_sweep_low.sh` (0.0005 control / 0.0002 / 0.0001) from champion #4, **paused mid-run** along with
 production: a 4PC timed gate has the box, and Existence load corrupts it (see the 4PC note below).
 `resume_when_gate_done.sh` restores all nine stopped PIDs automatically.
+
+## P2 search-track daily status (emitted by `p2_status.sh`)
+
+```text
+P2 2026-09-11 — NOT RUNNING (last activity 2026-09-08, gen 12). Probe+Store acquisition: not instrumented | crossover survived/proposed: n/a / not instrumented | lifetime 1062 proposals, 0 accepts. WHY: the fitness cannot rank its own candidates — `search_track_WHY_NOTHING.md` ("one dimension saturated, the other blocked": the seed already scores 25/25 on mates, so it is a pass/fail filter and never a gradient) and `surrogate_inverts_RESULT.md` (the grammar fitness ranks the STRONGEST reference program LAST). MASTER_PLAN P2 kill has fired; restarting the loop unchanged would re-derive 0 accepts.
+```
+
+The two per-member facts he asked for — Probe+Store acquired from a parent that lacked it, and
+crossover survived/proposed — read **not instrumented** rather than zero, and that distinction is
+the point. `evolve.rs` emits only `gen N (typed, ill-typed, oracle, surrogate, pairs spent, none
+beat it)`; no Probe/Store/crossover event is ever printed. Counting them would have returned 0 from
+a pattern that can never match, which is a broken probe reported as a measurement. **Building that
+emitter is the prerequisite for this line carrying its intended content.**
