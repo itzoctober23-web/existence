@@ -157,34 +157,37 @@ Time-based stages (STC, LTC, anchor) are paradigm-neutral already.
   by itself accept; a NET must still pass fixed-cost-budget and the ladder. (Loss and Elo
   diverge regularly; loss is a cheap "not broken" check, nothing more.)
 
-  > **Measured, 2026-09-11 — the divergence is not noise, it is an INVERSION, and this filter is a
-  > one-sided veto pointed the wrong way.** The parenthetical above is right that loss and Elo
-  > diverge; the data now says something sharper. Three arms trained from one start with one seed,
-  > differing only in learning rate (`lr_decay_RESULT.md`):
+  > **Note, 2026-09-11 — this filter runs on a signal already MEASURED as uninformative, and it
+  > rejects a third of all ARCH proposals before any game is played.**
   >
-  > | median training loss | strength vs the shared start |
-  > |---|---|
-  > | 0.02130 | 0.484 |
-  > | 0.02690 | 0.586 |
-  > | **0.03550** | **0.628** |
+  > The parenthetical above ("loss and Elo diverge regularly") is not a hedge, it is an established
+  > measurement. `proxies_RESULT.md` settles it at a scale no single experiment here matches:
   >
-  > Perfectly monotone and **inverted** — the arm fitting the labels best is the weakest. Two older
-  > results point the same way: `epochs_ab_RESULT.md` (train_loss 0.0417 → 0.0253 while mcnemar_z
-  > went +0.359 → −0.445) and `depth5_vs_depth3_RESULT.md` (better labels scored 0.397 against their
-  > own start). The mechanism is not mysterious: `datagen.rs:201` writes the label from the net's
-  > OWN search, so "fitting the labels" and "becoming stronger" are different objectives here.
+  > | signal | evidence | result |
+  > |---|---|---|
+  > | held-out surrogate (`mcnemar_z`) | 239 paired gate results | r = **−0.095**, CI [−0.220, +0.032] |
+  > | training loss | n=12 control-vs-origin | r = **+0.379**, CI [−0.249, +0.783] |
+  > | training loss, width A/B | equal-time h2h | w64 loss **lower** (0.0262 vs 0.0397) and w64 **loses** |
+  > | training loss, draws A/B | control vs origin | include loss **lower** (0.0191 vs 0.0726) and include **wins** |
   >
-  > **Why this matters for the filter specifically.** Under mere divergence, a 0.5% tolerance is a
-  > harmless sanity check. Under an *inverse* relationship it is biased against the candidates worth
-  > gating. Counted across every ledger in the repo: **33 of 97 ARCH proposals (34%) were rejected
-  > with `reason: surrogate_filter` and never played a game** (`arch_surrogate_filter_RESULT.md`).
+  > **Both directions appear**, which is what "uninformative" means and why it is the right word:
+  > the signal is noise with respect to strength, not a reversed predictor.
   >
-  > **Not changed, and deliberately so.** ARCH is off in production on wall-clock grounds
-  > (`width_clock_RESULT.md`), so this is latent; ARCH candidate nets are not retained, so none of
-  > the 33 can be re-gated to prove any specific one was wrongly killed. Recorded so that whoever
-  > re-enables ARCH knows its cheapest filter is built on the one quantity this project has now
-  > measured as anti-correlated with strength. The cheap fix if it is ever re-enabled is to make the
-  > filter two-sided or drop it, not to invert it — an inverted filter would be just as unjustified.
+  > **The consequence for this filter.** A one-sided veto built on noise rejects candidates
+  > essentially at random. Counted across every ledger in the repo: **33 of 97 ARCH proposals (34%)
+  > were rejected with `reason: surrogate_filter` and never played a game**
+  > (`arch_surrogate_filter_RESULT.md`). The 0.5% tolerance was chosen as a cheap "not broken"
+  > guard, and against a signal with r ≈ 0 it discards a third of the search at no informational
+  > gain. ARCH is off in production on wall-clock grounds (`width_clock_RESULT.md`), so this is
+  > latent; recorded for whoever re-enables it, where the fix is to widen or drop the filter.
+  >
+  > > **Correction to this note, made before it was believed.** It first claimed the relationship is
+  > > a monotone INVERSION, on three arms whose median loss (0.02130 / 0.02690 / 0.03550) ordered
+  > > exactly opposite to their strength (0.484 / 0.586 / 0.628). That is real but it is **not
+  > > evidence of inversion**: those three arms differ in LEARNING RATE, which changes how much the
+  > > net fits per generation *independently* of how good it is, so lr drives both columns and the
+  > > monotonicity is expected without any causal link. n=3 against n=239 besides. `proxies_RESULT.md`
+  > > was already in `RESULTS_INDEX.md` when I wrote it — the index built for exactly this.
 
 ## 6. Fixed-cost-budget gate (NET / ARCH / FEATURE only)
 - Purpose: separate eval quality from speed for changes whose speed cost is known.
