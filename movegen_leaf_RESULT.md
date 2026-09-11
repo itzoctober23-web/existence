@@ -101,3 +101,22 @@ well as on play — and the training loop is where nearly all of this box's comp
 Not claimed: any Elo. Nothing has been gated. The 30 Elo/doubling conversion is a model, and
 `node_profile`'s own self-check still reports the primitive attribution as INCOMPLETE at 1.72×
 over-prediction, so treat ~23 Elo as an estimate and not a result.
+
+
+## Correction to the table above (2026-09-10 23:4x): the eval figure was the wrong path
+
+The share table used `node_profile`'s `eval` line, which timed `net.eval()` — the from-scratch dense
+pass — while a leaf calls `acc.score()` at **36.6 ns**, not 223.7 (`speed_cannot_pay_RESULT.md` §8).
+
+Recomputing the pre-change leaf with the eval a leaf actually runs:
+
+| | leaf | movegen share | eval share |
+|---|---|---|---|
+| as published | 657.9 ns | 59.8% | 34.0% |
+| **corrected** | **470.8 ns** | **83.6%** | 7.8% |
+
+**This strengthens the finding rather than weakening it.** Movegen was not 60% of a leaf, it was
+**84%** — the leaf was almost entirely the move list it threw away.
+
+**The 1.72× is unaffected.** It was measured end-to-end, wall clock, at proven-identical node counts,
+and was never derived from `node_profile`. Only the explanatory share table moved.
