@@ -5345,3 +5345,68 @@ happened.
   `elo_per_ply_RESULT`. Correctly sized in advance rather than discovered to be small afterwards.
 * **`cargo xtask watch`** — read-only instrument over the ledger, track logs and ruler outputs;
   `index.html` regenerated every 60s on :8799, `events.log` append-only.
+
+## 2026-09-11, overnight — THE PLATEAU BROKE. It was the learning rate, a literal that was never varied.
+
+**Three promotions in one night**, the first movement on a plateau this file has been documenting
+since 2026-09-08. `lr` was a hardcoded `0.01` in `main.rs`, not reachable from the command line —
+the one generator knob adjacent to everything already measured that nobody had tested.
+
+| # | net | vs | score | what it was |
+|---|---|---|---|---|
+| 3 | md5 `dfd258b07026` | #2 | 0.555 ± 0.028 | first `lr 0.002` net |
+| 4 | md5 `91c6eb472d04` | #3 | **0.628 ± 0.027** | first `lr 0.0005` net |
+| 5 | md5 `34a5ace752d8` | #4 | 0.531 ± 0.027 | 2,052 generations of production at 0.0005, banked by `auto_promote` at 03:48 |
+
+**The control is the load-bearing part.** At lr 0.01 the arm scored **0.499 ± 0.030** against its own
+start — reproducing the plateau that `nontransitive_walk_RESULT.md` measured independently, on a
+different run, at 0.499 ± 0.030. Three decimals, same interval. Then `lr_sweep_RESULT.md` replicated
+it on a fresh seed **and a different start**, which kills the rival reading that 0.002 was merely
+recovering from over-large steps: from a net *already trained at 0.002* it still gained (0.544).
+
+**The shape question is closed.** `lr_decay_RESULT.md`: a constant 0.0005 beats a decay from 0.002
+that *ends* at the same rate (0.628 vs 0.586, matched seed, B and C ending at 0.000493 and 0.000500
+by design). The large early steps buy nothing, so there is no schedule to tune. `--lr-decay` is
+implemented and defaulted off as a measured negative, with the no-op path proven byte-identical.
+
+**`ceiling_ANALYSIS.md` called it.** It concluded from 44 mined readings that the flat band was the
+*training procedure's* ceiling rather than a gating failure. Correct, and now resolved to one number
+inside that procedure — every FLAT trajectory in its table was taken at lr 0.01.
+
+### Two specified checks built, and what they found
+
+* **The static-vs-deep residual** (MASTER_PLAN P1's kill criterion) existed nowhere. Built, and the
+  measurement **refuted the metric**: the search evaluates with the net under test, so an *untrained*
+  net scores corr 0.900, and the residual grows with output range — the direction that indicates
+  learning. **P1's kill could never have fired.** The `--ref` repair (one frozen reference net) works:
+  untrained control falls to −0.019, and it predicted the complete ordering of a three-arm sweep in a
+  pre-registration committed before the matches reported. It **ranks but does not calibrate** — it
+  also said "no arm beat its own start" about a run where two did.
+* **FITNESS §8** (confident-when-wrong) built and measured at **17.1%** against its 80% bar, with the
+  tie-break confound tested and *refuted* (76-82% of flips cost ≥10cp; restricting to real errors
+  moves it further from chance). §8 is `ACTIVE FROM P3`, so this is a **pre-measured** gate, not a
+  violated one — I claimed the latter and retracted it within the hour after reading the three lines
+  above the clause I had quoted.
+
+### Corrections made to my own work tonight
+
+* Claimed loss is **anti-correlated** with strength from three arms. Wrong: `proxies_RESULT.md`
+  settles it at n=239 and n=12 as **uninformative**, with examples pointing both ways — and my arms
+  differed in `lr`, which moves loss and strength independently. Corrected in four files.
+* Claimed `mark_anchor_done.sh` was an unwired gate. It had been running as a detached process since
+  01:11. *Zero call sites* proves a FILE is unused, not that its function is unperformed.
+* Claimed ARCH was "inert by construction" from a grep that matched the word `surrogate` on every
+  ARCH row. Real numbers: 33 of 97 vetoed on loss, **14 accepted**.
+
+### Tooling
+
+`RESULTS_INDEX.md` now carries a **topic index** ranked by match count, and covers `*_FINDING`,
+`*_ANALYSIS`, `WHY_NOTHING` and `*_CAVEAT` files — `search_track_WHY_NOTHING.md` was invisible to it
+purely because of its name, and is the file `surrogate_inverts_RESULT.md` records re-deriving at a
+cost of hours.
+
+### Running
+
+`lr_sweep_low.sh` (0.0005 control / 0.0002 / 0.0001) from champion #4, **paused mid-run** along with
+production: a 4PC timed gate has the box, and Existence load corrupts it (see the 4PC note below).
+`resume_when_gate_done.sh` restores all nine stopped PIDs automatically.
