@@ -24,6 +24,15 @@ set -uo pipefail
 cd "$(dirname "$0")"
 OUT=RESULTS_INDEX.md
 
+# THE FINDING SET IS WIDER THAN *_RESULT.md, and that gap cost hours twice.
+# `surrogate_inverts_RESULT.md` records re-deriving a mechanism that
+# `search_track_WHY_NOTHING.md` had already established -- and that file is NOT a *_RESULT.md, so
+# it was invisible to this index. `fitness_spec_gap_FINDING.md`, `ceiling_ANALYSIS.md` and
+# `surrogate_validation.md` are in the same position. An index that covers most of the evidence
+# answers "nothing on that" with false confidence.
+FINDINGS=$(ls -t *_RESULT.md *_FINDING.md *_ANALYSIS.md *_WHY_NOTHING.md *_CAVEAT.md \
+                surrogate_validation.md EXPERIMENTS.md NET_TRACK_STATE.md 2>/dev/null | awk '!seen[$0]++')
+
 {
   echo "# Results index — every \`*_RESULT.md\` headline, newest first"
   echo
@@ -42,6 +51,47 @@ OUT=RESULTS_INDEX.md
     h=$(head -1 "$f" | sed 's/^#\+ *//' | sed 's/|/\\|/g')
     [ -n "$h" ] || h="(no headline — open the file)"
     printf '| [%s](%s) | %s |\n' "$f" "$f" "$h"
+  done
+  echo
+  echo "## Findings that are not \`*_RESULT.md\`"
+  echo
+  echo "Same standing as the table above. \`search_track_WHY_NOTHING.md\` is the file"
+  echo "\`surrogate_inverts_RESULT.md\` records re-deriving from scratch at a cost of hours --"
+  echo "it was never indexed because of its name."
+  echo
+  echo "| file | headline |"
+  echo "|---|---|"
+  for f in $(ls -t *_FINDING.md *_ANALYSIS.md *_WHY_NOTHING.md *_CAVEAT.md surrogate_validation.md EXPERIMENTS.md NET_TRACK_STATE.md 2>/dev/null | awk '!seen[$0]++'); do
+    h=$(head -1 "$f" | sed 's/^#\+ *//' | sed 's/|/\\|/g')
+    [ -n "$h" ] || h="(no headline — open the file)"
+    printf '| [%s](%s) | %s |\n' "$f" "$f" "$h"
+  done
+  echo
+  echo "## Topic index — which lever has already been studied"
+  echo
+  echo "A headline can only carry so much. On 2026-09-11 I re-derived \`proxies_RESULT.md\` (held-out"
+  echo "surrogate r=-0.095 over 239 gate results) because I grepped this index for \"blend\" when"
+  echo "designing that experiment, and never for \"loss\". The headline index answers *is there a file"
+  echo "about X*; this one answers *has anyone measured X*, which is the question that was actually"
+  echo "being asked."
+  echo
+  echo "| topic | files that measure it |"
+  echo "|---|---|"
+  for t in "learning rate:lr[ -]|learning.rate" "training loss:train_loss|training loss|held-out loss" \
+           "surrogate/proxy:surrogate|proxy|proxies" "net width:width|w64|w32|arch" \
+           "search depth:depth [0-9]|datagen.depth|deeper" "blend/target:blend|target" \
+           "epochs:epoch" "seeds & noise:between-seed|seed lottery|seed variance" \
+           "gate & thresholds:pent_rate|ci95|gate power|threshold" \
+           "calibration:calibrat|confidence|residual" "speed/nps:nps|speedup|node_profile|throughput" \
+           "plateau:plateau|flat|stuck"; do
+    lbl=${t%%:*}; pat=${t#*:}
+    # RANK BY MATCH COUNT, never alphabetically. The first version took `head -6` off a
+    # `grep -l` list, which is alphabetical -- so "training loss" listed six files and omitted
+    # `proxies_RESULT.md`, the one that settles it at n=239. An index that truncates away the
+    # definitive file is worse than no index, because it answers "yes, covered" and hides where.
+    hits=$(grep -cEi "$pat" $FINDINGS 2>/dev/null | awk -F: '$2>0{print $2"\t"$1}' \
+           | sort -rn | head -5 | cut -f2 | sed 's/_RESULT\.md//;s/\.md$//' | paste -sd', ' -)
+    [ -n "$hits" ] && printf '| %s | %s |\n' "$lbl" "$hits"
   done
   echo
   echo "## Non-\`_RESULT\` files worth knowing"
