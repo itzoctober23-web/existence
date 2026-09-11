@@ -356,3 +356,42 @@ claims ("a real gradient, unlike the saturated 25/25 guard set").
 
 **So the search track's constraint is the proposal count, and that is now fixed.** The gradient
 question does not become live again until the HARD set is rebuilt at a difficulty MAIN can move on.
+
+---
+
+## CORRECTION 11:1x — "the HARD set is INERT for MAIN" is REFUTED by the next generation
+
+I wrote, one tick ago, that 0 of 10 MAIN generations had any candidate score on the HARD set, and
+concluded the set is inert for that lineage. **Generation 11 scored.**
+
+    gen 5 MAIN  gate REJECT 0.375+/-0.110 (12 games W-D-L 0-9-3)  mates 16
+                hard 0-1  surrogate 0.002322  ABOVE:1  needed >0.610  pop 1  distinct:1
+
+`hard 0-1` — a MAIN candidate solved one of the 8 hard positions. The claim was true of the
+generations I had, and false of the experiment. **Fourth time today** a direction was published
+from too few points, after "the guard rate compounds" (refuted at generation 4), the
+selection-effect hypothesis for the ICC inversion (refuted at four group sizes), and the
+almost-published "hard 0-0 means inert" at n=1 that I caught only by checking the adjacent arm.
+
+The honest statement is now: **MAIN scores on the HARD set rarely — once in 11 generations — so the
+set is a very sparse gradient, not a flat one.** Whether sparse-but-real is enough to rank
+survivors is a different question from whether it is inert, and it is not answered here.
+
+### The more important thing in that line: A GATE FIRED
+
+This is the first generation in any 2x2 cell to reach the game gate. The funnel fix put a candidate
+in front of a real test:
+
+    ABOVE:1  needed >0.610      one candidate cleared the surrogate threshold
+    gate REJECT 0.375 +/- 0.110 12 games, W-D-L 0-9-3
+    pop 1                        the population collapsed back after the rejection
+
+`search_long_run.sh` pre-registered exactly this outcome: *"Choices reached the GATE and were
+rejected. That is a different failure from the one this fix addressed: the funnel is no longer the
+constraint, the CANDIDATES are. The suspect moves to the mutation operators -- what they produce is
+reaching a real test and losing it."*
+
+**That is the state, on one gate of 12 games.** 0.375 +/- 0.110 is a wide interval; it excludes
+0.5 but on a sample that small the point estimate carries little. What it establishes is that the
+pipeline now RUNS end to end, where before it stalled at the first stage. What it does not
+establish is that the candidates are bad — one 12-game gate cannot carry that.
