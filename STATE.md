@@ -1,5 +1,28 @@
 # Existence — current state, 2026-09-11
 
+## 📏 CURRENT STRENGTH, measured — champion at 1515 +/- 12, FLAT, 85 short of the 1600 target
+
+`ruler_trend.py` over the live production run (weighted least squares; it claims a trend only at
+|z| > 2):
+
+```
+prodk1056   26 samples   generations 126-19153   level 1515 +/- 12   slope +2.2 +/- 2.2 /1000   z +1.00  FLAT
+prodk0759   33 samples   generations  26-25578   level 1477 +/- 10   slope -0.3 +/- 1.3 /1000   z -0.23  FLAT
+```
+
+**Not a saturation artifact.** 1515 is +195 on the SF-1320 rung, an expected score of **0.754** —
+well under the 0.95 where the tool's own caveat says a level becomes a lower bound. The ruler still
+has range, so the reading is real.
+
+**Run to run: 1477 -> 1515 = +38 +/- 16, which is 2.4 sigma.** Both runs are individually FLAT
+across ~20,000 generations each, so that gain came from the CONFIGURATION shipped between them
+(lr 0.0002, blend 0.85), not from running longer. That is the same conclusion `ruler_trend_RESULT.md`
+reached and it now holds on the new champion with 26 samples instead of a handful.
+
+**Distance to his 1600 target: 85 Elo, 7.1 SE.** Running the current configuration longer will not
+close it — the slope is flat and the interval is tight enough now to say so. Another configuration
+change of roughly the size the lr change gave is what closes it.
+
 ## 🔴 SINCE 11:18 TODAY — the search track's blocker is identified, and epochs is closed
 
 **The 6-pair game gate cannot accept the candidates this track produces.** Acceptance is
