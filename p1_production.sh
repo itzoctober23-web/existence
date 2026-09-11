@@ -9,6 +9,12 @@
 #                  while depth 3 WINS (0.557 +/- 0.032) from the identical champion. The knee is at
 #                  or below 3, so the label-depth lever is SPENT and 3 is where it settles.
 #
+#   --lr 0.002     MEASURED 2026-09-11 (`learning_rate_is_the_plateau_RESULT.md`). Matched A/B from
+#                  one start, 2,000 generations each: lr 0.01 scored 0.499 +/- 0.030 against that
+#                  start -- reproducing the plateau to three decimals -- while lr 0.002 scored
+#                  0.692 +/- 0.028. Disjoint intervals, ~4x the between-seed sd. The shipped 0.01
+#                  was a hardcoded literal that had never been varied.
+#
 #   --arch-every 0 WIDTH IS A CLOSED QUESTION. `width_clock_RESULT.md`: 11 ARCH attempts across
 #                  widths 32/64/128, fixed-cost 8 of 9 ABOVE 0.5 (wider is better per NODE), clock
 #                  9 of 9 BELOW 0.5 (wider is worse per SECOND), zero accepted. That file moved
@@ -47,7 +53,7 @@ echo "$(date '+%H:%M') $TAG: start $(md5sum ${TAG}_start.net | cut -c1-12), ${SE
 
 timeout "$SECS" taskset -c "$CORES" nice -n 19 ionice -c 3 "$LEARN" \
   --init "${TAG}_start.net" --gens 1000000 --games 8 --threads 4 --depth 3 --epochs 3 \
-  --gate-every 1000000 --arch-every 0 --control-every 0 \
+  --lr "${LR:-0.002}" --gate-every 1000000 --arch-every 0 --control-every 0 \
   --seed 20260910 --out "${TAG}.net" --ledger "ledger_${TAG}.jsonl" > "${TAG}.log" 2>&1
 
 G=$(grep -cE '^gen ' "${TAG}.log")
