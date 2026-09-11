@@ -281,3 +281,45 @@ the plain reason that the work in front of it is gone.
 The plies are still in the branching factor — 2.48× is 1.3 doublings against the 3.2 a ply needs —
 so §3 stands unchanged. What has changed is that the eval track is now worth roughly **3× what it
 was**, and it is the largest remaining item the profile can see.
+
+
+## 8. RETRACTION of §7's "eval is now the lever" — it timed the wrong eval, 15 minutes after publishing
+
+§7 reported eval at **59.6% of a leaf** and sized a free eval at **~39 Elo**, concluding the movegen
+work had "made eval the lever". **Both numbers are wrong**, and the cause is the same fault §7 was
+written to fix, one layer down.
+
+`node_profile` timed `net.eval(p, &mut scratch)` — the **from-scratch dense forward pass**. The
+search's leaf calls `self.acc.score(net, pos)`, the incremental output layer, and takes that path by
+default (`search.rs`: `self.incremental = env::var("EXISTENCE_FULL_REFRESH").is_err()`). Measured
+side by side on the same positions and net:
+
+```text
+  eval (net.eval)     217.9 ns   <- from-scratch dense pass; NOT the leaf path
+  eval (acc.score)     36.6 ns   <- what a leaf ACTUALLY calls
+```
+
+**6× apart.** With the right one:
+
+| | leaf | eval share | free-eval ceiling | quantization |
+|---|---|---|---|---|
+| §7 said | 358.4 ns | 59.6% | 2.48× → ~39 Elo | ~15 Elo |
+| **corrected** | **184.8 ns** | **19.8%** | **1.25× → ~10 Elo** | **~5 Elo** |
+
+**So §2 was right all along.** Its original sizing — *"quantization is worth roughly 5 Elo … it is
+not the lever"* — survives every correction made today. Eval was third in `throughput_RESULT.md`'s
+ranking and it is still not first; what changed is only that the thing ahead of it (movegen at a
+leaf) is gone, leaving the leaf small rather than leaving eval large.
+
+### And the self-check was one-sided, which is how this got through
+
+After the fix the primitives came out at **0.83×** the real node — they *under*-predict — and the
+check only tested `ratio > 1.6`. An under-prediction is incompleteness too: `mu` times bare
+`pos.make_move`, while the search calls `push_move`, which also applies the accumulator's feature
+delta. That cost is billed **nowhere** in the profile. The check is now two-sided and says so.
+
+That is three faults in one instrument in one evening — a stale hardcoded cross-check, a leaf billed
+for a shuffle it never runs, a modulo shuffle the engine abandoned — plus this one, where it timed a
+function the search does not call. Each was individually plausible and each moved a published
+number. The pattern worth keeping: **an instrument must be checked against the code path it claims
+to describe, not merely against itself.**

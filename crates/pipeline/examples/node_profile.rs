@@ -120,6 +120,32 @@ fn main() {
         for p in &ps { std::hint::black_box(net.eval(p, &mut scratch)); n += 1; }
         n
     });
+    // 3b. THE EVAL THE SEARCH ACTUALLY CALLS. `ev` above is the from-scratch dense pass. The leaf
+    // path uses `self.acc.score(net, pos)` whenever `incremental` is set, which is the DEFAULT
+    // (`search.rs`: `self.incremental = env::var("EXISTENCE_FULL_REFRESH").is_err()`). Timing the
+    // dense pass and calling it "eval" measures a path the engine does not take -- the same fault
+    // as timing a modulo shuffle it does not run.
+    //
+    // The accumulator is maintained by push/pop, so `score()` is only the output layer. Its UPDATE
+    // cost is therefore NOT here; it belongs to make/unmake, and `mu` below times bare
+    // `pos.make_move`, which omits it. The two errors point in opposite directions and partly
+    // cancel, which is exactly how a decomposition can look consistent while both halves are wrong.
+    let mut acc = nnue::Acc { vals: Vec::new() };
+    let ev_incr = best_of(reps, || {
+        let mut n = 0usize;
+        for p in &ps {
+            acc.refresh(&net, p);
+            std::hint::black_box(acc.score(&net, p));
+            n += 1;
+        }
+        n
+    });
+    // refresh() is charged into the line above, so subtract it to isolate score().
+    let rf = best_of(reps, || {
+        let mut n = 0usize;
+        for p in &ps { acc.refresh(&net, p); std::hint::black_box(&acc); n += 1; }
+        n
+    });
 
     // 4. The SHUFFLE, which the seed search does at every node. MASTER_PLAN puts move ordering on
     //    the DISCOVERY list, so `pipeline/src/search.rs` shuffles children to deny alpha-beta an
@@ -252,7 +278,9 @@ fn main() {
     println!("  {:<26} {:>10.1}   (classical rays)", "  attacks::bishop", b_);
     println!("  {:<26} {:>10.1}   (zeroes 1024 B for ~120 B of moves)", "  MoveList::new()", ml);
     println!("  {:<26} {:>10.1}", "make + unmake (pair)", mu);
-    println!("  {:<26} {:>10.1}", "eval", ev);
+    println!("  {:<26} {:>10.1}   <- from-scratch dense pass; NOT the leaf path", "eval (net.eval)", ev);
+    println!("  {:<26} {:>10.1}   <- acc.score(), what a leaf ACTUALLY calls", "eval (acc.score)", (ev_incr - rf).max(0.0));
+    println!("  {:<26} {:>10.1}   (charged to make/unmake in the real search, not measured here)", "  acc.refresh", rf);
     // WHICH SHUFFLE THE ENGINE ACTUALLY RUNS. `sh` above times `rng % (i + 1)`; `sh_nodiv` times
     // Lemire's multiply-shift. `search.rs::below()` has used **Lemire** since e0d8774 ("remove the
     // division from the child shuffle -- +6.3% nps, measured"), so `sh_nodiv` is the live cost and
@@ -281,12 +309,16 @@ fn main() {
     // A LEAF NO LONGER GENERATES MOVES. Since `movegen_leaf_RESULT.md` the leaf path calls
     // `has_legal_move()` and then evals; it never builds a list and never shuffles. An interior
     // node still pays the full generator plus the shuffle (the Lemire one, `sh_nodiv`).
-    let leaf = hlm + mu + ev;
+    // THE LEAF USES acc.score(), NOT net.eval(). Using `ev` here billed the leaf for the
+    // from-scratch dense pass (217.9 ns) when the path it takes costs 36.6 -- a 6x overstatement
+    // that made eval look like ~60% of a leaf and "the lever". It is not.
+    let ev_leaf = (ev_incr - rf).max(0.0);
+    let leaf = hlm + mu + ev_leaf;
     let interior = mg + mu + sh_nodiv;
     println!("\n  implied node cost:");
     println!("    interior (movegen + make/unmake)      {:>8.1} ns", interior);
     println!("    leaf     (+ eval)                     {:>8.1} ns", leaf);
-    println!("    eval's share of a LEAF                {:>8.1}%", 100.0 * ev / leaf);
+    println!("    eval's share of a LEAF                {:>8.1}%", 100.0 * ev_leaf / leaf);
 
     // CROSS-CHECK, MEASURED HERE rather than quoted.
     //
@@ -316,7 +348,15 @@ fn main() {
     println!("    depth 4, same net: {bench_nodes} nodes in {bench_s:.3}s = {:>9.0} nps = {actual_ns:.0} ns/node",
              bench_nodes as f64 / bench_s);
     println!("    primitives imply a LEAF of {leaf:.0} ns -> {ratio:.2}x the measured node cost");
-    if ratio > 1.6 {
+    if ratio < 0.85 {
+        // UNDER-prediction is incompleteness too, and the one-sided check missed it. The leaf model
+        // is has_legal_move + make/unmake + acc.score, and `mu` times BARE `pos.make_move` -- but
+        // the real search calls `push_move`, which also applies the accumulator's feature delta.
+        // That cost is billed nowhere here, so the primitives can only come out light.
+        println!("    ** ATTRIBUTION INCOMPLETE (LOW) ** primitives under-predict the real node.");
+        println!("    Something the search pays is not in this list -- most likely the accumulator");
+        println!("    delta inside push_move, which `mu` (bare make_move) does not include.");
+    } else if ratio > 1.6 {
         println!("    ** ATTRIBUTION INCOMPLETE ** primitives over-predict by more than 1.6x.");
         println!("    Isolated timings are an UPPER BOUND, so part of this is loop/timing overhead");
         println!("    and warm caches -- but at this size the SHARES above are NOT safe to size an");
