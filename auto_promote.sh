@@ -14,26 +14,72 @@ SCR=/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchp
 NM=$SCR/xt_cap/release/examples/netmatch
 PAIRS=${PAIRS:-224}
 EVERY=${EVERY:-1800}
-CORES=${CORES:-6-15}
+# 6-11 is Existence's half of the box. It was 6-15, which reaches onto 12-15 -- the four cores
+# reserved for HIS desktop. A background measurement is never allowed to take those.
+CORES=${CORES:-6-11}
 [ -x "$NM" ] || { echo "no netmatch at $NM"; exit 1; }
 
+# DETECTION AND PROMOTION ARE SEPARATED, and that is the whole point of this revision.
+#
+# The old loop assigned `cand` inside a scan over every running trainer, so the LAST one seen won
+# -- an arbitrary arm whenever two arms train at once. Because that arm could be silently
+# promoted into the shared p1_champion.net, the only safe response was to STOP the script for the
+# duration of an A/B. That threw away the detector along with the promoter, and this script's one
+# confirmed catch is a REGRESSION (hold, 0.444 +/- 0.030, interval entirely below 0.5, ~1500
+# generations that were costing strength invisibly to both loss and the ruler).
+#
+# So: MEASURE EVERY live arm, always. PROMOTE only when exactly one arm is training, where
+# "the candidate" is unambiguous. A regression is now reported during an A/B instead of going
+# unwatched precisely when two experimental arms are running.
 while true; do
   sleep "$EVERY"
-  [ -s deep1.net ] || continue
-  G=$(grep -cE '^gen ' deep1.log 2>/dev/null)
-  cp -f deep1.net /tmp/ap_cand.net || continue
-  nice -n 19 taskset -c "$CORES" "$NM" /tmp/ap_cand.net p1_champion.net "$PAIRS" > ap_last.log 2>&1
-  line=$(grep -oE 'scores 0\.[0-9]+ \+/- 0\.[0-9]+' ap_last.log | head -1)
-  rate=$(echo "$line" | grep -oE '0\.[0-9]+' | head -1)
-  ci=$(echo "$line"   | grep -oE '0\.[0-9]+' | tail -1)
-  [ -z "$rate" ] && { echo "$(date '+%H:%M') gen $G: netmatch produced no rate -- NOT promoting"; continue; }
-  pass=$(python3 -c "print(1 if ($rate - $ci) >= 0.5 else 0)" 2>/dev/null)
-  if [ "$pass" = "1" ]; then
-    cp -f p1_champion.net "p1_champion_prev_g${G}.net"
-    cp -f /tmp/ap_cand.net p1_champion.net
-    echo "$(date '+%H:%M') gen $G: PROMOTED  $rate +/- $ci  (bar $rate-$ci >= 0.5)"
-  else
-    echo "$(date '+%H:%M') gen $G: hold      $rate +/- $ci"
-  fi
-  rm -f /tmp/ap_cand.net
+  # Arms are identified by the running trainer's own --out. `\-\-out` emits a stray-backslash
+  # warning from grep; a bracket expression is the portable spelling.
+  arms=""
+  for p in $(ls /proc 2>/dev/null | grep -E '^[0-9]+$'); do
+    e=$(readlink /proc/$p/exe 2>/dev/null) || continue; e=${e% (deleted)}
+    case "$e" in */release/learn)
+      o=$(tr '\0' ' ' < /proc/$p/cmdline 2>/dev/null | grep -oE '[-][-]out [^ ]+' | awk '{print $2}')
+      [ -n "$o" ] && arms="$arms $o";;
+    esac
+  done
+  arms=$(printf '%s\n' $arms | sort -u)
+  n=$(printf '%s\n' $arms | grep -c .)
+  [ "$n" -gt 0 ] || { echo "$(date '+%H:%M') no trainer running -- skipping"; continue; }
+
+  for cand in $arms; do
+    [ -s "$cand" ] || continue
+    clog="${cand%.net}.log"
+    G=$(grep -cE '^gen ' "$clog" 2>/dev/null)
+    # Copy before matching: the trainer rewrites this file every generation, and reading it live
+    # would compare a net that changed halfway through its own match.
+    cp -f "$cand" "/tmp/ap_$(basename $cand)" || continue
+    nice -n 19 taskset -c "$CORES" "$NM" "/tmp/ap_$(basename $cand)" p1_champion.net "$PAIRS" \
+      > "ap_$(basename ${cand%.net}).log" 2>&1
+    line=$(grep -oE 'scores 0\.[0-9]+ \+/- 0\.[0-9]+' "ap_$(basename ${cand%.net}).log" | head -1)
+    rate=$(echo "$line" | grep -oE '0\.[0-9]+' | head -1)
+    ci=$(echo "$line"   | grep -oE '0\.[0-9]+' | tail -1)
+    rm -f "/tmp/ap_$(basename $cand)"
+    # An unparsable result is HOLD, never promote. A missing rate means the match did not run,
+    # and treating "no evidence" as "no objection" is how an unmeasured net becomes champion.
+    [ -z "$rate" ] && { echo "$(date '+%H:%M') $(basename $cand) gen $G: netmatch produced no rate -- NOT promoting"; continue; }
+
+    verdict=$(python3 -c "
+r,c=$rate,$ci
+print('PROMOTE' if r-c>=0.5 else ('REGRESSION' if r+c<0.5 else 'hold'))" 2>/dev/null)
+
+    if [ "$verdict" = "PROMOTE" ] && [ "$n" -eq 1 ]; then
+      cp -f p1_champion.net "p1_champion_prev_g${G}.net"
+      cp -f "$cand" p1_champion.net
+      echo "$(date '+%H:%M') $(basename $cand) gen $G: PROMOTED   $rate +/- $ci"
+    elif [ "$verdict" = "PROMOTE" ]; then
+      # Measured as better, but $n arms are training: promoting one into the champion both arms
+      # are judged against would change the A/B's baseline mid-experiment.
+      echo "$(date '+%H:%M') $(basename $cand) gen $G: PASSES but $n arms training -- NOT promoting  $rate +/- $ci"
+    elif [ "$verdict" = "REGRESSION" ]; then
+      echo "$(date '+%H:%M') $(basename $cand) gen $G: REGRESSION $rate +/- $ci  (interval entirely below 0.5)"
+    else
+      echo "$(date '+%H:%M') $(basename $cand) gen $G: hold       $rate +/- $ci"
+    fi
+  done
 done
