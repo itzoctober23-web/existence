@@ -525,8 +525,28 @@ fn main() {
     //
     // LIMIT: one champion, one dataset, 10 replicates (se ~0.007). The effect is ~6.6 SE, but
     // it is a single champion -- re-measure when a stronger one exists.
+    // SHIPPED 2026-09-11: 0.75 -> 0.85.
+    //
+    // Two full-length seeds, 2000 generations per arm, exactly matched, shared start from champion
+    // 044e754f57ba, only --blend differing, binding verified from each arm's own log header:
+    //
+    //     seed 20260917   0.541 +/- 0.032   lower bound 0.509
+    //     seed 20260918   0.606 +/- 0.026   lower bound 0.580
+    //     POOLED          0.574 +/- 0.021   lower bound 0.553
+    //
+    // The margin above 0.5 is 0.074 against a measured BETWEEN-SEED sd of 0.047. Seed 1 alone gave
+    // 0.041, SMALLER than that spread, and was refused for exactly that reason -- the same standard
+    // that refused lr 0.0001 on a 0.011 gap. Two seeds move it clear.
+    //
+    // Against the normal rule, blend_085 vs the shared start (which IS the champion, verified
+    // unmoved at swap time) scores 0.583 +/- 0.027, lower bound 0.556 >= 0.500.
+    //
+    // The prior evidence was FIVE seeds at TWENTY generations (blend_RESULT.md), non-monotonic --
+    // 0.75 -> 0.85 gains, 0.85 -> 1.00 gives it back -- so this is not "more is better". What those
+    // lacked was full length, and the lr sweep is the standing proof that 20-generation and
+    // 2000-generation answers differ in magnitude.
     let blend: f32 = a.iter().position(|x| x == "--blend")
-        .and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(0.75);
+        .and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(0.85);
     // LEARNING RATE, now a flag. It was the literal 0.01 here -- constant, no decay, no momentum,
     // no schedule, and not reachable from the command line, so it is the one generator knob this
     // project has never varied. Every other one is measured: label depth (spent at 3), blend (see
