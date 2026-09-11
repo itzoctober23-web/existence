@@ -33,6 +33,12 @@
 #   * indistinguishable                           -> epochs is inert at this rate; epochs_ab's
 #     direction does not transfer but nothing is gained either. Report and stop.
 #
+# NOTE, corrected 2026-09-11 01:4x: an earlier version of the lr result attributed part of the
+# effect to early stopping running more epochs at a low rate. That is WRONG -- `train_from()`
+# early-stops but is called only by the ARCH arm, disabled here, and the NET arm runs a FIXED epoch
+# count (`for e in 0..epochs`, main.rs:814). So lr and epochs are genuinely independent knobs in
+# this loop, which makes the product-vs-step-size question below cleaner, not muddier.
+#
 # NOT a re-run of epochs_ab: that compared 3/10/30 at the OLD rate on mcnemar_z, a held-out surrogate
 # with no games. This compares 3 vs 10 at the NEW rate on netmatch, the paired strength instrument.
 set -uo pipefail

@@ -118,11 +118,32 @@ The learning rates differ by 5×. For a pure random walk (displacement ∝ step 
 motion (∝ step × n) alike, equal generation counts should give ~5× more displacement for the larger
 step. Measured: **1.73×**. The low-lr arm moved far more than proportionally.
 
-The likely cause is in `train_from()`: it early-stops on held-out loss with patience 3. A smaller
-step improves the loss more slowly per epoch, so it runs **more epochs** before stopping, partially
-compensating. So this comparison is *lr with early stopping*, not lr alone — which also means the
-shipped change may be doing two things at once, and `epochs_at_low_lr.sh` (queued) tests exactly
-that coupling.
+~~The likely cause is in `train_from()`: it early-stops on held-out loss with patience 3...~~
+
+**⚠ THAT EXPLANATION IS WRONG, corrected within the hour.** `train_from()` does early-stop — but
+`main.rs:1040` states plainly that **it is called ONLY by the ARCH arm**, which `--arch-every 0`
+disables in both of these runs. The NET arm trains with a fixed count:
+
+```rust
+for e in 0..epochs { loss = tr.epoch(&mut cand, subset, ...); }   // main.rs:814
+```
+
+So both arms took **exactly the same number of weight updates** — 3 epochs × 2,000 generations — and
+the sub-proportional displacement is **unexplained**.
+
+It is consistent with the large-step arm having SATURATED inside a basin (its spread bounded by the
+basin width) while the small-step arm is still moving directedly. That is a hypothesis and it is
+recorded as one; substituting a second story for a refuted first one is how this file would stop
+being evidence.
+
+**The correction is the same mistake the code comment beside it warns about**, three lines up:
+
+> Second time today I asserted which code path produced a value without following it; the name stays
+> literal now.
+
+I made it a third time, in the same file, about the same function — and this time in something
+published. The check that catches it costs one grep: *before naming a function as the cause, confirm
+the code path being measured actually calls it.*
 
 What survives regardless of the explanation: **the arm that moved farther gained nothing, and the
 arm that moved less gained.**
