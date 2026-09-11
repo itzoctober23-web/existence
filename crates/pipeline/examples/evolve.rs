@@ -2893,7 +2893,29 @@ fn main() {
             // the hybrid, if it exists, is only reachable this way, but crossover between two
             // programs that already work is far more destructive than a single mutation, so it
             // does not get to crowd out the operator set.
-            let cands: Vec<(Program, bool)> = (0..pop)
+            // PROPOSALS ARE DECOUPLED FROM POPULATION SIZE.
+            //
+            // This loop used to be `(0..pop)`, so the number of candidates PROPOSED each generation
+            // was the population size -- and `search_has_no_choice_RESULT.md` measures that pop
+            // collapses to 2 in every arm. That closes a death spiral: retention keeps DISTINCT
+            // survivors, the funnel yields ~0.58 distinct rates per generation, pop falls to 2, and
+            // 2 proposals at the guard's measured 10.5% survival is 0.21 expected survivors -- so it
+            // can never climb back out. 94% of generations then hand selection zero or one distinct
+            // fitness, and selection cannot select from a set of size <= 1.
+            //
+            // That file's closing line names this exact lever: "raise the number of guard-passing,
+            // distinctly-scoring candidates per generation ... the first suspect that none of the
+            // four running arms varies." Population size and proposal count are two different
+            // quantities and only one of them should be doing this job.
+            //
+            // DEFAULT IS `pop`, so an unset variable is BYTE-IDENTICAL to every measurement taken so
+            // far -- the same discipline `--lr-decay 1.0` was added under. Parent selection already
+            // wraps (`popsnap[i % popsnap.len()]`), so i beyond pop simply draws the same parents
+            // again with a different per-slot seed, which is what more mutation attempts per parent
+            // means.
+            let n_prop = std::env::var("EXISTENCE_PROPOSALS").ok()
+                .and_then(|v| v.parse::<usize>().ok()).filter(|v| *v > 0).unwrap_or(pop);
+            let cands: Vec<(Program, bool)> = (0..n_prop)
                 .filter_map(|i| {
                     let parent = &popsnap[i % popsnap.len()].0;
                     // seed_mix is 0 unless EXISTENCE_EVOLVE_SEED is set, so the default draw here is
@@ -2920,7 +2942,9 @@ fn main() {
             let xflags: Vec<bool> = cands.iter().map(|(_, x)| *x).collect();
             let x_prop = xflags.iter().filter(|x| **x).count();
             let cands: Vec<Program> = cands.into_iter().map(|(p, _)| p).collect();
-            let ill = pop - cands.len();
+            // Denominator must be the PROPOSAL count, not pop: with n_prop > pop this went
+            // negative and panicked on the usize subtraction.
+            let ill = n_prop.saturating_sub(cands.len());
             const THREADS: usize = 3;
             let chunk = cands.len().div_ceil(THREADS).max(1);
             let scored: Vec<(Program, u32, f64, u32)> = std::thread::scope(|sc| {
