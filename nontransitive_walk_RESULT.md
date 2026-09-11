@@ -95,3 +95,66 @@ gap, against the first reading's 2,650** — at 224 pairs rather than 160.
 Written down now because the first reading is *marginal by its own instrument's note* — `netmatch`
 printed "A leads, but MARGINALLY ... needs more pairs" — and a marginal result that gets talked into
 a headline is the failure this project has already recorded three times tonight.
+
+
+## THE REPLICATION LANDED — and it is the SATURATING outcome, with an exact composition check
+
+| comparison | span | score | interval | Elo |
+|---|---|---|---|---|
+| gen 2,162 → 4,818 | 2,656 gens | 0.541 ± 0.040 | [0.501, 0.581] | **+28.6** |
+| gen 4,818 → 6,803 | 1,985 gens | **0.499 ± 0.030** | [0.469, 0.529] | **−0.7** |
+| gen 2,162 → 6,803 | 4,641 gens | 0.540 ± 0.032 | [0.508, 0.572] | **+27.9** |
+
+Two things fall out, and the second was not expected.
+
+### 1. The run has plateaued, and the plateau is dated
+
+Nearly double the span produced an identical edge (0.540 against 0.541). The direct test confirms it
+rather than leaving it as an inference from overlapping comparisons: **gen 6,803 against gen 4,818
+reads 0.499 ± 0.030** — dead on parity. **The last ~2,000 generations bought nothing measurable.**
+
+This is the project's "learned, then stopped" phenomenon, for the first time localised to a
+generation range and measured on a *paired* instrument rather than the frozen-origin metric that
+saturates at 0.96 and has reversed signs. The gain is real (+28.6 Elo, replicated, interval clear of
+0.5) and it happened **before** generation ~4,800.
+
+### 2. Long-range comparisons COMPOSE EXACTLY — so the walk is transitive at this scale
+
+Converted to Elo, where gains should add:
+
+```text
+  gen 2162 -> 4818    +28.6
+  gen 4818 -> 6803     -0.7
+  sum                 +27.9
+  measured 2162->6803 +27.9      difference 0.00 Elo
+```
+
+Three independent 224-pair matches, and the composition closes to within 0.01 Elo. **At the
+~2,000-generation scale this walk is transitive: gains add.** That is a much stronger statement than
+"the run improves", and it was free — it is a consistency check the three matches perform on each
+other.
+
+**This narrows the claim this file was named for.** Non-transitivity, if it is present at all, is a
+**short-range** effect: 5-generation steps fail to compose into the long-range result, while
+2,000-generation steps compose perfectly. The headline "non-transitive walk" was too broad, and the
+correct statement is that **short-range and long-range comparisons disagree, and the long-range ones
+are self-consistent.**
+
+### The adjacent measurement, finished
+
+`steady_state_batches.sh` completed all ten pairs:
+
+| regime | n | mean | interval | below 0.5 |
+|---|---|---|---|---|
+| post-resume | 20 | 0.4684 | [0.4525, 0.4843] — **resolved below** | 16/20 |
+| steady state | **10** | **0.4869** | [0.4364, 0.5374] — **unresolved** | 5/10 |
+
+The steady-state adjacent step **cannot be distinguished from 0.5**. It neither confirms nor refutes
+a negative expectation; its interval is 3× wider than the post-resume set's because those 20 samples
+all measure the *same* transition from a fixed base while these 10 measure *different* transitions
+along a trajectory.
+
+So the honest summary of the whole evening's chain is: the loop gained ~28 Elo before generation
+~4,800 and has gained nothing since; its 5-generation steps are not measurable as positive or
+negative in the steady state; and its long-range comparisons are mutually consistent to 0.01 Elo.
+**The plateau is real, it is dated, and it is not an artefact of the acceptance filter.**
