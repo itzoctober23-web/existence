@@ -122,3 +122,47 @@ And the KEEP is worth reading closely: increment **+0.021 ± 0.017**, so it clea
 31-0-0 and retracted it three games later, and read a ruler trend as a 136 Elo collapse that
 `netmatch` refuted. `fourpc-truncated-llr-is-noise` exists for exactly this. **A partial result is
 not a result** — and the rule applies to a KEEP/ROLL-BACK tally as squarely as to an LLR.
+
+
+## THE CONTROL ARM FINISHED — batch gating does not prevent the dip
+
+100 generations, 20 decisions, **1 KEEP**, judged by `netmatch` against its own start like every
+other arm:
+
+| filter | gens | vs its own start | interval | adopted |
+|---|---|---|---|---|
+| **K = ∞** never gate | 100 | 0.366 ± 0.035 | [0.331, 0.401] | everything |
+| **K = 5** batch gate | 100 | **0.411 ± 0.035** | [0.376, 0.446] | 1 of 20 batches |
+| **K = 1** gate always | 37 | 0.520 ± 0.038 | [0.482, 0.558] | 3 of 45 |
+
+**K=5 is not distinguishable from adopting everything.** Its interval overlaps the ungated arm's,
+and both sit clearly below parity. It cost **11.7 gen/min against 170** — 14.5× slower — for a
+result that does not separate from the thing it was meant to fix.
+
+That is this file's pre-registered second reading, and it settles the question
+`acceptance_floor_RESULT.md` opened on 09-08: **batch gating, as built, is not the remedy.** The
+champion still drifts below its start; the filter merely slows the drift while costing an order of
+magnitude in throughput.
+
+### A subtlety the arm exposed by accident: rollback restores the NET, not the training state
+
+The single KEEP was at g45, and every batch before it rolled back to the start — so the adopted net
+is the start plus generations 41–45, **five generations of drift**. An ungated arm five generations
+from the same champion reads **0.492**. This reads **0.411**.
+
+Same number of adopted generations, materially different result. Rollback resets the weights while
+the replay pool and optimiser state carry 45 generations of history, so "five generations" late in a
+run is not the same object as five generations at the start. That is the same shape as
+`resume_dip_RESULT.md` — restore the weights, not the data — appearing in a second mechanism.
+
+Not claimed: that the state carry-over *causes* the gap. Two readings, one seed each; the
+alternative is ordinary run-to-run variance, which at ±0.035 could cover much of 0.492 → 0.411.
+Flagged as a lead, not a finding.
+
+### What is still open
+
+The DIRECT arm (`EXISTENCE_DIRECT_BATCH=1`) is running and is the remaining hope: it removes the
+saturated scale without touching the floor. Its first decision reads **champ-vs-base 0.527 ± 0.033 →
+ROLL BACK**, rejected because 0.527 − 0.033 = 0.494 < 0.5. If that shape holds, the answer is that
+the **floor** — not the scale and not the frequency — is what stops this loop, and the two 09-08
+files were treating a symptom.
