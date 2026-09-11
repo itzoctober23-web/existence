@@ -50,13 +50,40 @@ for l in txt.split('\n'):
     if m: vals.add((int(m.group(1)),int(m.group(2))))
 print(f"  MAIN hard-set ranges seen: {sorted(vals) if vals else 'none parsed'}")
 hi=max((b for _,b in vals), default=0)
+
+# ---- POWER GUARD, added 2026-09-11 after this reporter published an unsupported conclusion -----
+# The original `else` branch announced "the set is not a gradient at any size reachable this way,
+# the DIFFICULTY is wrong" purely from hi==0, WITHOUT COUNTING GENERATIONS. It ran 4 and said it.
+#
+# MAIN scores on the hard set in 2 of 28 generations at the default n_hard=8 -- a base rate of
+# 0.071. At that rate P(zero in 4 generations) = 0.74: zero is the SINGLE MOST LIKELY OUTCOME and
+# occurs just as readily if n_hard=40 changed nothing at all. The probe therefore could not
+# distinguish "the set is inert" from "the set behaves exactly as it did at n=8" -- and the
+# conclusion it printed is the one that authorises REBUILDING the hard set, which is expensive.
+#
+# This is the same failure that was retracted earlier the same day: "0 of 10 MAIN generations
+# scored, so the HARD set is inert for MAIN" was published while the arm sat mid-run, and
+# generation 11 scored. A zero is only evidence when the run was long enough for a non-zero.
+BASE = 2/28          # measured across the funnel-era logs; update if the base rate is re-measured
+n_gen = len({int(m.group(1)) for m in re.finditer(r'^\s*gen\s+(\d+)\s+MAIN', txt, re.M)})
+p_zero = (1-BASE)**n_gen if n_gen else 1.0
+print(f"  MAIN generations observed: {n_gen}   P(zero | base rate {BASE:.3f}) = {p_zero:.2f}")
 print()
 if hi>0:
     print(f"  MAIN SCORED {hi} on a 40-position set. The dimension is REAL and SIZE was the")
     print("  constraint -- re-open the gradient lever with EXISTENCE_HARD_N raised.")
+    print("  (A positive needs no power argument: one score is an existence proof.)")
+elif p_zero > 0.20:
+    import math
+    need = math.ceil(math.log(0.2)/math.log(1-BASE))
+    print(f"  UNDERPOWERED -- REFUSING A VERDICT. {n_gen} generations cannot show a zero is")
+    print(f"  meaningful when zero is expected {p_zero:.0%} of the time anyway. Need >= {need}")
+    print("  generations for 80% power against the known base rate. Re-run with GENS raised;")
+    print("  do NOT rebuild the hard set on this reading.")
 else:
-    print("  MAIN still scores ZERO at n=40, five times the positions. The set is not a gradient")
-    print("  at any size reachable this way: the DIFFICULTY is wrong, not the sample. It must be")
-    print("  rebuilt around positions the population can PARTIALLY solve.")
+    print(f"  MAIN scores ZERO at n=40 across {n_gen} generations, where the base rate predicts a")
+    print(f"  score with probability {1-p_zero:.0%}. THAT is evidence the set is not a gradient at")
+    print("  this size: the DIFFICULTY is wrong, not the sample. Rebuild it around positions the")
+    print("  population can PARTIALLY solve.")
 PY
 say "HARDNDONE"

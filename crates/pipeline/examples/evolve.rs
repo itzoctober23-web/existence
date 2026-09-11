@@ -2624,7 +2624,31 @@ fn main() {
     // set they can DISCRIMINATE. Scored and reported per generation; acceptance is NOT changed
     // yet, because the claim "a better-searching candidate can win these" is exactly the sort of
     // thing that should be measured before a fitness is restructured around it.
-    let hard = harder_set(8, depth, &net, 3_000);
+    // EXISTENCE_HARD_N WAS INERT HERE UNTIL 2026-09-11, AND AN EXPERIMENT WAS BUILT ON IT.
+    //
+    // This site was `harder_set(8, ...)` with the size hardcoded. The variable IS read -- at line
+    // ~657, in the other entry point -- so it appears in the binary's strings and looks wired. It
+    // had no effect on THIS path, which is the one the evolve loop runs.
+    //
+    // `hardn_probe.sh` set EXISTENCE_HARD_N=40 to ask whether the hard set is a gradient at five
+    // times the size. It ran the DEFAULT 8-position set and reported "MAIN still scores ZERO at
+    // n=40, five times the positions ... the DIFFICULTY is wrong, not the sample" -- a conclusion
+    // whose recommended action is rebuilding the hard set. The run's own header said `HARD set: 8
+    // positions`, identical to the control arm, which is the tell that was there to be read.
+    //
+    // The size now comes from the same env var this path already documents, with the search budget
+    // scaled the way the other call site scales it, so a larger request gets proportionally more
+    // attempts to find positions the seed actually fails.
+    let n_hard: usize = std::env::var("EXISTENCE_HARD_N").ok()
+        .and_then(|x| x.parse().ok()).filter(|v| *v > 0).unwrap_or(8);
+    let hard = harder_set(n_hard, depth, &net, 3_000 * (n_hard / 8).max(1));
+    // REPORT REQUESTED vs ACTUAL. harder_set returns what it could FIND, which need not be what was
+    // asked for, and a silent shortfall is the same failure in a quieter costume: the header would
+    // read "8 positions" for a request of 40 and nothing would say why.
+    if hard.len() != n_hard {
+        println!("  HARD set: requested {n_hard}, built {} -- harder_set could not find more; \
+any n-scaling claim is bounded by THIS number, not the request", hard.len());
+    }
     // PER-N PROBES, scored on every captured exploit so the corpus records the dimension FITNESS 3
     // specifies. `matesplit` measured that MATE-2 separates a shallow searcher from a real one --
     // UCT falls 11/20 to 2/20 while every alpha-beta variant holds 20/20 -- and this loop's own set
