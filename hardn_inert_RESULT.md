@@ -79,3 +79,44 @@ enough for a non-zero.**
 **Unanswered.** Whether the HARD set is a gradient at larger n has never been measured. The claim
 that it is not is withdrawn. A valid test needs the rebuilt binary and at least 22 generations, and
 must check the header's requested-vs-built line before reading anything else.
+
+## The detector, and the two that failed their control tests first
+
+Finding this by hand is not a method, so it was turned into a check. Two designs were tried and
+discarded, both caught by running them against a known-bad AND a known-good case:
+
+1. **Static call-graph audit** of all 19 `EXISTENCE_*` variables — mapped each read to its enclosing
+   function and asked whether that function is reachable from `main`. Returned **all-clear**,
+   including for `HARD_N`. Useless for this bug by construction: the read IS reachable, the value
+   simply never reaches the use site, and reachability cannot see a hardcoded literal.
+2. **Whole-header comparison** between a treatment arm and its control. **Inverted on both
+   controls.** It passed the known-bad pair, because `hardn_probe` also set `HARD_FITNESS` and that
+   difference showed up while `HARD set: 8 positions` was identical in both; and it failed the
+   known-good pair (control vs 32 proposals), because the header never prints the proposal count, so
+   two genuinely different arms looked identical. Deleted rather than kept — a tool that fails its
+   own control test is a trap.
+
+The shared lesson: **"something differed" is not "the thing under test differed".**
+
+`assert_setting_took.py` maps each variable to the ONE observable it controls and asserts
+requested-vs-observed on that observable:
+
+```
+prop_hardn40.log   EXISTENCE_HARD_N  requested 40  observed 8   *** DID NOT TAKE   (exit 1)
+prop_prop32.log    EXISTENCE_PROPOSALS requested 32 observed 32  OK                (exit 0)
+prop_control.log   EXISTENCE_PROPOSALS requested 4  observed 4   OK                (exit 0)
+```
+
+It also distinguishes INERT from NOT YET EXERCISED. `EXISTENCE_GATE_VERIFY` prints only inside the
+gate block, so an arm with no gate call yet cannot show it; reporting that as a failure is a false
+alarm, and a checker that cries wolf is the one ignored the day it is right. Caught on the live
+`search-verify96` arm at generation 1 with zero gate calls — it now reports UNDETERMINED.
+
+**Retrospective sweep — 5 of 5 completed arms clean:** `prop_control`, `prop_prop32`, `prop_hard`,
+`prop_hardp32`, `prop_long32` all had every requested setting visible in their own output. So the
+2x2 and the funnel-fix conclusion stand on arms that genuinely ran what they claimed. `hardn40` was
+the only void one.
+
+It is wired as a GATE, not a decoration: `hardn_probe.sh` now runs it BEFORE the reporter and exits
+non-zero on mismatch, with the status taken directly rather than through a pipe, so the verdict
+cannot be written when the configuration under test was not the one that ran.

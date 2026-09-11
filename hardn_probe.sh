@@ -36,6 +36,31 @@ sleep 10
 say "n_hard=40, proposals=32, 4 generations, seed 1 (same as the 2x2 cells)"
 EXISTENCE_EVOLVE_SEED=1 EXISTENCE_PROPOSALS=32 EXISTENCE_HARD_FITNESS=1 EXISTENCE_HARD_N=40 \
   nice -n 19 taskset -c 6-11 timeout 3600 "$SNAP" 4 4 10 4 > prop_hardn40.log 2>&1 || true
+
+# ---- DID THE SETTING ACTUALLY TAKE? THIS GATES THE REPORT --------------------------------------
+# The 2026-09-11 run of this script set EXISTENCE_HARD_N=40 against a binary that built the set with
+# a hardcoded 8 (evolve.rs:2627), measured the DEFAULT configuration, and concluded the hard set
+# "must be rebuilt". The arm's own header said "HARD set: 8 positions" -- the evidence was printed
+# and nothing read it.
+#
+# So the check runs BEFORE the reporter and EXITS on failure. A check that prints a warning and then
+# reports anyway is a decoration; the whole point is that the verdict never gets written when the
+# configuration under test was not the one that ran.
+# Captured to a file and the status taken DIRECTLY, not through a pipe. `set -o pipefail` is on at
+# line 26 and would carry the status through `| tee`, but a gate that silently becomes inert if
+# someone edits the set line is the wrong shape for the one check standing between a void arm and a
+# published verdict.
+_chk=/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad/hardn_assert.txt
+./assert_setting_took.py prop_hardn40.log EXISTENCE_HARD_N="${HARD_N:-40}" \
+    EXISTENCE_PROPOSALS=32 EXISTENCE_HARD_FITNESS=1 > "$_chk" 2>&1
+_rc=$?
+cat "$_chk" | tee -a "$LOG"
+if [ "$_rc" -ne 0 ]; then
+  say "ABORT: a requested setting did not reach the code that ran. NOT reporting a verdict --"
+  say "  the arm measured a different configuration. Rebuild the binary so EXISTENCE_HARD_N is"
+  say "  honoured at evolve.rs:2627, then re-run."
+  exit 1
+fi
 say "RESULT:"
 python3 - <<'PY' | tee -a "$LOG"
 import re
