@@ -257,3 +257,29 @@ available. Candidates left open by that reading, none of them yet tested:
 
 The `identity:N/M` field now on every gate line is what separates these. It did not exist this
 morning, and one reading has already killed the first hypothesis I formed from it.
+
+## The sibling project already does this correctly, and it is a usable precedent
+
+`~/maswabe_corpus/gate_dgnodes.sh` faces the identical problem — a change that buys CHEAPNESS and is
+not expected to buy strength — and its stage-2 decision rule is written as:
+
+> the CHEAPER setting ships only if it does not LOSE — **a tie is a win for it, because it buys
+> corpus rate at no measured cost.**
+
+That is a NON-INFERIORITY test, arrived at independently in the 4PC tree for a cost-reducing change.
+It is the same shape `docs/FITNESS.md` §7.2 names (`e1 = 0, e0 < 0`) and the same shape this file
+argues Existence's search gate needs.
+
+**Existence's search gate does the opposite for the same class of change.** It demands
+`rate - ci95 > 0.5` — superiority — from cost-reducing mutations whose true Elo is ~0 by
+construction. So the two projects, sharing an author and a methodology, have arrived at opposite
+rules for the same situation, and the 4PC one is right.
+
+Worth stating plainly because it changes the character of the proposed change: switching Existence's
+cost-change acceptance to non-inferiority is not a novel idea to be justified from scratch. It is
+applying a rule this tree already uses, where FITNESS already specifies it, to the one track that
+does not.
+
+It does NOT license flipping the default silently — §7.2 fixes the acceptance criterion as HUMAN,
+and the comparison must still be run as an experiment. But the "is this even reasonable" question is
+answered by an existing, working instance.
