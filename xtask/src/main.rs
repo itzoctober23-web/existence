@@ -83,7 +83,12 @@ struct Snap {
     state_tail: String,
 }
 
-struct Rung { generation: u64, elo: f64, ci: f64, label: String, champion: bool, mtime: std::time::SystemTime }
+struct Rung { generation: u64, elo: f64, ci: f64, label: String, champion: bool, mtime: std::time::SystemTime,
+              /// Appearance order in `live_ruler.out`. THE ONLY RECENCY SIGNAL THERE IS: every rung
+              /// takes its mtime from that one file, so mtime is identical across runs and cannot
+              /// order them. `ruler_status.sh` picks the current run the same way -- "newest run BY
+              /// MEASUREMENT ORDER, never alphabetical" -- by taking the last one mentioned.
+              ord: usize }
 struct SpeedPoint { commit: String, nps: u64, eval_ns: f64, depth_at_budget: u32, interp: Option<f64> }
 struct P2Gen {
     generation: u64, lineage: String, pop: usize, spread: (f64, f64),
@@ -175,7 +180,15 @@ fn read_rungs() -> Vec<Rung> {
         }
         let mtime = fs::metadata(&p).and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
         let label = if nsamp > 1 { format!("{} [pooled n={nsamp}]", net.trim()) } else { net.trim().to_string() };
-        out.push(Rung { generation: gnum, elo, ci, label, champion, mtime });
+        // Here each FILE is one run, so the file's own mtime genuinely orders runs -- unlike
+        // live_ruler.out below, where every rung shares one file's mtime and it cannot.
+        // ONE SCALE FOR BOTH SOURCES. seconds*1e5 leaves room for the appearance index the
+        // live_ruler.out path adds below. Mixing raw epoch seconds with a 0..N index -- which
+        // the first version of this did -- makes every per-file rung outrank every live one and
+        // selects a run with too few rungs to fit, which blanked the trend line entirely.
+        let ord = mtime.duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as usize * 100_000).unwrap_or(0);
+        out.push(Rung { generation: gnum, elo, ci, label, champion, mtime, ord });
     }
     // AND `live_ruler.out`, WHICH IS WHERE THE READINGS ACTUALLY ARE.
     //
@@ -217,7 +230,12 @@ fn read_rungs() -> Vec<Rung> {
             let ci: f64 = (1.0 / wsum).sqrt();
             let n = obs.len();
             let label = if n > 1 { format!("{run} gen{gnum} [pooled n={n}]") } else { format!("{run} gen{gnum}") };
-            out.push(Rung { generation: gnum, elo, ci, label, champion: run.starts_with("prod"), mtime });
+            // Same scale as above: this file's mtime, plus the appearance index so runs inside
+            // live_ruler.out order against each other by MEASUREMENT ORDER.
+            let base = mtime.duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() as usize * 100_000).unwrap_or(0);
+            let ord = base + *order.get(&(run.clone(), gnum)).unwrap_or(&0);
+            out.push(Rung { generation: gnum, elo, ci, label, champion: run.starts_with("prod"), mtime, ord });
         }
     }
 
@@ -451,9 +469,16 @@ fn trend(rungs: &[Rung]) -> Option<(f64, f64)> {
     // now: take the CURRENT run, by the newest reading and then the furthest generation, and fit
     // only its rungs. Runs are never pooled.
     let run_of = |r: &Rung| r.label.split_whitespace().next().unwrap_or("").to_string();
+    // BY APPEARANCE ORDER, NOT BY GENERATION NUMBER. The first version of this used
+    // `(mtime, generation)`, and every rung takes its mtime from the same live_ruler.out, so it
+    // always fell through to the generation NUMBER -- which picks whichever run ran LONGEST, not the
+    // one running now. Measured 2026-09-11: after the 16:56 trainer cycle the page kept reporting
+    // prodk1056 (ended at 54,394 generations) while prodk1658 was live at 11,530, and it would have
+    // gone on doing so until the new run out-counted the old one. ruler_status.sh has always done
+    // this correctly -- "newest run BY MEASUREMENT ORDER" -- by taking the last run named in the file.
     let cur = rungs.iter()
         .filter(|r| r.generation > 0 && r.champion && r.ci > 0.0)
-        .max_by_key(|r| (r.mtime, r.generation))
+        .max_by_key(|r| r.ord)
         .map(&run_of)?;
     // `ci > 0` is required, not assumed: a zero sigma is an infinite weight and would silently
     // dominate the fit. A rung without a real interval is not evidence about a slope.
