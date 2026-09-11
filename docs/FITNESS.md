@@ -157,6 +157,35 @@ Time-based stages (STC, LTC, anchor) are paradigm-neutral already.
   by itself accept; a NET must still pass fixed-cost-budget and the ladder. (Loss and Elo
   diverge regularly; loss is a cheap "not broken" check, nothing more.)
 
+  > **Measured, 2026-09-11 — the divergence is not noise, it is an INVERSION, and this filter is a
+  > one-sided veto pointed the wrong way.** The parenthetical above is right that loss and Elo
+  > diverge; the data now says something sharper. Three arms trained from one start with one seed,
+  > differing only in learning rate (`lr_decay_RESULT.md`):
+  >
+  > | median training loss | strength vs the shared start |
+  > |---|---|
+  > | 0.02130 | 0.484 |
+  > | 0.02690 | 0.586 |
+  > | **0.03550** | **0.628** |
+  >
+  > Perfectly monotone and **inverted** — the arm fitting the labels best is the weakest. Two older
+  > results point the same way: `epochs_ab_RESULT.md` (train_loss 0.0417 → 0.0253 while mcnemar_z
+  > went +0.359 → −0.445) and `depth5_vs_depth3_RESULT.md` (better labels scored 0.397 against their
+  > own start). The mechanism is not mysterious: `datagen.rs:201` writes the label from the net's
+  > OWN search, so "fitting the labels" and "becoming stronger" are different objectives here.
+  >
+  > **Why this matters for the filter specifically.** Under mere divergence, a 0.5% tolerance is a
+  > harmless sanity check. Under an *inverse* relationship it is biased against the candidates worth
+  > gating. Counted across every ledger in the repo: **33 of 97 ARCH proposals (34%) were rejected
+  > with `reason: surrogate_filter` and never played a game** (`arch_surrogate_filter_RESULT.md`).
+  >
+  > **Not changed, and deliberately so.** ARCH is off in production on wall-clock grounds
+  > (`width_clock_RESULT.md`), so this is latent; ARCH candidate nets are not retained, so none of
+  > the 33 can be re-gated to prove any specific one was wrongly killed. Recorded so that whoever
+  > re-enables ARCH knows its cheapest filter is built on the one quantity this project has now
+  > measured as anti-correlated with strength. The cheap fix if it is ever re-enabled is to make the
+  > filter two-sided or drop it, not to invert it — an inverted filter would be just as unjustified.
+
 ## 6. Fixed-cost-budget gate (NET / ARCH / FEATURE only)
 - Purpose: separate eval quality from speed for changes whose speed cost is known.
 - SPRT at a fixed cost budget per move (declared: the cost of ~20k seed-program
