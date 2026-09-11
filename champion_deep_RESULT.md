@@ -53,3 +53,41 @@ promotion (−35 ± 85 on 40 games, consistent with −17 ± 46 on 120).
   and its reading (−374 ± 74) is a barely-trained net, not a verdict on depth 5.
 * **Not replicated.** One seed, one run. The between-seed power note says that is defensible for this
   effect size; it is not the same as replicated.
+
+---
+
+## SECOND PROMOTION, ~40 minutes later — and the ruler's "decline" was noise
+
+The live ruler read **−17 → −29 → −41 → −44** across four successive 120-game samples. Four readings
+drifting one way looks like degradation, and the honest move was to test it on the instrument that
+settled the first promotion rather than to believe or dismiss it.
+
+`netmatch`, 448 pairs at depth 4, current net against the champion promoted 40 minutes earlier:
+
+```
+  0.586 +/- 0.020   interval [0.566, 0.606]   -- clear of 0.5, A is stronger
+```
+
+**So the run was still improving while the ruler said it was declining.** The net that "looked worse"
+beat the shipped champion outright.
+
+### What that says about the instrument, which is the durable part
+
+A 120-game ruler sample carries **±50 Elo**. The apparent slide from −17 to −44 is 27 Elo — well
+inside one sample's error, and four correlated samples of a moving target are not four independent
+observations. `depth_ruler_PREREG.md` already recorded the same lesson at 60 games (±80), where the
+sequence −134 / −101 / −176 was pure noise. **The ruler answers "roughly where is this net"; it
+cannot answer "is it moving".** Only the paired head-to-head can, because it removes the opponent as
+a variable.
+
+This is the second time today a trend was read off the ruler and had to be withdrawn. The rule is:
+**a direction claim needs the paired instrument, never a sequence of ruler samples.**
+
+### Chain so far, all on 448 pairs at depth 4
+
+| promotion | vs | score | verdict |
+|---|---|---|---|
+| deep-datagen net | original champion (~2,200 gens, depth-1 labels) | 0.622 ± 0.022 | PASSED |
+| current net (gen ~1,400) | that champion | **0.586 ± 0.020** | **PASSED** |
+
+Previous champions kept as `p1_champion_pre_deep.net` and `p1_champion_gen1045.net`.
