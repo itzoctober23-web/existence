@@ -357,6 +357,7 @@ Every row below is printed by that command.
 | depth-one (purity seed) | 9 | −62 | faithful (purity seed) |
 | bare alpha-beta (main seed) | **71** | +0 | faithful (main seed) |
 | capture extension (rung 6) | 84 | +13 | faithful |
+| extend-by-uncertainty (yardstick a) | 85 | +14 | faithful |
 | table reduction (rung 7) | 86 | +15 | faithful |
 | alpha-beta + iterative deepening | 100 | +29 | faithful |
 | UCT-style MCTS | **131** | **+60** | **faithful — VERIFIED BY EXECUTION, 23/23 forced mates** at K >= 600 |

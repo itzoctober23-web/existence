@@ -40,7 +40,7 @@ pub fn depth_one() -> Program {
 
 /// Main-lineage seed: BARE alpha-beta. Depth and INF are TABLE READS, not constants, so even
 /// the seed's search depth is a tuned value rather than a given (GRAMMAR 5.2).
-pub fn bare_alpha_beta() -> Program { ab_program(false, false) }
+pub fn bare_alpha_beta() -> Program { ab_program(false, false, false) }
 
 /// RUNG 6 of the GRAMMAR 9 ladder: capture extension at the horizon (qsearch in embryo).
 ///
@@ -58,7 +58,7 @@ pub fn bare_alpha_beta() -> Program { ab_program(false, false) }
 /// every step is fitter", using the test eval "for this rig only". This function is that check
 /// and lives only in the reference set the ladder measures; nothing in the search or the
 /// evolution loop reads it.
-pub fn capture_extension() -> Program { ab_program(true, false) }
+pub fn capture_extension() -> Program { ab_program(true, false, false) }
 
 /// RUNG 7 of the GRAMMAR 9 ladder: table-driven reduction (LMR in embryo).
 ///
@@ -73,9 +73,18 @@ pub fn capture_extension() -> Program { ab_program(true, false) }
 /// declared ONLY for this variant -- declaring it unconditionally moved the seed from 71 to 73
 /// nodes, silently rewriting the declared prior that GRAMMAR 6 and every ladder distance are
 /// measured against. `examples/prior` caught that.
-pub fn table_reduction() -> Program { ab_program(false, true) }
+pub fn table_reduction() -> Program { ab_program(false, true, false) }
 
-fn ab_program(cap_ext: bool, reduce: bool) -> Program {
+/// (a) EXTEND-BY-UNCERTAINTY: spend depth where the eval says it is unreliable.
+///
+/// A YARDSTICK, NOT A SEED. Like `capture_extension`, it lives only in the reference set the
+/// ladder measures; `bare_alpha_beta()` is untouched and nothing in the evolution loop reads it.
+/// Its job is to put a NUMBER on the distance from the seed -- so if the population ever assembles
+/// this shape we know how far it travelled, and if it never does we know how far it would have
+/// had to.
+pub fn uncertainty_extension() -> Program { ab_program(false, false, true) }
+
+fn ab_program(cap_ext: bool, reduce: bool, unc_ext: bool) -> Program {
     let d = Node::TRead(0, vec![]); // table "D"
     let inf = Node::TRead(1, vec![]); // table "INF"
 
@@ -141,6 +150,45 @@ fn ab_program(cap_ext: bool, reduce: bool) -> Program {
                 b(Node::Nop)),
         ]
     } else { vec![] };
+    // (a) EXTEND-BY-UNCERTAINTY -- a yardstick, not a seed.
+    //
+    // Identical in SHAPE to the capture extension above with the CONDITION swapped: instead of
+    // "this move is a capture", the guard is "the net says it is unsure here". The plan writes it
+    // as `wrap-if(cmp(unc, tread(T)))` around an extension, which is literally what this is.
+    //
+    // THE THRESHOLD IS A LEARNED TABLE, never a constant. Nothing here states how unsure is unsure
+    // enough -- table T's contents are searched, so "extend where the eval is unreliable" stays
+    // something the loop discovers rather than a rule written in by hand. Same discipline
+    // table_reduction uses for its reduction amounts.
+    //
+    // AT THE HORIZON ONLY (`d == 1`), for the reason the capture extension records directly above:
+    // applying an extension at every depth made captures free throughout the tree and blew cost up
+    // 73x. An uncertainty extension is if anything more dangerous there, because `unc` is non-zero
+    // over far more positions than `is_capture` is true.
+    //
+    // INERT UNTIL BOTH HALVES EXIST, which is worth stating. `TRead` falls back to
+    // `tables.get(i).unwrap_or(&0)`, so with no table supplied the threshold is 0; and `unc` reads
+    // 0 on every net whose head is untrained. The guard is then `0 > 0` = false and this program is
+    // behaviourally the seed. It cannot quietly do something before there is anything to do.
+    let unc_setup: Vec<Node> = if unc_ext {
+        vec![
+            Node::Let("nd".into(),
+                b(Node::Arith(ArithOp::Sub, vec![v("d"), Node::Const(1)])), b(Node::Nop)),
+            Node::If(
+                b(Node::Cmp(b(v("d")), b(Node::Const(1)), Rel::Eq)),
+                b(Node::If(
+                    b(Node::Cmp(
+                        b(Node::Unc(b(v("p")))),
+                        b(Node::TRead(4, vec![])),      // table "T": the uncertainty threshold
+                        Rel::Gt,
+                    )),
+                    b(Node::Set("nd".into(), b(v("d")))),
+                    None,
+                )),
+                None,
+            ),
+        ]
+    } else { vec![] };
     let nd_setup: Vec<Node> = if cap_ext {
         vec![
             Node::Let("nd".into(),
@@ -170,6 +218,7 @@ fn ab_program(cap_ext: bool, reduce: bool) -> Program {
         ]
     } else { vec![] };
     let mut loop_stmts = nd_setup;
+    loop_stmts.extend(unc_setup);
     loop_stmts.extend(reduce_setup);
     loop_stmts.extend(vec![
         Node::Let(
@@ -180,7 +229,7 @@ fn ab_program(cap_ext: bool, reduce: bool) -> Program {
                     1,
                     vec![
                         Node::Apply(b(v("p")), b(v("m"))),
-                        if cap_ext || reduce { v("nd") } else {
+                        if cap_ext || reduce || unc_ext { v("nd") } else {
                             Node::Arith(ArithOp::Sub, vec![v("d"), Node::Const(1)])
                         },
                         Node::Arith(ArithOp::Neg, vec![v("b")]),
@@ -914,6 +963,7 @@ pub fn all() -> Vec<(&'static str, Program)> {
         ("UCT-style MCTS", uct_mcts()),
         ("UCT-style MCTS (blend selection, historical)", uct_mcts_mix()),
         ("capture extension (rung 6)", capture_extension()),
+        ("extend-by-uncertainty (yardstick a)", uncertainty_extension()),
         ("table reduction (rung 7)", table_reduction()),
         ("proof-number search", proof_number()),
     ]
