@@ -40,7 +40,7 @@ def load(path):
             acts = [float(x) for x in parts[4:]]
         except ValueError:
             continue
-        rows.append({"cost": cost, "flip": flip, "resid": resid, "acts": acts})
+        rows.append({"net": parts[0], "cost": cost, "flip": flip, "resid": resid, "acts": acts})
     return rows
 
 
@@ -95,7 +95,19 @@ def enrichment(scored, label, frac=TOP_FRAC):
 def main():
     path = sys.argv[1]
     hold = float(sys.argv[2]) if len(sys.argv) > 2 else 0.3
+    only = sys.argv[3] if len(sys.argv) > 3 else None
     rows = load(path)
+    # A dump may hold SEVERAL nets. Pooling them would average away the very thing being
+    # replicated -- whether the effect holds PER NET -- so a net filter is required, not optional,
+    # when more than one is present.
+    nets = sorted({r["net"] for r in rows})
+    if only:
+        rows = [r for r in rows if r["net"] == only]
+        print(f"net filter: {only}")
+    elif len(nets) > 1:
+        print(f"dump holds {len(nets)} nets: {nets}")
+        print("pass one as argv[3] -- pooling them would hide whether the effect replicates.")
+        return 1
     if len(rows) < 40:
         print(f"only {len(rows)} rows -- too few to split. Let the labelling run finish.")
         return 1
