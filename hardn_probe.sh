@@ -17,6 +17,25 @@
 # recording the DEEPER move as correct -- so scoring requires finding the depth+1 move while
 # searching at depth. That is a narrow target, which is consistent with both explanations.
 #
+# A CAVEAT MEASURED 2026-09-11, recorded BEFORE this runs so the result is read correctly.
+#
+# The HARD set is a POSITION SET, and position sets were measured today to be decoupled from game
+# outcomes in BOTH directions:
+#   * hash reuse agrees with the seed on 40/40 positions and still went 8W-33D-7L, 31% decisive
+#     (identity_does_not_predict_games_RESULT.md);
+#   * a candidate agreeing on only 12 of 27 positions drew 11 of 12 games (identity:12/27).
+#
+# So even a WORKING hard-set gradient buys a FITNESS that can rank candidates -- which is exactly
+# what this track lacks, since mates is saturated at 25/25 and cannot discriminate. It does NOT by
+# itself buy candidates that win games, and nothing here should be read as predicting that.
+#
+# That is not an argument against running this. A rankable fitness is a precondition for selection
+# to do anything at all, and gate_candidates_are_game_neutral_RESULT.md gives the reason to want one:
+# the guard currently admits only candidates that are game-neutral (14.3% decisive against 31-42%
+# for reference programs), so selection is choosing among near-identical things. But the SUCCESS
+# CRITERION here is "the hard set scores above zero and scales with n", not "the engine gets
+# stronger", and conflating the two is how a fitness fix gets sold as an Elo gain.
+#
 # PRE-REGISTERED, so the result cannot reshape the question:
 #   * MAIN scores > 0 at n=40  -> the dimension is real and size was the constraint. Re-open the
 #     gradient lever with EXISTENCE_HARD_N raised, and re-run the hard+p32 cell.
