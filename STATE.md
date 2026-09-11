@@ -5444,4 +5444,4 @@ to change first.
 Existence carries alpha-beta, MCTS and proof-number primitives precisely so the loop can assemble
 any of them — or a **hybrid** — if that is what wins. Nothing here steers it toward a paradigm.
 
-RULER 2026-09-11 — prodk0759 pooled 19 +/- +1.0 (n=10 rungs) | trend 7.1 +/- +0.14 Elo/1000 gens = FLAT (indistinguishable from zero) | stop condition 1600: 1581 short (1581.0 SE)
+RULER 2026-09-11 — prodk0759 pooled 1481 +/- 19 (n=10 rungs) | trend +1.0 +/- 7.1 Elo/1000 gens = FLAT (indistinguishable from zero) | stop condition 1600: 119 short (6.3 SE)

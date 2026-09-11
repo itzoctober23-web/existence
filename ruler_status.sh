@@ -23,8 +23,13 @@ if [ -z "$T" ]; then
   echo "RULER $(date +%F) — $RUN: ${L:-no pooled reading} | trend: not enough rungs yet (needs 3)"
   exit 0
 fi
-LVL=$(echo "$T" | awk '{print $5}'); LSE=$(echo "$T" | awk '{print $6}')
-SLOPE=$(echo "$T" | awk '{print $7}'); SSE=$(echo "$T" | awk '{print $8}')
+# COLUMN INDICES, verified against a real row rather than counted from the header:
+#   $1 run  $2 n  $3 gens  $4 POOLED  $5 +/-  $6 slope/1k  $7 +/-  $8 z  $9 chi2/dof
+# First version used 5/6/7/8 and printed "pooled 19 +/- +1.0 ... 1581 short (1581.0 SE)", which
+# reached STATE.md before I read it. An off-by-one in a REPORTING script does not crash; it
+# publishes a confident wrong number.
+LVL=$(echo "$T" | awk '{print $4}'); LSE=$(echo "$T" | awk '{print $5}')
+SLOPE=$(echo "$T" | awk '{print $6}'); SSE=$(echo "$T" | awk '{print $7}')
 N=$(echo "$T" | awk '{print $2}')
 VERD=$(echo "$T" | sed 's/.*  //')
 GAP=$(python3 -c "print(f'{1600-$LVL:.0f}')" 2>/dev/null)
