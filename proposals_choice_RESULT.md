@@ -112,3 +112,49 @@ generation and hit its timeout). A choice is a precondition for progress, and ev
 -- EPS retention, the acceptance floor, the game gate -- is untested under a working funnel.
 `search_long_run.sh` runs 40 generations on a FRESH seed to answer exactly that, with the accept
 count as the primary metric and both informative nulls written in advance.
+
+---
+
+## ADDENDUM 10:3x — the guard rate COMPOUNDS, which corrects my own model
+
+The binomial above treated the mate-guard survival rate as a CONSTANT of the problem (10.5%,
+measured over 79 historical generations). Three generations of prop32 say it is not a constant —
+it is a property of the POPULATION, and it rises as the population fills:
+
+    gen   cand   guard-passers   rate     distinct   pop
+      1     32         2         6.2%        2        3
+      2     32         5        15.6%        5        7
+      3     32        10        31.2%       10        8
+
+**Five-fold in three generations.** A mutation of a guard-passing parent is far likelier to pass
+than a mutation of a broken one, so once survivors exist the rate climbs on its own.
+
+### Why the control cannot show this, and why that matters
+
+    control gen-by-gen rate:  0%  25%  0%  0%  25%  25%
+
+At 4 candidates the rate is QUANTISED to 0/4 or 1/4 — it can only read 0%, 25%, 50%... A trend of
+the size prop32 shows is unresolvable in the control **by construction**, not by absence. That is
+the same class of error as the rest of this file: the historical arms were not measuring a flat
+rate, they were measuring a rate they could not see move.
+
+### The death spiral had TWO reinforcing arms, and breaking one breaks both
+
+    STRUCTURAL   few proposals -> few survivors -> pop collapses -> few proposals
+    QUALITATIVE  bad population -> low guard rate -> few survivors -> population stays bad
+
+`EXISTENCE_PROPOSALS` attacks only the first. The measurement above says the second unwinds as a
+consequence: pop 1 -> 3 -> 7 -> 8 while the guard rate goes 6% -> 16% -> 31%. This is why the fix
+is not merely additive.
+
+### Honest limits
+
+* **n = 3 generations, one seed.** A five-fold rise over three points is suggestive, not
+  established.
+* **An alternative reading that must be excluded:** the rate could rise because the population is
+  CONVERGING on one family of near-identical programs, which would raise pass rates while
+  destroying diversity and then stall. The `distinct` column argues against it — 10 survivors
+  produced 10 distinct rates in generation 3, so they are not clones — but a longer run is what
+  settles it.
+* `search_long_run.sh` (40 generations, fresh seed) measures exactly this: whether the rate keeps
+  climbing, plateaus, or collapses back, and whether any of it reaches an ACCEPT.
