@@ -704,8 +704,54 @@ fn emit_events(s: &Snap) {
            format!("GATE_ACCEPT_PROGRAM   gen {} {} rate {:.3}", d.generation, d.lineage, d.rate)));
     }
     for r in s.ledger.iter().filter(|r| r.verdict == "accept") {
+        // ⚠ MEASURED INERT 2026-09-11, and kept with the measurement so the next reader does not
+        // re-derive it. This filters a ledger row's `what` for program-kind names. NO LEDGER ROW
+        // HAS EVER CONTAINED ONE: across all 37 ledger*.jsonl on disk -- 178,000+ rows -- the count
+        // whose `what` mentions Avg/Probe/Store/Field/Sample is ZERO. `what` holds net-track
+        // descriptions ("train 3 epochs on 233 samples, horizon 160, width 16"), because `ledger()`
+        // reads the NEWEST ledger*.jsonl and that is the P1 trainer's. The event cannot fire, so
+        // its silence has never meant anything and must not be read as "no hybrid was accepted".
         if ["Avg", "Field(count)", "Sample"].iter().any(|k| r.what.contains(k)) {
             new.push((format!("HYB:{}", r.identity), format!("HYBRID_ACCEPTED       {}", r.identity)));
+        }
+    }
+
+    // ---- THE TWO UNC EVENTS -------------------------------------------------------------------
+    // Keyed on the `ttk` tag's U, which `evolve ttk` positively controls: it asserts U is visible
+    // on the uncertainty yardstick, does not leak into the P/S slots, and does not inflate the
+    // pooled TT count. Deliberately NOT keyed on the ledger -- copying the pattern directly above
+    // would have produced a second event that can never fire.
+    //
+    // MUST PERSIST, the same rule MCTS_MATERIAL_IN_MAIN uses: five consecutive MAIN generations, so
+    // one lucky candidate carrying an unc read is not announced as a discovery. `unc` is reachable
+    // in a SINGLE edit (ProbeRead's sixth source), so transient members carrying it are expected
+    // and are not news.
+    let mut urun = 0usize;
+    for g in &main {
+        if g.ttk.iter().any(|k| k.contains('U')) { urun += 1 } else { urun = 0 }
+        if urun >= 5 {
+            new.push(("UNCREAD".into(), format!(
+                "UNC_READ_IN_MAIN      gen {} held an unc read for {urun} generations  ttk {}",
+                g.generation, g.ttk.join(" "))));
+        }
+    }
+
+    // AN ACCEPTED MAIN PROGRAM IN A GENERATION WHOSE POPULATION CARRIES THE READ.
+    //
+    // THIS IS AN APPROXIMATION AND THE WORDING MUST NOT OUTRUN IT. The available data cannot tie an
+    // ACCEPT to the STRUCTURE of the program that won: a decision carries generation, lineage and
+    // verdict, while `ttk` describes the POPULATION. So this fires when both hold in the same MAIN
+    // generation, which is necessary and not sufficient -- the accepted member may carry no unc
+    // read at all. The line says so itself, because a reader seeing "UNC_GATED_EXTENSION" in a log
+    // six weeks from now will not come and check what it meant.
+    for d in s.decisions.iter().filter(|d| d.verdict == "ACCEPT" && d.lineage == "MAIN") {
+        if let Some(g) = main.iter().find(|g| g.generation == d.generation) {
+            if g.ttk.iter().any(|k| k.contains('U')) {
+                new.push((format!("UNCACC:{}", d.generation), format!(
+                    "UNC_GATED_EXTENSION   gen {} MAIN ACCEPT, unc read present in the population \
+                     (rate {:.3}) ttk {} -- POPULATION-level, not proof the accepted program reads it",
+                    d.generation, d.rate, g.ttk.join(" "))));
+            }
         }
     }
     if Path::new("WEEK_STOP").exists() {
