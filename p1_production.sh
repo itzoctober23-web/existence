@@ -16,6 +16,16 @@
 #                  was a hardcoded literal that had never been varied.
 #
 #
+#   --lr 0.0002    SHIPPED 2026-09-11 (`low_sweep2_RESULT.md`), and it is now this script's DEFAULT.
+#                  It was NOT the default until then: the fallback still read `${LR:-0.002}`, ten
+#                  times the shipped rate, so a bare `./p1_production.sh` restarted production at a
+#                  rate two sweeps had superseded. keepalive.sh:46 already passed LR=0.0002, so the
+#                  automatic crash-restart was correct and only a MANUAL relaunch was exposed --
+#                  which is exactly what the standing brief instructs on a crash, and that brief
+#                  still names LR=0.0005. That arm measured 0.412 +/- 0.026 against its own starting
+#                  net, interval entirely below 0.5: it does not merely underperform, it LOSES to
+#                  the net it started from. 0.0001 was indistinguishable from 0.0002 (0.546 vs
+#                  0.535, gap 0.011 against a between-seed sd of 0.047) and was correctly not taken.
 #   --lr 0.0005    SHIPPED 2026-09-11 (`lr_decay_RESULT.md`). Three arms from one start, one seed:
 #                  lr 0.002 constant 0.484 +/- 0.032, lr 0.002 decaying 0.586 +/- 0.027, lr 0.0005
 #                  constant 0.628 +/- 0.027. Replicated three times from this lineage (0.589, 0.628,
@@ -79,7 +89,7 @@ echo "$(date '+%H:%M') $TAG: start $(md5sum ${TAG}_start.net | cut -c1-12), ${SE
 
 timeout "$SECS" taskset -c "$CORES" nice -n 19 ionice -c 3 "$LEARN" \
   --init "${TAG}_start.net" --gens 1000000 --games 8 --threads 4 --depth 3 --epochs 3 \
-    --lr "${LR:-0.002}" --lr-decay "${DECAY:-1.0}" --blend "${BLEND:-0.85}" \
+    --lr "${LR:-0.0002}" --lr-decay "${DECAY:-1.0}" --blend "${BLEND:-0.85}" \
     --gate-every 1000000 --arch-every 0 --control-every 0 \
   --seed 20260910 --out "${TAG}.net" --ledger "ledger_${TAG}.jsonl" > "${TAG}.log" 2>&1
 
