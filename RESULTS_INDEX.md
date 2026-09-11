@@ -12,6 +12,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 | [diversity_reserve_SIZING.md](diversity_reserve_SIZING.md) | the diversity reserve HAS run (19 gens, dsl engaged) and found nothing — expected 88% of the time; a real test needs ~107 generations for 50% |
 | [epochs_2v3_RESULT.md](epochs_2v3_RESULT.md) | epochs 2 vs shipped 3 is FLAT at full length (0.513 +/- 0.026, matched 2000/2000) — degrades above 3, flat below, and no cost advantage; epochs CLOSED |
 | [hardn_inert_RESULT.md](hardn_inert_RESULT.md) | EXISTENCE_HARD_N is INERT on the code path that runs (hardcoded 8 at evolve.rs:2627) — the n=40 probe measured the default set, and its verdict came from 4 generations where P(zero)=0.74 |
+| [identity_does_not_predict_games_RESULT.md](identity_does_not_predict_games_RESULT.md) | PRE-REGISTERED CONTROL FAILED: hash reuse agrees with the seed on 40/40 positions and still went 8W-33D-7L — position-set identity does NOT imply identical games, and PATH 1 accepts with no game on exactly that inference |
 | [gate_arithmetic_RESULT.md](gate_arithmetic_RESULT.md) | the 6-pair game gate CANNOT accept a candidate that draws >=4 of 6 pairs (ceiling 0.48) — and 85.7% of its games are draws; the constraint is PAIRS, not the rule |
 | [proposals_choice_RESULT.md](proposals_choice_RESULT.md) | "94% of generations offer no choice" is BINOMIAL ARITHMETIC, not a pathology — and 32 proposals fixes it |
 | [horizon_RESULT.md](horizon_RESULT.md) | The horizon cap is OBSOLETE past bootstrap: uncapped beats capped-at-10 by +0.064 ± 0.034 |
