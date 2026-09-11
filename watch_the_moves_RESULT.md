@@ -1,47 +1,53 @@
-# The champion passes gates and plays bad chess — watch the moves, not the Elo
+# RETRACTED — "the champion plays h7h5" was a harness bug. It plays e2e4.
 
-**2026-09-10.** Two promotions today, both clean on the paired instrument (0.622 ± 0.022, then
-0.586 ± 0.020, 448 pairs at depth 4). The absolute ruler reads ~1300. Then I actually looked at what
-it plays:
+**2026-09-10, retracted the same evening it was written.** The original version of this file claimed
+the champion passed two gates while playing `c2c3` from the opening and `h7h5` in reply to
+1.e4 e5 2.Nf3, and concluded the absolute level was low in a way the instruments could not show.
 
-| position | champion's move | verdict |
+**The engine was never loading the net I thought.** The probe was written as:
+
+```bash
+    EXISTENCE_NET=p1_champion.net printf 'uci\nposition ...\ngo\nquit\n' | engine
+```
+
+`VAR=x cmd1 | cmd2` sets the variable for **cmd1**. It applied to `printf`, not to the engine, so
+every arm silently ran the engine's default `champion.net`. The tell was there and I walked past it:
+the engine prints `info string loaded net <path>` on stderr, and it said `champion.net` even when the
+path given was `/nonexistent.net`.
+
+## What the correct measurement says
+
+`printf ... | EXISTENCE_NET=<net> engine` — env on the ENGINE:
+
+| position | champion | untrained |
 |---|---|---|
-| start | **c2c3** | passive; not a developing move |
-| 1.e4 e5 2.Nf3 | **h7h5** | a rook-pawn lunge no reasonable player makes |
-| 1.d4 d5 2.c4 | **d5c4** | at least a real reply (accepts the gambit) |
+| start | **e2e4** | e2e4 |
+| 1.e4 e5 2.Nf3 | **d7d6** | h7h6 |
+| 1.d4 d5 | e2e4 | e2e4 |
+| 1.e4 c5 | **f1b5** | d1f3 |
+| 1.Nf3 Nf6 | **e2e4** | a2a3 |
+| 1.e4 e6 2.d4 d5 | **b1c3** | d1g4 |
 
-**h7h5 is the finding.** It is not a subtle positional error; it is the kind of move that says the
-net has no idea what the position wants. And it is played by a net that has beaten its predecessor
-twice on 448-pair matches.
+The champion opens **1.e4**, answers 2.Nf3 with **d7d6**, meets the Sicilian with **Bb5**, and
+develops with **Nc3**. That is ordinary, reasonable chess. The untrained net plays `h7h6`, `Qf3`,
+`a2a3`, `Qg4` — visibly worse. They differ on **4 of 6** positions, so training changes move choice,
+which is exactly what the 235 Elo gap between them predicts.
 
-## Why the gates did not catch it
+## How it was caught, which is the part worth keeping
 
-The gates are **relative**. They ask "is this net better than that net", and both nets can be bad.
-The absolute ruler is anchored, but at ±50 Elo per 120-game sample it cannot see a single bad move —
-it sees an aggregate over thousands of positions, most of which are not the ones where the engine
-embarrasses itself.
+The retracted version produced "champion and untrained agree on 10 of 10 positions". That
+**contradicted a measured 235 Elo gap** — two nets that play identically cannot differ by 235 Elo.
+The contradiction with a known measurement is what exposed the harness, not any re-reading of the
+code.
 
-Everything measured today is consistent with this and none of it revealed it:
+That is the standing rule this repo already carries: *two wrong hypotheses in a row means the harness
+is wrong, not the subject.* Here it was one impossible result, and it was enough.
 
-* depth-1 → depth-3 labels: +128 Elo, real, and the resulting engine still plays h7h5.
-* two passed gates: real, and both were "better than a net that also played badly".
-* rising training loss: explained as a moving target, and it is — but a well-fit bad target is still
-  a bad target.
+## What survives
 
-## The standing change
-
-**`status.sh` now prints what the engine plays on three fixed positions, every check.** Liveness and
-CPU% say a process exists; they say nothing about whether it plays sensible chess. This is the same
-lesson the Rocket League work records as *watch the games, not the stats* — LLR, income and entropy
-all lie, and the only ground truth is what the thing actually does.
-
-## What this does NOT mean
-
-* It does not retract the promotions. Both are correctly measured relative improvements.
-* It does not mean the datagen-depth result is wrong. +128 Elo is +128 Elo.
-* It means **the absolute level is low and the instruments in use cannot show that** — which is
-  exactly why MASTER_PLAN's P1 milestone is stated against an external opponent (~2000 vs SF-limited)
-  and not against the project's own history.
-
-The engine is ~1300 and plays like it. The measurements were all correct; the thing they were
-measuring was further from good than any of them could say.
+* **Watching actual play is still the standard**, and `status.sh` still prints the engine's move
+  every check — with the env placement fixed.
+* The 4PC half of the same exercise stands and was never affected: a real 462-ply gate game whose
+  last sixteen plies are four kings shuffling, sized at 3% of games consuming 13% of plies.
+* Nothing about the promotions, the datagen-depth result, or the regression catch depended on this
+  file.
