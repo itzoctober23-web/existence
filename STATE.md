@@ -5287,3 +5287,61 @@ the shipped recipe — that is `shipped_baseline_opts.txt`, 19 options.
 2. That rebuild made `readlink /proc/PID/exe` return `".../learn (deleted)"`, which my exact-suffix
    matcher did not match — **it reported 0 running arms while 3 were running**, and I nearly read a
    half-trained net as a finished result. Matching must tolerate the ` (deleted)` suffix.
+
+---
+
+## 2026-09-10, evening — datagen depth shipped TWICE, and the ruler cannot measure a trend
+
+### What shipped
+
+Two promotions, both on `netmatch`, 448 pairs at depth 4 (the project's strength standard):
+
+| promotion | vs | score | interval |
+|---|---|---|---|
+| deep-datagen net | original champion (~2,200 gens, depth-1 labels) | **0.622 ± 0.022** | [0.599, 0.644] |
+| current net (gen ~1,400) | that champion | **0.586 ± 0.020** | [0.566, 0.606] |
+
+The acceptance rule is `rate − ci95 ≥ 0.5`; both clear it. Previous champions kept as
+`p1_champion_pre_deep.net` and `p1_champion_gen1045.net`.
+
+**The only change is datagen depth.** Same width 16, same trainer, same blend. `main.rs:152` defaulted
+`--depth` to **1**, so every P1 measurement in this repo — the ~1216 plateau, the deceleration curve,
+the width/blend/horizon sweeps, the 2,200-generation champion — was taken on a loop labelling its own
+positions with a ONE-PLY search. `datagen_depth_RESULT.md` has the equal-clock comparison that found
+it (+128 Elo, resolved); `champion_deep_RESULT.md` has both promotions.
+
+On the absolute ruler the current net reads **+23 ± 48**, i.e. ~1343 against the original champion's
+~1216. That is a position estimate, not a claim about the slope — see below.
+
+### THE INSTRUMENT LESSON, which cost two retractions today
+
+**The ruler cannot answer "is it moving".** It answers "roughly where is this net" and nothing more.
+
+* At 60 games (±80 Elo) it produced **−134 / −101 / −176** — pure noise, recorded in
+  `depth_ruler_PREREG.md`.
+* At 120 games (±50 Elo) it produced **−17 → −29 → −41 → −44**, four readings drifting one way, which
+  looks exactly like degradation. The paired head-to-head said the net was **stronger** than the
+  champion at that moment (0.586 ± 0.020). The run was improving the whole time the ruler said it
+  was declining.
+
+Four correlated samples of a moving target are not four independent observations, and a 27-Elo slide
+sits well inside one sample's error. **A direction claim needs the paired instrument.** The ruler is
+for absolute position; `netmatch` is for direction. Using the wrong one is how both retractions
+happened.
+
+### Also this session
+
+* **`typecheck::scope_check`** — programs that read a variable nothing binds used to type-check, run,
+  and silently compute with `Unit`. `Op::WrapIfPred` produced one in **26 of 50 applications**, all of
+  which reached the GATE. Now 0, discarded by a tree walk instead of paid for in games.
+* **`Op::AddFn`** (parked) — 569 applications, every one raising `funcs.len()`, which
+  `shape_reachability.rs` measured at 0 of 858. Also settles that `add-arg` cannot apply to a
+  1-function program at all, so `add-fn` necessarily comes first.
+* **The engine can spend a clock** — `go movetime/wtime/btime/nodes` now convert to a node budget.
+  Before this, a 2× faster engine searched the identical tree and scored identically, which is why
+  `simd_refuted`, `width_clock` and the +6.3% nps shuffle fix were all worth 0 Elo.
+* **`speed_cannot_pay_RESULT.md`** — eval is 25.4% of a leaf, one ply costs a 9.2× nps speedup, so
+  int16 quantization is worth ~5–6 Elo, cross-checked at 30.0 Elo/doubling against
+  `elo_per_ply_RESULT`. Correctly sized in advance rather than discovered to be small afterwards.
+* **`cargo xtask watch`** — read-only instrument over the ledger, track logs and ruler outputs;
+  `index.html` regenerated every 60s on :8799, `events.log` append-only.
