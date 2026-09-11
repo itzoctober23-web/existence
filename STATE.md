@@ -1,5 +1,50 @@
 # Existence — current state, 2026-09-11
 
+## 🔴 SINCE 11:18 TODAY — the search track's blocker is identified, and epochs is closed
+
+**The 6-pair game gate cannot accept the candidates this track produces.** Acceptance is
+`pent_rate - ci95 > 0.5`. Enumerating all 210 possible 6-pair outcomes under `gate.rs`'s own formula
+(validated first against real output — pent `[0,1,5,0,0]` reproduces the printed `0.458+/-0.082`):
+a candidate drawing **>=4 of 6 pairs has a ceiling of 0.48** and cannot pass at any decisive result.
+Measured: **0 accepts in 489 gate decisions** across every evolve log on disk, 28.6% of them with
+zero observed variance (where `ci95 = 1.5/n = 0.25` makes acceptance need `rate > 0.75` from a match
+whose rate is 0.5 by construction).
+
+**The control is in our own ledger.** The NET track runs the SAME rule at 224 pairs and accepts:
+`0.5458 +/- 0.0216` and `0.5324 +/- 0.0209`, both clearing. Same criterion, different pair count,
+opposite outcome. The rule is not broken, it is starved. (Ledger caveat: 22 of its 24 "accepts"
+played ZERO pairs — the artifact `gate.rs:72-83` documents. Only 2 are real, and both are NET.)
+
+**The fix is spec-mandated and already built, and it is OFF.** `docs/FITNESS.md` §7.2: *"How much
+evidence to gather — ENGINE-DECIDED, already. SPRT is exactly that decision … nobody picks the
+count, the evidence does."* The loop picked 6. `EXISTENCE_GATE_SPRT` selects the sequential gate,
+default off. Its default bounds are a SUPERIORITY test (`elo1=5`), which a cost-reducing mutation —
+true Elo ~0 by construction — fails at ANY pair count; §7.2 names the right shape, a non-regression
+test with `e1=0, e0<0`. Raising `gate_pairs` is NOT the fix: it picks a different fixed number, which
+is the same mistake with a better constant.
+
+**Running now:** `search-verify96` carries `EXISTENCE_GATE_VERIFY=96` (ci95 ~0.047) as an OBSERVER
+that decides nothing, to settle whether the gate is discarding real winners or the candidates are
+genuinely not better. That answer determines whether a non-regression gate would admit anything worth
+having. See `gate_arithmetic_RESULT.md`.
+
+**epochs is CLOSED as a lever.** 2 vs shipped 3, matched 2000/2000: **0.513 +/- 0.026**, spans 0.5.
+Controls: 2-vs-start 0.550+/-0.031 (clears), 3-vs-start 0.511+/-0.027 (fails), but their difference is
+0.95 sigma — the head-to-head is the test. Degrades above 3 (prior study, 3->10->30), flat below it,
+and no cost advantage (2,186s vs 2,196s = 99.5%). See `epochs_2v3_RESULT.md`.
+
+**`EXISTENCE_HARD_N` was INERT and an experiment concluded from it.** `evolve.rs:2627` hardcoded 8 on
+the path that runs; the read at :657 feeds a different entry point. The n=40 probe measured the
+DEFAULT set and its own header said so. Fixed, plus `assert_setting_took.py` now gates the report on
+requested-vs-observed. Retrospective sweep: **5 of 5 other arms clean**, so the 2x2 and the funnel-fix
+conclusion stand. See `hardn_inert_RESULT.md`.
+
+**`p1_production.sh` defaulted to `${LR:-0.002}`**, ten times the shipped rate. `keepalive.sh` was
+already correct, so only MANUAL relaunch was exposed — which is what the loop brief instructs, and
+the brief names `LR=0.0005`, the arm that scored **0.412 +/- 0.026 against its own starting net**.
+Default is now 0.0002.
+
+
 ## ✅ THE STANDING TASK LIST IS COMPLETE — all six, with where each was verified
 
 The loop brief still enumerates six "next tasks in this order". Every one is landed. Checked
