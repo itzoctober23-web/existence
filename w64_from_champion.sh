@@ -31,7 +31,7 @@ SCR=/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchp
 LEARN=$SCR/xt_cap/release/learn
 NM=$SCR/xt_cap/release/examples/netmatch
 SECS=${SECS:-2400}
-CORES=${CORES:-12-15}
+CORES=${CORES:-6-11}
 [ -x "$LEARN" ] || { echo "no learn"; exit 1; }
 
 cp -f p1_champion.net w64_start.net
