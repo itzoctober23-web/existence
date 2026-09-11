@@ -51,8 +51,22 @@ for i in $(seq 1 "$N"); do
   # wait for STEP more generations
   while :; do
     g=$(gens); [ "$g" -ge $((g0 + STEP)) ] && break
-    # the trainer may have stopped; do not spin forever
-    pgrep -x learn >/dev/null 2>&1 || { grep -q . /dev/null; }
+    # THE SOURCE TRAINER MAY DIE, and this loop must notice. The previous guard was
+    # `pgrep -x learn >/dev/null || { grep -q . /dev/null; }` -- whose fallback branch does
+    # NOTHING, so the loop spun forever on a dead trainer while looking like it was waiting.
+    # A watcher that cannot stop is the same failure class as a check that cannot fail.
+    #
+    # Identified by exe + exact --out, never by `pgrep -f`: the pattern would be in this
+    # script's own command line. And `pgrep -x learn` matched ANY learn on the box, including
+    # the other experiment arms, so it would have reported healthy with THIS source dead.
+    alive=0
+    for pp in $(ls /proc 2>/dev/null | grep -E '^[0-9]+$'); do
+      ee=$(readlink "/proc/$pp/exe" 2>/dev/null) || continue; ee=${ee% (deleted)}
+      case "${ee##*/}" in learn) ;; *) continue;; esac
+      oo=$(tr '\0' ' ' < "/proc/$pp/cmdline" 2>/dev/null | grep -oE '[-][-]out [^ ]+' | awk '{print $2}')
+      [ "$oo" = "${SRC}.net" ] && { alive=1; break; }
+    done
+    [ "$alive" -eq 1 ] || { echo "  source trainer ${SRC} is gone at gen $g -- stopping collection"; break 2; }
     sleep 1
   done
   cp -f "${SRC}.net" "/tmp/ssb/b$i.net" || continue
