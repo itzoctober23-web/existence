@@ -91,3 +91,39 @@ This is the second time today a trend was read off the ruler and had to be withd
 | current net (gen ~1,400) | that champion | **0.586 ± 0.020** | **PASSED** |
 
 Previous champions kept as `p1_champion_pre_deep.net` and `p1_champion_gen1045.net`.
+
+---
+
+## THE RUN REGRESSED, and the automation caught it: 0.444 ± 0.030 — 2026-09-10 21:27
+
+`auto_promote`'s first automatic verdict, 224 pairs at depth 4 against the champion it had promoted
+~40 minutes earlier:
+
+```
+  gen 2905:  hold   0.444 +/- 0.030   interval [0.415, 0.474]
+```
+
+**The interval is entirely below 0.5.** The run had not plateaued — it had got WORSE than the net it
+came from. Training past that point was actively costing strength.
+
+### Why this matters more than the promotions
+
+Both earlier promotions were real (0.622, then 0.586). But between the second promotion and this
+check, ~1,500 generations of training made the net worse, and **nothing would have noticed**. The
+ruler read −14 to −20 across the same span, which is inside its ±50 noise and looks like "fine". The
+training loss rose, which `proxies_RESULT.md` explains as a moving target and is not a fault signal.
+The only instrument that could see it is the paired match against the banked champion, run
+automatically.
+
+That is the argument for `auto_promote` existing: not to bank wins, but to **notice losses**. The
+champion is safe because it was copied at promotion time; the regressed weights are simply discarded.
+
+### What it triggered, as pre-registered
+
+A hold was the stated signal to switch levers. The depth-3 run is stopped and
+`depth5_from_champion.sh` is running from the banked champion — matched start via `--init`, judged by
+`netmatch` against that same start, with a written prediction that depth 5 **loses** (35× the cost
+per label, on labels already informative).
+
+Not yet known: whether the regression is specific to this run's later generations, or whether the
+depth-3 configuration has a ceiling around here. One hold does not distinguish those.
