@@ -1,0 +1,69 @@
+# "94% of generations offer no choice" is BINOMIAL ARITHMETIC, not a pathology — and 32 proposals fixes it
+
+**2026-09-11 10:1x.** `search_has_no_choice_RESULT.md` established the binding constraint on the
+search track: across 79 generations, only **5 (6.3%)** ever handed selection more than one distinct
+fitness, and selection cannot select from a set of size <= 1. That is why P2 has 1,062 proposals and
+0 accepts. It named the lever — "raise the number of guard-passing, distinctly-scoring candidates
+per generation" — and noted that none of the four running arms varied it.
+
+## The mechanism is one line of code and one binomial
+
+Candidates were proposed as `(0..pop)`, so the PROPOSAL COUNT WAS THE POPULATION SIZE, and pop
+collapses to 2-4. A "choice" requires **two survivors in the SAME generation**. At the measured mate
+guard survival rate of **10.5%**:
+
+    proposals   P(0 survive)   P(exactly 1)   P(>=2 = A CHOICE)
+        4          0.642          0.301             0.057
+       32          0.029          0.108             0.863
+
+**Predicted 5.7% against a measured 6.3%.** The "94% no choice" figure is not a pathology to be
+diagnosed — it is what four proposals at a 10.5% guard MUST produce. Every knob previously tuned
+(gate bounds, EPS, guard tolerance, surrogate role, population size, lambda) was operating on a
+choice that arithmetic had already excluded.
+
+## The paired measurement
+
+`EXISTENCE_PROPOSALS` separates proposal count from population size (default `pop`, so unset is
+byte-identical to every prior measurement). Same seed, same pop, same sets, MAIN lineage:
+
+    cell      gens  proposed  mate-ok   >1 distinct   final pop
+    control     6      24        3         0/6            4
+    prop32      1      32        2         1/1            3
+
+Truncated to the common range — the paired comparison unequal arms still support:
+
+    control   gen 1:  4 cand, mate-ok 0, distinct 0, pop 1
+    prop32    gen 1: 32 cand, mate-ok 2, distinct 2, pop 3
+
+The control did not produce a single generation with a choice in six attempts. `prop32` produced one
+on its **first**, with exactly the shape the arithmetic predicts.
+
+## What is and is NOT claimed
+
+* **Claimed:** the no-choice constraint is caused by proposal count, and raising it removes the
+  constraint. The arithmetic predicts the historical rate to within 0.6 points, and the first
+  generation of the treatment arm behaves as predicted.
+* **Claimed:** the population collapse reverses. Control ends at pop 1 in gen 1; prop32 ends at pop
+  3. Retention keeps distinct survivors, and there were none to keep before.
+* **NOT claimed — that this makes the search track stronger.** An ACCEPT is several stages
+  downstream of a choice, and this project has been misled by proxies four times (ICC, SEE
+  classification accuracy, threat feature quality, time-to-depth). A funnel that offers a choice is
+  a precondition for progress, not progress.
+* **NOT claimed at full strength — prop32 has ONE generation.** It proposes 8x the candidates and
+  hit its timeout early, so the arms are unequal and the reporter flags the pooled comparison as
+  confounded. The common-range row is the honest read; the arithmetic is what carries the weight.
+
+## Cost, stated because it is the obvious objection
+
+32 proposals costs ~8x the candidate evaluations per generation. That is the trade: generations
+become slower, but a generation that offers no choice is worth nothing regardless of how fast it
+completes. The right setting is the one that makes P(>=2 survivors) high without overshooting --
+around 20-32 at a 10.5% guard, and it should be re-derived if the guard rate changes.
+
+## Next
+
+* A longer-timeout re-run so prop32 reaches the control's generation count.
+* `choice_2x2.sh` tests the other candidate lever, `EXISTENCE_HARD_FITNESS` (the HARD set is 8
+  positions the seed fails BY CONSTRUCTION, scoring 0/8, so `f` itself can vary where the shipped
+  guard set is saturated at 25/25). The two are not the same fix: more candidates landing on one
+  identical rate would still be no choice.
