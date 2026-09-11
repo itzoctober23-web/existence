@@ -4,9 +4,29 @@
 
 Status line he asked for, 2026-09-11 18:1x.
 
-**Head: BUILT, PARITY PROVEN, UNTRAINED.** A second linear output over the shared trunk
-(`nnue::Net::spread`/`spread_from`). Zero-initialised, so it reports exactly 0 and cannot move a
-game. Asserted rather than reviewed (`crates/nnue/tests/uncertainty_head_parity.rs`): `eval` is
+**Head: BUILT, PARITY PROVEN, and now FITTED (18:3x).** `fit_unc_head.py` +
+`examples/inject_unc_head.rs` — see `unc_head_fitted_RESULT.md`. The fit is closed-form least squares,
+NOT a training run: `spread_from` IS a linear map over the ReLU'd trunk, 17 params at width 16, so
+there is no gradient loop, no GPU and **no datagen**. It reproduces `unc_probe.py`'s split and
+coefficients in every digit (207/89, AUC 0.305, negated 0.695), and the **in-engine head reproduces
+that ranking exactly** — 0.305/0.695 through the real `spread_from`, 0 eval parameters changed by the
+round-trip, and 0/89 predictions clamped (the floor-at-zero hazard is REFUTED on this holdout).
+
+**Why that had to precede any discovery run.** Untrained, `unc(p)` returned a CONSTANT 0
+(`interp/tests/unc_primitive.rs` asserts it). A zero-variance row cannot change a program's
+behaviour, so a mutation inserting `unc(p)` plays identically to its parent — fitness cannot
+distinguish them and selection cannot retain it. **Discovery on that row was guaranteed-null BY
+CONSTRUCTION**, and would have read as evidence against the paradigm while being evidence about a
+zeroed vector. Step 1 gates step 2.
+
+**Open blocker, and it is packaging not research:** a net with a head serialises as schema v2, which
+the running snapshot binaries cannot load, so the fitted net lives at a scratch path. A discovery run
+needs a fresh binary AND a v2 net, or `evolve` still sees a constant 0. Coefficients are calibrated
+on `p1_champion.net` and **must be refitted after any promotion**.
+
+The zero-head baseline below still describes what PRODUCTION loads. A second linear output over the
+shared trunk (`nnue::Net::spread`/`spread_from`). Zero-initialised, so it reports exactly 0 and cannot
+move a game. Asserted rather than reviewed (`crates/nnue/tests/uncertainty_head_parity.rs`): `eval` is
 unchanged with a populated head, the champion still loads, a zero head round-trips byte-identical to
 the champion file, schema v2 is a strict prefix-extension of v1, and widening preserves spread and
 eval. Save still writes **v1** when the head is zero, because the trainer, the P2 arms and the ruler
@@ -42,11 +62,29 @@ So the opportunity is concentrated and the intuitive key points the wrong way.
 `UNC_GATED_EXTENSION` (population-level, and the emitted line says so — the data cannot tie an ACCEPT
 to the accepted program's structure). Neither has fired; no arm runs the new binary yet.
 
-**TRACK B: NOT STARTED, and blocked on one thing.** `tune_hybrid` is queued and self-defers `rc=75`
-because the installed 4PC engine answers `unknown search param` for `hybridPriorDepth`/`Temp`. The
-rebuilt binary is verified and waiting for a gate-free moment. `gate_hybrid_power` is at 297/300 and
-is **not champion-relative** (baseline captured three minutes before the depthgates ship) and tests
-`handoff 300` with `basePct` inert, so a FAIL indicts that configuration, not the hybrid.
+**TRACK B: STEP 1 RUNNING as of 18:34 — `tune_hybrid`, the allocation axis.** The blocker cleared:
+`install_prior_binary.sh` took its window at **18:21** (`INSTALLED after 1708s`, bench re-checked
+**137493**), and the pre-flight now reads *"the engine accepts all 5 tuned knobs"*. SPSA over the five
+knobs that are LIVE at movetime (handoff, C, puct, priorDepth, priorTemp), 8h budget, movetime 2.0s,
+conc 8, **paired** (same binary both sides) so it is load-safe beside Existence. Starts handoff at
+**600**, not the engine default 300 — the best configuration on file used 600.
+
+**Gate state: `gate_hybrid_power` is PARKED, deliberately, and this is arithmetic.** sprt.py's bounds
+are ±2.944; run 1 reached LLR −1.13 at 146 pairs, so the bound needs ~380 pairs ≈ **760 games** while
+`GAMES` defaults to **300** (150 pairs). It therefore stops near −1.16 every time — which is exactly
+what run 1 did (`VERDICT inconclusive`, rc=1). Retrying an underpowered design 3× gives three
+non-answers, so it is parked with `RE-QUEUE WITH GAMES>=800, at the configuration tune_hybrid selects`.
+
+**Run 1 was INCONCLUSIVE, not a FAIL** — elo ~−29 over 296 games at ≈±34, no bound crossed; the script
+refused to launder it (*"no verdict -- broken run, NOT a FAIL"*). **Do not quote −29 Elo as a result.**
+Its relaunch at 18:22 *did* fix the champion-relative confound (34 options vs 23), which is why the old
+caveat in `report_hybrid_gate.sh` was rewritten rather than kept.
+
+**Engine crashes are a power cost, not a bias** — VERIFIED by reading `sprt.py`, not assumed. Three
+`maswabe-buckets` SIGSEGVs during run 1's window (all `acc_move ← evaluate ← qsearch`) produced
+`errors 4`; an error **voids the whole pair** (`broken.add(pair)`, and the pentanomial skips it), so a
+crash never scores as a loss for the crashing arm. Nuance: game-level W-D-L still counts the surviving
+half of a voided pair, so the quoted game-elo is slightly contaminated while the deciding LLR is clean.
 
 ## 🧭 THE SEARCH TRACK'S REAL PROBLEM — the position sets and the games are DECOUPLED
 
