@@ -91,6 +91,83 @@ pub fn uncertainty_extension() -> Program { ab_program(false, false, true, false
 /// it: it puts a number on how far this shape sits from where the loop starts.
 pub fn mix_backup_program() -> Program { ab_program(false, false, false, true) }
 
+/// (c) BOUND-GAP STOPPING: stop when the best move is ESTABLISHED, not when the clock runs out.
+///
+/// A YARDSTICK, NOT A SEED. `bare_alpha_beta()` is untouched and nothing in the evolution loop
+/// reads this.
+///
+/// The plan writes it as: hash slots carry optimistic/pessimistic bounds, and the root returns as
+/// soon as the best move's PESSIMISTIC bound clears the runner-up's OPTIMISTIC one. That is the
+/// decision-theoretic stopping rule -- once no further search can change which move is played,
+/// more search is waste however much clock is left.
+///
+/// THE ROOT IS A LOOP, NOT AN ARGMAX, AND THAT IS FORCED. Every other reference program selects
+/// with `Argmax(moves(p), m, score)`, which evaluates every move by construction and has nowhere to
+/// put an early exit. "Best versus RUNNER-UP" is a comparison across siblings that a fold over one
+/// key cannot express, so this is the first root in the set built as `foreach` + explicit
+/// best/second tracking + `ret`.
+///
+/// THE MOVE ACCUMULATOR IS INITIALISED FROM THE SLOT. The grammar has no Move literal -- there is
+/// no way to write MOVE_NONE -- so a Move-typed accumulator needs a Move-typed expression to start
+/// from. `field(probe(key(p)), Move)` is one, and it is the natural one: the slot's move field is
+/// the transposition table's own best-move memory, which is exactly what a bound-gap search would
+/// seed its root ordering with.
+///
+/// THE GAP IS A LEARNED TABLE, never a constant. Nothing here says how wide the gap must be before
+/// stopping is safe; table G's contents are searched. With no table supplied it reads 0, so the
+/// rule degenerates to "stop as soon as best strictly exceeds the runner-up" -- aggressive, and a
+/// true property of the untuned program rather than a hidden default.
+pub fn bound_gap_stopping() -> Program {
+    let d = Node::TRead(0, vec![]);      // table "D"
+    let inf = Node::TRead(1, vec![]);    // table "INF"
+    let gap = || Node::TRead(6, vec![]); // table "G": how far ahead counts as established
+    let neg = |x: Node| Node::Arith(ArithOp::Neg, vec![x]);
+    let child = || Node::Apply(b(v("p")), b(v("m")));
+
+    let body = Node::seq(vec![
+        // Move-typed accumulator, seeded from the slot's own best-move field.
+        Node::Let("bestm".into(), b(Node::Field(b(Node::Probe(b(Node::Key(b(v("p")))))), FieldId::Move)), b(Node::Nop)),
+        Node::Let("best".into(), b(neg(inf.clone())), b(Node::Nop)),
+        Node::Let("second".into(), b(neg(inf.clone())), b(Node::Nop)),
+        Node::Foreach(
+            b(Node::Moves(b(v("p")))),
+            "m".into(),
+            b(Node::seq(vec![
+                Node::Let("vv".into(), b(neg(Node::Call(1, vec![
+                    child(), d.clone(), neg(inf.clone()), inf.clone(),
+                ]))), b(Node::Nop)),
+                // The two bounds, written into the CHILD's slot.
+                Node::Store(b(Node::Key(b(child()))), FieldId::Score, b(v("vv"))),
+                Node::Store(b(Node::Key(b(child()))), FieldId::Sum,
+                            b(Node::Arith(ArithOp::Add, vec![v("vv"), gap()]))),
+                // Track best and runner-up.
+                Node::If(
+                    b(Node::Cmp(b(v("vv")), b(v("best")), Rel::Gt)),
+                    b(Node::seq(vec![
+                        Node::Set("second".into(), b(v("best"))),
+                        Node::Set("best".into(), b(v("vv"))),
+                        Node::Set("bestm".into(), b(v("m"))),
+                    ])),
+                    Some(b(Node::Set("second".into(), b(Node::Max(b(v("second")), b(v("vv"))))))),
+                ),
+                // THE STOPPING RULE: the best move's pessimistic bound clears the runner-up's
+                // optimistic one, so no further search can change which move is played.
+                Node::If(
+                    b(Node::Cmp(b(v("best")), b(Node::Arith(ArithOp::Add, vec![v("second"), gap()])), Rel::Gt)),
+                    b(Node::Ret(b(v("bestm")))),
+                    None,
+                ),
+            ])),
+        ),
+        Node::Ret(b(v("bestm"))),
+    ]);
+
+    let mut prog = ab_program(false, false, false, false);
+    prog.funcs[0].body = body;
+    prog
+}
+
+
 fn ab_program(cap_ext: bool, reduce: bool, unc_ext: bool, mix_backup: bool) -> Program {
     let d = Node::TRead(0, vec![]); // table "D"
     let inf = Node::TRead(1, vec![]); // table "INF"
@@ -1002,6 +1079,7 @@ pub fn all() -> Vec<(&'static str, Program)> {
         ("capture extension (rung 6)", capture_extension()),
         ("extend-by-uncertainty (yardstick a)", uncertainty_extension()),
         ("mix-backup (yardstick b)", mix_backup_program()),
+        ("bound-gap stopping (yardstick c)", bound_gap_stopping()),
         ("table reduction (rung 7)", table_reduction()),
         ("proof-number search", proof_number()),
     ]
