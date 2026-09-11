@@ -42,8 +42,8 @@ while :; do
   if [ "${n:-0}" -eq 0 ]; then
     # Name the run by the hour so successive restarts never collide on a log or a net.
     TAG="prodk$(date +%H%M)"
-    echo "$(date +%F_%H:%M) NO PRODUCTION TRAINER -- relaunching as $TAG at lr 0.0005" >> "$LOG"
-    setsid nohup env LR=0.0005 TAG="$TAG" ./p1_production.sh >> p1_production.out 2>&1 < /dev/null &
+    echo "$(date +%F_%H:%M) NO PRODUCTION TRAINER -- relaunching as $TAG at lr 0.0002 (shipped 2026-09-11)" >> "$LOG"
+    setsid nohup env LR=0.0002 TAG="$TAG" ./p1_production.sh >> p1_production.out 2>&1 < /dev/null &
     sleep 30
     m=$(prod_alive)
     echo "$(date +%F_%H:%M) after relaunch: $m trainer(s) alive" >> "$LOG"
