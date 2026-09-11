@@ -1,0 +1,19 @@
+[Unit]
+Description=Existence live ruler (absolute Elo vs SF-1320; appends where ruler_pool.py reads)
+
+[Service]
+Type=simple
+WorkingDirectory=/home/maswabe/existence
+ExecStart=/home/maswabe/existence/live_ruler.sh
+# MUST append to live_ruler.out: ruler_pool.py and the xtask watch page both read that file.
+# Left on systemd's default, stdout goes to the journal and both tools silently starve -- which
+# happened on 2026-09-11 and cost 12 readings until they were backfilled by hand.
+StandardOutput=append:/home/maswabe/existence/live_ruler.out
+StandardError=append:/home/maswabe/existence/live_ruler.out
+Restart=always
+RestartSec=60
+Nice=19
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=default.target

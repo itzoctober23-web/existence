@@ -1,0 +1,16 @@
+[Unit]
+Description=Existence auto-promote (banks a production arm that clears rate-ci95 >= 0.5)
+
+[Service]
+Type=simple
+WorkingDirectory=/home/maswabe/existence
+ExecStart=/home/maswabe/existence/auto_promote.sh
+StandardOutput=append:/home/maswabe/existence/auto_promote.out
+StandardError=append:/home/maswabe/existence/auto_promote.out
+Restart=always
+RestartSec=60
+Nice=19
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=default.target
