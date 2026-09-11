@@ -529,9 +529,20 @@ fn main() {
         .and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(0.75);
     // LEARNING RATE, now a flag. It was the literal 0.01 here -- constant, no decay, no momentum,
     // no schedule, and not reachable from the command line, so it is the one generator knob this
-    // project has never varied. Every other one is measured: label depth (spent at 3), blend (flat
-    // across 0.75-1.00), epochs (under-fitting refuted), horizon (cap obsolete), games per
+    // project has never varied. Every other one is measured: label depth (spent at 3), blend (see
+    // the correction below), epochs (under-fitting refuted), horizon (cap obsolete), games per
     // generation (4x changes nothing, `games_per_gen_RESULT.md`).
+    //
+    // CORRECTION 2026-09-11: "blend flat across 0.75-1.00" is a BLIND-METRIC NULL and is wrong.
+    // That reading comes from the table at ~line 491 below, measured candidate-vs-champion.
+    // `blend_RESULT.md` then showed that instrument COMPRESSES this very contrast ~3x (+0.036
+    // against +0.112 on the SAME two arms) and concluded: "a NULL measured on the blind metric is
+    // worthless. Compression manufactures nulls." On the working metric the response is
+    // NON-MONOTONIC -- 0.75 -> 0.85 gains (0.460 +/- 0.022, clear of 0.5), 0.85 -> 1.00 gives it
+    // back (0.567 +/- 0.022) -- replicated on five training seeds. blend 0.85 is recorded there as
+    // "the best-evidenced open candidate in the tree". It is NOT shipped: every one of those arms
+    // is a TWENTY-generation run, and `blend_sweep.sh` is the full-length matched pair that would
+    // authorise a default change.
     //
     // WHY IT IS THE LIVE SUSPECT. `nontransitive_walk_RESULT.md` dates the plateau: prod2 gained
     // +28.6 Elo between generations 2,162 and 4,818 and then **-0.7 Elo over the next 1,985**, with
