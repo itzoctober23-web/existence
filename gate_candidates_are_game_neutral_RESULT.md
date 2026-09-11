@@ -97,6 +97,41 @@ difference +0.79 +/- 0.08   z = +9.92
 in nine generations out of ten; the saturated one reaches it in one. That is the consequence of
 saturation, measured, where the existing account had only the mechanism.
 
+### ⚠ THE 9x DOES NOT HOLD ARM TO ARM — measured 2026-09-11, later the same day
+
+The 9x above was computed by POOLING gate calls across arms. Counting them per arm instead:
+
+```
+arm                 MAIN   MCTS
+prop_control           0      5
+prop_hard              0      4
+prop_hardn40           0      4
+prop_hardp32           2      6
+prop_long32            0      1
+prop_prop32            0      4
+prop_verify96          5      6     <- seed 7, a NEW trajectory
+```
+
+**`prop_verify96` alone has MAIN gating FIVE times, more than all six other arms combined (two), and
+at near-parity with MCTS.** The pooled 3-vs-26 that produced z = +9.92 was computed before this arm
+had generations on disk, and it pooled runs that are plainly not homogeneous — 0/5, 0/4, 2/6 and 5/6
+are not samples from one rate.
+
+So the honest statement is that MAIN gates RARELY IN MOST ARMS AND NOT IN ALL OF THEM, and the z on
+the pooled figure is not a measurement of one quantity. It is the same error as pooling on a key that
+omits a varied dimension: the arms differ in seed, proposals and observer, and the pooled number
+averages over exactly the thing that turned out to vary.
+
+What this does NOT do is rescue the saturation mechanism or refute it. `prop_prop32` and
+`prop_hardp32` also run 32 proposals and show 0 and 2, so proposal count alone does not explain
+verify96 either. The distinguishing feature on its face is the trajectory (`run seed 7 -- NEW
+trajectory`), which is a statement about variance between runs, not about lineages.
+
+**Caveat on this caveat: verify96 has only SIX completed generations** (23 gen-LINES; evolve emits
+several lines per generation, and reading those as generations is a mistake I made in this same file
+once already). MAIN 5/6 against MCTS 6/6 is a small sample. It is enough to say the pooled 9x is not
+a stable property; it is not enough to put a number on what the real rate is.
+
 ### This is an ASSOCIATION, not a controlled test, and the confound is large
 
 MAIN and MCTS differ in far more than saturation: budget 16 against 256-1024, guard floor 16 against
