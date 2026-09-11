@@ -321,10 +321,35 @@ fn apply_op(n: &Node, op: Op, r: u64) -> Option<Node> {
             Node::Const(_) | Node::Budget => {
                 const FS: [FieldId; 5] =
                     [FieldId::Score, FieldId::Depth, FieldId::Flag, FieldId::Count, FieldId::Sum];
-                Some(Node::Field(
-                    Box::new(Node::Probe(Box::new(Node::Key(Box::new(Node::Var("p".into())))))),
-                    FS[(r % 5) as usize],
-                ))
+                // SIX SOURCES, NOT FIVE. `unc(p)` was added to the Given column on 2026-09-11 and
+                // `tests/reachability.rs` then MEASURED that no operator could emit it: the
+                // constructible set came back {Budget, Const, Field, Key, Loop, Max, Pred, Probe,
+                // Store}. A primitive nothing can construct is not a capability, it is a comment --
+                // the same failure the 4PC engine has with `hybridWidenBase`, which is documented at
+                // length in a header and rejected by the binary.
+                //
+                // THIS IS NOT A GADGET OPERATOR, and the distinction is the one this file already
+                // draws. `mutate.rs` refused an operator that emitted probe-and-store TOGETHER
+                // because supplying the combination makes the discovery vacuous. The line is at the
+                // COMBINATION, not at the primitive: ProbeRead is already "an Int leaf becomes a
+                // primitive read" choosing among five field ids, exactly as TReadIndex chooses among
+                // three index sources. This adds a sixth source, not a new shape. Nothing here emits
+                // `wrap-if(cmp(unc, tread(T)))` or any part of it -- the extension, the table read
+                // and the comparison all still have to be assembled by other operators.
+                //
+                // IT IS NOT FREE: probe-field reads fall from 5/5 of this operator's draws to 5/6,
+                // so hash-reuse candidates arrive ~17% less often per ProbeRead draw. That is the
+                // price of the primitive existing at all, and it is stated rather than hidden.
+                // `unc` reads 0 on every net whose head is untrained, so on those nets the candidate
+                // is a constant read -- inert, never wrong, and cheap to reject.
+                if r % 6 == 5 {
+                    Some(Node::Unc(Box::new(Node::Var("p".into()))))
+                } else {
+                    Some(Node::Field(
+                        Box::new(Node::Probe(Box::new(Node::Key(Box::new(Node::Var("p".into())))))),
+                        FS[(r % 5) as usize],
+                    ))
+                }
             }
             _ => None,
         },

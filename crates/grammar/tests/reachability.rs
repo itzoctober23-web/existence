@@ -197,13 +197,20 @@ fn every_declared_rung_is_constructible() {
     );
     assert_eq!(
         buildable,
-        ["Budget", "Const", "Field", "Key", "Loop", "Max", "Pred", "Probe", "Store"]
+        ["Budget", "Const", "Field", "Key", "Loop", "Max", "Pred", "Probe", "Store", "Unc"]
             .into_iter()
             .collect::<BTreeSet<_>>(),
         "The set of node kinds the operators can introduce has CHANGED. That set is the entire \
          limit on what the search track can discover, so it should change deliberately and be \
          recorded here. It was {{Budget, Const, Loop, Max}} originally, {{.., Pred}} after \
-         WrapIfPred, and gained {{Probe, Key, Field, Store}} with ProbeRead and StoreHere."
+         WrapIfPred, gained {{Probe, Key, Field, Store}} with ProbeRead and StoreHere, and gained \
+         {{Unc}} on 2026-09-11 when ProbeRead took a SIXTH source. That last one was forced: `unc` \
+         was added to the Given column and THIS TEST measured that nothing could emit it, which \
+         makes a primitive a comment rather than a capability. The addition is a new SOURCE for an \
+         existing operator, not a new shape -- no operator emits `wrap-if(cmp(unc, tread(T)))` or \
+         any part of it, so the line this file already draws (refusing an operator that emits \
+         probe-and-store TOGETHER, because supplying the combination makes the discovery vacuous) \
+         is unmoved. Price, stated: probe-field reads fall from 5/5 of ProbeRead's draws to 5/6."
     );
 }
 
