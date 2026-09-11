@@ -79,3 +79,39 @@ running and its number will be recorded, but the question it was built to answer
 discriminate a real behavioural difference — now has a partial answer from the control itself: the
 games detected a difference the position set called identical. Arm 2 will be read only after the
 control's failure is accounted for, and its reading re-registered.
+
+## Clarification I owe on my own reporting: production promotions are NOT game-gated
+
+While checking a champion change at 13:47 (generation 23056) I found the production run reports
+**24,400 ACCEPT lines in 24,400 generations**, every one with `gate 0W-0D-0L 0.000+/-1.000`.
+
+That is configuration, not a defect. `p1_production.sh:93` passes `--gate-every 1000000`, and the
+run's own header confirms `gate-every=1000000` — the game gate effectively never fires in
+production. Acceptance therefore rests on the mcnemar surrogate (`dec N/8` on the generation line),
+with the ABSOLUTE RULER as the external check on whether that is working.
+
+`main.rs:978-998` shows the decision is properly ordered where games ARE available:
+
+1. games resolved the sign -> they outrank the surrogate, and REJECT on `resolved_down`;
+2. else `ci95 < 0.05` -> precisely measured and straddling 0.5 -> reject;
+3. else -> the surrogate decides.
+
+In production only branch 3 is reachable, because with no games `ci95()` returns 1.0.
+
+**What I owe:** I have been saying "the champion" and quoting its ruler level without noting that
+production promotions are surrogate-based rather than game-gated. The ruler number (1515 +/- 12,
+flat, `STATE.md`) is unaffected — it is an external measurement and does not care how the champion
+was chosen. But "promoted" in the NET track means something weaker than "promoted" in the search
+track, and I should not have used the word for both without distinguishing them.
+
+**It also completes this morning's ledger correction.** I recorded 22 of 24 ledger accepts as an
+"artifact" of a zero-game match. Half right: zero-game entries are EXPECTED for an ungated track, so
+their existence is by design. The defect `gate.rs:72-83` documents was narrower — writing
+`resolved = true` for a match that played nothing — and it is fixed, which the live log confirms by
+printing `+/-1.000` rather than `+/-0.000`.
+
+**And a coincidence worth noting.** `main.rs:990` gives its example of a precisely-measured null as
+"0.510 +/- 0.020". That is, to three decimals, the hash-reuse control measured above. The reading
+landed exactly on the shape the codebase already names as the canonical "no meaningful difference",
+which is independent support for treating arm 1's strength question as unresolved rather than as
+evidence of equality.
