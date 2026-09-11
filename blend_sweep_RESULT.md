@@ -70,3 +70,26 @@ differ in magnitude.
 * Cosmetic defect, recorded not fixed: the sweep log prints `blend 0.085` because the arm tag is
   already `085`. The value is right and the label is wrong; it was not corrected while the script
   was running.
+
+## CROSS-INSTRUMENT CHECK 10:2x — the ruler and netmatch agree to 0.4 sigma
+
+The 0.75 arm's four ruler samples completed: **+161 +183 +161 +179**, pooling to
+**1490 +/- 30** absolute. That number can be predicted independently from the paired netmatch:
+
+    netmatch  0.75 arm vs shared start = 0.536   ->  +25 Elo over the start
+    the shared start IS the champion, which pools to 1481 +/- 19
+    predicted ruler reading                       ->  ~1506
+    measured                                      ->   1490 +/- 30
+    difference  -16 +/- 36  =  0.4 sigma
+
+**Two instruments, neither calibrated against the other, agree.** One is a PAIRED relative match
+between two nets; the other is an ABSOLUTE score against a fixed external SF-1320 rung. They share
+no machinery beyond the engine itself, so this simultaneously validates the netmatch verdicts, the
+champion's 1481 pooled figure, and the ruler pipeline — which matters because that pipeline was
+REBUILT this morning after `blend_sweep_ruler.sh` was caught measuring 13-generation nets as though
+they were the 2000-generation arms.
+
+**Precision, stated so the check is not over-read:** the ruler pooled at +/-30 cannot resolve a
++25 Elo contrast. This is an ALTITUDE check, not a verdict on 0.85 vs 0.75 — netmatch resolved that
+at 0.541 +/- 0.032. Agreement here means the altitudes are trustworthy, not that the ruler could
+have found the contrast on its own.
