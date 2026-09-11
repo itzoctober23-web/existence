@@ -1187,15 +1187,53 @@ fn main() {
                     (m.pent_rate(), m.ci95())
                 })
             };
-            // Two-sample: the increment must clear the combined interval, not merely be positive.
-            // Requiring only `cs > br` would promote on noise every other batch.
-            let diff = cs.pent_rate() - br;
-            let se = ((cs.ci95() / 1.96).powi(2) + (bc / 1.96).powi(2)).sqrt();
-            let up = diff - 1.96 * se > 0.0;
-            println!("      batch gate g{g} (last {gate_every} gens): champ-vs-origin {:.3}+/-{:.3} \
-base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
-                     cs.pent_rate(), cs.ci95(), br, bc, diff, 1.96 * se,
-                     if up { "KEEP" } else { "ROLL BACK" });
+            // EXISTENCE_DIRECT_BATCH=1: decide on a DIRECT champion-vs-base match instead of the
+            // difference of two vs-origin scores.
+            //
+            // WHY. Both modes above score each net against the frozen random ORIGIN, and that scale
+            // SATURATES. Measured over 13 batch decisions on 2026-09-10, champ-vs-origin sat at
+            // 0.948-0.981, mean 0.963 -- and `instrument_saturation_RESULT.md`, dated the same day
+            // as the file that proposed batch gating, records this metric REVERSING SIGN at 0.861
+            // and 0.967. Every decision fell inside that band; the one KEEP was at 0.981, the most
+            // saturated reading in the set, clearing its interval by 0.004.
+            //
+            // Three defects, all removed by asking the question directly:
+            //   * SATURATION -- five generations moved the metric 0.960 -> 0.970. Under a ceiling of
+            //     1.0 a real gain has nowhere to go. A champion-vs-base match is centred at 0.5.
+            //   * TWO measurements where one will do -- subtracting independent scores gives a
+            //     combined ci95 of ~0.018 against increments of +0.003 to +0.021.
+            //   * PAIRING -- EXISTENCE_PAIRED_BATCH exists because opening luck alone moved one net
+            //     0.029. A single head-to-head is paired by construction: same openings both sides.
+            // It also costs ONE match rather than the paired mode's two.
+            //
+            // The rule is the project's standard `rate - ci95 >= 0.5`, the same bar the
+            // per-generation gate and auto_promote use. The FLOOR is untouched and still exceeds one
+            // generation's edge; what batching contributes is K generations of edge against an
+            // unchanged interval -- acceptance_floor_RESULT.md's original argument, now made on a
+            // scale that can express it.
+            //
+            // Default OFF, so every result measured so far stays comparable and this is A/B-able
+            // rather than silently swapped in -- the convention the two flags above already set.
+            let direct = std::env::var("EXISTENCE_DIRECT_BATCH").is_ok();
+            let up = if direct {
+                let m = gate::match_nets(&champion, &base, gate_match_depth, gate_pairs,
+                                         seed ^ 0xD1EC ^ g as u64);
+                let keep = m.pent_rate() - m.ci95() >= 0.5;
+                println!("      batch gate g{g} (last {gate_every} gens) DIRECT: champ-vs-base \
+{:.3}+/-{:.3} -> {}", m.pent_rate(), m.ci95(), if keep { "KEEP" } else { "ROLL BACK" });
+                keep
+            } else {
+                // Two-sample: the increment must clear the combined interval, not merely be
+                // positive. Requiring only `cs > br` would promote on noise every other batch.
+                let diff = cs.pent_rate() - br;
+                let se = ((cs.ci95() / 1.96).powi(2) + (bc / 1.96).powi(2)).sqrt();
+                let u = diff - 1.96 * se > 0.0;
+                println!("      batch gate g{g} (last {gate_every} gens): champ-vs-origin \
+{:.3}+/-{:.3} base {:.3}+/-{:.3}  increment {:+.3}+/-{:.3} -> {}",
+                         cs.pent_rate(), cs.ci95(), br, bc, diff, 1.96 * se,
+                         if u { "KEEP" } else { "ROLL BACK" });
+                u
+            };
             if up {
                 batch_base = Some(champion.clone());
                 batch_base_anchor = None; // base moved, so its anchor score must be re-measured
