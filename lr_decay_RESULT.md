@@ -64,6 +64,21 @@ So the 0.047 between-seed sd this project keeps citing is **confirmed by acciden
 single run's ci95 as the uncertainty would have manufactured a significant difference between a
 configuration and itself. It is also why the C-over-B gap above is left unclaimed.
 
+> **⚠ CORRECTED 2026-09-11 03:5x — "anti-correlated" OVERCLAIMS, and the correct word is
+> UNINFORMATIVE.** `proxies_RESULT.md` had already settled this at a scale none of tonight's
+> readings approach: the held-out surrogate at **r = −0.095 over 239 paired gate results**, training
+> loss at **r = +0.379, CI [−0.249, +0.783], n=12** — and crucially it contains examples pointing
+> **both** ways (w64 has the lower loss and LOSES; the draw filter has the lower loss and WINS).
+> A signal that fails in both directions is noise with respect to strength, not a reversed predictor.
+>
+> The specific defect in tonight's version: the arms it compares differ in **LEARNING RATE**, which
+> changes how much the net fits per generation *independently* of how good the net is. lr moves both
+> columns, so the monotone ordering is expected with no causal link between loss and strength.
+> n=3 against n=239 besides. This was a closed question, already indexed in `RESULTS_INDEX.md`.
+>
+> **What survives:** loss must not be used to select or veto candidates here. That conclusion is
+> unchanged — it just rests on `proxies_RESULT.md`, not on these three points.
+
 ## The cleanest evidence yet that training loss runs BACKWARDS to strength
 
 All three arms are matched — one run, one seed, one start — so loss and strength are directly
