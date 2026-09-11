@@ -118,3 +118,56 @@ What the 38% larger sample changed: draw rate 0.857 -> 0.853, decisive 0.143 -> 
 comparisons z = +3.68 -> +3.67 and +2.41 -> +2.39. Nothing material. The check is recorded because
 "my headline rests on a sample that has since grown" is a failure mode worth catching in one's own
 work, not because the answer moved.
+
+## REFUTED: my own mechanism's premise. Gated candidates have LOST tactics, not preserved them.
+
+The mechanism registered in `refmatch_discrimination_PREREG.md` ran:
+
+1. the guard is `f >= best_found`, the seed scores 25/25, so every survivor also scores 25;
+2. therefore every candidate reaching the gate solves the SAME tactical positions as the champion;
+3. tactical equivalence implies similar play, so the games draw;
+4. collapsed variance makes acceptance impossible.
+
+**Steps 1 and 2 are false in the configuration actually running.** `guard_floor` is not
+`best_found`; it is `max(seed_mates - tolerance, ceil(0.84 * seed_mates))` (`evolve.rs:399-404`).
+With MAIN's seed at 19 and tolerance 4 that is `max(15, 16) = 16`, so a candidate may lose THREE of
+nineteen mates and still pass. The run header says so plainly — `19/19 mates (floor 16)` — and I
+read past it.
+
+Measured across every gate call on disk:
+
+```
+MAIN (seed 19/19, floor 16)   4 of 4 gated candidates scored exactly 16 — THE FLOOR, none at 19
+MCTS (seed 11/19, floor 10)  19 at 10 (the floor), 4 at 13, 3 at 14
+```
+
+**Gated candidates sit at the minimum tactical score the tolerance permits.** They have lost the
+maximum allowed, not preserved anything — and they still draw 85.3% of their games.
+
+### A wrong mechanism made a right prediction, which is worth noticing
+
+The registered falsifier was "capture extension at or below the gate's decisive rate means the
+mechanism is WRONG". Capture came in at 41.7% against 14.7% and the falsifier did not trigger. So
+the PREDICTION held while the EXPLANATION behind it was false. That is not a rescue — it is the
+ordinary case of a mechanism being underdetermined by one confirming test, and it is why a single
+survived falsifier was recorded above as "survival, not proof".
+
+### What the measurement actually supports
+
+A program that solves three fewer mate positions plays nearly identically in games. The likeliest
+reading is that the lost positions are ones games do not visit — deep or rare tactical shapes the
+guard set is built from. That does not rescue the preservation story; it REPLACES it with the
+decoupling already measured twice today:
+
+* `identity:12/27` — 44% position agreement, near-total draw;
+* hash reuse — ~100% agreement, 31% decisive;
+* and now — candidates at the tactical FLOOR, still 85% drawn.
+
+Three independent angles, all saying the position sets and the games measure different things. The
+guard is not selecting for game-neutrality by preserving tactics. It is filtering on a dimension the
+games are largely blind to, which produces game-neutral candidates as a side effect.
+
+**What this changes downstream.** The HARD-set experiment becomes MORE important, not less: if the
+existing position sets are decoupled from games, a new position-set gradient must be shown to track
+game outcomes before anything is built on it. That caveat is already in `hardn_probe.sh`'s header,
+written before this measurement, and it now has a third piece of evidence behind it.
