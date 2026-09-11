@@ -413,17 +413,81 @@ fn esc(s: &str) -> String {
 
 /// Elo per 100 generations over the plotted rungs, by least squares. `None` when fewer than two
 /// rungs carry a generation number — a slope through one point is not a trend.
-fn trend(rungs: &[Rung]) -> Option<f64> {
-    let p: Vec<(f64, f64)> = rungs.iter().filter(|r| r.generation > 0 && r.champion)
-        .map(|r| (r.generation as f64, r.elo)).collect();
-    if p.len() < 2 { return None; }
-    let n = p.len() as f64;
-    let (sx, sy): (f64, f64) = (p.iter().map(|q| q.0).sum(), p.iter().map(|q| q.1).sum());
-    let sxx: f64 = p.iter().map(|q| q.0 * q.0).sum();
-    let sxy: f64 = p.iter().map(|q| q.0 * q.1).sum();
-    let d = n * sxx - sx * sx;
-    if d.abs() < 1e-9 { return None; }
-    Some((n * sxy - sx * sy) / d * 100.0)
+/// Weighted least squares of absolute Elo on generation — slope in Elo per 1000 generations WITH
+/// ITS STANDARD ERROR. Returns `(slope, se)`.
+///
+/// WHY IT CHANGED, 2026-09-11. This was an UNWEIGHTED OLS slope with no error bar, and
+/// `emit_events` fired `RULER_TREND_POSITIVE` on `t > 0.0` — ANY positive number. It announced
+/// "+0.4 Elo/100gens" as a milestone while `STATE.md` described the same run as FLAT
+/// (`slope +2.2 +/- 2.2 /1000  z +1.00`). Both were right about their own arithmetic: a slope one
+/// SE from zero is not a trend, and an event with no significance test cries wolf every day it is
+/// run.
+///
+/// It now mirrors `ruler_trend.py::wls`, which is the INSTRUMENT OF RECORD for this quantity and
+/// whose header states the rule plainly: *"A trend is only claimed at |z| > 2."* Three divergences
+/// are closed at once — this ignored each rung's `ci` entirely, used no significance test, and
+/// reported per 100 generations where the instrument reports per 1000, so the two numbers could not
+/// even be compared by eye.
+///
+/// X IS CENTRED FIRST, and that is not style. `ruler_trend.py` records that the textbook
+/// `den = S*Sxx - Sx^2` form cancels away its significant digits once generation numbers reach
+/// ~18,000: it produced a negative denominator and a `sqrt` crash, and the same cancellation one
+/// digit smaller would have returned a plausible WRONG slope in silence.
+///
+/// The degenerate-design guard is carried across for the same reason. Repeat samples of one frozen
+/// net share a generation, leaving `Sxx` a floating-point crumb rather than an exact zero, which
+/// once reported slope +354.7 with an SE of 1.2e17 — a well-formatted row carrying no information.
+fn trend(rungs: &[Rung]) -> Option<(f64, f64)> {
+    // ONE RUN ONLY. This is the half of the bug that mattered, and adding a significance test
+    // WITHOUT it made the page worse rather than better: `champion` is `run.starts_with("prod")`,
+    // which is true of eight different training runs, so the fit pooled 151 rungs spanning prod1
+    // through prodk1056 at levels from 1302 to 1518. Generation restarts at 1 for every run, so a
+    // later run sitting 200 Elo higher contributes a between-run LEVEL difference that the fit can
+    // only express as a slope. Pooled and weighted, that read "+4.0 +/- 0.5, z +8.2, RISING" for a
+    // champion `ruler_trend.py` calls "+0.8 +/- 0.7, z +1.06, FLAT" -- a confident wrong answer,
+    // which is worse than the bare unweighted number it replaced.
+    //
+    // `ruler_trend.py` never had this problem because it groups by run before fitting. So does this
+    // now: take the CURRENT run, by the newest reading and then the furthest generation, and fit
+    // only its rungs. Runs are never pooled.
+    let run_of = |r: &Rung| r.label.split_whitespace().next().unwrap_or("").to_string();
+    let cur = rungs.iter()
+        .filter(|r| r.generation > 0 && r.champion && r.ci > 0.0)
+        .max_by_key(|r| (r.mtime, r.generation))
+        .map(&run_of)?;
+    // `ci > 0` is required, not assumed: a zero sigma is an infinite weight and would silently
+    // dominate the fit. A rung without a real interval is not evidence about a slope.
+    let p: Vec<(f64, f64, f64)> = rungs.iter()
+        .filter(|r| r.generation > 0 && r.champion && r.ci > 0.0 && run_of(r) == cur)
+        .map(|r| (r.generation as f64, r.elo, r.ci)).collect();
+    // Three, not two: two points fit a line exactly and the slope's SE is meaningless.
+    if p.len() < 3 { return None; }
+
+    let w: Vec<f64> = p.iter().map(|q| 1.0 / (q.2 * q.2)).collect();
+    let sw: f64 = w.iter().sum();
+    if !sw.is_finite() || sw <= 0.0 { return None; }
+    let xbar: f64 = p.iter().zip(&w).map(|(q, wi)| wi * q.0).sum::<f64>() / sw;
+    let ybar: f64 = p.iter().zip(&w).map(|(q, wi)| wi * q.1).sum::<f64>() / sw;
+    let sxx: f64 = p.iter().zip(&w).map(|(q, wi)| wi * (q.0 - xbar).powi(2)).sum();
+    let sxy: f64 = p.iter().zip(&w).map(|(q, wi)| wi * (q.0 - xbar) * (q.1 - ybar)).sum();
+
+    // Span as max-minus-min rather than last-minus-first: the python takes the ends of a list it
+    // assumes is ordered, and `s.rungs` here is not guaranteed to be.
+    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    for q in &p { lo = lo.min(q.0); hi = hi.max(q.0); }
+    let span = hi - lo;
+
+    let se = (1.0 / sxx).sqrt() * 1000.0;
+    // se_guard: an SE larger than a whole run's worth of Elo means the design, not the data, is
+    // doing the talking.
+    if sxx <= 0.0 || span <= 0.0 || !se.is_finite() || se > 1000.0 { return None; }
+    Some((sxy / sxx * 1000.0, se))
+}
+
+/// The verdict the slope supports, on the instrument of record's rule: a trend is claimed only at
+/// |z| > 2, i.e. the interval `slope +/- 2*se` must clear zero.
+fn trend_verdict(b: f64, se: f64) -> &'static str {
+    if b - 2.0 * se > 0.0 { "RISING" } else if b + 2.0 * se < 0.0 { "FALLING" } else { "FLAT" }
 }
 
 /// Page chrome. `refresh content=60` matches the regeneration cadence, so the phone stays current
@@ -452,8 +516,16 @@ fn render(s: &Snap) -> String {
         let _ = write!(h, "<p><span class=big>{abs:.0}</span> absolute \
             <span class=mut>({:+.0} &plusmn; {:.0} vs SF-{})</span>", last.elo, last.ci, SF_BASE as u32);
         match trend(&s.rungs) {
-            Some(t) => { let _ = write!(h, " &nbsp; trend <b>{t:+.1}</b> Elo / 100 gens"); }
-            None => h.push_str(" &nbsp; <span class=mut>trend: needs 2+ CHAMPION rungs</span>"),
+            // The error bar and the verdict travel WITH the slope. A bare "+0.4" reads as progress
+            // to anyone glancing at a phone, which is exactly how this page and STATE.md came to
+            // describe the same flat run in opposite terms.
+            Some((b, se)) => {
+                let v = trend_verdict(b, se);
+                let cls = if v == "RISING" { "ok" } else { "mut" };
+                let _ = write!(h, " &nbsp; trend <b>{b:+.1}</b> &plusmn; {se:.1} Elo / 1000 gens \
+                    <span class={cls}>({v}, z {:+.1})</span>", b / se);
+            }
+            None => h.push_str(" &nbsp; <span class=mut>trend: needs 3+ CHAMPION rungs with real spread</span>"),
         }
         h.push_str("</p>");
         h.push_str(&svg_ruler(&s.rungs));
@@ -578,10 +650,16 @@ fn emit_events(s: &Snap) {
             new.push((format!("P1:{}", r.generation), format!("P1_MILESTONE          gen {} at {:.0}", r.generation, SF_BASE + r.elo)));
         }
     }
-    if let Some(t) = trend(&s.rungs) {
+    // SIGNIFICANCE, not sign. This fired on `t > 0.0`, so a slope one SE from zero was published as
+    // a milestone while STATE.md called the same run FLAT. The rule is the instrument of record's:
+    // claim a trend only at |z| > 2, i.e. slope - 2*se > 0. The message now carries the SE and z, so
+    // the number cannot be quoted on its own.
+    if let Some((b, se)) = trend(&s.rungs) {
         let n = s.rungs.iter().filter(|r| r.generation > 0 && r.champion).count();
-        if n >= 3 && t > 0.0 {
-            new.push((format!("TREND:{n}"), format!("RULER_TREND_POSITIVE  slope {t:+.1} Elo/100gens over {n} rungs")));
+        if n >= 3 && b - 2.0 * se > 0.0 {
+            new.push((format!("TREND:{n}"),
+                format!("RULER_TREND_POSITIVE  slope {b:+.1} +/- {se:.1} Elo/1000gens (z {:+.1}) over {n} rungs",
+                        b / se)));
         }
     }
     for wnd in s.speed.windows(2) {
