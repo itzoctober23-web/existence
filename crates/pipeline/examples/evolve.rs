@@ -367,6 +367,42 @@ fn window_sensitive_set(n: usize, depth: i64, net: &Net, narrow: i64, cap: usize
 /// shrink to keep a generation affordable. That is an acceptable trade because the fitness is
 /// DETERMINISTIC -- fixed positions, fixed net, no sampling -- so a 2% cost difference is exact at
 /// any set size; a smaller set measures a smaller sample of positions, not a noisier number.
+
+/// The mates floor a candidate must clear before its mates-per-cost rate is allowed to count.
+///
+/// WHY THIS IS NOT `seed_mates - tolerance`. That was the rule, and its strictness depended on how
+/// many mates the seed happened to solve, because the tolerance is ABSOLUTE:
+///
+/// ```text
+///   seed 25 mates -> floor 21   the candidate must keep 84% of them
+///   seed  6 mates -> floor  2   it need keep only 33%
+///   seed <=4      -> floor  0   `f >= 0` is true for every u32: NO GUARD AT ALL
+/// ```
+///
+/// The guard exists to stop programs that do not search from winning on mates-per-cost by being
+/// cheap. Those programs are cheapest and most numerous exactly where the seed is weakest, so the
+/// rule was most permissive precisely where it was most needed -- and `exploits.tsv` holds a
+/// captured specimen that proves it: **2 mates against a champion of 6, rate 110x, and 0.208 in
+/// actual games.** It cleared the old floor of 2 with nothing to spare and was admitted.
+///
+/// THE RATIO IS DERIVED, NOT TUNED UNTIL THE TEST PASSED. 0.84 is the floor the shipped
+/// configuration already imposes at the seed strength it was validated on: 21/25 = 0.84. So this
+/// keeps the guard IDENTICAL in that regime and simply makes it scale-invariant outside it. Taking
+/// the MAX of the two keeps the absolute tolerance binding for a seed stronger than 25, where it is
+/// the stricter of the pair -- so the floor is never LOWER than the shipped rule anywhere, and this
+/// change can only reject more, never admit more.
+///
+/// The cost of a tightening is real and is stated rather than hidden: in runs where the seed solves
+/// fewer than 25 mates, candidates that the old rule accepted are now refused, which could slow a
+/// lineage that was relying on that slack. It cannot slow the D=3/25-mate configuration the arms
+/// actually run, where the floor is unchanged at 21.
+fn guard_floor(seed_mates: u32, tolerance: u32) -> u32 {
+    const VALIDATED_RATIO: f64 = 0.84;   // = 21/25, the shipped floor at the validated seed strength
+    let absolute = seed_mates.saturating_sub(tolerance);
+    let relative = (VALIDATED_RATIO * seed_mates as f64).ceil() as u32;
+    absolute.max(relative)
+}
+
 fn fitness(prog: &Program, set: &[(Position, Option<board::Move>)], net: &Net, depth: i64,
            budget: i64)
     -> (u32, u64, f64) {
@@ -1761,7 +1797,9 @@ fn tt_supply() {
         // Comparing unconditional distributions against a conditioned population is the same class of
         // error as the cost-ratio mistake this replaced, so both are printed and labelled.
         let gt: u32 = std::env::var("EXISTENCE_GUARD_TOL").ok().and_then(|v| v.parse().ok()).unwrap_or(4);
-        let floor = base_mates.saturating_sub(gt);
+        // Same rule as the live filter, via the same function: a DIAGNOSTIC that prints a
+        // different floor than selection applies is how a guard gets misread as working.
+        let floor = guard_floor(base_mates, gt);
         let pass = |m: &Vec<u32>, r: &Vec<f64>| -> (usize, f64) {
             let mut kept: Vec<f64> = m.iter().zip(r).filter(|(x, _)| **x >= floor).map(|(_, y)| *y).collect();
             kept.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -2723,14 +2761,14 @@ fn main() {
             (f, cc, (f + shf) as f64 * 1e6 / cc.max(1) as f64)
         } else { (f, c, r) };
         println!("  lineage {name:<5} seed {:>3} nodes, budget {bud:<5} -> {f}/{} mates (floor {}), {c} cost, \
-{r:.6} mates/Mcost", seed_prog.size(), set.len(), f.saturating_sub(guard_tolerance));
+{r:.6} mates/Mcost", seed_prog.size(), set.len(), guard_floor(f, guard_tolerance));
         lineages.push(Lineage {
             name,
             budget: bud,
             popn: vec![(seed_prog.clone(), f, r); MU],
             champ: seed_prog,
             best_found: f,
-            guard_floor: f.saturating_sub(guard_tolerance),
+            guard_floor: guard_floor(f, guard_tolerance),
             best_rate: r,
             accepted: 0,
             gated: Default::default(),
