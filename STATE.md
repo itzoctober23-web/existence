@@ -1,5 +1,44 @@
 # Existence — current state, 2026-09-11
 
+## 🧭 THE SEARCH TRACK'S REAL PROBLEM — the position sets and the games are DECOUPLED
+
+Two measurements today, from opposite directions, and a pre-registered control that FAILED:
+
+```
+identity:12/27  (44% agreement on the position set)  ->  W-D-L 0-11-1, a near-total draw
+hash reuse      (~100% agreement, 40/40 at depth 3)  ->  8W-33D-7L, 31.2% DECISIVE
+real gate candidates                                 ->  14.3% decisive, BELOW hash reuse at z=2.41
+```
+
+**`evolve.rs:3283` claims "it agrees with the seed on 40/40 positions ... SO its game rate is exactly
+0.5". That "so" is refuted by measurement.** Identical programs cannot produce a decisive pair — the
+same opening with colours swapped gives mirror games that cancel — so 8 wins and 7 losses is an
+existence proof that agreement on a position set does not make two programs play the same games.
+
+**This matters because PATH 1 accepts a candidate with NO GAME on exactly that inference.** The file
+hedges it as "strong evidence but not proof"; the hedge is now quantified at 31% decisive games for
+the canonical identical-by-construction program. Full account in
+`identity_does_not_predict_games_RESULT.md`.
+
+**WITHDRAWN as a consequence:** my explanation that the 28.6% zero-variance gate decisions were
+behaviourally identical candidates. The canonical identical candidate does not produce them. The
+enumeration and the 0.48 ceiling stand (arithmetic), the 28.6% count stands (from logs), the CAUSE
+does not.
+
+**REGISTERED, with its falsifier already running:** the mate guard may be selecting for
+game-neutrality. `WHY_NOTHING` establishes that the guard is `f >= best_found` and the seed scores
+25/25, so every candidate reaching the gate solves the SAME tactical positions as the champion —
+anything that changed tactical behaviour was filtered upstream. If so, the fitness's halves are in
+direct tension: the guard demands PRESERVATION, the gate demands DIFFERENCE, and zero promotions
+follow from the fitness's structure rather than from a bug. The `capture` arm breaks tactical
+preservation by construction and is the falsifier; at or below the gate's 14.3% the mechanism is
+wrong. Pre-registered in `refmatch_discrimination_PREREG.md` before the number arrived.
+
+**And the fix has an in-house precedent.** `maswabe_corpus/gate_dgnodes.sh` stage 2 rules that for a
+cost-reducing change "a tie is a win for it, because it buys corpus rate at no measured cost" — a
+NON-INFERIORITY test, which is what `FITNESS.md` §7.2 specifies (`e1=0, e0<0`) and what Existence's
+search gate does NOT do. Same author, same methodology, opposite rules; the 4PC one is right.
+
 ## 📏 CURRENT STRENGTH, measured — champion at 1515 +/- 12, FLAT, 85 short of the 1600 target
 
 `ruler_trend.py` over the live production run (weighted least squares; it claims a trend only at
