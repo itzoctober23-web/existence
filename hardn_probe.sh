@@ -26,7 +26,17 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 SCR=/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad
-SNAP=$SCR/prop_ab/evolve
+# THE BINARY MATTERS, and pointing at the old snapshot is exactly how this probe was voided.
+#
+# $SCR/prop_ab/evolve (md5 c7a7a3715e86) has EXISTENCE_HARD_N INERT on the path the evolve loop
+# runs -- evolve.rs:2627 built the set with a hardcoded 8 -- so the 2026-09-11 run measured the
+# DEFAULT configuration while believing it measured n=40. See hardn_inert_RESULT.md.
+#
+# The fix is in evolve.rs and VERIFIED live in the rebuilt binary: with EXISTENCE_HARD_N=40 it now
+# prints "HARD set: 40 positions the seed FAILS by construction; seed scores 0/40", against the old
+# snapshot's "8 positions" for the identical request. harder_set FOUND all 40 -- no requested-vs-built
+# shortfall line appeared -- so the set is not capped at 8 by availability either.
+SNAP=${SNAP:-$SCR/evolve_instrumented}
 LOG=hardn_probe.log
 say(){ echo "$(date +%F_%H:%M) [hardn] $*" | tee -a "$LOG"; }
 [ -x "$SNAP" ] || { say "ABORT: no evolve snapshot"; exit 1; }
@@ -35,7 +45,17 @@ while systemctl --user is-active choice-2x2.service >/dev/null 2>&1; do sleep 30
 sleep 10
 say "n_hard=40, proposals=32, 4 generations, seed 1 (same as the 2x2 cells)"
 EXISTENCE_EVOLVE_SEED=1 EXISTENCE_PROPOSALS=32 EXISTENCE_HARD_FITNESS=1 EXISTENCE_HARD_N=40 \
-  nice -n 19 taskset -c 6-11 timeout 3600 "$SNAP" 4 4 10 4 > prop_hardn40.log 2>&1 || true
+  # GENERATIONS: 4 could not have resolved anything and that was the probe's SECOND fault.
+#
+# MAIN scores on the hard set in 2 of 28 funnel-era generations, a base rate of 0.071, so
+# P(zero in 4) = 0.74 -- zero was the single most likely outcome whether or not n=40 changed
+# anything. 22 generations is the 80%-power floor against that rate; 24 for margin.
+#
+# The reporter below refuses a verdict whenever P(zero | base rate) exceeds 0.20, so an
+# under-length run cannot produce a conclusion even if this default is lowered.
+GENS=${GENS:-24}
+CAP=${CAP:-32400}
+nice -n 19 taskset -c 6-11 timeout "$CAP" "$SNAP" "$GENS" 4 10 4 > prop_hardn40.log 2>&1 || true
 
 # ---- DID THE SETTING ACTUALLY TAKE? THIS GATES THE REPORT --------------------------------------
 # The 2026-09-11 run of this script set EXISTENCE_HARD_N=40 against a binary that built the set with
