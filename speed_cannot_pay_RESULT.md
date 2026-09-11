@@ -228,3 +228,56 @@ its own loop and timing overhead, and a node inside a real search pipelines and 
 the corrected 35.4% is better than the 25.4% it replaces and is **still not safe to quote an Elo
 figure from**. Naming the gap is the requirement the tool's own comment sets, and it is now named
 rather than papered over with a stale constant.
+
+
+## 7. 2026-09-10 23:3x — the instrument passes its own self-check for the first time, and eval is now the lever
+
+Two more faults in `node_profile`, both found by asking what the engine actually executes:
+
+**(a) It timed a shuffle the engine does not use.** `sh` was measured with `rng % (i + 1)`, but
+`search.rs::below()` has used Lemire multiply-shift since **e0d8774** ("remove the division from the
+child shuffle — +6.3% nps, measured"). So the profile reported the modulo cost as the live one and
+advertised the difference — **"91.6 ns/node available"** — as headroom. That saving was *already
+banked*. It also fed the wrong shuffle into the interior-node cost, inflating it by the same amount.
+
+**(b) The leaf model was stale again within the hour.** After `movegen_leaf_RESULT.md` a leaf calls
+`has_legal_move()` and evals; it never builds a list and never shuffles. Billing it for a full
+`legal_moves()` overstated the leaf by ~350 ns.
+
+Corrected, the self-check finally passes:
+
+```text
+  interior (movegen + make/unmake + Lemire shuffle)   497.4 ns
+  leaf     (has_legal_move + make/unmake + eval)      358.4 ns
+  eval's share of a LEAF                              59.6%
+
+  depth 4, same net: 423733 nodes in 0.097s = 4,355,743 nps = 230 ns/node
+  primitives imply a LEAF of 358 ns -> 1.56x the measured node cost
+  within 1.6x -- the three primitives account for the node, shares are usable.
+```
+
+It read **2.41×** this morning, **1.72×** after the shuffle-billing fix, and **1.56×** now. For the
+first time the attribution is consistent with the engine it describes, so the shares below are
+usable for sizing rather than merely for ranking.
+
+### This inverts §2, and the movegen work is why
+
+| | leaf | eval share | ceiling on eval work |
+|---|---|---|---|
+| as recorded | 972.2 ns | 25.4% | 1.34× |
+| after the shuffle-billing fix | 651.6 ns | 35.0% | 1.54× |
+| **after `has_legal_move`** | **358.4 ns** | **59.6%** | **2.48×** |
+
+| change | Elo, as first sized | Elo now |
+|---|---|---|
+| int16 quantization | ~5–6 | **~15** |
+| eval entirely free | ~12–13 | **~39** |
+
+§2 concluded *"quantization is worth roughly 5 Elo … it is not the lever"*, and that was correct for
+the engine of this morning, where eval sat behind 393 ns of movegen. **Removing the movegen made
+eval the lever.** It was third in `throughput_RESULT.md`'s ranking; it is now 59.6% of a leaf, for
+the plain reason that the work in front of it is gone.
+
+The plies are still in the branching factor — 2.48× is 1.3 doublings against the 3.2 a ply needs —
+so §3 stands unchanged. What has changed is that the eval track is now worth roughly **3× what it
+was**, and it is the largest remaining item the profile can see.

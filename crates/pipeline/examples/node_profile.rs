@@ -63,10 +63,19 @@ fn main() {
     let ps = corpus(200, 0xC0FFEE);
     println!("node profile — width {width}, {} positions, best of {reps}\n", ps.len());
 
-    // 1. legal_moves(): once per interior node.
+    // 1. legal_moves(): once per INTERIOR node. A leaf no longer calls it -- see `hlm` below.
     let mg = best_of(reps, || {
         let mut n = 0usize;
         for p in &ps { std::hint::black_box(p.legal_moves()); n += 1; }
+        n
+    });
+    // 1b. has_legal_move(): what a LEAF calls instead, since the leaf only ever needed to know
+    // whether the position is terminal. `movegen_leaf_RESULT.md`. Timing it here is what keeps the
+    // leaf model honest: billing a leaf for a full `legal_moves()` it no longer performs would
+    // overstate the leaf by ~350 ns and hide where the remaining time actually is.
+    let hlm = best_of(reps, || {
+        let mut n = 0usize;
+        for p in &ps { std::hint::black_box(p.has_legal_move()); n += 1; }
         n
     });
     // THE SAME CALL, CONSUMED CHEAPLY. `black_box` on the returned MoveList forces the compiler to
@@ -244,9 +253,18 @@ fn main() {
     println!("  {:<26} {:>10.1}   (zeroes 1024 B for ~120 B of moves)", "  MoveList::new()", ml);
     println!("  {:<26} {:>10.1}", "make + unmake (pair)", mu);
     println!("  {:<26} {:>10.1}", "eval", ev);
-    println!("  {:<26} {:>10.1}", "shuffle + buffer copy", sh);
-    println!("  {:<26} {:>10.1}   <- measurement only, engine unchanged", "  same, modulo-free", sh_nodiv);
-    println!("  {:<26} {:>10.1} ns/node available", "  division cost", sh - sh_nodiv);
+    // WHICH SHUFFLE THE ENGINE ACTUALLY RUNS. `sh` above times `rng % (i + 1)`; `sh_nodiv` times
+    // Lemire's multiply-shift. `search.rs::below()` has used **Lemire** since e0d8774 ("remove the
+    // division from the child shuffle -- +6.3% nps, measured"), so `sh_nodiv` is the live cost and
+    // `sh` is the superseded variant.
+    //
+    // Reported the other way round until now, which made this instrument advertise
+    // "136.6 ns/node available" for a saving that was ALREADY BANKED -- headroom that does not
+    // exist, pointing at work already done. It also fed `sh` into the interior-node cost, inflating
+    // it by the same 136.6 ns, which is part of why the attribution over-predicted the real node.
+    println!("  {:<26} {:>10.1}   <- Lemire, as shipped (e0d8774)", "shuffle + buffer copy", sh_nodiv);
+    println!("  {:<26} {:>10.1}", "  pre-e0d8774 modulo variant", sh);
+    println!("  {:<26} {:>10.1} ns/node ALREADY BANKED, not available", "  division cost", sh - sh_nodiv);
 
     // A node costs one legal_moves, one make/unmake as its parent's child, and -- at a leaf -- one
     // eval. Interior nodes skip the eval, so this brackets rather than pinpoints.
@@ -260,8 +278,11 @@ fn main() {
     //
     // make/unmake is billed to the child by convention: it is paid by the parent on this node's
     // behalf, once per node either way.
-    let leaf = mg + mu + ev;
-    let interior = mg + mu + sh;
+    // A LEAF NO LONGER GENERATES MOVES. Since `movegen_leaf_RESULT.md` the leaf path calls
+    // `has_legal_move()` and then evals; it never builds a list and never shuffles. An interior
+    // node still pays the full generator plus the shuffle (the Lemire one, `sh_nodiv`).
+    let leaf = hlm + mu + ev;
+    let interior = mg + mu + sh_nodiv;
     println!("\n  implied node cost:");
     println!("    interior (movegen + make/unmake)      {:>8.1} ns", interior);
     println!("    leaf     (+ eval)                     {:>8.1} ns", leaf);
