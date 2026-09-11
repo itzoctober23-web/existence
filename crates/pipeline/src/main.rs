@@ -542,7 +542,22 @@ fn main() {
     // Default 0.01 so this is byte-identical to every measurement taken so far.
     let lr: f32 = a.iter().position(|x| x == "--lr")
         .and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(0.01);
-    let tr = Trainer::new(lr, blend);
+    // LEARNING-RATE DECAY. Per-generation multiplier: lr_g = max(lr * decay^g, lr_min).
+    //
+    // DEFAULT 1.0 IS AN EXACT NO-OP, deliberately, so every measurement taken before this flag
+    // existed stays byte-identical -- the same discipline `--lr` itself was added under.
+    //
+    // WHY A SCHEDULE AND NOT A FOURTH FIXED RATE. Measured 2026-09-11: lr 0.002 beat 0.01
+    // decisively from a net plateaued at 0.01 (0.692 vs 0.499 against the shared start), but from a
+    // net ALREADY trained at 0.002 it stops paying -- prod3 read 0.478 against the champion after
+    // 7,515 generations and an independent run read 0.458. Dropping again to 0.0005 passed at
+    // 0.625. Each drop buys a burst that then saturates, which is the signature of a SCHEDULE
+    // rather than of one correct constant.
+    let lr_decay: f32 = a.iter().position(|x| x == "--lr-decay")
+        .and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(1.0);
+    let lr_min: f32 = a.iter().position(|x| x == "--lr-min")
+        .and_then(|i| a.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(0.0);
+    let mut tr = Trainer::new(lr, blend);
     let mut rung = start_rung;
     // anchor-pairs is printed with the rest of the settings, and that is load-bearing rather than
     // cosmetic. chain_anchor.sh verified the flag existed by grepping the BINARY for the string --
@@ -551,7 +566,7 @@ fn main() {
     // greps 1 only because it appears in THIS format string.) That false negative aborted the
     // anchor A/B. A setting that cannot be observed in the program's own output cannot be verified
     // by anything except reading the source.
-    println!("lr={lr} gens={gens} games/gen={games} depth={depth} gate-match-depth={gate_match_depth} epochs={epochs} gate-pairs={gate_pairs} gate-nodes={gate_nodes} gate-every={gate_every} include-draws={include_draws} anchor-pairs={anchor_pairs} rollback={rollback} blend={blend}");
+    println!("lr={lr} lr-decay={lr_decay} lr-min={lr_min} gens={gens} games/gen={games} depth={depth} gate-match-depth={gate_match_depth} epochs={epochs} gate-pairs={gate_pairs} gate-nodes={gate_nodes} gate-every={gate_every} include-draws={include_draws} anchor-pairs={anchor_pairs} rollback={rollback} blend={blend}");
     println!("ARCH menu {WIDTH_MENU:?}  start rung {rung} (width {})  arch-every {arch_every}",
              WIDTH_MENU[rung]);
     // ORIGIN is always the reproducible iteration-zero net, even when we resume. The control
@@ -707,6 +722,18 @@ fn main() {
     let mut replay_marks: std::collections::VecDeque<usize> = std::collections::VecDeque::new();
 
     for g in 1..=gens {
+        // Applied BEFORE this generation trains. At decay 1.0 (the default) `powi` returns exactly
+        // 1.0 and this assigns `lr` unchanged, so a no-decay run is bit-identical to one compiled
+        // before the flag existed.
+        if lr_decay != 1.0 || lr_min != 0.0 {
+            tr.lr = (lr * lr_decay.powi(g as i32)).max(lr_min);
+            // Observable, but WITHOUT touching the `gen` line's format -- adding a field there would
+            // change the output of every run that uses no decay at all, and the whole point of the
+            // 1.0 default is that such runs stay byte-identical.
+            if g == 1 || g % 200 == 0 {
+                println!("  lr now {:.6} at gen {g}", tr.lr);
+            }
+        }
         // ---- self-play with the current champion
         let dgen_depth = if g >= deepen_at { deep } else { depth };
         let t0 = std::time::Instant::now();
