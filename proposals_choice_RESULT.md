@@ -241,3 +241,37 @@ the first low-lr sweep, whose arms were unmatched at ~650 generations.
   it STEPS), or that any of it produces an ACCEPT.
 * **The open question is unchanged and is the one that matters:** `search_long_run.sh`, 40
   generations on a fresh seed, with the accept count as the primary metric.
+
+---
+
+## DESIGN CORRECTION 10:3x — one cell of the 2x2 was uninformative before it ran
+
+Checked the source rather than reading the `hard` cell's 0/3 as a verdict. `evolve.rs:2758-2762`:
+
+    let (f, c, r) = if EXISTENCE_HARD_FITNESS {
+        let (shf, shc, _) = fitness(&seed_prog, &hard, ...);
+        (f, c + shc, (f + shf) * 1e6 / (c + shc))      // f UNCHANGED
+    } else { (f, c, r) };
+
+**`f` is untouched.** HARD_FITNESS moves the COST and the RATE. The mate guard tests
+`f >= guard_floor` (`evolve.rs:1795`), which HARD never reaches. So the gradient lever cannot
+change how many candidates SURVIVE — it can only re-rank the survivors.
+
+At `proposals=pop` the arm produces ~0.4 survivors per generation, and **a single survivor has
+exactly one rate however it is computed**. The `hard` cell therefore reads 0/N by construction,
+whatever HARD is worth. Its 0/3 is not evidence against the gradient lever.
+
+**Only `hard+p32` can test it** — 32 proposals produce several survivors, and the question becomes
+whether HARD spreads their rates further apart than the saturated guard set does.
+
+### The design weakness, named
+
+The 2x2 was built to separate "too few candidates" from "candidates land on the same value". That
+framing is right, but the GRADIENT lever acts strictly DOWNSTREAM of the guard, so it is only
+observable in the presence of the PROPOSALS lever. The two factors are not orthogonal: one gates
+the other. A 2x2 assumes independent factors, and these are nested.
+
+The reporter now carries this as a footnote and refuses to let the `hard` row be read as the
+gradient result. The cost was three generations of compute, not a wrong conclusion — the check
+happened before the cell was interpreted, which is the only reason it is a note rather than a
+retraction.

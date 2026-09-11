@@ -27,9 +27,20 @@ FIELDS = {
 CELLS = [
     ("prop_control.log",  "control",  "proposals=pop, guard set"),
     ("prop_prop32.log",   "prop32",   "proposals=32,  guard set"),
-    ("prop_hard.log",     "hard",     "proposals=pop, HARD set"),
+    ("prop_hard.log",     "hard",     "proposals=pop, HARD set *"),
     ("prop_hardp32.log",  "hard+p32", "proposals=32,  HARD set"),
 ]
+
+# * THE `hard` CELL CANNOT SHOW A CHOICE, BY CONSTRUCTION -- checked in the source, not assumed.
+#   evolve.rs:2758-2762 returns (f, cc, new_rate) under EXISTENCE_HARD_FITNESS: `f` is UNCHANGED and
+#   only the cost and the RATE move. The mate guard tests `f >= guard_floor` (evolve.rs:1795), which
+#   HARD never touches. So HARD cannot alter how many candidates SURVIVE -- it can only re-rank the
+#   ones that do. At proposals=pop the arm yields ~0.4 survivors per generation, and a single
+#   survivor has exactly one rate however it is computed.
+#
+#   Therefore `hard` reading 0/N is GUARANTEED and is NOT evidence against the gradient lever. Only
+#   `hard+p32`, where 32 proposals produce several survivors to rank, can test it. This was a design
+#   weakness in the 2x2: one cell was uninformative before it ran.
 
 
 def parse(path):
@@ -151,6 +162,9 @@ def main():
     if c and h:
         print(f"  GRADIENT  lever: {c['multi']}/{c['n']} -> {h['multi']}/{h['n']} generations with a choice"
               f"   (mate-ok/gen {c['ok']/c['n']:.2f} -> {h['ok']/h['n']:.2f})")
+        print("     ** the `hard` cell CANNOT show a choice: HARD_FITNESS changes the RATE, not `f`,")
+        print("        and the guard tests `f`. With ~0.4 survivors/generation there is nothing to")
+        print("        re-rank. Read `hard+p32` for the gradient lever, never this cell.")
     print()
     best = max(res.items(), key=lambda kv: (kv[1]['multi'] / kv[1]['n'], kv[1]['ok'])) if res else None
     if best and best[1]['multi'] == 0:
