@@ -105,9 +105,19 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
+| [structural_next_PREREG.md](structural_next_PREREG.md) | PRE-REGISTRATION — what the loop does after the configuration wins run out |
+| [refmatch_discrimination_PREREG.md](refmatch_discrimination_PREREG.md) | PRE-REGISTRATION — can the gate's games discriminate at all? (written before the results exist) |
+| [low_sweep2_PREREG.md](low_sweep2_PREREG.md) | Pre-registration: the full-length low-lr sweep tests a claim the truncated run made |
 | [NET_TRACK_STATE.md](NET_TRACK_STATE.md) | The NET track, summarised across every configuration tried (2026-09-08) |
 | [ceiling_ANALYSIS.md](ceiling_ANALYSIS.md) | The plateau is the TRAINING PROCEDURE'S CEILING, not a gating failure |
+| [gated_resume_PREREG.md](gated_resume_PREREG.md) | PRE-REGISTRATION: does the resume dip survive a live strength gate? |
+| [resume_dip_PREREG.md](resume_dip_PREREG.md) | PRE-REGISTRATION: does a resume damage the champion, and if so WHEN? |
+| [nps_calibration_PREREG.md](nps_calibration_PREREG.md) | PRE-REGISTRATION: the engine spends 1–11% of its clock, and `NPS_PER_MS` is stale by ~2× |
+| [depth5_vs_depth3_PREREG.md](depth5_vs_depth3_PREREG.md) | PRE-REGISTRATION — depth 5 vs depth 3, matched start, equal wall clock |
+| [depth_ruler_PREREG.md](depth_ruler_PREREG.md) | PRE-REGISTRATION — datagen depth on the ruler, written before the games were read |
 | [search_track_WHY_NOTHING.md](search_track_WHY_NOTHING.md) | Why the MAIN lineage has never produced an improvement, and structurally cannot |
+| [reject_holdout_PREREG.md](reject_holdout_PREREG.md) | PRE-REGISTRATION — does the depth-1 gate reject real improvements? Holdout test |
+| [editcount_power_PREREG.md](editcount_power_PREREG.md) | Pre-registration: what the edit-count sweep CAN and CANNOT resolve |
 | [EXPERIMENTS.md](EXPERIMENTS.md) | EXPERIMENTS — what was tried, and why it failed |
 | [fitness_spec_gap_FINDING.md](fitness_spec_gap_FINDING.md) | The surrogate is not the one FITNESS §3 specifies — and that explains the saturation |
 | [search_track_FINDING.md](search_track_FINDING.md) | The search track's surrogate rewarded searching LESS (2026-09-08) |
@@ -133,7 +143,7 @@ being asked.
 | epochs | EXPERIMENTS,epochs_ab epochs_2v3,NET_TRACK_STATE learning_rate_is_the_plateau |
 | seeds & noise | depth2x2,blend p1_deceleration,blend_sweep low_sweep2 |
 | gate & thresholds | gate_power,gate_arithmetic EXPERIMENTS,replay_ab_CAVEAT ladder_valley |
-| calibration | static_deep_residual,confident_when_wrong search_track_FINDING,movegen_leaf lr_sweep |
+| calibration | static_deep_residual,confident_when_wrong search_track_FINDING,nps_calibration_PREREG movegen_leaf |
 | speed/nps | speed_cannot_pay,throughput movegen_leaf,depth2x2 path1_is_empty |
 | plateau | EXPERIMENTS,ceiling_ANALYSIS ruler_trend,learning_rate_is_the_plateau fitness_saturation |
 

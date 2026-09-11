@@ -30,7 +30,12 @@ OUT=RESULTS_INDEX.md
 # it was invisible to this index. `fitness_spec_gap_FINDING.md`, `ceiling_ANALYSIS.md` and
 # `surrogate_validation.md` are in the same position. An index that covers most of the evidence
 # answers "nothing on that" with false confidence.
-FINDINGS=$(ls -t *_RESULT.md *_FINDING.md *_ANALYSIS.md *_WHY_NOTHING.md *_CAVEAT.md \
+# `*_PREREG.md` added 2026-09-11. A pre-registration states the decision rule for a question BEFORE
+# it is answered, which makes it the single most relevant file type for "read this before designing
+# an experiment" -- and seven of them were invisible here. `structural_next_PREREG.md` fixes the
+# order of the next three structural experiments; leaving it unindexed would repeat, on the file that
+# chooses the next week's work, exactly the defect this script exists to prevent.
+FINDINGS=$(ls -t *_RESULT.md *_FINDING.md *_ANALYSIS.md *_WHY_NOTHING.md *_CAVEAT.md *_PREREG.md \
                 surrogate_validation.md EXPERIMENTS.md NET_TRACK_STATE.md 2>/dev/null | awk '!seen[$0]++')
 
 {
@@ -74,7 +79,7 @@ FINDINGS=$(ls -t *_RESULT.md *_FINDING.md *_ANALYSIS.md *_WHY_NOTHING.md *_CAVEA
   echo
   echo "| file | headline |"
   echo "|---|---|"
-  for f in $(ls -t *_FINDING.md *_ANALYSIS.md *_WHY_NOTHING.md *_CAVEAT.md surrogate_validation.md EXPERIMENTS.md NET_TRACK_STATE.md 2>/dev/null | awk '!seen[$0]++'); do
+  for f in $(ls -t *_FINDING.md *_ANALYSIS.md *_WHY_NOTHING.md *_CAVEAT.md *_PREREG.md surrogate_validation.md EXPERIMENTS.md NET_TRACK_STATE.md 2>/dev/null | awk '!seen[$0]++'); do
     h=$(head -1 "$f" | sed 's/^#\+ *//' | sed 's/|/\\|/g')
     [ -n "$h" ] || h="(no headline — open the file)"
     printf '| [%s](%s) | %s |\n' "$f" "$f" "$h"
