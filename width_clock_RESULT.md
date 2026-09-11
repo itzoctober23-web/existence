@@ -50,3 +50,37 @@ bounds the register bytecode at ~4%, which is not it.
 
 **Not claimed:** that wider nets are worse in general. They are measurably BETTER per node, 8 of 9.
 The finding is about a time budget, and it expires the moment the time budget buys more nodes.
+
+## Replicated 2026-09-10 22:2x — from a NEW champion, and re-derived at full cost because I did not read this file first
+
+`arch_widen_from_champion.sh` was launched at **`--arch-every 5`** — the exact value this file
+records moving away from — against the champion promoted an hour earlier
+(`depth5_vs_depth3_RESULT.md`). Three verdicts before it was stopped:
+
+```text
+  w 16 -> w 32   held-out 0.1059 vs champ 0.0828   -- surrogate filter, no gate
+  w 16 -> w 32   loss 0.0893 vs 0.1316, paired z 4.44   fixed-cost 0.509+/-0.044   clock 0.445+/-0.045
+  w 16 -> w 64   loss 0.0968 vs 0.1421, paired z 5.57   fixed-cost 0.464+/-0.045   clock 0.310+/-0.040
+```
+
+**Every number falls inside the ranges above** — fixed-cost 0.509 in [0.490, 0.583]; clock 0.445 and
+0.310 in [0.190, 0.467]. Both widenings fit strictly better (paired z 4.44 and 5.57) and both lose
+on the clock. Zero accepted, for the 12th, 13th and 14th consecutive attempt.
+
+What is genuinely new is thin but real: the pattern **replicates from a different champion**, so it
+is a property of the engine's speed rather than of one net.
+
+**The cost, measured, because this file's own warning was the thing I ignored:** 5 generations/min
+with ARCH on against 108/min with it off and every other flag identical — **95.4%** of the run, which
+matches the "consuming 95% of wall clock" recorded above almost exactly. The source comment claiming
+an ARCH step costs *"40% more games"* understates it by ~50× at `arch-every 5`; a proposal runs a
+full paired match at two gates and takes ~55 s against ~0.5 s for a generation.
+
+**Production runs now use `--arch-every 0`** (`p1_production.sh`), not the 100 recorded above: at
+~108 gens/min a proposal every 100 generations still costs ~50%, because 100 generations and one
+proposal take about the same wall clock. 100 remains the right setting for a run that wants a slow
+trickle of vigilance on a closed question; a run whose purpose is champion progress should pay
+nothing for it. Measured after the switch: **170 generations/min at 303% CPU, 0 ARCH lines.**
+
+**The lesson is not about ARCH.** A closed question was re-opened because the launcher was written
+from the plan rather than from the results directory. Reading one headline would have prevented it.
