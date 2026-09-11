@@ -17,6 +17,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [unc_head_fitted_RESULT.md](unc_head_fitted_RESULT.md) | The uncertainty head is FITTED and the in-engine head reproduces the offline ranking EXACTLY (0.305/0.695, 0 eval params changed, clamp refuted) — discovery on the previously-constant `unc(p)` was guaranteed-null by construction |
 | [gate_candidates_are_game_neutral_RESULT.md](gate_candidates_are_game_neutral_RESULT.md) | The gate's own candidates are anomalously game-neutral — 14.7% decisive against 31-42% for reference programs |
 | [unc_signal_is_inverted_RESULT.md](unc_signal_is_inverted_RESULT.md) | The uncertainty signal is INVERTED where it exists at all — and it does NOT exist on every net |
 | [flip_cost_concentration_RESULT.md](flip_cost_concentration_RESULT.md) | The prize is concentrated — 38% of all flip cost sits in the top decile — and the proposed key does not fit it |
