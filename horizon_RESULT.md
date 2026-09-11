@@ -80,3 +80,37 @@ prints `h160, h160`.
 
 **Do NOT re-run the 10-vs-uncapped comparison.** It is resolved, at +0.064 ± 0.034, and re-running a
 resolved question is how three attempts became four.
+
+## THE APPARENT CONTRADICTION WITH THE h10/h20/h1000 SWEEP — resolved, do not re-open
+
+**2026-09-11.** A surface read of `main.rs:392-412` looks like it refutes this file. It records
+the opposite sign:
+
+    uncapped   control vs origin: 0.664 -> 0.648 -> 0.508 (FAILED at gen 15)
+    h<=40      0.552 -> 0.567 -> 0.570 -> 0.694 (all pass)
+    SWEPT 2026-09-08:  h10 0.5527   h20 0.5660 <- optimum   h1000 0.5188 <- worst
+
+That is `h10` BEATING `h1000` by 0.034, where this file reports uncapped beating h10 by
++0.064 +/- 0.034. Opposite signs on what looks like the same question.
+
+**They are not the same question, and the code says so.** `main.rs:801`:
+
+    let horizon = if init_net.is_some() { horizon_cap }
+                  else { (10 + (g-1) * 5).min(horizon_cap) };
+
+A RESUMED run takes `horizon_cap` directly. A FRESH run climbs the ramp and only ever meets the
+cap later. So the cap governs two different things depending on how the run started, and the sweep
+states its own limit explicitly at `main.rs:414`: *"measured against a RANDOM champion, i.e. early
+in a run ... This sets the cap the early generations run into; it is NOT a claim about a strong
+champion."* It even predicts this file's result — *"the optimum should MOVE"* as play improves.
+
+    sweep (h20 optimal)   FRESH runs, random champion, the ramp, early generations
+    this file (uncapped)  RESUMED runs from a strong champion, past bootstrap
+
+Production is a resumed run (`--init prodk1056_start.net`), so the shipped default of `MAX_PLIES`
+is the correct one for it, and the ramp still protects fresh runs. **Nothing is mis-shipped and
+there is nothing to re-run.**
+
+Recorded because the surface contradiction is easy to hit and expensive to chase — this file
+already warns that "re-running a resolved question is how three attempts became four", and the
+audit that found this was one step from queueing exactly that.
