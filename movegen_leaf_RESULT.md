@@ -150,3 +150,23 @@ warm-up, not the change.**
 
 That is the standing rule — *prove both arms did the same work before believing a speed ratio* —
 failing in a costume I had not seen: not different node counts, but different process AGE.
+
+
+### Deployed to production: 167 → 286 generations/minute
+
+`prod1` was still running the pre-change binary (it kept its own inode across the deploy, which is
+what made the paired measurement above possible at all). Restarted on the fast binary:
+
+```text
+  prod1, old binary  167 gen/min
+  prod2, new binary  286 gen/min      1.71x
+```
+
+Restarting cost a fresh resume transient (`resume_dip_RESULT.md`), and that was the right trade for
+a specific reason: `auto_promote` had prod1 at **0.472 ± 0.031 against the champion it started
+from** — still *below* parity after 17,633 generations. There was nothing to preserve, so the
+restart resumes from the banked champion rather than from a net that had drifted below it.
+
+The old binary is kept at `/tmp/learn_old`, recovered from the running process's inode via
+`cp /proc/<pid>/exe`. That copy no longer exists anywhere else and is what every before/after number
+in this file was measured against.
