@@ -119,3 +119,72 @@ fn unc_survives_an_sexp_round_trip() {
     let back = grammar::sexp::from_str(&text).expect("reader must parse unc");
     assert_eq!(back, p, "unc did not survive a round trip");
 }
+
+#[test]
+fn the_carried_accumulator_gives_the_same_spread_as_a_fresh_recompute() {
+    // THE INVARIANT THAT MAKES `unc(p)` TRUSTWORTHY INSIDE SEARCH.
+    //
+    // `spread_with` reads the CARRIED hidden layer when one is live and only falls back to
+    // `net.spread(&pos)` when it is empty. Those two paths must agree, for the same reason
+    // `incremental.rs` asserts refresh() == update(): if the carried accumulator can drift from the
+    // position it is supposed to describe, `unc(p)` returns a plausible number for the WRONG
+    // position. Nothing downstream could detect that -- a spread has no legality or sign check to
+    // violate, so a stale read would look exactly like a real one.
+    //
+    // THIS TEST MUST NOT BE RUN ON A ZERO HEAD. With an untrained head both sides return 0 and the
+    // assertion passes while proving nothing, which is the same vacuous-pass trap that let a broken
+    // column guard report "n/a" instead of failing. So the head is populated first and the test
+    // asserts the values actually VARY before it trusts the equality.
+    use board::types::MOVE_NONE;
+    use interp::{Delta, PosAcc};
+
+    let mut net = Net::random(64, 20260912);
+    net.bu = 3.0;
+    for (i, w) in net.wu.iter_mut().enumerate() {
+        *w = 0.03 * ((i % 7) as f32 + 1.0);
+    }
+
+    let mut scratch = Vec::new();
+    let mut delta = Delta::new();
+    let mut seen = Vec::new();
+    let mut checked = 0usize;
+
+    // Walk a few plies of real children so the accumulator is UPDATED rather than rebuilt.
+    let root = PosAcc::fresh(&net, Position::startpos());
+    let mut frontier = vec![root];
+    for _ply in 0..3 {
+        let mut next = Vec::new();
+        for pa in &frontier {
+            let ml = pa.pos.legal_moves();
+            for &mv in ml.as_slice().iter().take(6) {
+                if mv == MOVE_NONE {
+                    continue;
+                }
+                let child = pa.child(&net, mv, &mut delta);
+
+                let carried = child.spread_with(&net, &mut scratch);
+                let fresh = net.spread(&child.pos, &mut scratch);
+                assert_eq!(
+                    carried, fresh,
+                    "carried accumulator disagrees with a fresh recompute: \
+                     unc(p) would report a real number for the WRONG position"
+                );
+                seen.push(carried);
+                checked += 1;
+                if next.len() < 8 {
+                    next.push(child);
+                }
+            }
+        }
+        frontier = next;
+    }
+
+    assert!(checked > 50, "only {checked} positions checked -- too few to mean anything");
+    let lo = *seen.iter().min().unwrap();
+    let hi = *seen.iter().max().unwrap();
+    assert!(
+        hi > lo,
+        "every spread was identical ({lo}) -- the head is degenerate here, so the equality above \
+         proved nothing. Populate the head before trusting this test."
+    );
+}
