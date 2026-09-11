@@ -501,7 +501,13 @@ fn emit_events(s: &Snap) {
     let idx = s.ledger.len();
 
     for r in &s.rungs {
-        let key = format!("RULER_RUNG:{}:{:.0}", r.generation, r.elo);
+        // KEY ON THE MEASUREMENT, NOT ON WHEN IT WAS READ. For a live arm the generation is counted
+        // from the trainer's log AT POLL TIME, so an unchanged ruler reading got a new key every 60
+        // seconds and was re-emitted as a fresh milestone -- gen 2303 and 2339 both logged 1361,
+        // gen 2519 and 2550 both logged 1285. The reading's own mtime identifies it uniquely.
+        let stamp = r.mtime.duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs()).unwrap_or(0);
+        let key = format!("RULER_RUNG:{}:{:.0}", stamp, r.elo);
         new.push((key, format!("RULER_RUNG            {} {:.0} {:.0}", r.generation, SF_BASE + r.elo, r.ci)));
         if SF_BASE + r.elo >= P1_MILESTONE {
             new.push((format!("P1:{}", r.generation), format!("P1_MILESTONE          gen {} at {:.0}", r.generation, SF_BASE + r.elo)));
