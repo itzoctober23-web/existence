@@ -173,3 +173,44 @@ it collapsed.
 throughout the re-test, so the comparison measured the net that was promoted. The concurrent second
 `netmatch` was `existence-auto-promote.service`'s own 23:41 check (`hold 0.483`), attributed by cgroup,
 not a second arm of mine.
+
+---
+
+## CLOSED — the independent seed agrees. Four readings, one conclusion.
+
+Arm 2 finished: **448 pairs, seed 911911 passed POSITIONALLY**, a genuinely different opening set.
+
+```
+pairs  seed        score            interval          netmatch verdict
+  224  20260907    0.539 ± 0.030   [0.509, 0.569]    "A leads, but MARGINALLY"   -> PROMOTED
+  448  20260907    0.501 ± 0.021   [0.480, 0.522]    "UNRESOLVED ... more pairs"
+  953  20260907    0.503 ± 0.014   [0.489, 0.517]    "INDISTINGUISHABLE, and precisely so"
+  448    911911    0.498 ± 0.020   [0.478, 0.518]    "UNRESOLVED" at this N, and consistent
+```
+
+**The two independent opening sets land at 0.503 and 0.498 — on opposite sides of 0.5, both containing
+it.** The only reading that ever favoured the promoted net is the 224-pair one that triggered the
+promotion.
+
+**Not pooled on purpose.** Different seeds are different opening sets; combining them would need care
+with the interval and would add nothing — the 953-pair arm already resolves the question, and arm 2's
+role is to fail DIFFERENTLY, which it declines to do.
+
+**netmatch calls arm 2 "UNRESOLVED", and that is correct at 448 pairs** — its own rule is that a
+448-pair interval cannot exclude a 0.02–0.05 effect. It is reported as corroboration of the resolved
+arm, never as a second verdict.
+
+## The harness defect this arm also proves fixed
+
+Arm 2's header reads `seed 911911`. The earlier attempt, launched as `MAS_PAIR_SEED=911911`, printed
+`seed 20260907` — netmatch takes the seed as the **5th POSITIONAL argument** and that env var occurs
+nowhere in the binary. Had it gone unnoticed, a byte-identical rerun would have been reported as an
+independent replication. The fix is confirmed by the tool's own echoed header, which is the only
+evidence that counts for this class of defect.
+
+## Final status
+
+The gen-39836 promotion is a **no-op**: the promoted net and its predecessor are the same strength on
+two independent opening sets. No rollback — they are equivalent, so there is nothing to undo. The
+mechanism is recorded above: seven looks at p≈0.083 each, and the promotion was the maximum of the
+series.
