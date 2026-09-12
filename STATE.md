@@ -6135,3 +6135,45 @@ deterministic and the busy box cannot move the result.
 `systemd-run`'s OWN output, not the unit's — the unit's stdout goes to the JOURNAL. The log file
 contains exactly one line, "Running as unit:". Caught by reading the file instead of assuming it had
 the data.
+
+### 23:22 — CORRECTION to the re-test I launched 4 minutes ago: my "independent seed" arm was not independent
+
+I launched the second arm as `MAS_PAIR_SEED=911911 netmatch A B 224`. **netmatch does not read that
+variable.** From `crates/pipeline/examples/netmatch.rs`:
+
+```rust
+// The argument order is `netA netB PAIRS DEPTH SEED`
+let seed: u64 = a.next().and_then(|s| s.parse().ok()).unwrap_or(20260907);
+```
+
+The seed is the **5th POSITIONAL argument**, and `MAS_PAIR_SEED` occurs **0 times** in the binary. So
+that arm would have run the DEFAULT seed 20260907 — byte-identical conditions to the extension — and
+reported a number I would have read as independent corroboration. Two arms agreeing because they are
+the same arm is worse than no second arm.
+
+Proven by the tool's own echoed header rather than by reading source alone:
+
+```
+$ netmatch p1_champion.net p1_champion_prev_g39836.net 2 4 911911
+  2 pairs, depth 4 (project standard for strength), seed 911911     <- seed HONOURED when positional
+```
+
+This is the recorded `env-before-a-pipeline` trap: an env var that the tool never reads, silently
+leaving the default in place. The standing fix is to read the tool's own "loaded/seed X" line, which is
+what caught it.
+
+**What is still valid:** the EXTENSION arm (448 pairs, seed 20260907). An extension is *supposed* to
+reuse the seed — more pairs on the same conditions is exactly its job, and it is the arm netmatch asked
+for ("needs more pairs").
+
+**What changes:** the second arm in the running unit is a same-seed REPLICATION at 224 pairs, not an
+independent test. It is still informative (run-to-run reproducibility) but it CANNOT be quoted as a
+second seed. The true independent-seed arm must be run separately as:
+
+```
+netmatch p1_champion.net p1_champion_prev_g39836.net 224 4 911911
+```
+
+Left to run rather than killed, because killing would discard the extension's progress and the
+duplicate costs only CPU, not correctness — provided it is labelled honestly, which is the point of
+this note.
