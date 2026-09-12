@@ -1,5 +1,19 @@
 # The fresh lineage reproduces the plateau: 1561 pooled, FLAT, 39 short of the day-7 line
 
+> **SUPERSEDED IN PART, 2026-09-12 05:00 — read `promotion_ladder_decay_FINDING.md` first.**
+> This file reads the flat 1561 pooled ruler as the training run failing to improve. Measured
+> against 354 ruler readings on one anchor, the run is NOT failing to improve in the way this
+> implies: it keeps producing nets that genuinely beat their predecessors — the newest promotion is
+> confirmed at 896 pairs on an independent seed, 0.536 ± 0.015 — and those wins have stopped
+> converting into absolute strength. The absolute step across successive lineages decays
+> +78, +47, +27, −5, −0 while the promotion margin stays flat at ~0.535.
+>
+> That makes the plateau a **SELECTION** problem, not a training-rate one, and it will not yield to
+> more generations, a different learning rate, or a wider net. Do not start another training-rate
+> experiment off the framing below. `champion_absolute_PREREG.md` is measuring the two specific
+> champion files to settle whether the most recent promotion helped or hurt.
+
+
 **2026-09-12 03:07.** `prodk0127` is the production run keepalive started at 01:27 from the shipped
 champion (`9545a35289e9`) at the shipped lr 0.0002. It has run 15,701 generations and the live ruler
 has taken **20 independent readings** against SF-1320 @10k nodes, 120 games each.

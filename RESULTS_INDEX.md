@@ -121,6 +121,7 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
+| [prodk0127_plateau_STATUS.md](prodk0127_plateau_STATUS.md) | The fresh lineage reproduces the plateau: 1561 pooled, FLAT, 39 short of the day-7 line |
 | [promotion_ladder_decay_FINDING.md](promotion_ladder_decay_FINDING.md) | The promotion margin is constant at ~0.535 while the absolute step has decayed to zero |
 | [champion_absolute_PREREG.md](champion_absolute_PREREG.md) | Two sound instruments disagree about the same net: does the promotion ladder track ABSOLUTE strength? |
 | [auto_promote_confirm_untested_STATUS.md](auto_promote_confirm_untested_STATUS.md) | The promotion confirmation stage is ARMED but has never fired — status, not a success claim |
@@ -131,7 +132,6 @@ it was never indexed because of its name.
 | [structural_next_PREREG.md](structural_next_PREREG.md) | PRE-REGISTRATION — what the loop does after the configuration wins run out |
 | [replay_window_plateau_FINDING.md](replay_window_plateau_FINDING.md) | Candidate B is NOT "genuinely unmeasured" — a plateau-regime replay sweep ran on 2026-09-08 and returned a null |
 | [candidate_a_channel_FINDING.md](candidate_a_channel_FINDING.md) | Candidate A's label channel is LIVE, but it is the channel `label_source` measured as null — the arm needs a third cell |
-| [prodk0127_plateau_STATUS.md](prodk0127_plateau_STATUS.md) | The fresh lineage reproduces the plateau: 1561 pooled, FLAT, 39 short of the day-7 line |
 | [cand_arm_harness_NOTES.md](cand_arm_harness_NOTES.md) | Harness facts for the Candidate A arms, checked rather than assumed |
 | [generation_is_not_a_unit_FINDING.md](generation_is_not_a_unit_FINDING.md) | "Generation" means 8 games in one result and 2,400 in another — a 300x unit gap that made Candidate A look infeasible |
 | [p1_kill_criterion_STATUS.md](p1_kill_criterion_STATUS.md) | The P1 kill criterion: conjunct 1 is now SATISFIED. Conjunct 2 is measurable but not yet measured. |
