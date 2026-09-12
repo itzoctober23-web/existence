@@ -17,6 +17,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [budget_label_channel_RESULT.md](budget_label_channel_RESULT.md) | The node budget's LABEL channel is null — 0.4960 with 47.8% of labels changed, against a −43 Elo full effect |
 | [champion_absolute_RESULT.md](champion_absolute_RESULT.md) | UNRESOLVED at 600 games a side — and the within-run OLS trend I cited as evidence is REFUTED |
 | [cell_c_label_move_mismatch_RESULT.md](cell_c_label_move_mismatch_RESULT.md) | Cell C is the weakest of the three arms — and the permitted reading is the one fixed in advance: decoupling the label from the played move is harmful |
 | [candidate_a_budget_loses_RESULT.md](candidate_a_budget_loses_RESULT.md) | Candidate A: the node-budget arm LOSES to fixed depth — 0.4383 over 672 pairs, and the registered mechanism was backwards |
