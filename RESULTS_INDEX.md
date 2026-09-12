@@ -124,6 +124,7 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
+| [decisiveness_measures_the_search_FINDING.md](decisiveness_measures_the_search_FINDING.md) | Decisiveness measures the SEARCH, not the net — the budget's +14.5 points is there at generation 1 |
 | [promotion_ladder_decay_FINDING.md](promotion_ladder_decay_FINDING.md) | The promotion margin is constant at ~0.535 while the absolute step has decayed to zero |
 | [champion_absolute_PREREG.md](champion_absolute_PREREG.md) | Two sound instruments disagree about the same net: does the promotion ladder track ABSOLUTE strength? |
 | [prodk0127_plateau_STATUS.md](prodk0127_plateau_STATUS.md) | The fresh lineage reproduces the plateau: 1561 pooled, FLAT, 39 short of the day-7 line |
