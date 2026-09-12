@@ -11,6 +11,8 @@ ckpt/
 # determinism check can diff the new run against it. They are per-run evidence exactly like the
 .DS_Store
 .gate_candidate_a.lock
+.gate_cell_c.lock
+gcc_*.log
 # Generated at release time by `cargo about`
 *.jsonl
 .launch_cand_replication.lock
