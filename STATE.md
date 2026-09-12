@@ -6223,3 +6223,4 @@ leaving a bare `..none`.
 ---
 # STATE lines under the 2026-09-12 regime (one line per day; nothing else below this rule)
 2026-09-12 | PARKED; the one run: P1 depth-4 datagen 300 gens from champion bc0b165b28a7 (learn_prod bb7ad37d93a9), rung every 50, launched 10:47 as prod_d4_09121047 | ruler: control rung gen 0 running, no reading yet | pin 4PC 0-5 | m2 gate 6-9 | m2 build 10 | Existence 11 | 12-15 his
+2026-09-12 (11:36) | the one permitted run FINISHED at planned N: prod_d4_09121047, final net d641d93267f5; ruler control +199 ± 62, pooled rungs 50-300 +208 ± 52 (~1528), slope +23 ± 61 / 100 gens (z +0.73) -> FLAT (p1_prod_d4_RESULT.md). Manifest line existence-p1d4 removed (run complete; watchdog would otherwise only log FINISHED). Core 11 now hosts the Aporia960 bot. | ruler pooled +208 ± 52 vs SF-1320 | pin 4PC 0-5 | m2 nnue 6-7 | m2 hce 8-9 | m2 ruler 10 | bot 11 | 12-15 his
