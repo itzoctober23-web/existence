@@ -116,3 +116,52 @@ reached) is robust; the exact percentage for a lifted program is not measured.
 **The test asserts nothing about the value.** It prints. A threshold invented before the first
 measurement would have been a guess wearing a test's clothes — and had I written one from my
 prediction, it would now be failing on correct behaviour.
+
+---
+
+## 00:15 — the recorded blocker conflates ACCEPTANCE with RETENTION, and the gap is 5x
+
+Three things were verified tonight, each from the code rather than from the doc comment that asserts it:
+
+**1. `Node::Call` really is charged 2** — it has NO explicit arm in `interp::cost_of` and falls through
+the catch-all `_ => 2`. The unpark note's claim is accurate. Worth noting that the same function warns
+about exactly this catch-all:
+
+> *"`cost_of` ends in `_ => 2`, so a new node that reads the net would otherwise be charged 2 — eighty
+> times under its real cost … an underpriced primitive is a standing invitation for the search to spend
+> everything on it for free."*
+
+`Node::Unc` was given an explicit arm for that reason. `Call` was not — nobody has asked whether 2 is
+right for it, and FITNESS's own revisit trigger for the cost model (**cost-vs-time correlation < 0.95**,
+`FITNESS.md:116`) appears in **no result file**: it is a declared check that has never been measured.
+
+**2. `funcs[1]` is edited 17–79% of draws** (measured above, refuting my own prediction).
+
+**3. The retention rule is `x >= top*(1-EPS)`** (`evolve.rs:1679`, `:1699`), with `EPS = 0.02` from
+`configs/search_track.conf`. A lift's rate is `parent / 1.004 = 0.996x`. **0.996 >= 0.98 — the lift is
+RETAINED.**
+
+### Why that matters
+
+The unpark note says a lift is *"strictly worse, so it cannot be accepted ON ITS OWN"*. That is true of
+ACCEPTANCE and irrelevant to survival. The population is explicitly there for worse-than-best members —
+`search_track.conf` says so: *"The population exists to carry intermediates that are WORSE than the
+best."* The lift's penalty is **0.4%**; the retention band is **2%**, five times wider.
+
+So the route the unpark condition asks for already exists, unmentioned by either clause:
+
+```
+lift (0.996x, retained by EPS)  ->  a later draw edits funcs[1] (17-79%)  ->  diverged candidate
+```
+
+**What I am NOT doing: unparking `Op::AddFn`.** The unpark condition is a recorded rule, changing it
+alters a live search's behaviour, and `add_fn_drops_writes_RESULT.md` showed one day ago that the
+"obvious" claim about this operator was false for months. The evidence above is an argument that the
+condition deserves re-examination, not authority to change it. What would settle it is a direct
+measurement — enable AddFn in a TEST harness, run N generations, and count how many lifted functions
+survive to be edited — and that is a run, not a code reading.
+
+**Kept honest:** point 3 rests on the lift costing 1.004x, which is `add_fn_drops_writes_RESULT.md`'s
+measured figure for the seed. A lift of a LARGER subtree pays the same flat +2 against a larger base, so
+the ratio only improves. A lift of a tiny subtree in a tiny program could exceed 2% and fall outside the
+band — untested, and the reason this is an argument rather than a conclusion.
