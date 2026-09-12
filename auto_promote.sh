@@ -13,6 +13,10 @@ cd "$(dirname "$0")"
 SCR=/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad
 NM=$SCR/xt_cap/release/examples/netmatch
 PAIRS=${PAIRS:-224}
+# Confirmation stage (see the block in the arm loop for why). Different seed on purpose.
+CONFIRM_PAIRS=${CONFIRM_PAIRS:-896}
+CONFIRM_SEED=${CONFIRM_SEED:-911911}
+DEPTH=${DEPTH:-4}
 EVERY=${EVERY:-1800}
 # 6-11 is Existence's half of the box. It was 6-15, which reaches onto 12-15 -- the four cores
 # reserved for HIS desktop. A background measurement is never allowed to take those.
@@ -75,7 +79,6 @@ while true; do
     line=$(grep -oE 'scores 0\.[0-9]+ \+/- 0\.[0-9]+' "ap_$(basename ${cand%.net}).log" | head -1)
     rate=$(echo "$line" | grep -oE '0\.[0-9]+' | head -1)
     ci=$(echo "$line"   | grep -oE '0\.[0-9]+' | tail -1)
-    rm -f "/tmp/ap_$(basename $cand)"
     # An unparsable result is HOLD, never promote. A missing rate means the match did not run,
     # and treating "no evidence" as "no objection" is how an unmeasured net becomes champion.
     [ -z "$rate" ] && { echo "$(date '+%H:%M') $(basename $cand) gen $G: netmatch produced no rate -- NOT promoting"; continue; }
@@ -83,6 +86,32 @@ while true; do
     verdict=$(python3 -c "
 r,c=$rate,$ci
 print('PROMOTE' if r-c>=0.5 else ('REGRESSION' if r+c<0.5 else 'hold'))" 2>/dev/null)
+
+    # CONFIRMATION STAGE. One 224-pair read clearing 0.530 is not evidence that a net is better.
+    # This script measures every live arm every cycle, so it takes ~7 looks/day at p=0.083 per
+    # look, which makes a spurious PROMOTE near-certain daily. promo_g39836_RESULT.md measured
+    # exactly that: the promoted reading was the MAXIMUM of 7 (mean 0.5054), and the same pair
+    # re-run at 448 and 953 pairs gave 0.501 +/- 0.021 and 0.503 +/- 0.014 -- indistinguishable.
+    # So a PROMOTE must survive a SECOND, higher-power match at a DIFFERENT seed before it lands.
+    # Only run it when n -eq 1, the only case that can actually promote; otherwise it is wasted CPU.
+    if [ "$verdict" = "PROMOTE" ] && [ "$n" -eq 1 ]; then
+      nice -n 19 taskset -c "$CORES" "$NM" "/tmp/ap_$(basename $cand)" p1_champion.net \
+        "$CONFIRM_PAIRS" "$DEPTH" "$CONFIRM_SEED" > "apc_$(basename ${cand%.net}).log" 2>&1
+      cline=$(grep -oE 'scores 0\.[0-9]+ \+/- 0\.[0-9]+' "apc_$(basename ${cand%.net}).log" | head -1)
+      crate=$(echo "$cline" | grep -oE '0\.[0-9]+' | head -1)
+      cci=$(echo "$cline"   | grep -oE '0\.[0-9]+' | tail -1)
+      if [ -z "$crate" ]; then
+        echo "$(date '+%H:%M') $(basename $cand) gen $G: PROMOTE at $PAIRS ($rate +/- $ci) but the confirmation match produced no rate -- NOT promoting"
+        verdict=unconfirmed
+      elif [ "$(python3 -c "
+r,c=$crate,$cci
+print('yes' if r-c>=0.5 else 'no')" 2>/dev/null)" = "yes" ]; then
+        echo "$(date '+%H:%M') $(basename $cand) gen $G: CONFIRMED $crate +/- $cci at $CONFIRM_PAIRS pairs seed $CONFIRM_SEED"
+      else
+        echo "$(date '+%H:%M') $(basename $cand) gen $G: NOT CONFIRMED -- $PAIRS pairs said $rate +/- $ci, $CONFIRM_PAIRS pairs seed $CONFIRM_SEED said $crate +/- $cci -- NOT promoting"
+        verdict=unconfirmed
+      fi
+    fi
 
     if [ "$verdict" = "PROMOTE" ] && [ "$n" -eq 1 ]; then
       cp -f p1_champion.net "p1_champion_prev_g${G}.net"
@@ -106,8 +135,11 @@ print('PROMOTE' if r-c>=0.5 else ('REGRESSION' if r+c<0.5 else 'hold'))" 2>/dev/
       echo "$(date '+%H:%M') $(basename $cand) gen $G: transient $rate +/- $ci  (below 0.5, but gen $G < 1000 -- expected resume dip, see resume_dip_RESULT.md)"
     elif [ "$verdict" = "REGRESSION" ]; then
       echo "$(date '+%H:%M') $(basename $cand) gen $G: REGRESSION $rate +/- $ci  (interval entirely below 0.5, PAST the resume transient)"
+    elif [ "$verdict" = "unconfirmed" ]; then
+      : # already reported by the confirmation stage
     else
       echo "$(date '+%H:%M') $(basename $cand) gen $G: hold       $rate +/- $ci"
     fi
+    rm -f "/tmp/ap_$(basename $cand)"
   done
 done
