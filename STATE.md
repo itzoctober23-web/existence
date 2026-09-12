@@ -121,12 +121,27 @@ decisive. (4PC draws are measured at 0.34–0.79%, so an all-draw batch was the 
 explanation and it is wrong.) It is also not `res is None`: that path `continue`s BEFORE the state
 write, and the state file is advancing every iteration.
 
-**Consequence:** the 8h tune does far less work than its iteration count implies — roughly one
-gradient step per five iterations at present. The fix is a larger `--games` per iteration (more
-pairs ⇒ fewer exact cancellations), NOT a longer run. **Not applied to the running tune** — editing a
-job mid-flight is the rule this project keeps re-learning — and recorded here for the next round.
-Same class as the P1 batch-gate finding above: the instrument is behaving exactly as specified and is
-simply underpowered for the effect it faces.
+**CORRECTION to my own first prescription.** I initially wrote that the fix is a larger `--games`.
+That is probably wrong, and the arithmetic is the reason. **SPSA is DESIGNED to tolerate a noisy —
+including frequently zero — gradient**, by averaging over many iterations; fishtest tunes Stockfish
+this way with a single pair per iteration. `spsa.py`'s own default is `--maxiter 3500`.
+
+```
+8h at 8.4 min/iteration  =  ~57 iterations
+spsa.py default maxiter  =  3500
+                         =>  this run gets 1.6% of the default iteration budget
+```
+
+**So the binding constraint is TOTAL ITERATIONS, not games per iteration.** 57 iterations for a
+5-parameter SPSA is far too few to converge whatever the batch size, and raising `--games` would
+*reduce* the iteration count further — trading the one resource that is actually scarce for one that
+SPSA does not need. The frequent `res = 0` is a real and correctly-diagnosed mechanism, but it is a
+symptom of the same shortage rather than an independent defect.
+
+**What would actually help** is more iterations per hour: a shorter `--movetime` (2.0s is expensive)
+or cheaper batches — i.e. the opposite of my first prescription. Which of those is right is a
+measurement, not a guess, and it is not being made mid-flight. **Nothing applied to the running
+tune.** Recorded so the next round is sized by this arithmetic instead of by the 8h wall clock.
 
 ## 🎯 TRACK A — UNCERTAINTY HEAD: built at parity, exposed, measured, and the sign is backwards
 
