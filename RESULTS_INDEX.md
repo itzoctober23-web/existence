@@ -17,6 +17,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [cell_c_label_move_mismatch_RESULT.md](cell_c_label_move_mismatch_RESULT.md) | Cell C is the weakest of the three arms — and the permitted reading is the one fixed in advance: decoupling the label from the played move is harmful |
 | [candidate_a_budget_loses_RESULT.md](candidate_a_budget_loses_RESULT.md) | Candidate A: the node-budget arm LOSES to fixed depth — 0.4383 over 672 pairs, and the registered mechanism was backwards |
 | [budget_makes_games_decisive_RESULT.md](budget_makes_games_decisive_RESULT.md) | The node budget makes self-play 14.5 points more DECISIVE and yields 27% more usable rows — a third channel the pre-registration never named |
 | [budget_realised_depth_RESULT.md](budget_realised_depth_RESULT.md) | The node-budget gate PASSES — but the budget reallocates effort in the OPPOSITE direction to the one pre-registered |
