@@ -62,6 +62,23 @@ Both instruments involved are load-immune by construction, so contention cannot 
 the ruler is fixed-depth against fixed nodes and snapshots the net to /tmp before playing; the
 promotion netmatch is paired at fixed depth 4.
 
+## The mechanism is distribution overfitting, NOT non-transitivity
+
+`nontransitive_walk_RESULT.md` forecloses the obvious explanation. It measured three 224-pair
+matches along one lineage and showed they COMPOSE to within 0.01 Elo (+28.6, −0.7, sum +27.9 against
+a measured +27.9 over the full span). **At the ~2,000-generation scale this walk is transitive**, and
+that file narrows its own headline to say non-transitivity is at most a short-range, 5-generation
+effect. A promotion spans ~25,000 generations.
+
+So netmatch is not an unreliable instrument, and the table above is not evidence that it is. It is
+internally consistent — demonstrably so. What the composition check cannot establish is agreement
+with a DIFFERENT opponent, because every match in it was drawn from the same self-play family.
+
+The correct statement is therefore: **strength against the net's own lineage is real, measurable,
+transitive and reproducible — and it has stopped transferring to strength against an external
+opponent.** The ladder is not being fooled about who beats whom. It is optimising a quantity that has
+decoupled from the one we care about.
+
 ## The limitation, stated plainly
 
 Each lineage figure is the **mean over that lineage's whole run**, not the net at the moment it was

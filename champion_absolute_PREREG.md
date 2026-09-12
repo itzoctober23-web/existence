@@ -46,6 +46,40 @@ The resume transient cuts the right way too: a resumed arm reads ~95 Elo LOW at 
 (`resume_dip_RESULT.md`), which would manufacture a RISING trend. The observed trend is falling, so
 the transient makes this estimate conservative rather than explaining it.
 
+## CORRECTION, 05:08 — the hypothesis below is mis-framed, and `nontransitive_walk_RESULT.md` says why
+
+Written before I re-read the index, which the rules require and which I did only after launching.
+That file already settles part of this, and it rules OUT the framing used below.
+
+It measured three independent 224-pair matches along one lineage and checked that they COMPOSE:
+
+```text
+  gen 2162 -> 4818    +28.6
+  gen 4818 -> 6803     -0.7
+  sum                 +27.9
+  measured 2162->6803 +27.9      difference 0.00 Elo
+```
+
+**At the ~2,000-generation scale this walk is TRANSITIVE — gains add, to within 0.01 Elo.** That file
+explicitly narrows its own headline to say non-transitivity, if present at all, is a SHORT-RANGE
+effect at 5-generation steps, and that long-range comparisons are self-consistent.
+
+A promotion spans ~25,000 generations, which is long-range. So "self-play non-transitivity" does not
+explain the disagreement, and the hypothesis below is wrong as stated.
+
+**The corrected hypothesis.** That composition check demonstrates netmatch is *internally* consistent
+— it is a reliable RELATIVE instrument, and nothing here impugns it. But internal consistency across
+comparisons drawn from one opponent distribution says nothing about agreement with a DIFFERENT
+opponent. The disagreement is not transitivity failing; it is that **strength measured against the
+net's own self-play family does not transfer to strength against an external opponent.** That is
+distribution overfitting, and it is a sharper claim than the one below, because it survives the
+composition check instead of contradicting it.
+
+The measurement and the decision rule are unchanged and still correct — they compare the two champion
+FILES against the external anchor, which is exactly the quantity in question. Only the mechanism
+named in the row headings changes: read "does not track absolute strength" rather than
+"non-transitivity".
+
 ## The hypothesis
 
 They disagree because they measure different things. One is strength against the net's **own
