@@ -6219,3 +6219,7 @@ count in `prop_gens40_RESULT.md`. **No direction is read from it** — the arm i
 measuring the wrong thing and the run would have been void. The instrument's own comment settled it in
 one read, because someone had already hit the same ambiguity and split the counter in two rather than
 leaving a bare `..none`.
+
+---
+# STATE lines under the 2026-09-12 regime (one line per day; nothing else below this rule)
+2026-09-12 | PARKED; the one run: P1 depth-4 datagen 300 gens from champion bc0b165b28a7 (learn_prod bb7ad37d93a9), rung every 50, launched 10:47 as prod_d4_09121047 | ruler: control rung gen 0 running, no reading yet | pin 4PC 0-5 | m2 gate 6-9 | m2 build 10 | Existence 11 | 12-15 his
