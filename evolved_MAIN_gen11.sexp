@@ -1,0 +1,3 @@
+(program Main
+  (func "choose" (("p" Pos) ("B" Int)) Move (argmax (moves (var "p")) "m" (arith Neg (call 1 (apply (var "p") (var "m")) (tread 0) (arith Neg (tread 1)) (tread 1)))))
+  (func "ab" (("p" Pos) ("d" Int) ("a" Score) ("b" Score)) Score (let "_" (tread 1) (let "_" (if (cmp (var "d") (field Count (probe (key (var "p")))) Eq) (ret (eval (var "p")))) (let "best" (arith Neg (tread 1)) (let "_" (foreach (moves (var "p")) "m" (let "vv" (arith Neg (call 1 (apply (var "p") (var "m")) (arith Sub (var "d") (const 1)) (arith Neg (var "b")) (arith Neg (var "a")))) (let "_" (if (cmp budget (const 4) Gt) (set "best" (max (var "best") (var "vv")))) (let "_" (set "a" (max (var "a") (var "vv"))) (if (cmp (var "a") (var "b") Ge) (ret (var "best"))))))) (ret (var "best"))))))))

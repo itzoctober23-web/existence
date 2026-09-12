@@ -6060,3 +6060,28 @@ lever and the admission threshold interact. A set hard enough to catch the one-p
 enough that nothing clears the champion's rate, so `eps`/`mu` (declared in
 `configs/search_track.conf`, unchanged since 09-09) may need to move WITH the composition rather than
 after it. That is a two-change experiment and needs its own pre-registration.
+
+### 23:05 — UPDATE to the 22:55 note: the arm DOES reach the gate, rarely. Softened, not refuted.
+
+At gen 6 I recorded that the disagreement-heavy arm had produced ZERO gate decisions and that this
+might leave the prereg's primary metric undefined. At gen 11 that is no longer strictly true:
+
+```
+gen 10 MCTS  gate REJECT 0.500+/-0.250 (12 games W-D-L 0-12-0)  ABOVE:1
+gate decisions: 1 of 11 generations   (control: a decision in essentially every generation)
+```
+
+**So the arm can reach the gate; it does so about an order of magnitude less often.** Extrapolating
+the observed rate, 40 generations yields roughly 4 decisions ≈ 48 games, against the control's 79
+decisions / 948 games. The primary metric — decisive-game fraction against the 14.7% baseline — will
+therefore be computable but **badly underpowered**, which is a different problem from undefined and
+needs saying differently.
+
+Note also what the single decision was: `0.500 +/- 0.250` from `W-D-L 0-12-0`, every game drawn. That
+is the zero-variance rule-of-three reading (`ci95 = 1.5/6 = 0.250`) that `refmatch_discrimination_PREREG.md`
+predicted in advance, and it needs `>0.75` to pass — arithmetically unpassable, exactly as
+`gate_arithmetic_RESULT.md` enumerated.
+
+**Still not changing the prereg or stopping the arm.** It runs to 40. The honest report at the end
+will quote the decision count alongside the fraction, so the power is visible in the claim rather than
+buried under it.
