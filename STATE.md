@@ -6177,3 +6177,45 @@ netmatch p1_champion.net p1_champion_prev_g39836.net 224 4 911911
 Left to run rather than killed, because killing would discard the extension's progress and the
 duplicate costs only CPU, not correctness — provided it is labelled honestly, which is the point of
 this note.
+
+### 23:40 — `gated-skip`: an alarm of mine, chased to the definition and WITHDRAWN
+
+I saw `gen 38 MCTS ..none[above 8, gated-skip 8]` and suspected a hidden skip path was preventing the
+treatment's candidates from ever reaching the game gate — which would have meant the arm was not
+measuring what the prereg intended. Tallied across both arms:
+
+```
+CONTROL  (10+4+5)    1 '..none' turn,   0 above threshold,   0 gated-skipped
+TREATMENT (4+8+7)   56 '..none' turns, 70 above threshold,  70 gated-skipped  (100%)
+```
+
+**The suspicion is wrong.** `evolve.rs:3316` defines it, and the comment above it was written for
+exactly this confusion:
+
+```rust
+let n_gated_skip = popn.iter().filter(|(pr,_,r)| *r > best_rate
+        && lineages[li].gated.contains(&format!("{pr:?}"))).count();
+```
+
+> *"(a) nothing beat best_rate -> the SEARCH found nothing. Real failure.*
+> *(b) something did, but it is `gated` -> already tried and REJECTED by the game gate.*
+> ***Working as designed, not failure.***"
+
+So a gated-skip is a candidate that **already went through the game gate and lost**. It is being
+REMEMBERED, not blocked. The treatment's 20 gate decisions are genuine gatings; the 70 skips are the
+population re-offering programs it has already spent a gate on.
+
+**What the tally DOES say, and it is about the population rather than the gate.** The control emitted
+`..none` on 1 turn out of ~80 — it had a FRESH above-threshold candidate almost every turn. The
+treatment emitted it on 56 turns and never once with a novel candidate. So the harder position set does
+not block the gate; it exhausts the supply of new candidates that clear the incumbent, after which the
+population recycles rejects.
+
+That is mechanism, not verdict, and it is consistent with the control's own low distinct-fingerprint
+count in `prop_gens40_RESULT.md`. **No direction is read from it** — the arm is at gen 39 of 40 and
+`p2_fitness_verdict.sh` still refuses.
+
+**Why this mattered enough to chase:** had the skip been a blocking path, the arm would have been
+measuring the wrong thing and the run would have been void. The instrument's own comment settled it in
+one read, because someone had already hit the same ambiguity and split the counter in two rather than
+leaving a bare `..none`.
