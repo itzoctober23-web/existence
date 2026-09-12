@@ -1,10 +1,25 @@
 # WEEK 1 RETRO — which lever failed, and why
 
-> **STATUS: DRAFT, written 2026-09-11 evening.** The stop condition is "1600 pooled with a rising
-> trend by day 7", and day 7 is tomorrow. Today's reading is **1535 ± 12 (prodk1926) and 1551 ± 13
-> (prodk1658), both FLAT** (z = −0.22 and +0.22). Unless tomorrow's reading moves ~50 Elo and turns
-> a trend positive, the condition is not met and this file is the required output. It is drafted now
-> because the evidence is fresh, not to pre-empt the reading.
+> **STATUS: FINAL — day 7 is 2026-09-12 and the reading is in. The stop condition is NOT met.**
+>
+> The directive set it as *"1600 pooled with a rising trend by day 7; if it's not there, `WEEK1_RETRO.md`
+> says which lever failed and why before anything new starts."* Measured at 00:47 on day 7:
+>
+> ```
+> arm          rungs   gens spanned    pooled    slope/1000 gens      z      verdict
+> prodk1658      24     152-20,156     1551 ±13    +0.5 ± 2.2       +0.22    FLAT
+> prodk1056      67     126-53,862     1522 ± 8    +0.6 ± 0.5       +1.30    FLAT
+> prodk1926      63     132-53,881     1541 ± 8    +0.0 ± 0.5       +0.04    FLAT
+> ```
+>
+> **Best pooled 1551 against a required 1600 — 49 Elo short — and no arm has a rising trend.**
+> `prodk1926` is the sharpest reading in the project's history on this question: 63 rungs over 53,881
+> generations give a slope error of **±0.5 per 1000 generations**, three times tighter than the ±1.4
+> available when this file was drafted, and the slope lands on **exactly +0.0**. The flatness is not a
+> wide interval that happens to include zero; it is zero, measured precisely.
+>
+> Everything below was written the previous evening, before the day-7 reading existed, and is unchanged
+> by it.
 
 ## The one-line answer
 
