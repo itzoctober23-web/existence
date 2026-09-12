@@ -5896,3 +5896,63 @@ RUNNING experiment. The rule now recorded: **a running experiment produces STATE
 report progress until the planned N, and use the reporters (`choice_report.py`,
 `blend_crossseed.py`, `ruler_trend.py`), each of which refuses a verdict where hand-reading a log
 did not.
+
+## 2026-09-11 21:50 — tick
+
+**Health** — all green. Existence trainer `prodk1926` alive; keepalive/auto_promote/live_ruler up.
+4PC `tune_hybrid` ADVANCING (SPSA iter 26, state written 392s ago), queue 42 pending. P2 `evolve`
+alive at a full core.
+
+**Three broken probes caught this tick, all by reading rather than trusting a pattern:**
+1. `search_long_run40.log` is a stale 138-byte file. The process's own `/proc/PID/fd/1` says it
+   writes `prop_gens40.log`. "0 gen lines" was my file, not its state.
+2. `ps --ppid` on the queue runner showed only `bash` + `sleep` at 0% CPU and I nearly called
+   tune_hybrid HUNG. The engines are GRANDCHILDREN — 6 `maswabe-buckets` at ~169s CPU each.
+3. `^gen ` matched nothing in prop_gens40.log because the lines are INDENTED.
+Two wrong reads in a row is the harness, not the subject — so I checked the third before acting.
+
+**The coredump burst is NOT the 4PC engine.** 12 SIGSEGVs at 20:16:57 name
+`maswabe2/reference/maswabe-engine-cur`, which is the compiled **.msw reference** for the 2PC port
+(`build_cur.sh` from `engine_cur.msw`). That build has since been replaced six times (cur2..cur6,
+and `cur` == `cur6` by md5). Current binary re-probed under `go movetime` over 55 positions:
+**rc=0, 55/55 bestmoves, zero new coredumps.** Not a gate-3 blocker.
+
+### P2 `search_long_run40` — STATE, not a result (gen 34 of 40)
+
+0 ACCEPT / 67 REJECT. The 68th `gate ` line is the header (`gate 6 pairs`), not a decision — checked,
+because an unparsed line that turned out to be an ACCEPT would have inverted the headline.
+
+**The zero is an INSTRUMENT property, not a generator property.** Over 804 games: **W 4, D 667,
+L 133 — draw rate 0.830.** Holding each decision's OWN observed draw count fixed and granting the
+candidate a win in every decisive game it actually played:
+
+```
+MCTS  34/34 decisions ARITHMETICALLY UNPASSABLE
+      draw rate 0.944 -> ~11.3 draws of 12 -> ~0.7 decisive games
+      threshold >0.582 over 12 games = > 0.98 NET WINS above the all-draw baseline
+MAIN   8/33 unpassable; draw rate 0.712 -> ~3.5 decisive games vs > 1.24 net wins needed
+```
+
+So the MCTS arm's gate **could not emit ACCEPT under any game outcome it was capable of producing.**
+A zero-accept count from an instrument that cannot produce a non-zero one carries no information
+about the generator. This does not contradict `gate_power_RESULT.md` (0 accepts in 203 decisions) —
+it supplies the mechanism for it.
+
+Corroborating: MCTS shows only **4 distinct (rate, W-D-L) fingerprints across 34 decisions** (MAIN 8
+of 33), and gens 32/33 are byte-identical including `surrogate 0.003912` — the population's best is
+not changing between generations.
+
+When a game WAS decisive the candidate won 4 of 137 (2.9%), so it is also genuinely weaker, not
+merely unmeasurable. Both things are true; the gate cannot distinguish them at 12 games.
+
+**Next move is the pre-registered one** — the directive says a zero makes this a FITNESS question
+(games primary, mates filter), NOT another instrument. Acting on it waits for gen 40; this is STATE.
+
+### maswabe2 gate 3 — control launched (load-admissible)
+
+Gate 3 is fixed-time and ASYMMETRIC, so it needs the quiet box `tune_hybrid` holds until ~02:34.
+`sprt2.py` already defaults to the directive's bounds (elo0 −5.0, elo1 0.0), pentanomial, deduped
+internal book. Launched the **paired control** REF vs REF (`m2-gate3-control.service`), which the
+harness auto-detects by realpath and marks admissible on a busy box. This is the run that would
+expose a colour-swap / unshared-book / asymmetric-time bug BEFORE it contaminates the real gate —
+the same class of bug bisection found in gate 2.
