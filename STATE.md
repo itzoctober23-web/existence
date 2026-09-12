@@ -33,6 +33,41 @@ named `learn` on a 300s period, so a check landing in the gap between arms would
 on the box. **Do not "fix" this by relaunching keepalive while the A/B runs** — that is the
 two-trainer condition that froze the box.
 
+**CONTROL ARM DONE 19:10:46 — 2,000/2,000, rc=0, 748s.** Its own final control match:
+`691W-49D-156L rate 0.799 ± 0.025 => LEARNED: beats its own random initialisation with the interval
+clear of 0.5`. Its last generation confirms the diagnosis in production's own words:
+`gen 2000 … gate 0W-0D-0L 0.000+/-1.000 ACCEPT` — zero games, ci95 1.0, accepted anyway.
+
+**COMPOUND ARM RUNNING since 19:10:46.** Binding PROVEN from its banner, not assumed:
+`datagen node budget 10309/move -> depth 3 (cap is the safety net)` and `gate-every=100`.
+
+*`--gate-every` semantics, corrected after I initially read them backwards:* `batch_mode =
+gate_every > 1` and in batch mode **no per-generation match is played** — the `gate 0W-0D-0L` on
+every line is an honest empty record. The real gate is the BATCH gate at `main.rs:1194`
+(`g % gate_every == 0`), and it fires as the PREREG expected (20 calls over 2,000 gens). It is also a
+**different and better test than I registered**: it compares each net's INCREMENT OVER A FIXED ORIGIN
+rather than beating its parent, because `proxies_RESULT.md` measured parent-relative comparison
+uninformative.
+
+First two calls (STATE — two points, no direction):
+```
+g100: champ-vs-origin 0.970±0.012  base 0.972±0.012  increment -0.002±0.017 -> ROLL BACK
+g200: champ-vs-origin 0.978±0.010  base 0.972±0.012  increment +0.006±0.015 -> ROLL BACK
+```
+**Watch for a ceiling effect on this instrument:** champ-vs-origin sits at 0.97–0.98, so increments
+are being measured in a compressed band against a ±0.015-ish interval. A gate that rolls back every
+batch would leave the compound arm near its start after 2,000 generations — that is a real possible
+outcome and the A/B will show it, but the origin-relative instrument may simply lack headroom to
+resolve an increment at 0.97.
+
+**INSTRUMENT DEFECT FOUND, NOT YET FIXED (cannot rebuild under a running arm).** `main.rs:1078`
+builds the ledger's `what` as `format!("train {} epochs on {} samples", epochs, subset.len())`
+**unconditionally**, so a `--steps-per-gen` run still reports "train 3 epochs on N samples" even
+though training actually drew 777 samples with replacement from the replay pool. The ledger therefore
+CANNOT distinguish the two training paths and must not be used as evidence of which one ran. Binding
+for `--steps-per-gen` rests instead on `--datagen-nodes` provably binding in the same argv (the
+banner printed its budget line) plus an exact string match against `arg("--steps-per-gen", 0)`.
+
 *Interaction with `auto_promote`, checked and deliberately LEFT ALONE:* it identifies arms by the
 running trainer's `--out` and promotes when exactly one arm trains, so it can promote an arm net into
 the champion. That is **wanted** — item 1 says the champion must be re-promoted through the normal
@@ -112,7 +147,18 @@ So the opportunity is concentrated and the intuitive key points the wrong way.
 `UNC_GATED_EXTENSION` (population-level, and the emitted line says so — the data cannot tie an ACCEPT
 to the accepted program's structure). Neither has fired; no arm runs the new binary yet.
 
-**TRACK B: STEP 1 RUNNING as of 18:34 — `tune_hybrid`, the allocation axis.** The blocker cleared:
+> **⚠ LABEL CORRECTED 2026-09-11 19:1x. The block below called `tune_hybrid` "TRACK B STEP 1". That
+> is WRONG and the correction matters, because the daily line reports "Track B step".**
+> Track B is: **(1) uncertainty head on the 4PC net at exact parity → (2) allocate by uncertainty
+> (SPSA — "the decisive measurement") → (3) distributional backup → (4) rewrite the loop.**
+> `tune_hybrid` is the alpha-beta/MCTS **hybrid** work from the earlier "make the hybrid work"
+> directive — a different thread that allocates by UCT, not by uncertainty.
+>
+> **TRACK B STEP 1 IS NOT STARTED.** The 4PC net has no uncertainty head; the head built today is
+> Existence's (Rust). Step 2 is gated on step 1's parity passing, so it has not been approached.
+> Everything below is accurate about `tune_hybrid`; only the step label was wrong.
+
+**`tune_hybrid` (hybrid thread, NOT Track B): RUNNING as of 18:34.** The blocker cleared:
 `install_prior_binary.sh` took its window at **18:21** (`INSTALLED after 1708s`, bench re-checked
 **137493**), and the pre-flight now reads *"the engine accepts all 5 tuned knobs"*. SPSA over the five
 knobs that are LIVE at movetime (handoff, C, puct, priorDepth, priorTemp), 8h budget, movetime 2.0s,
