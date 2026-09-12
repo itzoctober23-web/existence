@@ -110,16 +110,23 @@ buys a replay-pool reset whose value is unmeasured. **The honest state is that b
 trade are now quantified on one side only**, and the experiment that would close it is a single
 window run at 12 hours with promotion counts compared — cheap, and not run here.
 
-## The decision
+## The decision, after both instruments
 
-**Do not change `SECS=21600`.** The case for extending it rested on an overhead that is not
-measurable here, and the script's comment gives the restart a purpose the ruler cannot see: it resets
-the replay pool and re-anchors the run to the current champion. Changing a six-hour cadence to chase
-an unmeasurable gain is exactly the trade this project has recorded going wrong before.
+**Do not change `SECS=21600` — but the reason is not the one this file opened with.**
 
-**What would justify revisiting it:** a paired measurement of the production arm against its own
-pre-restart state, taken across a restart boundary. That is the quantity `resume_dip_RESULT.md`
-measured, it is the one that would actually show the cost, and the ruler cannot substitute for it.
+The first section concluded "no measurable overhead". That was wrong as stated: it was true of the
+absolute ruler and false of the paired instrument, which the follow-up above then found sitting in
+`auto_promote.out` the whole time. The dip is real, it is measured, and it costs roughly **one
+promotion opportunity per restart** out of 9–12 per window.
+
+The decision survives anyway, for a different reason: **the other side of the trade is unmeasured.**
+The restart resets the replay pool and re-anchors the run to the current champion, and nothing on
+file says what that is worth. Trading a quantified cost against an unquantified benefit is not a
+decision, it is a coin flip with extra steps.
+
+**What would settle it:** one window run at `SECS=43200` (12 h) with promotion counts and ruler
+readings compared against a 6 h window. Cheap — it is one flag and one day — and not run here.
+
 
 ## What this does NOT say
 
