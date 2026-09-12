@@ -148,6 +148,64 @@ and is described as the source while having no causal role — which is how its 
 drifted from the code's `165` without anything failing. That is a documentation/architecture gap
 rather than a behaviour bug, since the compiled values govern and ratios are what the budget needs.
 
+## FOLLOW-UP, same session: the suspect is confirmed, and the attribution is 7.9x on `eval`
+
+The section above named `cost_calibrate` as the discriminator and declined to run it while the
+timing sweep was live. It has now been run at **width 32**, the width actually in use. The
+prediction stated above — "if eval is underpriced ~8x at the width actually in use" — was written
+from the source comment alone, before this measurement existed.
+
+```
+primitive   measured_ns   charged_units   units_per_ns
+eval            284.1            165          0.581
+moves           149.8           2232         14.900
+apply           183.0           1959         10.705
+terminal        152.3            703          4.616
+```
+
+A faithful model charges the **same units per nanosecond** for every primitive. These differ by
+**25.7x**, with `moves` overcharged 25.7x relative to `eval`.
+
+**Normalised to `terminal`, which avoids the unreliable baseline** (see the caveat below):
+
+```
+eval      should be 1.87x terminal, is charged 0.23x  ->  UNDERpriced  7.9x
+moves     should be 0.98x terminal, is charged 3.17x  ->  OVERpriced   3.2x
+apply     should be 1.20x terminal, is charged 2.79x  ->  OVERpriced   2.3x
+```
+
+**The predicted 8x and the measured 7.9x agree**, and the direction is exactly the one the
+program-level result required: alpha-beta is eval-bound and eval is the underpriced primitive, so
+alpha-beta programs are charged too little per real microsecond (1611); MCTS and proof-number search
+lean on `moves`/`apply`/`terminal`, all overpriced, so they are charged too much (4678).
+
+**The root cause, in one line from the calibrator's own output:** *"eval from-scratch was 258.5 ns;
+incremental output layer is 284.1 ns (1x)"*. At width 32 the incremental path is **not faster — it
+is slightly slower**. `cost_of`'s comment justifies the 165 as "incremental output layer at
+width >= 64 (from-scratch below it)", and `cost_of(n: &Node)` cannot see the width, so a constant
+chosen for the wide case is applied at a width where the optimisation does not pay.
+
+**The caveat that keeps this honest.** `cost_calibrate` reports an integer op at **0.1 ns** — about
+0.3 cycles — which is not a credible measurement of an integer op; it is at or below timer
+resolution, and probably partly optimised away. Every ratio expressed "relative to one integer op"
+inherits that, which is also why this run prints `eval = 2265` where `configs/cost.toml` records
+1356 while the *absolute* eval time barely moved (284.1 ns vs 291.4 ns). **The denominator changed,
+not eval.** The analysis above therefore normalises to `terminal` instead, and uses only primitives
+in the 150–290 ns range where the timer is trustworthy.
+
+**Why I believe this despite it being a microbenchmark.** An isolated timing bounds rather than
+predicts, and regime can invert a ranking. The defence here is that two independent instruments
+agree: a per-primitive microbenchmark says eval is underpriced ~8x and the moves/apply family
+overpriced ~2-3x, and a *program-level* measurement that never touches those numbers finds
+eval-bound programs charged 2.9x less per microsecond than moves-bound ones. The microbenchmark
+predicts the sign and rough size of an effect measured a different way.
+
+**Not fixed here, deliberately.** Re-pricing `cost_of` changes the denominator of FITNESS 3 and so
+changes every mates-per-cost number this project has recorded — including the GRAMMAR 9 ladder,
+whose hash-reuse conclusion the existing comments already flag as needing re-derivation. That is a
+pre-registered change with a declared re-derivation list, not an edit to make while a candidate arm
+is mid-training. Nothing was changed.
+
 ## Consequence for GRAMMAR 4
 
 `grammar4_addfn_unpark_blocker.md` records the AddFn unpark as blocked on the cost clause:
