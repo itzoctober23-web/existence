@@ -38,6 +38,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 | [p2_fitness_RESULT.md](p2_fitness_RESULT.md) | Growing `disagreement_set` made candidates LESS decisive, not more — pre-registered FAIL (0.107 vs control 0.179, CIs disjoint); successor stays GRAMMAR 4 |
 | [promo_g39836_RESULT.md](promo_g39836_RESULT.md) | RESOLVED at 953 pairs: the gen-39836 promotion is INDISTINGUISHABLE (0.503 ± 0.014) — not a gain, not a regression, no rollback. A promotion whose effect is below the between-seed sd is the one that fails extension (2 cases) |
 | [between_vs_within_RESULT.md](between_vs_within_RESULT.md) | Third instrument: eval-agreement RISES between runs (t=+8.3, +0.149) and is FLAT within one (t=+0.46) — the retro's central claim, independent of ruler and netmatch |
+| [p1_kill_conjunct2_RESULT.md](p1_kill_conjunct2_RESULT.md) | P1 kill conjunct 2 MEASURED for the first time: static-vs-deep agreement is FLAT across a within-run series under TWO references — both conjuncts now hold, and the kill should NOT be fired (MASTER_PLAN's own correction says the plateau was the learning rate) |
 | [eval_agreement_tracks_games_RESULT.md](eval_agreement_tracks_games_RESULT.md) | eval-agreement is a COARSE screen: 4/4 on the lr arms (spread 0.134) but 2/3 out-of-sample on the blend arms (spread 0.047) — resolution floor ~0.03, not a substitute for the game gate |
 | [low_sweep_RESULT.md](low_sweep_RESULT.md) | Below the shipped rate: 0.0002 wins, 0.0005 LOSES to its own start — on a run that was cut short |
 | [lr_decay_RESULT.md](lr_decay_RESULT.md) | The schedule is not the lever — ending low is. lr 0.0005 shipped |
@@ -115,6 +116,10 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
+| [WEEK1_RETRO.md](WEEK1_RETRO.md) | **DAY-7 VERDICT, FINAL** — stop condition NOT met (best pooled 1551 vs 1600 required, no rising trend). Configuration levers paid, every structural lever returned null. Gates what starts next |
+| [p1_kill_criterion_STATUS.md](p1_kill_criterion_STATUS.md) | Where each conjunct of MASTER_PLAN's P1 kill stands, and the circularity hazard in choosing a reference |
+| [grammar4_addfn_unpark_blocker.md](grammar4_addfn_unpark_blocker.md) | Four measurements on Op::AddFn: lifts are tiny and never edited (0/767), and BOTH live lineages already seed from 2-function programs, so the 1→2 gap it exists to close does not exist live |
+| [p2_fitness_PREREG.md](p2_fitness_PREREG.md) | PRE-REGISTRATION + 2 amendments — the fitness successor after prop_gens40; verdict rule fixed and amended BEFORE the trigger fired |
 | [uncertainty_target_PREREG.md](uncertainty_target_PREREG.md) | PRE-REGISTRATION — the uncertainty head's TARGET, before either track is built on it |
 | [structural_next_PREREG.md](structural_next_PREREG.md) | PRE-REGISTRATION — what the loop does after the configuration wins run out |
 | [refmatch_discrimination_PREREG.md](refmatch_discrimination_PREREG.md) | PRE-REGISTRATION — can the gate's games discriminate at all? (written before the results exist) |
