@@ -18,10 +18,38 @@ done
 # Wait for the in-flight measurements. Cell C and the gate own two cores on 6-11; adding two more
 # arms while they run would oversubscribe the range the production trainer also lives in.
 systemctl --user is-active cand-c-labels.service >/dev/null 2>&1 && { say "DEFER: cell C still running"; exit 75; }
-for p in $(ls /proc | grep -E '^[0-9]+$'); do
+# CAPACITY GUARD, not a netmatch guard.
+#
+# This used to defer whenever ANY netmatch was in flight. That was the wrong quantity twice over:
+#
+#   1. It protects against a bias that cannot occur. netmatch runs at FIXED DEPTH 4, so its node
+#      counts are deterministic and its RESULT is load-immune; the arms run a fixed --gens, so
+#      theirs is too. Contention here costs wall clock, never a number.
+#   2. It could starve this launcher forever. auto_promote cycles every ~38-45 min and spends a
+#      large part of each cycle in netmatch -- and its promotion CONFIRMATION stage is 896 pairs,
+#      4x the normal 224-pair read. Measured 2026-09-12 04:2x: 337% of the 600% on cores 6-11 in
+#      use, two arms would bring it to 537%, and the blanket guard deferred anyway. A guard that
+#      can never clear is not caution, it is a deadlock with a polite log line.
+#
+# So measure the thing that actually binds: CPU on cores 6-11. Sampled as a 2-second delta from
+# /proc/PID/stat, not `ps %cpu`, which is a lifetime average and reads far too low for a job that
+# just started.
+CAP=560            # of 600% on cores 6-11; leaves headroom without starving production
+NEED=200           # two arms, ~1 core each
+jiffies(){ awk '{print $14+$15}' "/proc/$1/stat" 2>/dev/null || echo 0; }
+pids=""; for p in $(ls /proc | grep -E '^[0-9]+$'); do
   e=$(readlink "/proc/$p/exe" 2>/dev/null) || continue
-  case "${e##*/}" in netmatch) say "DEFER: a netmatch is in flight (pid $p)"; exit 75;; esac
+  case "${e##*/}" in learn|learn_cand|learn_cand2|netmatch) pids="$pids $p";; esac
 done
+t0=0; for p in $pids; do t0=$(( t0 + $(jiffies $p) )); done
+sleep 2
+t1=0; for p in $pids; do t1=$(( t1 + $(jiffies $p) )); done
+HZ=$(getconf CLK_TCK); used=$(( (t1 - t0) * 100 / (HZ * 2) ))
+say "cores 6-11 in use: ${used}% of 600% (need ${NEED}%, cap ${CAP}%)"
+if [ $(( used + NEED )) -gt $CAP ]; then
+  say "DEFER: ${used}% + ${NEED}% would exceed ${CAP}%"
+  exit 75
+fi
 
 # The start net must still BE the champion the original arms used. Verified, not assumed.
 EXPECT=9545a35289e9
