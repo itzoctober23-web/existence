@@ -4,6 +4,9 @@
 # Archived arm logs. When an arm is restarted onto a new binary the old log is preserved with a
 *.bin
 bin/
+bla_gate_done
+bla_match_*.log
+bla_*.net
 # `cargo xtask watch` output: regenerated every 60s, and events.log is a local
 champion*.net
 ckpt/
@@ -34,6 +37,7 @@ __pycache__/
 *.qnn
 **/*.rs.bk
 # run artifacts: per-run evidence, never source
+.run_budget_label_ab.lock
 # Rust
 # session to skip the noise, and a status you have to filter is a status that can hide a real
 # suffix naming what changed (.preratchet, .premates, .prehdr, .preinstr, .prev, .seed2-w1) so a
