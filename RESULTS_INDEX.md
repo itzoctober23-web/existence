@@ -35,6 +35,8 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 | [ruler_trend_RESULT.md](ruler_trend_RESULT.md) | Every production run is FLAT on the absolute ruler — all 166 Elo came from BETWEEN runs, not within them |
 | [low_sweep2_RESULT.md](low_sweep2_RESULT.md) | lr 0.0002 SHIPPED — the shipped rate lost to its own start, on exactly matched arms |
 | [prop_gens40_RESULT.md](prop_gens40_RESULT.md) | P2 at planned 40 gens: 0 accepts in 79 decisions / 948 games — and the MCTS gate was ARITHMETICALLY UNPASSABLE in 40 of 40 (replicates gate_arithmetic at 2.7x the sample) |
+| [p2_fitness_RESULT.md](p2_fitness_RESULT.md) | Growing `disagreement_set` made candidates LESS decisive, not more — pre-registered FAIL (0.107 vs control 0.179, CIs disjoint); successor stays GRAMMAR 4 |
+| [promo_g39836_RESULT.md](promo_g39836_RESULT.md) | The gen-39836 promotion does NOT replicate — effect +0.039 → +0.001 at 2x pairs; a promotion whose effect is below the between-seed sd is the one that fails extension |
 | [low_sweep_RESULT.md](low_sweep_RESULT.md) | Below the shipped rate: 0.0002 wins, 0.0005 LOSES to its own start — on a run that was cut short |
 | [lr_decay_RESULT.md](lr_decay_RESULT.md) | The schedule is not the lever — ending low is. lr 0.0005 shipped |
 | [static_deep_residual_RESULT.md](static_deep_residual_RESULT.md) | Half of the P1 kill criterion has never been measurable — the static-vs-deep residual, built and refuted |
