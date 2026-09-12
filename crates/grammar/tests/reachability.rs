@@ -201,6 +201,30 @@ fn every_declared_rung_is_constructible() {
     // `Program::funcs.len()`, so GRAMMAR 4's `add-fn` remains absent and every program the search
     // can reach has exactly one function, against a type checker that admits 1..4.
     //
+    // ⚠ THE LAST CLAUSE IS WRONG AND IS KEPT ABOVE BECAUSE THE CORRECTION IS THE POINT (2026-09-12).
+    // "0 mutations change funcs.len()" is true. "every program the search can reach has exactly one
+    // function" does NOT follow from it -- that needs the SEED to have one function, and the live
+    // seeds do not. Measured by census of `reference::all()`
+    // (`crates/grammar/tests/reference_shape_census.rs`):
+    //
+    //     depth-one (purity seed)        1 func   [9]
+    //     bare alpha-beta (MAIN seed)    2 funcs  [13,  58]   total 71
+    //     UCT-style MCTS                 2 funcs  [16, 115]   total 131
+    //     ... 12 of 13 reference programs have 2 functions; only depth-one has 1
+    //
+    // `evolve.rs:641` seeds from `bare_alpha_beta()`, and the live run's own header confirms it --
+    // "lineage MAIN seed 71 nodes", "lineage MCTS seed 131 nodes". So BOTH live lineages already
+    // carry two functions, and the MAIN seed's second function is 58 of 71 nodes (82%).
+    //
+    // `shape_reachability.rs` states the same result CORRECTLY and conditionally -- "a search seeded
+    // with ONE function is confined to one function forever" -- and its assertion
+    // (`func_count_changes.is_empty()`) is sound. Only this sentence dropped the condition.
+    //
+    // Consequence for `Op::AddFn`, which `PARKED_OPS` values as "the only operator that can raise
+    // funcs.len()": there is no 1 -> 2 gap in the lineages that RUN; they begin at 2. The gap is real
+    // only in the purity lineage, where a lift was measured at max 5 nodes of 9 and its lifted body
+    // edited 0 of 767 draws (`lifted_function_edit_rate.rs`). See grammar4_addfn_unpark_blocker.md.
+    //
     // This test is left asserting only what IT can prove at kind granularity; the shape file
     // carries the rest.
     let names: Vec<&str> = unreachable.iter().map(|(n, _)| *n).collect();
