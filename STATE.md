@@ -5993,3 +5993,36 @@ job must not be rebuilt under itself.
 
 Also withdrawn: my "plycap explains 4.8% of draws". `plycap` is `gate::PLY_CEILING`, which counts only
 the 200-ply ceiling and not fifty-move draws, so it never could have decomposed the draw bucket.
+
+## 2026-09-11 22:45 — P2 fitness arm LAUNCHED (STATE, not a result)
+
+`prop_gens40` completed at planned N last tick (0 accepts / 79 rejects, written up in
+`prop_gens40_RESULT.md`), which fired the trigger declared in `p2_fitness_PREREG.md` at generation 37
+and amended at 38 — both before the outcome existed.
+
+**Arm launched** (`p2-disagree.service`, nice 19, cores 6-11, MemoryMax 3G):
+
+```
+control    (prop_gens40, COMPLETE)   10 + 4 + 5 = 19 positions   mate-in-1 53%
+treatment  (prop_disagree40, live)    4 + 8 + 7 = 19 positions   mate-in-1 21%
+same: 40 gens, pop 4, depth 3, gate 6 pairs, same seeded crossover
+```
+
+Paired by construction: `fitness_set_composition_RESULT.md` established that crossover is seeded, so
+both runs see the SAME children and only the position set differs.
+
+**A confound I introduced and caught 20 seconds in, recorded because it would have been invisible in
+the output.** The first launch used `5 + 10 + 10 = 25` — the measured-best point from
+`fitness_set_composition_RESULT.md`. But that result compared its three arms **all at size 25**, and
+my control is size **19**. Running a 25-position treatment against a 19-position control changes set
+SIZE as well as ratio, and nothing in the logs would have flagged it — both would have printed a
+plausible composition header and run to 40 generations. Aborted and relaunched at `4 + 8 + 7 = 19`,
+preserving the DIRECTION the result measured (less mate-in-1, more disagreement + window) while
+holding size fixed. The aborted log is kept as `prop_depthheavy40_ABORTED_size25.log`.
+
+**Primary metric is unchanged from the prereg:** decisive-game fraction of the population's
+candidates, against the 14.7% baseline from `gate_candidates_are_game_neutral_RESULT.md`, with a CI
+excluding it. An accept count alone does NOT pass — 6-pair arithmetic admits an accept in 14% of
+outcomes by luck, and the control produced 0 accepts in 79 decisions with MCTS unpassable in 40 of 40.
+
+No verdict until 40 generations. This is STATE.
