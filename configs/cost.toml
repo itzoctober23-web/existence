@@ -1,6 +1,28 @@
 # configs/cost.toml — MEASURED per-primitive cost, GRAMMAR 8
 # Relative to one integer arithmetic op = 1. Net width 32.
 # Regenerate: cargo run --release --example cost_calibrate -p interp -- <width>
+#
+# ⚠ THIS FILE IS NOT READ AT RUNTIME. Verified 2026-09-12: every reference to
+# `cost.toml` in the tree is a comment or this generator's own println. The table the
+# interpreter actually charges is the hardcoded `match` in `cost_of`,
+# crates/interp/src/lib.rs:416. CRATE 4 names this file as the cost table's home and
+# the code says "from configs/cost.toml", so it READS as authoritative while having no
+# causal role — which is how the values below drifted out of agreement with the code
+# without anything failing. Concretely, `eval` here is 1356 while `cost_of` charges 165.
+#
+# ⚠ THE VALUES BELOW ARE ALSO STALE AND PARTLY UNSOUND, and are kept only as a record:
+#   * They were produced by a calibrator whose benches did LESS work than the
+#     interpreter nodes they priced (moves skipped a Vec allocation, apply skipped a
+#     legality scan and an Rc::new, terminal called legal_moves().is_empty() instead of
+#     outcome(), key timed a from-scratch zobrist() the interpreter never performs).
+#     Fixed 2026-09-12; re-running the generator now gives different numbers.
+#   * Every figure is expressed relative to "one integer op", which the calibrator
+#     measures at ~0.1 ns — roughly 0.3 cycles, at or below timer resolution. The RATIOS
+#     THROUGH THAT DENOMINATOR ARE NOT TRUSTWORTHY. Use ratios against `terminal`
+#     (~153 ns), which is robustly measurable.
+#
+# See cost_model_vs_walltime_RESULT.md. Do not copy values from this file into
+# `cost_of` without re-measuring.
 
 arith        =       1    # 0.2 ns
 cmp          =       1    # 0.2 ns
