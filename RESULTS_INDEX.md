@@ -121,6 +121,7 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
+| [promotion_ladder_decay_FINDING.md](promotion_ladder_decay_FINDING.md) | The promotion margin is constant at ~0.535 while the absolute step has decayed to zero |
 | [champion_absolute_PREREG.md](champion_absolute_PREREG.md) | Two sound instruments disagree about the same net: does the promotion ladder track ABSOLUTE strength? |
 | [auto_promote_confirm_untested_STATUS.md](auto_promote_confirm_untested_STATUS.md) | The promotion confirmation stage is ARMED but has never fired — status, not a success claim |
 | [cell_c_transitivity_FINDING.md](cell_c_transitivity_FINDING.md) | The three arms form a consistent ranking A > B > C — a transitivity check the instrument could have failed |
