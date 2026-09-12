@@ -10,6 +10,7 @@ bla_*.net
 # `cargo xtask watch` output: regenerated every 60s, and events.log is a local
 cellc_gate_done
 champion_absolute_ab_done
+.champion_absolute_ab.lock
 champion*.net
 ckpt/
 /data/
@@ -25,6 +26,7 @@ gcc_*.log
 ledger*.jsonl
 # Live experiment stdout. Regenerated every run, never source. Untracked *.out was
 # Local
+*.lock
 *.log
 *.log.*
 # `*.log.preratchet`, so 13 of them accumulated as untracked noise in one evening.
