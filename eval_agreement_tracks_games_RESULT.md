@@ -69,3 +69,50 @@ same 2000 generations. It is ranked last because it is worse, which is the thing
 lineage while flat within a run. That result is only interesting if agreement tracks strength. This is
 the first direct evidence that it does — on a small sample, with the caveats above, and it should be
 re-tested the next time a set of arms gets a game-measured verdict.
+
+---
+
+## Limit closed, and it produced a USAGE RULE: the ORDER is robust, the VALUES are not portable
+
+The limits above flagged *"no error bars — adjacent pairs may not be separated."* Re-ran the same four
+nets and the same ancestor reference on three different position samples.
+
+```
+                seed 20260911   seed 424242   seed 911911
+low_00001           0.804          0.764         0.724
+low_00002           0.779          0.754         0.719
+low_start           0.764          0.733         0.719   <- ties low_00002 here
+low_00005           0.732          0.713         0.704
+
+ordering vs the game order (00001 > 00002 > start > 00005):  MATCHES in 3 of 3
+the discriminating sign (start > 00005):  +0.032, +0.020, +0.015  -- correct in 3 of 3
+```
+
+**The ranking is robust. The values are not.** A single net swings by up to **0.080** across samples —
+larger than the 0.025 gap between adjacent arms — and the whole spread compresses from 0.072 to 0.020
+between the best and worst sample. The seed-to-seed movement is **common mode**: every net moves
+together, which is why the order survives while the numbers do not.
+
+### The usage rule this establishes
+
+> **`static_deep_residual --ref` values are comparable WITHIN one position sample and meaningless
+> ACROSS samples.** Any comparison must hold `n_pos`, `depth` and `seed` fixed for every net in it.
+
+**Tonight's other results satisfy this, checked rather than assumed:**
+
+* `between_vs_within_RESULT.md` — the r9 series and the champion lineage were both measured at
+  `500/400 positions, depth 4, seed 20260911`. Same sample, so the FLAT-vs-RISING contrast is a
+  within-sample comparison and stands.
+* `p1_kill_conjunct2_RESULT.md` — both reference runs used `400 positions, depth 4, seed 20260911`;
+  only the reference changed.
+
+Had either mixed seeds, a 0.080 common-mode swing could have manufactured or erased the contrast — the
+r9 slope it was testing is +0.003 per 1000 generations, twenty times smaller than that swing.
+
+### What this does to the headline claim
+
+It **strengthens** it on rank and **weakens** it on magnitude. Spearman ρ = +1.000 now holds on three
+independent position samples rather than one, so the exact-match probability of 0.042 is no longer the
+whole argument. But no statement about HOW MUCH better one net is may be read off these numbers, and
+the tie at seed 911911 (low_00002 = low_start = 0.719) shows adjacent arms genuinely are not always
+separated — exactly what the original limit warned.
