@@ -34,6 +34,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 | [horizon_RESULT.md](horizon_RESULT.md) | The horizon cap is OBSOLETE past bootstrap: uncapped beats capped-at-10 by +0.064 ± 0.034 |
 | [ruler_trend_RESULT.md](ruler_trend_RESULT.md) | Every production run is FLAT on the absolute ruler — all 166 Elo came from BETWEEN runs, not within them |
 | [low_sweep2_RESULT.md](low_sweep2_RESULT.md) | lr 0.0002 SHIPPED — the shipped rate lost to its own start, on exactly matched arms |
+| [prop_gens40_RESULT.md](prop_gens40_RESULT.md) | P2 at planned 40 gens: 0 accepts in 79 decisions / 948 games — and the MCTS gate was ARITHMETICALLY UNPASSABLE in 40 of 40 (replicates gate_arithmetic at 2.7x the sample) |
 | [low_sweep_RESULT.md](low_sweep_RESULT.md) | Below the shipped rate: 0.0002 wins, 0.0005 LOSES to its own start — on a run that was cut short |
 | [lr_decay_RESULT.md](lr_decay_RESULT.md) | The schedule is not the lever — ending low is. lr 0.0005 shipped |
 | [static_deep_residual_RESULT.md](static_deep_residual_RESULT.md) | Half of the P1 kill criterion has never been measurable — the static-vs-deep residual, built and refuted |
