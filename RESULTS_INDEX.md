@@ -120,6 +120,7 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
+| [replay_window_plateau_FINDING.md](replay_window_plateau_FINDING.md) | Candidate B is NOT "genuinely unmeasured" — a plateau-regime replay sweep ran on 2026-09-08 and returned a null |
 | [structural_next_PREREG.md](structural_next_PREREG.md) | PRE-REGISTRATION — what the loop does after the configuration wins run out |
 | [candidate_a_channel_FINDING.md](candidate_a_channel_FINDING.md) | Candidate A's label channel is LIVE, but it is the channel `label_source` measured as null — the arm needs a third cell |
 | [prodk0127_plateau_STATUS.md](prodk0127_plateau_STATUS.md) | The fresh lineage reproduces the plateau: 1561 pooled, FLAT, 39 short of the day-7 line |

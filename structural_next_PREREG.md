@@ -48,6 +48,13 @@ Two readings bear on it:
   0.4684). Data VOLUME is not binding.
 * `ancestor_first_readings_RESULT.md` — no measurable gain over a 400-generation window.
 
+> **[2026-09-12: "genuinely unmeasured" below is WRONG. `replay_ab2.log` (2026-09-08) ran a
+> PLATEAU-regime sweep — windows 1 / 8 / 999 resuming from champion_long.net — and returned
+> 0.855 / 0.852 / 0.863, a null spanning 0.011 against CIs of ±0.038-0.046. It was never written up
+> as a RESULT so it never reached the index. See `replay_window_plateau_FINDING.md`. B is
+> "measured once, null, underpowered, non-production config", so a re-run is a POWER upgrade, not a
+> first look.]**
+
 Neither kills B, because B is about **staleness**, not volume: whether labels made by a 20,000-
 generation-old net should still be trained on. That axis is genuinely unmeasured. But the prior from
 volume is not encouraging, and B shares a confound with everything else here — `resume_dip_RESULT.md`
