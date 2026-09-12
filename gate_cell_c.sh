@@ -28,6 +28,13 @@ exec 9>"$D/.gate_cell_c.lock"
 flock -n 9 || { say "DEFER: another instance holds the lock"; exit 75; }
 [ -x "$NM" ] || { say "ABORT: no netmatch at $NM"; exit 1; }
 
+# COMPLETION MARKER. Without this the 5-minute timer re-runs the whole gate every time it fires
+# once cell C is inactive -- four 224-pair netmatches, forever, redoing matches already reported.
+# Observed 2026-09-12 04:19: the gate logged "done" at 04:18 and a second instance was re-running
+# CvA seed 20260907 a minute later. It also starved launch_cand_replication.sh, which defers on any
+# netmatch in flight. run_budget_label_ab.sh already had this guard; gate_cell_c.sh did not.
+[ -s "$D/cellc_gate_done" ] && { say "already complete (cellc_gate_done) -- not re-running"; exit 0; }
+
 systemctl --user is-active cand-c-labels.service >/dev/null 2>&1 && { say "DEFER: cell C still training"; exit 75; }
 g=$(grep -c '^gen ' "$D/candC_labels.log" 2>/dev/null || echo 0)
 [ "$g" -lt 2000 ] && { say "ABORT: cell C reached only $g/2000 -- unmatched against A and B, which both ran 2000"; exit 1; }
@@ -58,5 +65,6 @@ for sd in 20260907 911911; do run candC_labels.net candB_budget.net "$sd" "CvB" 
 say "READING: A-vs-B is 0.4383 over 672 pairs (candidate_a_budget_loses_RESULT.md). If C sits near A,"
 say "  the labelling policy is not what costs the budget arm its 0.0617; if C sits near B, it is."
 say "  Two seeds and 448 pairs per comparison -- weaker than the A/B verdict, and NOT a ship either way."
+date +%F_%H:%M > "$D/cellc_gate_done"
 say "done"
 exit 0
