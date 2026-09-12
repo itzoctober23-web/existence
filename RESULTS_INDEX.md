@@ -17,6 +17,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [budget_realised_depth_RESULT.md](budget_realised_depth_RESULT.md) | The node-budget gate PASSES — but the budget reallocates effort in the OPPOSITE direction to the one pre-registered |
 | [datagen_node_census_RESULT.md](datagen_node_census_RESULT.md) | Depth-3 datagen costs 5,269 nodes/move, not 10,309 — and effort per position varies 18-25x |
 | [eval_agreement_tracks_games_RESULT.md](eval_agreement_tracks_games_RESULT.md) | The first proxy in this project to reproduce a game-measured ranking — eval-agreement, ρ = +1.000 on n=4 |
 | [between_vs_within_RESULT.md](between_vs_within_RESULT.md) | The week's central claim, reproduced on a THIRD instrument: agreement rises BETWEEN runs (t = +8.3) and is FLAT WITHIN one (t = +0.46) |
@@ -117,13 +118,13 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
+| [structural_next_PREREG.md](structural_next_PREREG.md) | PRE-REGISTRATION — what the loop does after the configuration wins run out |
 | [p1_kill_criterion_STATUS.md](p1_kill_criterion_STATUS.md) | The P1 kill criterion: conjunct 1 is now SATISFIED. Conjunct 2 is measurable but not yet measured. |
 | [WEEK1_RETRO.md](WEEK1_RETRO.md) | WEEK 1 RETRO — which lever failed, and why |
 | [grammar4_addfn_unpark_blocker.md](grammar4_addfn_unpark_blocker.md) | The AddFn unpark condition is blocked by a SECOND ordering bias — the function sweep short-circuits |
 | [p2_fitness_PREREG.md](p2_fitness_PREREG.md) | PRE-REGISTRATION — the P2 fitness change: games PRIMARY, mates FILTER |
 | [p1_compounding_PREREG.md](p1_compounding_PREREG.md) | PRE-REGISTRATION — P1 compounding: champion-following datagen at a node budget, into a declared |
 | [uncertainty_target_PREREG.md](uncertainty_target_PREREG.md) | PRE-REGISTRATION — the uncertainty head's TARGET, before either track is built on it |
-| [structural_next_PREREG.md](structural_next_PREREG.md) | PRE-REGISTRATION — what the loop does after the configuration wins run out |
 | [refmatch_discrimination_PREREG.md](refmatch_discrimination_PREREG.md) | PRE-REGISTRATION — can the gate's games discriminate at all? (written before the results exist) |
 | [low_sweep2_PREREG.md](low_sweep2_PREREG.md) | Pre-registration: the full-length low-lr sweep tests a claim the truncated run made |
 | [NET_TRACK_STATE.md](NET_TRACK_STATE.md) | The NET track, summarised across every configuration tried (2026-09-08) |

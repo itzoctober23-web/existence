@@ -52,6 +52,11 @@ fn main() {
     // Seeded because one sample is a lottery: the mean has to be shown stable across independent
     // game sets before it is written into a pre-registration as "the measured mean".
     let seed: u64 = a.get(4).and_then(|v| v.parse().ok()).unwrap_or(20260912);
+    // BUDGET MODE. 0 = the original fixed-depth census. >0 switches every move to
+    // `best_move_budget` and reports the REALISED DEPTH distribution, which is the literal
+    // quantity `structural_next_PREREG.md:92-96` registers as the gate on Candidate A:
+    // "the variance of realised depth across positions must be > 0".
+    let budget: u64 = a.get(5).and_then(|v| v.parse().ok()).unwrap_or(0);
 
     let net = match Net::load(&net_path) {
         Ok(n) => n,
@@ -60,13 +65,19 @@ fn main() {
             std::process::exit(1);
         }
     };
-    println!("  net {net_path}, depth {depth}, {games} games, seed {seed} (datagen's own move loop)\n");
+    if budget > 0 {
+        println!("  net {net_path}, BUDGET {budget} nodes/move (iterative deepening, max depth 10), {games} games, seed {seed}\n");
+    } else {
+        println!("  net {net_path}, depth {depth}, {games} games, seed {seed} (datagen's own move loop)\n");
+    }
 
     let open_plies = 6usize;
     let max_plies = 160usize;
     let mut rng = Rng(seed);
     let mut nodes: Vec<u64> = Vec::new();
     let mut by_ply: Vec<(usize, u64)> = Vec::new();
+    let mut rdepth: Vec<u32> = Vec::new();
+    let mut rmoves: Vec<usize> = Vec::new();
     let mut decisive = 0usize;
 
     for _ in 0..games {
@@ -93,7 +104,14 @@ fn main() {
                 break;
             }
             s.nodes = 0; // best_move does not zero it; see header
-            let (mv, _score) = s.best_move(&mut pos, depth, &net);
+            let mv = if budget > 0 {
+                let (m, _sc, d) = s.best_move_budget(&mut pos, &net, budget, 10, rng.next());
+                rdepth.push(d);
+                rmoves.push(l.len());
+                m
+            } else {
+                s.best_move(&mut pos, depth, &net).0
+            };
             nodes.push(s.nodes);
             by_ply.push((ply, s.nodes));
             if mv == board::types::MOVE_NONE {
@@ -125,8 +143,16 @@ fn main() {
     let p90 = pct(&srt, 0.90);
 
     println!("  positions {n}   decisive games {decisive}/{games}");
-    println!("  MEAN   {mean:>12.1}   <- structural_next_PREREG asks for this");
-    println!("  MEDIAN {median:>12}   <- p1_compounding_PREREG asks for this");
+    if budget > 0 {
+        // In budget mode every move spends the budget EXACTLY -- the abort fires at
+        // `nodes >= node_cap`, so the spend distribution is degenerate by construction and says
+        // nothing about position cost. Reporting it under the PREREG labels would be a lie.
+        println!("  MEAN   {mean:>12.1}   (== budget by construction; NOT the PREREG quantity)");
+        println!("  spend is exactly the budget on every move -> adherence exact, overshoot 0");
+    } else {
+        println!("  MEAN   {mean:>12.1}   <- structural_next_PREREG asks for this");
+        println!("  MEDIAN {median:>12}   <- p1_compounding_PREREG asks for this");
+    }
     println!(
         "  min {:>10}   p10 {:>10}   p25 {:>10}   p50 {:>10}",
         srt[0], p10, pct(&srt, 0.25), median
@@ -149,6 +175,41 @@ fn main() {
         "  fraction of moves costing MORE than the table figure: {:.1}%",
         100.0 * nodes.iter().filter(|&&x| x > 10_309).count() as f64 / n as f64
     );
+
+    if !rdepth.is_empty() {
+        println!("\n  REALISED DEPTH under the budget — the pre-registered gate on Candidate A:");
+        let lo = *rdepth.iter().min().unwrap();
+        let hi = *rdepth.iter().max().unwrap();
+        let mean_d = rdepth.iter().map(|&d| d as f64).sum::<f64>() / rdepth.len() as f64;
+        let var_d = rdepth.iter().map(|&d| (d as f64 - mean_d).powi(2)).sum::<f64>() / rdepth.len() as f64;
+        for d in lo..=hi {
+            let c = rdepth.iter().filter(|&&x| x == d).count();
+            if c == 0 { continue; }
+            let pctg = 100.0 * c as f64 / rdepth.len() as f64;
+            let bar: String = std::iter::repeat('#').take((pctg / 2.0).round() as usize).collect();
+            println!("    depth {d:>2}  {c:>6}  {pctg:>5.1}%  {bar}");
+        }
+        println!("    min {lo}  max {hi}  mean {mean_d:.2}  variance {var_d:.3}  sd {:.3}", var_d.sqrt());
+        // WHICH WAY does a budget reallocate? The PREREG says "a hard position gets more depth
+        // and a simple one less". Under an equal-NODE budget the opposite must hold: a wide
+        // position costs more per ply, so it exhausts the budget at LOWER depth. Measured here
+        // rather than argued, by reporting branching factor against realised depth.
+        println!("    branching factor by realised depth (tests the DIRECTION of the reallocation):");
+        for d in lo..=hi {
+            let v: Vec<usize> = rdepth.iter().zip(rmoves.iter()).filter(|(x, _)| **x == d).map(|(_, m)| *m).collect();
+            if v.is_empty() { continue; }
+            let mb = v.iter().sum::<usize>() as f64 / v.len() as f64;
+            println!("      depth {d:>2}  n {:>6}  mean legal moves {mb:>6.2}", v.len());
+        }
+        println!(
+            "    => {}",
+            if var_d > 0.0 {
+                "VARIES -- the mechanism is present; a budget has effort to reallocate"
+            } else {
+                "CONSTANT -- mechanism ABSENT, Candidate A would be measuring nothing"
+            }
+        );
+    }
 
     // Cost by game phase -- the table calls midgame "the expensive case", which is checkable.
     println!("\n  mean nodes by ply bucket:");

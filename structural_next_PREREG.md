@@ -82,6 +82,27 @@ A real node budget means the opposite: iterative deepening on each position unti
 spent, so a hard position gets more depth and a simple one less. **That is a code change, not a
 flag**, and it is small and local.
 
+> **CORRECTION 2026-09-12, added after measurement — the original text below is left UNCHANGED
+> because a pre-registration that gets edited to match its result is worth nothing.**
+>
+> The sentence above, "so a hard position gets more depth and a simple one less", is **backwards**,
+> and the paragraph below inherits it. `budget_realised_depth_RESULT.md` measures branching factor
+> against realised depth at budget 5,269 on three seeds and finds it **monotone decreasing** every
+> time (~38 legal moves at depth 2, ~21 at depth 3, ~9-13 at depth 4, ~3-4 at depth 5). A wide
+> position costs more per ply, so under an equal-NODE budget it exhausts the budget SOONER and gets
+> FEWER plies. The budget favours NARROW positions.
+>
+> The gating check itself **PASSES**: realised depth spans 2-6 with variance 0.41-0.56, so the
+> mechanism is present and Candidate A is not measuring nothing. What fails is the *rationale* —
+> "label quality is worst where positions are hardest, and a budget fixes that by giving hard
+> positions more depth". Hard positions measurably get LESS depth. A win therefore cannot be
+> attributed to the mechanism registered here.
+>
+> Also: a budget set to the depth-3 MEAN does not reproduce depth 3. Mean realised depth is
+> 2.73-2.83 and only 47-58% of positions reach depth 3, because the cost distribution is
+> right-skewed (mean 5,269 vs median 4,382). The arms are still compute-matched, which is what the
+> design asks for.
+
 ### Hypothesis, and the mechanism it stands on
 
 Fixed depth spends equal effort on unequal positions. Label quality is therefore worst exactly where
