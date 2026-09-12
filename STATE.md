@@ -103,9 +103,30 @@ against each other. Champion verified unchanged at A/B launch (md5 identical to 
 category: a generation can read `..none`, meaning no candidate reached the gate at all — so
 "generations", "gate calls" and "accepts" are three different counts and must be reported as such.
 
-**Track B step 1** — `tune_hybrid` SPSA since 18:34, iter 3, theta
-`[handoff 602, C 137.7, puct 150.8, priorDepth 1.17, priorTemp 195]` off a `[600,141,150,1,200]`
-start. ~10 min/iteration ⇒ ~48 iterations in the 8h budget. **3 iterations carries no direction.**
+**`tune_hybrid` SPSA** since 18:34. iter 9, theta `[handoff 596, C 135.7, puct 148.3, priorDepth 1.07,
+priorTemp 198]` off a `[600,141,150,1,200]` start. ~8.4 min/iteration.
+
+**STATE — THE BATCH IS TOO SMALL TO PRODUCE A GRADIENT MOST ITERATIONS.** Theta is byte-identical
+across iters **6, 7, 8, 9** — four consecutive no-ops, one move in five.
+
+The mechanism, traced rather than guessed. `spsa.py:334` is
+`theta[i] = clamp(theta[i] + r*res*c*cscale*d, lo, hi)`, so `res == 0` moves nothing, and
+`run_batch` returns `(w-l)/tot`. The run uses **4 games = 2 PAIRED openings** (same opening, colours
+swapped). Between two near-identical configs the modal outcome per pair is a **1-1 split**, so the
+two pairs cancel and `w == l` exactly ⇒ `res = 0`. That is the EXPECTED outcome here, not a rare one.
+
+**Ruled out by reading the live batch file rather than assuming:** this is NOT a draw problem. The
+in-flight batch reads `game 1: win as RY [39 plies]`, `game 2: win as BG [64 plies]` — games are
+decisive. (4PC draws are measured at 0.34–0.79%, so an all-draw batch was the obvious rival
+explanation and it is wrong.) It is also not `res is None`: that path `continue`s BEFORE the state
+write, and the state file is advancing every iteration.
+
+**Consequence:** the 8h tune does far less work than its iteration count implies — roughly one
+gradient step per five iterations at present. The fix is a larger `--games` per iteration (more
+pairs ⇒ fewer exact cancellations), NOT a longer run. **Not applied to the running tune** — editing a
+job mid-flight is the rule this project keeps re-learning — and recorded here for the next round.
+Same class as the P1 batch-gate finding above: the instrument is behaving exactly as specified and is
+simply underpowered for the effect it faces.
 
 ## 🎯 TRACK A — UNCERTAINTY HEAD: built at parity, exposed, measured, and the sign is backwards
 
