@@ -17,6 +17,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [budget_makes_games_decisive_RESULT.md](budget_makes_games_decisive_RESULT.md) | The node budget makes self-play 14.5 points more DECISIVE and yields 27% more usable rows — a third channel the pre-registration never named |
 | [budget_realised_depth_RESULT.md](budget_realised_depth_RESULT.md) | The node-budget gate PASSES — but the budget reallocates effort in the OPPOSITE direction to the one pre-registered |
 | [datagen_node_census_RESULT.md](datagen_node_census_RESULT.md) | Depth-3 datagen costs 5,269 nodes/move, not 10,309 — and effort per position varies 18-25x |
 | [eval_agreement_tracks_games_RESULT.md](eval_agreement_tracks_games_RESULT.md) | The first proxy in this project to reproduce a game-measured ranking — eval-agreement, ρ = +1.000 on n=4 |
