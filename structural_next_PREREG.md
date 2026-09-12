@@ -151,7 +151,11 @@ the same way `assert_setting_took.py` gates `hardn_probe`.
 * **Matched on GENERATIONS, not wall clock.** `resume_transient` already invalidated one published
   A/B this way, and a node budget changes per-generation cost, so wall-clock matching would confound
   the thing being tested.
-* **Planned N: 2000 generations per arm**, the length `low_sweep2` needed to resolve. No reading is
+* **Planned N: 2000 generations per arm**, the length `low_sweep2` needed to resolve.
+  **[2026-09-12: at `--games 8`, which is what `low_sweep2` used — verified from the arm banners,
+  `games/gen=8 depth=3`. That is 16,000 games, ~10 min at the production rate, NOT the ~7 days it
+  appears to be if read against `datagen_depth`'s generations, which were `--games 2400`. A planned
+  N in this repo is meaningless without `--games`; see `generation_is_not_a_unit_FINDING.md`.]** No reading is
   taken before then. A truncated LLR is noise (`fourpc_truncated_llr_is_noise`).
 * **Decision rule:** the standard promotion rule, `rate - ci95 >= 0.5`, on a 224-pair netmatch
   against the champion. Between-seed sd is **0.047**, so a single-seed margin smaller than that is

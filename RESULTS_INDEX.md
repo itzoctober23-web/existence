@@ -119,6 +119,7 @@ it was never indexed because of its name.
 | file | headline |
 |---|---|
 | [structural_next_PREREG.md](structural_next_PREREG.md) | PRE-REGISTRATION — what the loop does after the configuration wins run out |
+| [generation_is_not_a_unit_FINDING.md](generation_is_not_a_unit_FINDING.md) | "Generation" means 8 games in one result and 2,400 in another — a 300x unit gap that made Candidate A look infeasible |
 | [candidate_a_channel_FINDING.md](candidate_a_channel_FINDING.md) | Candidate A's label channel is LIVE, but it is the channel `label_source` measured as null — the arm needs a third cell |
 | [p1_kill_criterion_STATUS.md](p1_kill_criterion_STATUS.md) | The P1 kill criterion: conjunct 1 is now SATISFIED. Conjunct 2 is measurable but not yet measured. |
 | [WEEK1_RETRO.md](WEEK1_RETRO.md) | WEEK 1 RETRO — which lever failed, and why |
