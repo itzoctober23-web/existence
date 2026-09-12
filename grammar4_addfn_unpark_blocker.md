@@ -165,3 +165,64 @@ survive to be edited — and that is a run, not a code reading.
 measured figure for the seed. A lift of a LARGER subtree pays the same flat +2 against a larger base, so
 the ratio only improves. A lift of a tiny subtree in a tiny program could exceed 2% and fall outside the
 band — untested, and the reason this is an argument rather than a conclusion.
+
+---
+
+## 00:22 — measured on an ACTUAL lift: `funcs[1]` is edited 0.00% of the time. My 00:15 conclusion is WRONG.
+
+The 00:10 section measured hand-written multi-function REFERENCE programs and found `funcs[1]` edited
+17–79%, refuting my original "≈0" prediction. I flagged the caveat myself: an AddFn lift produces a
+`funcs[1]` that is a subtree CUT FROM `funcs[0]`, so its size — the thing that drives the split — is
+different. `lifted_function_edit_rate.rs` measures the lifted case:
+
+```
+depth-one (purity seed), AddFn applied directly via mutate_at
+  funcs sizes after the lift: [9, 2]      (seed body was 9 nodes)
+  draws applied: 767
+  funcs[0] edited  767 = 100.00%   (by size 81.82%)
+  funcs[1] edited    0 =   0.00%   (by size 18.18%)   <- THE LIFTED BODY
+```
+
+**0 of 767.** The lifted body is never edited, so it can never diverge from its origin.
+
+### The reconciliation, and why the caveat was the whole story
+
+```
+fixture                         funcs[1] size    funcs[1] edited
+reference: table reduction           73                78.70%
+reference: proof-number search      148                44.10%
+reference: bound-gap stopping        58                17.22%
+ACTUAL AddFn lift                     2                 0.00%
+```
+
+A lift takes a small subtree, so `funcs[1]` is tiny and offers almost no placement sites while
+`funcs[0]` — still 9 of the 11 nodes — absorbs every operator. The reference programs were the wrong
+fixtures for this question: they have second functions comparable in size to the first, which no lift
+produces.
+
+### Consequence: the unpark blocker moves BACK
+
+My 00:15 conclusion — "divergence is satisfiable, so the binding constraint is the COST clause" — **is
+refuted.** For an actual lift, divergence does not happen at all, so BOTH clauses of the unpark
+condition are unmet:
+
+* **divergence:** 0.00% measured, so a lifted body cannot earn its call;
+* **cost:** a lift still pays +2 for its `Call`.
+
+The EPS retention argument from 00:15 stands on its own (a lift at 0.996x IS retained), but retention
+without divergence just carries an inert, slightly-costlier twin — which is precisely what `PARKED_OPS`
+says.
+
+### Limits of THIS measurement, stated rather than buried
+
+* **One seed lifted.** Only `depth-one` (9 nodes) produced a legal 2-function program; `contains_set`
+  refuses every Set-bearing subtree, and the other seeds offered no lift site in the sites tried.
+* **767 of 4000 draws applied** — a 11-node program offers few placement sites, so most draws abandon.
+  0/767 is still decisive for this program; it is not a claim about every possible lift.
+* **A larger lift is untested.** If AddFn could lift a big subtree, `funcs[1]` would be large and the
+  reference-program rates suggest it would be edited often. Whether such a lift site exists under
+  `contains_set` is not measured here.
+
+**What this chain shows about method:** three measurements tonight, each overturning the previous
+reading — prediction (≈0), reference programs (17–79%), actual lift (0.00%). The caveat I attached to
+the middle one was not a formality; it was the entire result.
