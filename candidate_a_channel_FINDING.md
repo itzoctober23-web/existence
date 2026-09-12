@@ -40,7 +40,11 @@ the budget and get the identical label; the 31-38% that stop at depth 2 and the 
 depth 4-6 are where the movement is. Two independent measurements agreeing on the same split is the
 useful part.
 
-### The control, run before any of the above was believed
+### The control — which I ran AFTER publishing the table above, not before
+
+Stated plainly because the ordering is the point: the section above was committed without this
+control, and the standing rule is to run the control BEFORE claiming anything. It happened to
+survive. That is luck, not method.
 
 Both labellers share one `Searcher`, and `shuffle_children` advances `self.rng` on every visit
 (`search.rs:110`), so two searches from the same searcher explore different child orderings. Some of
