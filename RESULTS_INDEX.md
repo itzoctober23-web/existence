@@ -17,6 +17,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [p1_compounding_RESULT.md](p1_compounding_RESULT.md) | P1 compounding did NOT pass — ruler CIs overlap (+208 vs +199) and netmatch 0.481±0.028 contains 0.5 — but its gate rolled back 17 of 20 batches whose increments were POSITIVE, so the null does NOT refute the compounding shape |
 | [unc_head_fitted_RESULT.md](unc_head_fitted_RESULT.md) | The uncertainty head is FITTED and the in-engine head reproduces the offline ranking EXACTLY (0.305/0.695, 0 eval params changed, clamp refuted) — discovery on the previously-constant `unc(p)` was guaranteed-null by construction |
 | [gate_candidates_are_game_neutral_RESULT.md](gate_candidates_are_game_neutral_RESULT.md) | The gate's own candidates are anomalously game-neutral — 14.7% decisive against 31-42% for reference programs |
 | [unc_signal_is_inverted_RESULT.md](unc_signal_is_inverted_RESULT.md) | The uncertainty signal is INVERTED where it exists at all — and it does NOT exist on every net |
