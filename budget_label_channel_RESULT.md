@@ -73,9 +73,12 @@ full budget, live self-play arm    0.4383  CI [0.4008, 0.4758]   -43.1 Elo   RES
 label channel alone, fixed corpus  0.4960  CI [0.4776, 0.5144]    -2.8 Elo   NULL
 ```
 
-`candidate_a_budget_loses_RESULT.md` measured the full node budget costing ~43 Elo, and that result
-is currently replicating on a second training seed (0.441, 0.454 on the first two match seeds
-against the original's 0.439, 0.433 — tracking closely).
+`candidate_a_budget_loses_RESULT.md` measured the full node budget costing ~43 Elo. The replication
+has since finished (`candidate_a_replication_RESULT.md`) and the picture is more nuanced than
+"reproduced": head-to-head B-vs-A came back **UNRESOLVED** at 0.4530, landing exactly on the gate's
+0.047 between-seed threshold, where the original at 0.4383 had cleared it. What replicated cleanly
+is each arm against the **shared frozen start** — the budget arm finishes BELOW the net it started
+from in both independent runs (0.445 and 0.422; joint P = 0.0059 under the null).
 
 **Isolating the label channel recovers none of that harm.** This is not an underpowered null: the
 pooled interval is ±0.018 against a full effect of 0.062 below parity, so an effect the size of

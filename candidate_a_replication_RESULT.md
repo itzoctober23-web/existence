@@ -93,8 +93,13 @@ Run the same day, on a fixed corpus with only the label column swapped
 (`budget_label_channel_RESULT.md`):
 
 ```
-full budget, live self-play arm     0.4383 / 0.4530   RESOLVED BELOW      -43.1 / -32.8 Elo
-label channel alone, fixed corpus   0.4960            NULL [0.4776,0.5144]  -2.8 Elo
+                                    B vs A            gate's 0.047 test        Elo
+full budget, original run           0.4383            RESOLVED below         -43.1
+full budget, replication            0.4530            UNRESOLVED (exactly on) -32.8
+label channel alone, fixed corpus   0.4960            NULL [0.4776, 0.5144]   -2.8
+
+each arm vs the shared frozen start (the cleaner comparison):
+full budget, original / replication 0.445 / 0.422     both BELOW       -38.4 / -54.6
 ```
 
 with **47.8% of labels changed** and each arm verified to fit its own held-out label column best. The
