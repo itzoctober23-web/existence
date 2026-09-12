@@ -150,6 +150,7 @@ it was never indexed because of its name.
 | [p1_kill_criterion_STATUS.md](p1_kill_criterion_STATUS.md) | The P1 kill criterion: conjunct 1 is now SATISFIED. Conjunct 2 is measurable but not yet measured. |
 | [WEEK1_RETRO.md](WEEK1_RETRO.md) | WEEK 1 RETRO — which lever failed, and why |
 | [grammar4_addfn_unpark_blocker.md](grammar4_addfn_unpark_blocker.md) | The AddFn unpark condition is blocked by a SECOND ordering bias — the function sweep short-circuits |
+| [cost_model_vs_walltime_RESULT.md](cost_model_vs_walltime_RESULT.md) | FITNESS.md:116's declared revisit trigger, measured for the first time. Linear r = 0.766 (MET), log-log r = 0.984 (not met) — and underneath either reading, the cost model charges MCTS and proof-number search **2.90x more per real microsecond** than alpha-beta, the two families not overlapping at all against 5–9% noise. Recalibrate before re-pricing `Node::Call` |
 | [STATE.md](STATE.md) | Existence — current state, 2026-09-11 |
 | [p2_fitness_PREREG.md](p2_fitness_PREREG.md) | PRE-REGISTRATION — the P2 fitness change: games PRIMARY, mates FILTER |
 | [p1_compounding_PREREG.md](p1_compounding_PREREG.md) | PRE-REGISTRATION — P1 compounding: champion-following datagen at a node budget, into a declared |

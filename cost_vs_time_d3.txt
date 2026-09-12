@@ -1,0 +1,28 @@
+COST vs WALL TIME -- the FITNESS.md:116 revisit trigger, measured
+  depth 3, budget 800, 12 positions, 7 interleaved repeats, 13 programs
+  trigger: revisit the cost model if Pearson r < 0.95
+
+  cost reproduced exactly across all 7 repeats for all 13 programs (self-test OK)
+
+  program                                   cost      time_us    cost/us    rel_sd  capped
+  depth-one (purity seed)                1066296          366       2914     18.0%       -
+  bare alpha-beta (main seed)         6182222628      3622547       1707      7.8%       -
+  alpha-beta + hash reuse             6084016396      3798853       1602      7.0%       -
+  alpha-beta + iterative deepening      6770534955      3863978       1752      7.9%       -
+  alpha-beta + hash + ID              6677843803      4078025       1638      7.4%       -
+  UCT-style MCTS                      5888660467      1263487       4661      9.1%       -
+  UCT-style MCTS (blend selection, historical)      5765959381      1191038       4841      9.2%       -
+  capture extension (rung 6)         16863544004     10186887       1655      7.8%     YES
+  extend-by-uncertainty (yardstick a)      6520636757      4403528       1481      8.1%       -
+  mix-backup (yardstick b)            1813701550      1296418       1399      5.1%       -
+  bound-gap stopping (yardstick c)       159281171        90709       1756      9.1%       -
+  table reduction (rung 7)            6234740270      4008127       1556      8.5%       -
+  proof-number search                 6477283722      1429346       4532      8.5%       -
+
+  n = 12 programs in the fit (1 excluded as cost-capped)
+  Pearson r (cost vs wall time) = 0.7655
+  cost/us spread: 1399 (mix-backup (yardstick b)) .. 4841 (UCT-style MCTS (blend selection, historical)) = 3.5x
+  -> the model charges 'UCT-style MCTS (blend selection, historical)' 3.5x more cost per real microsecond than 'mix-backup (yardstick b)'.
+
+  VERDICT: r = 0.7655 < 0.95 -- THE DECLARED REVISIT TRIGGER IS MET.
+  FITNESS.md:116's own condition for re-examining the cost model is satisfied.

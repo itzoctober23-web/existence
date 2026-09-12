@@ -1,0 +1,161 @@
+# The cost model charges MCTS and proof-number search ~2.9x more per real microsecond than alpha-beta
+
+**2026-09-12 09:58.** `FITNESS.md:116` declares a revisit trigger for the cost model and it had
+never been evaluated. It is evaluated here. **Read the ambiguity in the next section before the
+headline** — one reasonable reading of the trigger says it is met and another says it is not, and
+which one you take changes the verdict but not the finding underneath it.
+
+## The check, verbatim
+
+`FITNESS.md:116`, defining the cost unit that every fixed-budget comparison in this project is
+denominated in:
+
+> *"Wall time on the declared hardware is recorded alongside as the reality check on the cost model
+> (revisit trigger: cost-vs-time correlation < 0.95)."*
+
+Neither half was true before today. **Wall time is not recorded alongside anything** — no code in
+`crates/pipeline` times a program run — and the phrase "cost-vs-time correlation" appears in no
+result file. `RESULTS_INDEX.md` has no entry for it. It was a declared check that had never run, so
+the cost model had never been compared against the reality it stands in for.
+
+## THE VERDICT DEPENDS ON A CHOICE THE SPEC DOES NOT MAKE
+
+The spec says "correlation" without saying in what space. Both are defensible and they disagree:
+
+```
+Pearson r, LINEAR  (cost vs microseconds)   = 0.7655   -> trigger MET
+Pearson r, LOG-LOG                          = 0.9836   -> trigger NOT met
+```
+
+**I take the linear reading, and the reason is what the number is used for.** Cost is a *budget*: a
+program is stopped when its running sum reaches a ceiling. The property that makes that fair is
+linear — spending twice the cost should buy twice the work. Log-log correlation only asserts that
+bigger programs take longer, which is true of any monotone pricing whatsoever, including one that
+charges a single flat unit per node. That is precisely the "high by construction" failure this
+harness was designed to avoid, and it should not be allowed back in through the choice of statistic.
+
+**Stated plainly so it is not buried: a reader who meant log-log would conclude the cost model
+passes.** The finding below does not depend on that choice.
+
+## The measurement
+
+`crates/interp/examples/cost_vs_time.rs`, depth 3 (operational), budget 800, 12 MATE-1 positions
+mined with `ladder.rs`'s own seed, 7 interleaved repeats, all 13 programs of `reference::all()`.
+Cost reproduced **exactly** across all 7 repeats for all 13 programs, which is the instrument's
+self-test.
+
+```
+program                              cost        time_us   cost/us   rel_sd  capped
+depth-one (purity seed)           1,066,296          366     2914     18.0%
+bare alpha-beta (main seed)   6,182,222,628    3,622,547     1707      7.8%
+alpha-beta + hash reuse       6,084,016,396    3,798,853     1602      7.0%
+alpha-beta + iterative deep.  6,770,534,955    3,863,978     1752      7.9%
+alpha-beta + hash + ID        6,677,843,803    4,078,025     1638      7.4%
+UCT-style MCTS                5,888,660,467    1,263,487     4661      9.1%
+UCT-style MCTS (blend)        5,765,959,381    1,191,038     4841      9.2%
+capture extension (rung 6)   16,863,544,004   10,186,887     1655      7.8%   YES
+extend-by-uncertainty         6,520,636,757    4,403,528     1481      8.1%
+mix-backup (yardstick b)      1,813,701,550    1,296,418     1399      5.1%
+bound-gap stopping              159,281,171       90,709     1756      9.1%
+table reduction (rung 7)      6,234,740,270    4,008,127     1556      8.5%
+proof-number search           6,477,283,722    1,429,346     4532      8.5%
+```
+
+## The finding, which survives either statistic
+
+**The two paradigm families do not overlap.**
+
+```
+alpha-beta family   n=8   cost/us  1399 .. 1756   mean 1611
+MCTS + proof-number n=3   cost/us  4532 .. 4841   mean 4678
+                                                  ratio 2.90x
+```
+
+Per-program run-to-run noise is **5.1–9.2%**. The gap between families is **190%**. There is no
+value of one family that comes within a factor of 2.5 of any value of the other. This is not a
+marginal difference being read out of a noisy timer.
+
+**What it means operationally.** Cost is the budget. A program charged 2.9x more cost per real
+microsecond receives **2.9x less actual compute** for the same budget. So under FITNESS 3
+(mates per cost), MCTS and proof-number search are running roughly a third of the search that an
+alpha-beta program gets for the same price — and then being compared against it on the result.
+
+That is a thumb on the scale, and it points in a specific direction. `FITNESS.md:110` explains that
+the cost unit was chosen over eval-count *precisely* to be paradigm-neutral, singling out
+proof-number search as the case eval-count would have mispriced. Proof-number search is measured
+here at **4532 cost/us against alpha-beta's ~1611** — the unit chosen to protect it is penalising it
+by a factor of 2.8. The purpose is sound and the calibration does not deliver it.
+
+## Robustness, including the checks that made it look worse
+
+```
+r linear, all 12 in the fit            0.7655
+r linear, excluding depth-one          0.6918    <- the 18%-sd outlier was HELPING the fit
+r linear, only the 10 large programs   0.5149    <- drops the near-origin points
+r log-log                              0.9836
+```
+
+Removing the noisiest point *lowers* linear r rather than rescuing it, and restricting to the
+programs whose timings are most reliable lowers it further. The linear result is not an artefact of
+one bad measurement.
+
+`capture extension` is excluded from the fit: at least one single-position run hit
+`Interp::cost_cap` (2e9), so its cost is clamped while its time is not. Its cost/us of 1655 sits
+inside the alpha-beta band, so including it would not change the story — but a clamped point does
+not belong in a correlation and it is reported rather than quietly kept.
+
+## A bug in this harness that inverted the verdict, recorded because it was self-consistent
+
+The first version flagged truncation by comparing each program's **total** cost across all positions
+against `cost_cap`. The cap is **per run** — `Interp::run` sets `self.cost = 0` on entry — so a sweep
+total legitimately exceeds it. The check therefore excluded both MCTS variants and proof-number
+search as "capped", leaving a fit over nine alpha-beta programs that all share one primitive mix. It
+reported **r = 0.9837 and a PASS**.
+
+That number was plausible, agreed with the spec, and was wrong. The code also contradicted its own
+comment, which stated the per-run rule explicitly while the line below it compared the total. The
+guard that would have caught it faster is the one this file's design section already names: a
+correlation over a single primitive mix is high by construction, so **an excluded-program count is
+never cosmetic** — 4 of 13 excluded should have been read as "the test has lost its contrast", not
+as a footnote.
+
+## What this does NOT establish
+
+* **Not which primitive is mispriced.** This measures the aggregate per-program rate. It does not
+  attribute the 2.9x to `Eval` vs `Moves` vs `Apply`. The discriminator is
+  `crates/interp/examples/cost_calibrate.rs`, which already exists and takes a width argument:
+  re-run it and compare the measured ratios against the hardcoded `cost_of` table. **Not run here**
+  (it would have contended with these timings and biased them).
+* **Not a claim about production strength.** No games were played. Nothing ships. No figure here is
+  Elo.
+* **Not a validated cause, but a named suspect.** `cost_of(n: &Node)` takes only the node, so it
+  **cannot** be width-dependent, yet its own comment says `Node::Eval(_) => 165` reflects an
+  "incremental output layer at width >= 64 (from-scratch below it)" and notes the value "was 1365"
+  when evals were from-scratch. This harness runs width 32. If eval is underpriced ~8x at the width
+  actually in use, an eval-bound family would be charged too little per microsecond — which is the
+  direction observed. **That is an explanation, not a measurement**, and `cost_calibrate` is the
+  thing that would settle it.
+* **The box was not quiet.** A trainer and a 4PC gate were running throughout. Mitigated by
+  interleaving rep-major and reporting medians, so drift lands on all arms; the per-program sd of
+  5–9% bounds what is left. A quiet-box re-run is the confirmation and was not available.
+
+## Also found, and worth separating from the above
+
+`configs/cost.toml` is **never read at runtime**. Every reference to it in the tree is a comment or
+the generator's own `println`; the authoritative table is the hardcoded `match` in
+`crates/interp/src/lib.rs:416`. CRATE 4 names the file as the cost table's home, so the file exists
+and is described as the source while having no causal role — which is how its `eval = 1356` has
+drifted from the code's `165` without anything failing. That is a documentation/architecture gap
+rather than a behaviour bug, since the compiled values govern and ratios are what the budget needs.
+
+## Consequence for GRAMMAR 4
+
+`grammar4_addfn_unpark_blocker.md` records the AddFn unpark as blocked on the cost clause:
+*"once something can diverge the lifted body from its origin, or the cost model stops charging a
+bare call."* `Node::Call` is confirmed absent from `cost_of` and falls through to `_ => 2`.
+
+**This result does not unblock that, and should not be read as doing so.** It answers the prior
+question: the table one would be re-pricing is already failing FITNESS's own fidelity check on the
+linear reading, and mis-ranks whole paradigms by ~2.9x. Re-pricing `Node::Call` in isolation would
+be tuning one entry of a table whose calibration is in question. The order that follows is
+recalibrate first (`cost_calibrate` at the operational width), then revisit the call price.
