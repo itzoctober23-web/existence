@@ -50,6 +50,27 @@ therefore inherits the control's decisive rate.
 **A fourth cell would be needed to isolate it**: the control arm run to the same number of TRAINED
 ROWS rather than the same number of generations. Recorded, not run.
 
+### Is that fourth cell already answered? Checked, and NO — but the prior is discouraging
+
+`games_per_gen_RESULT.md` reads "quadrupling the data per generation changes nothing" (0.4642
+against 0.4684), which looks like it closes the question outright: if 4x data does nothing, +27%
+certainly does nothing.
+
+It does not close it, because that file scopes itself explicitly:
+
+> Neither arm's batch gate ever kept a batch ... Every sample in both columns is therefore *"five
+> generations from a freshly resumed champion"*. This result says **more data does not shrink the
+> resume transient**. It does **not** say more data fails to help a generation in the steady
+> state — no arm has measured that.
+
+Its arms ran `--gate-every 5` over 20 batches. These arms ran **2,000 generations**, far past the
+resume transient `resume_dip_RESULT.md` puts at ~1,000 generations. Different regime, and
+`nontransitive_walk_RESULT.md` is on record that the two regimes give different answers.
+
+So the data-volume channel stays open for the steady state. But a 4x increase producing nothing
+post-resume is a weak negative prior on +27% producing something here, which is why the fourth cell
+ranks behind getting the A/B/C verdict rather than ahead of it.
+
 ## Status
 
 Measured and reproducible from the arm logs. **The strength verdict is NOT in.** The first netmatch
