@@ -73,3 +73,46 @@ re-examine unparking AddFn.
 **Not done tonight:** that is a `cargo test -p grammar` build, and the Existence slot is running the
 953-pair promotion resolve. Nothing here changes a live search: AddFn stays parked, and no operator
 behaviour was modified.
+
+---
+
+## MEASURED 2026-09-12 00:10 — my prediction was WRONG. `funcs[1]` IS reached, 17–79% of draws.
+
+The section above predicted, from reading the short-circuit, that `funcs[1..]` would be reached "**≈0
+for broadly-applicable operators**". I named the measurement and ran it
+(`crates/grammar/tests/mutation_function_bias.rs`, 4000 draws of `mutate_program_n` per multi-function
+reference program). **It refutes the prediction.**
+
+```
+program                      node counts   funcs[0] hit   uniform-by-size   funcs[1] hit
+table reduction (rung 7)      [13,  73]       19.18%          15.12%           78.70%
+bound-gap stopping            [69,  58]       80.80%          54.33%           17.22%
+proof-number search           [27, 148]       53.42%          15.43%           44.10%
+draws that applied: 4000/4000 in every case; abandoned: 0
+```
+
+**Where the reasoning failed.** The loop breaks only when a placement SUCCEEDS in `funcs[0]`. I treated
+"broadly-applicable operators almost always place in funcs[0]" as if it made funcs[1] unreachable, but
+the operator set is mixed: any draw of an operator that matches nothing in `funcs[0]` falls through, and
+that is common — overwhelmingly so when `funcs[0]` is small (13 nodes → funcs[1] takes 78.7%).
+
+**What IS real, and is the honest version of the finding:** `funcs[0]` is over-represented relative to
+its share of nodes in EVERY program measured — mildly at [13,73] (19.18% vs 15.12%) and by **3.5x** at
+[27,148] (53.42% vs 15.43%). So the index-order short-circuit does bias placement toward the first
+function; it does not exclude the others.
+
+**Consequence for the AddFn unpark decision — the blocker moves.** The unpark condition has two
+clauses: *"once something can diverge the lifted body from its origin, OR the cost model stops charging
+a bare call"*. The first clause is **satisfiable**: a lifted function would be edited on a substantial
+fraction of subsequent draws, so it can diverge. **The binding constraint is therefore the COST clause**
+— a lift costs ≤1.004x its parent and under FITNESS 3 (mates per cost) that is strictly worse, so the
+first lift still cannot survive long enough to be diverged.
+
+**Caveat on generalising these numbers.** All three fixtures are hand-written REFERENCE programs, not
+lifted-by-AddFn ones. An AddFn lift's `funcs[1]` would be a subtree cut from `funcs[0]`, so the size
+ratio — which these numbers show is what drives the split — would differ. The direction (funcs[1] is
+reached) is robust; the exact percentage for a lifted program is not measured.
+
+**The test asserts nothing about the value.** It prints. A threshold invented before the first
+measurement would have been a guess wearing a test's clothes — and had I written one from my
+prediction, it would now be failing on correct behaviour.
