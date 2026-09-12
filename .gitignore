@@ -13,6 +13,7 @@ ckpt/
 .gate_candidate_a.lock
 # Generated at release time by `cargo about`
 *.jsonl
+.launch_cand_replication.lock
 # Learned artifacts and the content-addressed store (CRATE.md 0.1, 1): data is not code
 ledger*.jsonl
 # Live experiment stdout. Regenerated every run, never source. Untracked *.out was
