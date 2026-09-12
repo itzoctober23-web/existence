@@ -6026,3 +6026,37 @@ excluding it. An accept count alone does NOT pass — 6-pair arithmetic admits a
 outcomes by luck, and the control produced 0 accepts in 79 decisions with MCTS unpassable in 40 of 40.
 
 No verdict until 40 generations. This is STATE.
+
+### 22:55 — the disagreement-heavy arm may not be able to answer its own prereg. Recorded at gen 6, NOT at 40.
+
+```
+control    (10+4+5, 53% mate-in-1)   reached the game gate at gen 1 and EVERY generation after
+treatment  ( 4+8+7, 21% mate-in-1)   6 generations, 12 lineage-turns, ZERO gate decisions
+```
+
+The `..none[above 0] (N cand)` line prints only when NO candidate beats the champion's rate. The
+control emitted it exactly once (gen 1 MAIN) and reached the gate thereafter; the treatment has
+emitted it on all 12 lineage-turns so far.
+
+**Consequence, stated before the run finishes:** `p2_fitness_PREREG.md`'s PRIMARY metric is the
+decisive-game fraction of the population's candidates against the 14.7% baseline. That quantity is
+computed FROM GAMES. If nothing reaches the gate, no games are played and **the primary metric is
+undefined** — not zero, undefined. The prereg anticipated a flat decisive fraction as the failure
+mode; it did not anticipate an arm that never produces one.
+
+**This is not a surprise in hindsight, which is why it is being written down now.**
+`fitness_set_composition_RESULT.md` already reported exactly this of its own composition arms: *"Both
+composition arms have admitted NOTHING in twelve MAIN generations"*, and answered it with *"A set that
+admits nothing is trivially free of bad accepts … the question is whether what it admits is better,
+which only VERIFY answers."* I am reproducing a known behaviour of harder position sets.
+
+**What I am NOT doing:** not stopping the arm, and not editing the prereg's verdict rule to fit what
+the arm can produce. It runs to its planned 40 generations. If it ends with zero gate decisions, the
+honest report is "the primary metric could not be computed, and here is why", with the secondary
+observation — a harder set admits nothing — recorded as the actual finding.
+
+**The open design question this raises for the NEXT arm** (not acted on tonight): the composition
+lever and the admission threshold interact. A set hard enough to catch the one-ply cut is also hard
+enough that nothing clears the champion's rate, so `eps`/`mu` (declared in
+`configs/search_track.conf`, unchanged since 09-09) may need to move WITH the composition rather than
+after it. That is a two-change experiment and needs its own pre-registration.
