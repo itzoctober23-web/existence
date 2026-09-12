@@ -85,8 +85,19 @@ fn main() {
             }
             // Label A: the current production path.
             let (mv_d, sc_d) = s.best_move(&mut pos, 3, &net);
-            // Label B: the same position under a node budget.
-            let (mv_b, sc_b, _rd) = s.best_move_budget(&mut pos, &net, budget, 10, rng.next());
+            // Label B: the same position under a node budget -- or, when budget == 0, the SAME
+            // depth-3 search again. That is the CONTROL, and it is not optional: both labellers
+            // share one Searcher, and `shuffle_children` advances `self.rng` on every visit
+            // (search.rs:110), so two searches from the same searcher explore different child
+            // orderings. Any disagreement that control produces is shuffle noise, not depth, and
+            // must be subtracted from the treatment before the treatment means anything.
+            let (mv_b, sc_b) = if budget == 0 {
+                let r = s.best_move(&mut pos, 3, &net);
+                (r.0, r.1)
+            } else {
+                let r = s.best_move_budget(&mut pos, &net, budget, 10, rng.next());
+                (r.0, r.1)
+            };
 
             let a_cp = sc_d as f64;
             let b_cp = sc_b as f64;

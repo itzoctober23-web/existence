@@ -40,6 +40,29 @@ the budget and get the identical label; the 31-38% that stop at depth 2 and the 
 depth 4-6 are where the movement is. Two independent measurements agreeing on the same split is the
 useful part.
 
+### The control, run before any of the above was believed
+
+Both labellers share one `Searcher`, and `shuffle_children` advances `self.rng` on every visit
+(`search.rs:110`), so two searches from the same searcher explore different child orderings. Some of
+the disagreement above could therefore be shuffle noise rather than depth. Same probe, same seeds,
+with label B replaced by **a second depth-3 search** — identical method, so everything it reports is
+noise:
+
+| | 20260912 | 777001 | 424242 |
+|---|---|---|---|
+| same best move | 95.6% | 96.7% | 96.2% |
+| same sign of eval | 100.0% | 100.0% | 100.0% |
+| labels moving < 0.01 | **100.0%** | **100.0%** | **100.0%** |
+
+The score is identical on **every single position** — exact alpha-beta returns the same value
+whatever order the children are visited, so move ORDER can flip which of two equal-scoring moves is
+returned (~4% of the time) but cannot move the LABEL at all.
+
+That makes the treatment signal clean: the control's label-movement floor is 0%, so the 35-49% of
+labels that move in the treatment are **entirely** depth-driven. The ~4% move-choice noise should be
+subtracted from the move column, leaving roughly 31-35% of positions with a genuinely different best
+move.
+
 So the label channel is **live**: about one position in three gets a different best move, and the
 p90 label shift is 0.22-0.42 on a target confined to [-1, 1].
 
