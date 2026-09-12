@@ -19,6 +19,37 @@ on the same terms.
 **Daily line is exactly:** pooled ruler ± CI and trend (with significance) · P1 compounding status ·
 P2 generation/accepts · Track B step and gate state. Nothing else.
 
+### RUNNING NOW (STATE, not results — planned N is not complete for any of these)
+
+**P1 compounding A/B** — `p1-compounding.service`, launched 18:58. Two arms, 2,000 generations each,
+**sequential** (ONE-trainer box rule), both from one snapshotted start `p1c_start.net`
+(md5 `0097ddc3f5e6`). Control = production verbatim. Compound = `--datagen-nodes 10309
+--steps-per-gen 777 --replay-gens 8 --gate-every 100 --gate-pairs 224`. Verdict rule is
+pre-registered and transcribed into `p1_compounding_verdict.sh`, **which refuses to print a verdict
+for an arm short of 2,000 generations** (verified: it refused at 1327/2000).
+
+*`keepalive` is deliberately STOPPED for the duration* and restored by a trap. It counts any exe
+named `learn` on a 300s period, so a check landing in the gap between arms would put a second trainer
+on the box. **Do not "fix" this by relaunching keepalive while the A/B runs** — that is the
+two-trainer condition that froze the box.
+
+*Interaction with `auto_promote`, checked and deliberately LEFT ALONE:* it identifies arms by the
+running trainer's `--out` and promotes when exactly one arm trains, so it can promote an arm net into
+the champion. That is **wanted** — item 1 says the champion must be re-promoted through the normal
+gate as it improves, and the bar is the real one (224 pairs, `rate − ci95 ≥ 0.5`). The A/B is immune
+either way: both arms are pinned to the fixed start net and the verdict netmatches the two arm nets
+against each other. Champion verified unchanged at A/B launch (md5 identical to the start net).
+
+**P2 `search_long_run40`** — `p2-gens40.service`, launched 19:00. The **planned 40-generation arm at
+32 proposals**, observer off. Prior 15-generation arm reached **generation 7 with 0 accepts** (13
+`gate REJECT`, 0 `gate ACCEPT`), preserved at `prop_verify96_partial_gen7.log`. Note a third
+category: a generation can read `..none`, meaning no candidate reached the gate at all — so
+"generations", "gate calls" and "accepts" are three different counts and must be reported as such.
+
+**Track B step 1** — `tune_hybrid` SPSA since 18:34, iter 3, theta
+`[handoff 602, C 137.7, puct 150.8, priorDepth 1.17, priorTemp 195]` off a `[600,141,150,1,200]`
+start. ~10 min/iteration ⇒ ~48 iterations in the 8h budget. **3 iterations carries no direction.**
+
 ## 🎯 TRACK A — UNCERTAINTY HEAD: built at parity, exposed, measured, and the sign is backwards
 
 Status line he asked for, 2026-09-11 18:1x.
