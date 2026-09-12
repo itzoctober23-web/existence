@@ -11,7 +11,13 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 SCR=/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad
-NM=$SCR/xt_cap/release/examples/netmatch
+# PERSISTENT instrument. $SCR is the session scratchpad, which is TMPFS: it does not survive a
+# reboot, and this is an unattended supervisor that systemd will restart straight into a missing
+# binary. bin/netmatch is a byte-identical copy of the exact build this script has been using
+# (md5-verified at copy time) -- NOT a rebuild, because swapping the instrument would change the
+# readings and break comparability with every promotion decision already on file.
+NM=${NM:-/home/maswabe/existence/bin/netmatch}
+[ -x "$NM" ] || NM=$SCR/xt_cap/release/examples/netmatch
 PAIRS=${PAIRS:-224}
 # Confirmation stage (see the block in the arm loop for why). Different seed on purpose.
 CONFIRM_PAIRS=${CONFIRM_PAIRS:-896}

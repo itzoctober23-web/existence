@@ -3,6 +3,7 @@
 # append-only stream. Artifacts of the instrument, not inputs to the loop.
 # Archived arm logs. When an arm is restarted onto a new binary the old log is preserved with a
 *.bin
+bin/
 # `cargo xtask watch` output: regenerated every 60s, and events.log is a local
 champion*.net
 ckpt/
