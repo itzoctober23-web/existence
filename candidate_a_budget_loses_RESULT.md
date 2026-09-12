@@ -27,6 +27,33 @@ in Elo                  -43.1    [-69.8, -16.8]
 Every individual interval lies wholly below 0.5, and the pooled interval excludes 0.5. **For these
 two nets the result is resolved: the budget arm is weaker.**
 
+## Context: did EITHER arm improve? Not established — and 0.535 is a number that already fooled us tonight
+
+The gate's context match reads **`candA_fixed vs cand_start` = 0.535 ± 0.030**, interval
+[0.505, 0.565]. Taken alone that says the fixed-depth arm gained on the champion it resumed from,
+which would make the budget arm's loss a regression against a working baseline.
+
+**It does not survive its own standard.** `|0.535 - 0.5| = 0.035` is **0.74x** the 0.047
+between-training-seed sd — inside the band, on one training run.
+
+And there is a sharper check available. `auto_promote` has taken 20 readings of live production arms
+against the champion tonight:
+
+```
+min 0.450   max 0.539   mean 0.502   sd 0.021
+readings >= 0.535:  2 of 20
+```
+
+That distribution is centred on **no improvement**. Arm A's 0.535 is in its top tenth, not outside
+it. Decisively: the single reading at the top of that range — **0.539 at 23:04** — is the SPURIOUS
+PROMOTION diagnosed in `promo_g39836_RESULT.md`, which resolved to 0.501 ± 0.021 and 0.503 ± 0.014 at
+448 and 953 pairs. A 0.535 single reading is exactly the magnitude this project has already been
+fooled by once today.
+
+So the honest reading is that **neither arm is shown to have improved on the start net**, and the
+well-powered statement is the one between the arms: B loses to A over 672 pairs and three match
+seeds. The vs-start readings are one seed and 224 pairs each and are reported as context only.
+
 ## The limitation that keeps this from being a general claim
 
 `|mean - 0.5| = 0.0617`, which is only **1.31x** the project's between-seed sd of **0.047** — and
