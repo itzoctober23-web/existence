@@ -200,6 +200,50 @@ overpriced ~2-3x, and a *program-level* measurement that never touches those num
 eval-bound programs charged 2.9x less per microsecond than moves-bound ones. The microbenchmark
 predicts the sign and rough size of an effect measured a different way.
 
+## CORRECTION, same session — the per-primitive multipliers above are WITHDRAWN
+
+Immediately after publishing the section above I applied this project's own rule to it: *validate the
+instrument against the code path it describes.* I had applied that to `key` (excluding it because the
+calibrator times `zobrist()` while the interpreter does a field read `x.key`). **I had not applied it
+to the primitives I actually used.** Doing so now:
+
+| primitive | what `cost_calibrate` times | what the interpreter does | match? |
+|---|---|---|---|
+| `eval` | `score_with(&net, &mut scratch)` | output layer only, own scratch buffer | **yes** — the bench carries a comment saying it was written to match |
+| `moves` | `legal_moves().len()` | `legal_moves()` **+ `as_slice().to_vec()`** — a heap allocation and copy | **no** |
+| `apply` | `legal_moves()` + `child(..)` | **+ a `contains()` legality scan over the move list, + `Rc::new`** | **no** |
+| `terminal` | `legal_moves().is_empty()` | `x.outcome()` | **not verified** |
+| `key` | `zobrist()` | field read `x.key` | no — already excluded |
+
+Every mismatch runs the same way: **the bench does LESS work than the interpreter**, so the true
+per-primitive times are higher than measured, and by different amounts per primitive. A ratio built
+from them is a bound, not a measurement.
+
+**So these figures are withdrawn:** `eval` underpriced 7.9x, `moves` overpriced 3.2x, `apply`
+overpriced 2.3x, and the 25.7x units-per-nanosecond spread. They were computed against `terminal` as
+the denominator, and `terminal` is one of the unvalidated benches. The "prediction confirmed at 7.9x"
+claim is withdrawn with them — a prediction matched against a mis-specified instrument is not a
+confirmation, and the agreement with my predicted ~8x made it *more* persuasive rather than less,
+which is exactly when this check matters most.
+
+**What survives, and why it does not depend on any of the above:**
+
+1. **The program-level finding — alpha-beta 1611 vs MCTS/PN 4678 cost/us, 2.90x, non-overlapping.**
+   That was measured end-to-end on whole programs through the real interpreter. No calibrator bench
+   enters it. It is unaffected.
+2. **`cost_of` cannot be width-dependent** — it takes only `&Node`. That is a fact about the
+   signature.
+3. **At width 32 the incremental eval path is not faster than from-scratch** (258.5 ns from-scratch
+   vs 284.1 ns incremental). This is a *within-bench* comparison of the same operation measured two
+   ways, so the mismatch above cancels: whatever the bench omits, it omits from both arms. The
+   comment justifying `Node::Eval(_) => 165` as "incremental output layer at width >= 64
+   (from-scratch below it)" therefore rests on a crossover that does not pay at the width in use.
+
+**So the direction is still supported and the magnitude is not.** Eval being underpriced remains the
+live hypothesis; "by 7.9x" is not established. Settling it needs a calibrator whose benches invoke
+the interpreter's own node paths rather than approximations of them — which is a fix to
+`cost_calibrate.rs`, and is the real prerequisite for any re-pricing.
+
 **Not fixed here, deliberately.** Re-pricing `cost_of` changes the denominator of FITNESS 3 and so
 changes every mates-per-cost number this project has recorded — including the GRAMMAR 9 ladder,
 whose hash-reuse conclusion the existing comments already flag as needing re-derivation. That is a
