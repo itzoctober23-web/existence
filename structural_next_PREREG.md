@@ -136,6 +136,11 @@ the same way `assert_setting_took.py` gates `hardn_probe`.
 > distribution is the likelier cause, and a NULL could not be told apart from "the label channel is
 > null again".
 >
+> **[03:18 — the cell C I built does not achieve this; see candidate_a_channel_FINDING.md. In a
+> self-play loop the generator IS the net being trained, so positions can only be held fixed for
+> generation 1. Doing it properly requires label_source_ab's design: dump the corpus once and train
+> on it with no self-play.]**
+>
 > Add cell C — the control arm's POSITIONS relabelled by the budget search, one column apart, no
 > regeneration, exactly as `label_source` did it:
 >

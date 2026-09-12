@@ -85,6 +85,31 @@ would credit label quality — and `label_source` is direct evidence that the la
 not convert to strength at far larger label upgrades than this one. The win would more likely be the
 position distribution, which the PREREG does not mention at all.
 
+> **CORRECTION 2026-09-12 03:18 — the cell C I built does NOT do this, and cannot.** Kept visible
+> because the reasoning error is the useful part. In a SELF-PLAY loop the data generator **is** the
+> net being trained. Cell C walks the control's trajectory only while the two nets are identical —
+> that is, for generation 1 only. The moment it trains on different labels its net differs, and from
+> generation 2 its self-play games differ too. Measured on the live run:
+>
+> ```
+> gen 1 |  A 948 positions  C 948  | IDENTICAL
+> gen 2 |  A 674 positions  C 582  | diverged
+> ...   |  positions identical on 4 of 1180 generations (0.3%)
+> ```
+>
+> My unit test passed only because it held the net FIXED (`Net::random`) across all games, so no
+> training happened between them. It verified a property that does not survive the loop.
+>
+> `label_source_ab.rs` did it correctly and the difference is the whole lesson: it trains on a
+> **fixed dumped corpus** (`--positions positions.tsv`, `--sf-labels sf_labels.tsv`) with **no
+> self-play at all**, which is the only way "same positions, one column apart" can hold across
+> training. Isolating the label channel requires that design, not a live arm.
+>
+> What the running cell C actually measures: moves chosen by the fixed-depth search, labels from the
+> budget search, in a live loop — i.e. it decouples the move-selection policy from the labelling
+> policy. That is a real arm and worth its remaining ~15 minutes, but it is NOT the control's
+> positions and `B - C` / `C - A` do NOT decompose position-vs-label.
+
 **Recommended third cell, cheap and already demonstrated.** `label_source` shows how: take the
 control arm's positions and RELABEL them with the budget search — "literally one column apart", no
 regeneration. Three arms then decompose the effect:
