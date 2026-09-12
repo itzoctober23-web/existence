@@ -36,10 +36,27 @@ for u in cand-c-labels cand-a2-fixed cand-b2-budget; do
 done
 # A2/B2 must have RUN, not merely be absent -- otherwise this fires before the replication starts.
 [ -s "$D/candA2_fixed.net" ] || { say "DEFER: the replication has not produced candA2_fixed.net yet"; exit 75; }
-for p in $(ls /proc | grep -E '^[0-9]+$'); do
+# CAPACITY, not "is a netmatch running" -- the same correction made in
+# launch_cand_replication.sh and champion_absolute_ab.sh. Checked rather than copied: this script
+# runs netmatch ITSELF, so the blanket guard could have been protecting against two netmatch runs
+# clobbering one output file. It is not. netmatch writes no files of its own; the script redirects
+# stdout to its own $out, and two instances of THIS script are already prevented by the flock above.
+# What remains is contention, and contention cannot bias either side: netmatch runs at FIXED DEPTH 4
+# so node counts are deterministic, and budget_label_ab trains on a FIXED CORPUS with no self-play.
+# Meanwhile auto_promote occupies netmatch for a large part of every ~40-minute cycle, so a blanket
+# guard here is a deadlock with a polite log line.
+CAP=560; NEED=100
+jif(){ awk '{print $14+$15}' "/proc/$1/stat" 2>/dev/null || echo 0; }
+pids=""; for p in $(ls /proc | grep -E '^[0-9]+$'); do
   e=$(readlink "/proc/$p/exe" 2>/dev/null) || continue
-  case "${e##*/}" in netmatch) say "DEFER: a netmatch is in flight (pid $p)"; exit 75;; esac
+  case "${e##*/}" in learn|learn_cand|learn_cand2|netmatch) pids="$pids $p";; esac
 done
+t0=0; for p in $pids; do t0=$((t0+$(jif $p))); done
+sleep 2
+t1=0; for p in $pids; do t1=$((t1+$(jif $p))); done
+used=$(( (t1-t0)*100 / ($(getconf CLK_TCK)*2) ))
+say "cores 6-11 in use: ${used}% of 600% (need ${NEED}%, cap ${CAP}%)"
+[ $(( used + NEED )) -gt $CAP ] && { say "DEFER: ${used}% + ${NEED}% would exceed ${CAP}%"; exit 75; }
 
 say "corpus $GAMES games, $EPOCHS epochs, budget 5269, fixed corpus (no self-play)"
 nice -n 19 taskset -c 6-11 "$BIN" cand_start.net "$GAMES" 5269 20260912 "$EPOCHS" 16 0.0002 >>"$LOG" 2>&1 || {
