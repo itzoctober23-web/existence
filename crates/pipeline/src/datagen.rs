@@ -27,6 +27,31 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// / `gate::PLY_CEILING` already establish this idiom in the crate.
 pub static NODE_CAP: AtomicU64 = AtomicU64::new(u64::MAX);
 
+/// A TRUE per-move node budget: iterate depth 1, 2, 3 ... until this many nodes are spent and keep
+/// the last depth that COMPLETED. `0` = off, which is the default and leaves every existing run
+/// byte-identical.
+///
+/// WHY THIS IS NOT `NODE_CAP`, AND WHY `--datagen-nodes` WAS NOT REPURPOSED.
+/// `--datagen-nodes` does something different and is already load-bearing: `main.rs:186-193` uses
+/// the number to pick ONE fixed depth from a cost table and then passes it as `NODE_CAP`, a
+/// truncating ceiling. `p1_compounding.sh:81` ships `--datagen-nodes 10309` and
+/// `p1_compounding_RESULT.md` is a published null that used it, so redefining the flag would
+/// retroactively change what that arm measured.
+///
+/// It also means that arm was NOT running a budget. `datagen_node_census_RESULT.md` measures the
+/// depth-3 cost distribution on the champion: mean 5,269, and **18.5% of moves cost more than
+/// 10,309**. So at `--datagen-nodes 10309` roughly one move in five hit the cap and aborted
+/// part-way through the root scan, keeping the best move among those that happened to finish. That
+/// is a truncated fixed-depth search, not an equalised budget -- worth knowing before
+/// `p1_compounding_PREREG.md:49` runs `--datagen-nodes 10309` again.
+///
+/// `BUDGET` is the thing `structural_next_PREREG.md` Candidate A actually asks for.
+pub static BUDGET: AtomicU64 = AtomicU64::new(0);
+
+/// Ceiling on the iterative deepening `BUDGET` drives, so a pathologically cheap position cannot
+/// spend the whole budget climbing to absurd depth. Only consulted when `BUDGET > 0`.
+pub static BUDGET_MAX_DEPTH: AtomicU64 = AtomicU64::new(8);
+
 #[derive(Clone)]
 pub struct Sample {
     pub fen: String,
@@ -183,7 +208,15 @@ pub fn play_game_ext(
             break;
         }
         let cap = NODE_CAP.load(Ordering::Relaxed);
-        let (mv, score) = if cap == u64::MAX {
+        let budget = BUDGET.load(Ordering::Relaxed);
+        let (mv, score) = if budget > 0 {
+            // TRUE node budget: deepen until the budget is spent, keep the last COMPLETED depth.
+            // Distinct from NODE_CAP on purpose -- see BUDGET's own comment for why the two cannot
+            // be the same knob.
+            let (m, sc, _d) =
+                s.best_move_budget(&mut pos, net, budget, BUDGET_MAX_DEPTH.load(Ordering::Relaxed) as u32, rng.next());
+            (m, sc)
+        } else if cap == u64::MAX {
             s.best_move(&mut pos, depth, net)
         } else {
             // THE ABORT MUST NOT REACH THE LABEL. `best_move_capped` returns `-INF` when the budget

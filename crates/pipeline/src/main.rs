@@ -192,6 +192,19 @@ fn main() {
         eprintln!("  datagen node budget {dg_nodes}/move -> depth {d} (cap is the safety net)");
         d
     } else { depth };
+    // TRUE node budget (structural_next_PREREG.md Candidate A). Separate flag from
+    // `--datagen-nodes`, which selects a fixed depth and then truncates -- see datagen::BUDGET for
+    // why that one could not be repurposed. Default 0 leaves every existing run byte-identical.
+    let dg_budget = arg("--datagen-budget", 0) as u64;
+    if dg_budget > 0 {
+        let md = arg("--datagen-budget-max-depth", 8) as u64;
+        pipeline::datagen::BUDGET.store(dg_budget, std::sync::atomic::Ordering::Relaxed);
+        pipeline::datagen::BUDGET_MAX_DEPTH.store(md, std::sync::atomic::Ordering::Relaxed);
+        eprintln!(
+            "  datagen TRUE node budget {dg_budget}/move, iterative deepening, max depth {md} \
+             (measured depth-3 mean is 5269/move -- datagen_node_census_RESULT.md)"
+        );
+    }
     let epochs = arg("--epochs", 3);
     // GATE RESOLUTION. 40 -> 224, because the gate could not see the improvements it exists to
     // detect. MEASURED over 230 generations of ledger: median ci95 0.079, so it only resolves a
