@@ -17,6 +17,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [resume_dip_not_visible_in_production_RESULT.md](resume_dip_not_visible_in_production_RESULT.md) | The resume dip is NOT observable in the production ruler — so there is no measured case for changing the 6-hour restart |
 | [straddle_is_periodic_RESULT.md](straddle_is_periodic_RESULT.md) | Budget instability is PERIODIC in realised depth — period ≈ 1 ply, and the second peak is worse |
 | [budget_instability_is_boundary_straddling_RESULT.md](budget_instability_is_boundary_straddling_RESULT.md) | The budget's instability is BOUNDARY STRADDLING — r = +0.98, and it predicts a larger budget is safer |
 | [search_stability_RESULT.md](search_stability_RESULT.md) | The budget's move choice IS noisier than fixed depth's — 3.2 points less self-consistent, on every seed |
