@@ -78,6 +78,11 @@ done
 say "READING: 448 pairs over 2 seeds. A null here is CONSISTENT WITH label_source_RESULT, not a"
 say "  new finding -- that file already measured a far larger label change as unresolved. A WIN"
 say "  would be the surprise, and would still not be a ship."
-touch "$D/bla_gate_done"
+# WRITE CONTENT, NOT AN EMPTY FILE. `touch` creates a ZERO-BYTE file and the guard at the top of
+# this script tests it with `-s`, which is true only for NON-ZERO size. So the marker could never
+# satisfy its own check and this gate retrained and rematched on every 5-minute timer fire --
+# three complete runs before it was noticed, each ~6 minutes of a core doing identical work.
+# The same guard/marker pair elsewhere in this repo writes a timestamp for exactly this reason.
+date +%F_%H:%M > "$D/bla_gate_done"
 say "done"
 exit 0

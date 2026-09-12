@@ -43,6 +43,29 @@ pooled           0.4960 +/- 0.0184     95% CI [0.4776, 0.5144]
 
 **Contains 0.5. NULL — about −2.8 Elo.**
 
+## Reproduced three times, by accident — and what that does and does not buy
+
+A marker bug re-ran this gate on every 5-minute timer fire (the script wrote its completion marker
+with `touch`, creating a zero-byte file, while its own guard tested `-s`, which is true only for
+non-zero size). Three complete runs executed before it was caught, each retraining both arms from
+scratch:
+
+```
+run 1  05:13 / 05:16    0.499 +/- 0.026    0.493 +/- 0.026    labels differing 2974 (47.8%)
+run 2  05:23 / 05:26    0.499 +/- 0.026    0.493 +/- 0.026    labels differing 2974 (47.8%)
+run 3  05:33           0.499 +/- 0.026    (stopped)          labels differing 2974 (47.8%)
+```
+
+**Identical to three decimals, including the corpus construction.** That is worth recording because
+it shows the whole pipeline — corpus generation, the 47.8% label divergence, training, and the
+matches — is deterministic given its seed, so this result is exactly reproducible by re-running the
+script.
+
+**It buys no statistical power.** Same seed, same corpus, same nets, same match seeds: these are the
+same measurement three times, not three measurements. The interval stays ±0.018 on 448 pairs. Saying
+otherwise would be the `dedup-key-too-coarse` error in another costume — pooling readings that are
+not independent.
+
 ## What it means, against Candidate A
 
 ```
