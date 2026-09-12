@@ -226,3 +226,66 @@ says.
 **What this chain shows about method:** three measurements tonight, each overturning the previous
 reading — prediction (≈0), reference programs (17–79%), actual lift (0.00%). The caveat I attached to
 the middle one was not a formality; it was the entire result.
+
+---
+
+## 00:28 — the framing was wrong: BOTH live lineages already seed from 2-FUNCTION programs
+
+`crates/grammar/tests/reachability.rs:199-202` records the claim this whole chain rests on:
+
+> *"0 of 858 applied mutations change `Program::funcs.len()`, so GRAMMAR 4's `add-fn` remains absent
+> and **every program the search can reach has exactly one function**, against a type checker that
+> admits 1..4."*
+
+**The second half is false for the live search.** A census of `reference::all()` — a descriptive fact I
+had been inferring from filters instead of measuring:
+
+```
+program                                     funcs   sizes
+depth-one (purity seed)                       1     [9]
+bare alpha-beta (MAIN seed)                   2     [13,  58]     total 71
+UCT-style MCTS                                2     [16, 115]     total 131
+... 12 of 13 reference programs have 2 functions; only depth-one has 1
+```
+
+And `evolve.rs:641` seeds from `reference::bare_alpha_beta()`. The live P2 run's own header confirms
+it independently:
+
+```
+lineage MAIN  seed  71 nodes      = bare alpha-beta [13, 58]
+lineage MCTS  seed 131 nodes      = uct_mcts        [16, 115]
+```
+
+**So both live lineages start with two functions.** The reachability claim is true as written only of a
+search seeded from a 1-function program — which is the PURITY lineage (`depth-one`, 9 nodes), not the
+two lineages that actually run.
+
+### What that does to the AddFn argument
+
+`PARKED_OPS` values AddFn as *"the only operator that can raise `funcs.len()`"*, closing a 1 -> 2 gap.
+For the live lineages there is no 1 -> 2 gap: they begin at 2. AddFn would be taking them 2 -> 3.
+
+And the MAIN seed's second function is **58 of 71 nodes (82%)** — the same shape as `table reduction`
+[13, 73], which my 00:10 measurement showed has its `funcs[1]` edited **78.70%** of draws. So the live
+MAIN lineage already carries a large, actively-mutated second function. The thing AddFn was parked as
+an enabler FOR is already present in the lineages that matter.
+
+Where AddFn's 1 -> 2 gap is real — the purity lineage — is exactly where I measured a lift to be tiny
+(max 5 nodes of 9) and never edited (**0 of 767**).
+
+### Status of the chain, four measurements in
+
+```
+prediction from code        funcs[1] edited ~0%        WRONG for reference programs
+reference programs          17-79%                     RIGHT, wrong fixtures for a lift
+actual AddFn lift           0.00% (0/767)              lifts are tiny and inert
+reference census            MAIN seed already 2 funcs  the 1->2 gap does not exist live
+```
+
+**AddFn stays parked, and the park now has a better reason than the one recorded**: not merely that a
+lift is costlier, but that in the lineages that run there is no missing second function to create, and
+in the lineage that lacks one, every legal lift is too small to be edited.
+
+**Not claimed:** that `funcs.len()` 2 -> 3 would be worthless. That is untested, and the type checker
+admits up to 4. What is claimed is that the recorded justification for AddFn's VALUE — closing a
+1 -> 2 gap — does not describe the live search.
