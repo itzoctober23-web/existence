@@ -329,6 +329,91 @@ impl Searcher {
         self.node_cap = u64::MAX;
         (best, best_s)
     }
+
+    /// Iterative deepening to a NODE BUDGET. Returns `(move, score, realised_depth)`.
+    ///
+    /// WHY THIS IS A SEPARATE FUNCTION AND NOT A CHANGE TO `best_move_capped`.
+    /// `node_cap`'s own doc comment above calls it "the iterate to budget primitive", but nothing
+    /// iterates: `best_move_capped` runs ONE fixed-depth search and ABORTS when the cap is hit,
+    /// keeping whatever root moves happened to finish. So handing it a deep `depth` and a budget
+    /// does not spend the budget wisely -- it blows the cap inside the first root move and returns
+    /// a result derived from one or two shuffled moves. `control.rs:12` already records exactly
+    /// that failure mode.
+    ///
+    /// `best_move_capped` has ~20 call sites, including `gate.rs:453` (the EQUAL-COST architecture
+    /// gate) and the `arch` tests, which depend on its current abort semantics. Changing it would
+    /// silently redefine that gate, so it is left untouched.
+    ///
+    /// WHAT THIS DOES INSTEAD. Search depth 1, then 2, then 3 ... and keep the result of the last
+    /// depth that COMPLETED INSIDE the budget. A depth that aborts is discarded whole -- its score
+    /// is partial by construction, and comparing a partial score against a complete one is the bug
+    /// `datagen.rs:189` guards against. Depth 1 is always run before the budget is consulted, so
+    /// this can never return `-INF`: there is always a completed answer to fall back on.
+    ///
+    /// This is the primitive `structural_next_PREREG.md` Candidate A needs. Fixed depth spends
+    /// equal effort on unequal positions; `datagen_node_census_RESULT.md` measures that inequality
+    /// at 18-25x (p90/p10) with CV ~0.80. A budget reallocates that effort.
+    pub fn best_move_budget(
+        &mut self, pos: &mut Position, net: &Net, budget: u64, max_depth: u32, seed: u64,
+    ) -> (Move, Score, u32) {
+        match self.override_paths {
+            Some((inc, xor)) => { self.incremental = inc; self.xor_delta = xor; }
+            None => {
+                self.incremental = std::env::var("EXISTENCE_FULL_REFRESH").is_err();
+                self.xor_delta = std::env::var("EXISTENCE_OLD_DELTA").is_err();
+            }
+        }
+        self.acc.refresh(net, pos);
+        self.ply = 0;
+        self.nodes = 0;
+        self.node_cap = budget;
+        self.aborted = false;
+
+        let list = pos.legal_moves();
+        if list.is_empty() {
+            self.node_cap = u64::MAX;
+            return (MOVE_NONE, if pos.in_check(pos.stm) { -MATE } else { 0 }, 0);
+        }
+        let mut moves: Vec<Move> = list.as_slice().to_vec();
+        let mut r = crate::datagen::Rng(seed | 1);
+        for i in (1..moves.len()).rev() {
+            moves.swap(i, r.below(i + 1));
+        }
+
+        let (mut best, mut best_s, mut realised) = (moves[0], -INF, 0u32);
+        for d in 1..=max_depth.max(1) {
+            // DEPTH 1 RUNS UNCAPPED, ON PURPOSE. An earlier version consulted the budget from the
+            // first iteration and a test caught it returning -INF at budget=1: depth 1 aborted
+            // part-way, was discarded as incomplete, and nothing was left to fall back on. That
+            // -INF becomes `tanh(-32000/600) = -1.0`, a confidently-lost label on a position
+            // nobody evaluated. `datagen.rs:189-194` already resolves the same problem the same
+            // way ("falling back to a depth-1 search, which always completes, costs a few hundred
+            // nodes and keeps the label honest"), so this matches existing practice rather than
+            // inventing a second convention. The overspend is bounded by one depth-1 search.
+            self.node_cap = if d == 1 { u64::MAX } else { budget };
+            let (mut ib, mut ibs, mut alpha) = (moves[0], -INF, -INF);
+            for &m in &moves {
+                let u = self.push_move(pos, m, net);
+                let s = -self.ab(pos, d.saturating_sub(1), -INF, -alpha, net);
+                self.pop_move(pos, m, u, net);
+                if self.aborted { break; }
+                if s > ibs { ibs = s; ib = m; if s > alpha { alpha = s; } }
+            }
+            if self.aborted {
+                break; // this depth is incomplete -- discard it entirely, keep depth d-1
+            }
+            best = ib;
+            best_s = ibs;
+            realised = d;
+            // Cheapest possible early exit: the next iteration costs strictly more than this one,
+            // so if the budget is already gone there is nothing to gain by entering it.
+            if self.nodes >= budget { break; }
+        }
+        self.node_cap = u64::MAX;
+        self.aborted = false;
+        (best, best_s, realised)
+    }
+
     fn ab(&mut self, pos: &mut Position, depth: u32, mut alpha: Score, beta: Score, net: &Net) -> Score {
         // Check BEFORE counting, and again before every child. Setting the flag on the way down
         // is not enough: the unwind passes back through sibling loops that would each call ab()
