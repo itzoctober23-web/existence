@@ -17,6 +17,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [candidate_a_budget_loses_RESULT.md](candidate_a_budget_loses_RESULT.md) | Candidate A: the node-budget arm LOSES to fixed depth — 0.4383 over 672 pairs, and the registered mechanism was backwards |
 | [budget_makes_games_decisive_RESULT.md](budget_makes_games_decisive_RESULT.md) | The node budget makes self-play 14.5 points more DECISIVE and yields 27% more usable rows — a third channel the pre-registration never named |
 | [budget_realised_depth_RESULT.md](budget_realised_depth_RESULT.md) | The node-budget gate PASSES — but the budget reallocates effort in the OPPOSITE direction to the one pre-registered |
 | [datagen_node_census_RESULT.md](datagen_node_census_RESULT.md) | Depth-3 datagen costs 5,269 nodes/move, not 10,309 — and effort per position varies 18-25x |
@@ -119,10 +120,10 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
-| [prodk0127_plateau_STATUS.md](prodk0127_plateau_STATUS.md) | The fresh lineage reproduces the plateau: 1561 pooled, FLAT, 39 short of the day-7 line |
 | [structural_next_PREREG.md](structural_next_PREREG.md) | PRE-REGISTRATION — what the loop does after the configuration wins run out |
-| [generation_is_not_a_unit_FINDING.md](generation_is_not_a_unit_FINDING.md) | "Generation" means 8 games in one result and 2,400 in another — a 300x unit gap that made Candidate A look infeasible |
 | [candidate_a_channel_FINDING.md](candidate_a_channel_FINDING.md) | Candidate A's label channel is LIVE, but it is the channel `label_source` measured as null — the arm needs a third cell |
+| [prodk0127_plateau_STATUS.md](prodk0127_plateau_STATUS.md) | The fresh lineage reproduces the plateau: 1561 pooled, FLAT, 39 short of the day-7 line |
+| [generation_is_not_a_unit_FINDING.md](generation_is_not_a_unit_FINDING.md) | "Generation" means 8 games in one result and 2,400 in another — a 300x unit gap that made Candidate A look infeasible |
 | [p1_kill_criterion_STATUS.md](p1_kill_criterion_STATUS.md) | The P1 kill criterion: conjunct 1 is now SATISFIED. Conjunct 2 is measurable but not yet measured. |
 | [WEEK1_RETRO.md](WEEK1_RETRO.md) | WEEK 1 RETRO — which lever failed, and why |
 | [grammar4_addfn_unpark_blocker.md](grammar4_addfn_unpark_blocker.md) | The AddFn unpark condition is blocked by a SECOND ordering bias — the function sweep short-circuits |
