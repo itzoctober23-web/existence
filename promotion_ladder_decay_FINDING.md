@@ -86,11 +86,18 @@ promoted — `prodk1926` spans generations 132 to 69928. So this table compares 
 successive lineages, which is the right unit for "is the ladder going anywhere" but the wrong unit
 for "did promotion X help".
 
-That second question needs the two specific files, and it is exactly what
-`champion_absolute_PREREG.md` is measuring now, with its decision rule fixed in advance. The
-within-lineage OLS for `prodk0127` (−61.2 Elo over gen 291..29386, 95% CI [−99.2, −23.2]) points the
-same way but has the same defect in miniature: its newest readings are at gen 29386, while the
-promoted net is gen 24941.
+That second question needs the two specific files. It has now been measured and is **UNRESOLVED** —
+`champion_absolute_RESULT.md`: +3 Elo, 95% CI [−37, +43] at 600 games a side, which cannot tell +25
+from 0. It would take 1,536 games a side to resolve.
+
+**The within-lineage OLS is REFUTED and has been removed from this file's support.** It read −61.2
+Elo over gen 291..29386 (95% CI [−99.2, −23.2]) and the direct file-vs-file measurement EXCLUDES that
+value. A regression slope across a lineage's readings is not a measurement of any particular net in
+it: the OLS fits a line through 38 points with sd 38 spanning 29,000 generations, while the promotion
+asks whether one file beats another. Its formal significance (3.2 sd) made a wrong quantity look
+authoritative. **Nothing in the table above rests on it** — that table is built from cross-lineage
+MEANS with n=79, n=67 and n=38, not from a slope — but the earlier version of this file cited the OLS
+as corroboration and should not have.
 
 **Nothing here is quoted as shipped Elo.** These are ruler readings against one anchor; the
 promotions passed their gate.
