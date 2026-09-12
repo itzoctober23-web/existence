@@ -154,9 +154,27 @@ to the accepted program's structure). Neither has fired; no arm runs the new bin
 > `tune_hybrid` is the alpha-beta/MCTS **hybrid** work from the earlier "make the hybrid work"
 > directive — a different thread that allocates by UCT, not by uncertainty.
 >
-> **TRACK B STEP 1 IS NOT STARTED.** The 4PC net has no uncertainty head; the head built today is
-> Existence's (Rust). Step 2 is gated on step 1's parity passing, so it has not been approached.
-> Everything below is accurate about `tune_hybrid`; only the step label was wrong.
+> **TRACK B STEP 1: PARITY PASSES (19:18).** Built on the 4PC net — a second output over the SAME
+> L3 activations the value head uses (`nnue.cpp`), so one 32-wide dot product and no trunk work. It
+> predicts a MAGNITUDE, so it is never negated by side to move.
+>
+> **MEASURED both ways: live binary 137493, head binary 137493 — identical.** Parity is by
+> construction, not luck: `hasUnc` is false for every net written before the head existed (champion
+> included) and the head is then not computed at all, so `evaluate` runs the identical instruction
+> stream. That is the fingerprint 17 gate scripts assert.
+>
+> The loader trap it had to avoid: `loaded = bool(f)` is captured BEFORE probing for the optional
+> head section. Probing for an absent section hits EOF and sets failbit, so reading it first would
+> have made `loaded` false and **every existing net would have stopped loading**. Verified: the
+> champion still loads with zero errors under the new binary.
+>
+> `maswabe-buckets.unc` is built and **NOT installed** — `tune_hybrid` holds the live binary for 8h,
+> and installing under a running tune is how a gate gets killed and filed rc=0.
+>
+> **Step 2 (allocate by uncertainty) is now unblocked on parity**, but needs two things first: the
+> head is UNTRAINED (returns exactly 0, so it is a constant row — the same guaranteed-null trap as
+> Existence's), and installing the binary must wait for a gap. Nothing in search reads it yet, so it
+> cannot move a game.
 
 **`tune_hybrid` (hybrid thread, NOT Track B): RUNNING as of 18:34.** The blocker cleared:
 `install_prior_binary.sh` took its window at **18:21** (`INSTALLED after 1708s`, bench re-checked
