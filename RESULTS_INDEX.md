@@ -120,6 +120,7 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
+| [auto_promote_confirm_untested_STATUS.md](auto_promote_confirm_untested_STATUS.md) | The promotion confirmation stage is ARMED but has never fired — status, not a success claim |
 | [cell_c_transitivity_FINDING.md](cell_c_transitivity_FINDING.md) | The three arms form a consistent ranking A > B > C — a transitivity check the instrument could have failed |
 | [cell_c_interpretation_PREREG.md](cell_c_interpretation_PREREG.md) | How to read cell C — written with ONE of two seeds in, before the second lands |
 | [candidate_a_replication_PREREG.md](candidate_a_replication_PREREG.md) | PRE-REGISTRATION — a SECOND training seed for Candidate A, written before the arms run |
