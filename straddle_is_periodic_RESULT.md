@@ -26,6 +26,28 @@ Second seed (777001) on the rising limb: 25000 → 6.6%, 35000 → 7.5%, 50000 �
 **Peak-to-peak is 2.85 → 3.89 ≈ 1.04 plies.** The straddle fraction — and the instability that tracks
 it at r = +0.98 — is periodic in realised depth with a period of one ply.
 
+## The turnover, observed — the period closes
+
+The second seed reached a deeper mean and shows the fall:
+
+```
+seed 777001   25000  depth 3.50  straddle 6.6%   instability -2.0
+              35000  depth 3.64  straddle 7.5%   instability -1.9
+              50000  depth 3.83  straddle 9.6%   instability -3.7    <- peak
+              70000  depth 3.99  straddle 8.9%   instability -2.9    <- FALLING, pinned near 4
+```
+
+At mean depth **3.99** — essentially the integer — straddling drops and instability with it. That is
+the full cycle: rise into a boundary, peak while straddling it, fall once the distribution pins on
+the far side. Seed 20260912 only reached 3.89 and is still at its peak there (9.2%), which is
+consistent: it had not yet pinned.
+
+**Where the seeds disagree, and it is not hidden:** at 70000, seed 20260912's instability is −5.8, its
+largest, while its straddle is roughly flat (8.9 → 9.2). Seed 777001's instability falls to −2.9 with
+straddle. So the straddle-instability correspondence, which is r = +0.98 over the earlier range, is
+looser at the extreme right. One point per seed is not enough to say whether that is noise or a real
+decoupling, and it is recorded rather than smoothed.
+
 ## Why that is the boundary model's own prediction
 
 A budget produces a *distribution* of realised depths. When that distribution sits near an integer,
