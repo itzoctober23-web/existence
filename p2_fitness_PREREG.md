@@ -135,3 +135,51 @@ Only the lever changed: grow disagreement, not mate depth.
 same lesson about itself — *"I measured before reading. `git grep mate_set` would have shown
 `forced_mate_set` in one command, and its comment answers the question the experiment was designed to
 ask."* That is now the third time tonight the results dir already held the answer.
+
+---
+
+## AMENDMENT 2 — 2026-09-11 23:26, treatment at gen 34/40, its decisive fraction NOT yet examined
+
+**What I looked at, precisely:** I validated `p2_fitness_verdict.sh` by running it against the
+COMPLETE control log (`prop_gens40.log`), whose numbers are already published in
+`prop_gens40_RESULT.md`. **I have not computed or looked at the treatment's decisive fraction.** This
+amendment is driven entirely by a property of the control and of the baseline, both of which predate
+the treatment's outcome.
+
+**The flaw the self-test exposed.** The control's own decisive fraction is:
+
+```
+CONTROL (10+4+5)   79 decisions, 948 games, 170 decisive
+                   fraction 0.179  CI [0.155, 0.204]
+baseline           0.147           <- lower bound 0.155 is ABOVE it
+```
+
+**The control already "passes" the pre-registered primary.** So "treatment CI excludes 0.147" cannot
+distinguish an improvement from doing nothing — a rule both arms satisfy is not a test. The 0.147
+figure comes from `gate_candidates_are_game_neutral_RESULT.md`, measured on a different population and
+configuration, and is **not commensurable with this control**. Importing a constant from another
+experiment as the bar was the error.
+
+**Amended primary: TREATMENT vs CONTROL, directly.** The two arms are paired by construction —
+`fitness_set_composition_RESULT.md` established that crossover is seeded, so both runs see the SAME
+children and only the position set differs. That is the comparison the design actually supports.
+
+```
+PASS   treatment decisive fraction ABOVE the control's, with non-overlapping 95% CIs
+NULL   CIs overlap
+FAIL   treatment below the control, CIs non-overlapping
+```
+
+**0.147 is DEMOTED to context**, still worth printing because it is where the "candidates are
+game-neutral" claim came from, but it is no longer the bar.
+
+**Unchanged:** power is quoted WITH the estimate, never under it — the treatment reaches the gate far
+less often than the control, and the decision counts go in the headline. An accept count alone still
+does not pass. The null reading is still the pre-registered one: if candidates barely differ
+behaviourally, changing what we weigh does not change what there is to weigh, and the successor is
+GRAMMAR 4.
+
+**Why this is legitimate now and would not be in ten minutes:** the treatment has not produced its
+verdict, and the change was forced by validating the instrument against already-published control data
+— not by seeing the treatment's answer. Had I run the script on the treatment first, this amendment
+would have been unusable.
