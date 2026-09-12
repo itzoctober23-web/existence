@@ -116,6 +116,34 @@ budget-matched arm must beat the fixed-depth arm. If realised depth comes out es
 the mechanism is absent and the arm is measuring nothing — that check runs FIRST and gates the rest,
 the same way `assert_setting_took.py` gates `hardn_probe`.
 
+> **SECOND CORRECTION 2026-09-12 — the design below needs a THIRD cell to be interpretable.**
+> Original text unchanged, for the same reason as above.
+>
+> `candidate_a_channel_FINDING.md` separates the two results this PREREG leans on.
+> `datagen_depth_RESULT.md` (+128, RESOLVED) let each arm generate its OWN data, so labels, position
+> distribution and sample efficiency all moved together. `label_source_RESULT.md` isolated the label
+> column with positions fixed and got +49 against +/-58 and +/-69 — UNRESOLVED — even substituting
+> **Stockfish @10k** labels that were demonstrably learned. Its conclusion is "better labels were
+> absorbed; strength did not follow".
+>
+> The mechanism registered here is the LABEL channel. That is the one measured null. The motivation
+> is `datagen_depth`, which is the other one.
+>
+> The label channel IS live in magnitude — measured with positions held fixed, the budget changes
+> the best move on ~1/3 of positions, and p90 |delta| in trainer units is 0.22-0.42 on a [-1,1]
+> target, with half the labels identical (matching the 47-58% that reach depth 3 under the budget).
+> So the arm is not vacuous. But a WIN would be credited here to label quality when the position
+> distribution is the likelier cause, and a NULL could not be told apart from "the label channel is
+> null again".
+>
+> Add cell C — the control arm's POSITIONS relabelled by the budget search, one column apart, no
+> regeneration, exactly as `label_source` did it:
+>
+> ```
+> A  depth 3, own data          B  budget, own data          C  depth-3 POSITIONS, budget labels
+> B - C = position contribution      C - A = label contribution
+> ```
+
 ### Pre-registered design
 
 * **Arms:** fixed depth 3 (the current winner) vs node budget set to the depth-3 arm's *measured mean*
