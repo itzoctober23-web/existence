@@ -52,6 +52,28 @@ pub static BUDGET: AtomicU64 = AtomicU64::new(0);
 /// spend the whole budget climbing to absurd depth. Only consulted when `BUDGET > 0`.
 pub static BUDGET_MAX_DEPTH: AtomicU64 = AtomicU64::new(8);
 
+/// CELL C of `structural_next_PREREG.md`: budget LABELS on the fixed-depth arm's POSITIONS.
+///
+/// `candidate_a_channel_FINDING.md` shows why the two-arm design cannot be read. Arm B changes the
+/// labels AND the position distribution at once, and `label_source_RESULT.md` measured the label
+/// channel ALONE as null (+49 against +/-58 and +/-69) even when the substituted label was
+/// Stockfish @10k. So a win by arm B would be credited to a mechanism already measured as not
+/// converting, and a null could not be told apart from that same null.
+///
+/// With this set, the GAME is driven by the fixed-depth search exactly as the control drives it,
+/// and only the recorded `Sample.root` comes from the budget search. B - C is then the position
+/// contribution and C - A the label contribution.
+///
+/// TWO THINGS MAKE THE TRAJECTORY IDENTICAL TO THE CONTROL'S, and both are load-bearing:
+///   * the budget search runs on a SEPARATE `Searcher`, so it cannot advance the driving
+///     searcher's `rng` -- `shuffle_children` would otherwise reorder later searches and flip the
+///     ~4% of moves that are ties (measured in `candidate_a_channel_FINDING.md`)
+///   * its seed is derived from the ply, NOT from `rng.next()`, so the shared stream that picks
+///     temperature moves and opening plies is not advanced either
+/// Without both, cell C drifts off the control's positions and re-introduces the confound it
+/// exists to remove.
+pub static BUDGET_LABELS_ONLY: AtomicU64 = AtomicU64::new(0);
+
 #[derive(Clone)]
 pub struct Sample {
     pub fen: String,
@@ -209,7 +231,16 @@ pub fn play_game_ext(
         }
         let cap = NODE_CAP.load(Ordering::Relaxed);
         let budget = BUDGET.load(Ordering::Relaxed);
-        let (mv, score) = if budget > 0 {
+        let (mv, score) = if budget > 0 && BUDGET_LABELS_ONLY.load(Ordering::Relaxed) != 0 {
+            // CELL C: the control's positions, the budget's labels. See BUDGET_LABELS_ONLY.
+            let (m, _sc) = s.best_move(&mut pos, depth, net);
+            let mut ls = Searcher::with_seed(0xC0FFEE ^ (ply as u64));
+            let (_bm, bsc, _bd) = ls.best_move_budget(
+                &mut pos, net, budget, BUDGET_MAX_DEPTH.load(Ordering::Relaxed) as u32,
+                (ply as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1,
+            );
+            (m, bsc)
+        } else if budget > 0 {
             // TRUE node budget: deepen until the budget is spent, keep the last COMPLETED depth.
             // Distinct from NODE_CAP on purpose -- see BUDGET's own comment for why the two cannot
             // be the same knob.

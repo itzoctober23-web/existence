@@ -200,9 +200,14 @@ fn main() {
         let md = arg("--datagen-budget-max-depth", 8) as u64;
         pipeline::datagen::BUDGET.store(dg_budget, std::sync::atomic::Ordering::Relaxed);
         pipeline::datagen::BUDGET_MAX_DEPTH.store(md, std::sync::atomic::Ordering::Relaxed);
+        // Cell C: budget LABELS on the fixed-depth arm's POSITIONS. Decomposes the two channels
+        // that arm B changes together; see datagen::BUDGET_LABELS_ONLY.
+        let lo = arg("--datagen-budget-labels-only", 0) as u64;
+        pipeline::datagen::BUDGET_LABELS_ONLY.store(lo, std::sync::atomic::Ordering::Relaxed);
         eprintln!(
-            "  datagen TRUE node budget {dg_budget}/move, iterative deepening, max depth {md} \
-             (measured depth-3 mean is 5269/move -- datagen_node_census_RESULT.md)"
+            "  datagen TRUE node budget {dg_budget}/move, iterative deepening, max depth {md}{} \
+             (measured depth-3 mean is 5269/move -- datagen_node_census_RESULT.md)",
+            if lo != 0 { "  [LABELS ONLY: moves come from fixed depth, cell C]" } else { "" }
         );
     }
     let epochs = arg("--epochs", 3);
