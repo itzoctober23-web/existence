@@ -120,6 +120,7 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
+| [candidate_a_replication_PREREG.md](candidate_a_replication_PREREG.md) | PRE-REGISTRATION — a SECOND training seed for Candidate A, written before the arms run |
 | [structural_track_exhausted_STATUS.md](structural_track_exhausted_STATUS.md) | All three registered structural candidates are now answered — and they point the same way |
 | [structural_next_PREREG.md](structural_next_PREREG.md) | PRE-REGISTRATION — what the loop does after the configuration wins run out |
 | [replay_window_plateau_FINDING.md](replay_window_plateau_FINDING.md) | Candidate B is NOT "genuinely unmeasured" — a plateau-regime replay sweep ran on 2026-09-08 and returned a null |
