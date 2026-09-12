@@ -53,21 +53,28 @@ for name,rs in (("CONTROL  (10+4+5, 53% mate-in-1)",C),("TREATMENT (4+8+7, 21% m
           f"   fraction {s['p']:.3f}  [{s['lo']:.3f}, {s['hi']:.3f}]")
     print(f"   accepts {sum(1 for r in rs if r['verdict']=='ACCEPT')}")
 
-t=decisive(T)
+t=decisive(T); c=decisive(C)
 print()
-print(f"PRE-REGISTERED PRIMARY: treatment decisive fraction vs the {BASE:.3f} baseline")
+print("PRE-REGISTERED PRIMARY (amendment 2): TREATMENT vs CONTROL, non-overlapping 95% CIs")
 if t is None:
     print("  UNDEFINED -- the arm produced no games. Report that, not a zero.")
+elif c is None:
+    print("  control unreadable -- refusing to compare")
 else:
-    excl = t['lo'] > BASE or t['hi'] < BASE
-    print(f"  {t['p']:.3f} [{t['lo']:.3f}, {t['hi']:.3f}] vs {BASE:.3f}"
-          f"  ->  {'CI EXCLUDES the baseline' if excl else 'CI CONTAINS the baseline -- NOT a pass'}")
-    print(f"  direction: {'ABOVE' if t['p']>BASE else 'at or below'} baseline")
+    disjoint = t['lo'] > c['hi'] or t['hi'] < c['lo']
+    if not disjoint:          verdict = "NULL -- CIs OVERLAP"
+    elif t['p'] > c['p']:     verdict = "PASS -- treatment ABOVE control, CIs disjoint"
+    else:                     verdict = "FAIL -- treatment BELOW control, CIs disjoint"
+    print(f"  treatment {t['p']:.3f} [{t['lo']:.3f}, {t['hi']:.3f}]")
+    print(f"  control   {c['p']:.3f} [{c['lo']:.3f}, {c['hi']:.3f}]")
+    print(f"  -> {verdict}")
     print()
-    print(f"  POWER, quoted with the estimate: {t['n']} decisions / {t['games']} games.")
-    c=decisive(C)
-    if c: print(f"  The control produced {c['n']} decisions / {c['games']} games -- "
-                f"{c['games']/t['games']:.1f}x more, so this arm is the weaker measurement.")
+    print(f"  POWER, quoted with the estimate: treatment {t['n']} decisions / {t['games']} games;"
+          f" control {c['n']} / {c['games']}"
+          f" ({c['games']/t['games']:.1f}x), so the treatment is the weaker measurement.")
+    print(f"  CONTEXT ONLY, not the bar: the 0.147 figure from gate_candidates_are_game_neutral was")
+    print(f"  measured on a different population -- the CONTROL itself sits at {c['p']:.3f}, clear of it,")
+    print(f"  which is why amendment 2 replaced it with this paired comparison.")
 print()
 print("An accept count alone does NOT pass: gate_arithmetic enumerated that 29 of 210 six-pair")
 print("outcomes (14%) can accept by luck. And a null here has a pre-registered reading: if candidates")
