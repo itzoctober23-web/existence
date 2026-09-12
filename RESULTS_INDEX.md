@@ -17,7 +17,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
-| [candidate_a_replication_RESULT.md](candidate_a_replication_RESULT.md) | Candidate A REPLICATES on a second training seed — 0.4530, and the label channel is not the cause |
+| [candidate_a_replication_RESULT.md](candidate_a_replication_RESULT.md) | The budget arm ends BELOW its own start net in BOTH runs — but B-vs-A is UNRESOLVED, and my pre-registered rule was mis-specified |
 | [budget_label_channel_RESULT.md](budget_label_channel_RESULT.md) | The node budget's LABEL channel is null — 0.4960 with 47.8% of labels changed, against a −43 Elo full effect |
 | [champion_absolute_RESULT.md](champion_absolute_RESULT.md) | UNRESOLVED at 600 games a side — and the within-run OLS trend I cited as evidence is REFUTED |
 | [cell_c_label_move_mismatch_RESULT.md](cell_c_label_move_mismatch_RESULT.md) | Cell C is the weakest of the three arms — and the permitted reading is the one fixed in advance: decoupling the label from the played move is harmful |

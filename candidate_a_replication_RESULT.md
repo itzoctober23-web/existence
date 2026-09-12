@@ -1,4 +1,4 @@
-# Candidate A REPLICATES on a second training seed — 0.4530, and the label channel is not the cause
+# The budget arm ends BELOW its own start net in BOTH runs — but B-vs-A is UNRESOLVED, and my pre-registered rule was mis-specified
 
 **2026-09-12 05:45.** Result of `candidate_a_replication_PREREG.md`, read against the decision rule
 fixed before either arm was launched.
@@ -23,41 +23,69 @@ pooled (672 pr)  0.4530 +/- 0.0169           0.4383 +/- 0.0166
 Elo              -32.8                       -43.1
 ```
 
-## The verdict: the pre-registered FIRST branch
+## The verdict: the GATE says UNRESOLVED, and it is right
 
-> B2 vs A2 pooled interval lies **wholly below 0.5** → the effect reproduces across training seeds.
-> The claim upgrades from a BOUND to **established**: a node budget is weaker than fixed depth at
-> matched generations.
-
-**[0.4361, 0.4699] is wholly below 0.5. The effect reproduces.**
-
-## How strong is "reproduces", honestly
-
-The original was deliberately scoped as a BOUND because one training seed cannot separate an effect
-from the project's measured between-seed sd of 0.047. Two seeds is better but it is still two, and
-the naive test is worthless — with n=2 the t-interval is
+The gate's own verdict block, which applies a stricter standard than my pre-registration did:
 
 ```
-mean 0.4457, t(1)=12.71  ->  [0.3525, 0.5389]     contains 0.5, and would contain almost anything
+B vs A over 3 seeds: [0.441, 0.454, 0.464]
+mean 0.4530   observed between-seed sd 0.0115
+|mean - 0.5| = 0.0470 < between-seed sd 0.047
+=> UNRESOLVED. Reported as a BOUND, not a refutation: over 2000 generations the node
+   budget did not beat fixed depth by more than the seed noise of this instrument.
 ```
 
-So the useful question is the other direction: **under the null — no effect, readings centred on 0.5
-with sd 0.047 — how likely are two independent training seeds both landing this low?**
+It lands **exactly on the threshold** — `|0.453 − 0.5|` is 0.047 to every decimal that matters, and
+only floating point (0.046999999999999986) tipped the comparison. A verdict decided at the 15th
+decimal place is a verdict of *no margin*, and should be read as one.
+
+### My pre-registered rule was mis-specified, and the gate caught it
+
+`candidate_a_replication_PREREG.md` said the effect is established if "the B2 vs A2 pooled interval
+lies wholly below 0.5". It does — [0.4361, 0.4699]. **That bar was wrong**, and the prereg's own
+preamble says why, two paragraphs above the rule it then wrote:
+
+> the spread between **RE-TRAINED** runs, not re-played matches. The three match seeds re-play the
+> matches.
+
+The pooled interval over three match seeds measures **match noise only** — re-playing the same two
+nets. It cannot speak to whether a different *training* seed would land elsewhere, which is the
+entire question a replication asks. I used a within-run interval to answer a between-run question,
+having written down the reason not to. The gate's `|mean − 0.5|` vs 0.047 test is the correct
+single-run standard and it returns UNRESOLVED.
+
+**So the pre-registered "first branch" is not claimed.** What follows stands on different evidence.
+
+## What DOES replicate: the budget arm goes backwards from its own start
+
+The context matches — each arm against the shared start net, 224 pairs, seed 20260907 — are the
+stronger measurement, and they were never the headline until now:
 
 ```
-seed 1 at 0.4383   z = -1.31   P(<= | null) = 0.0948
-seed 2 at 0.4530   z = -1.00   P(<= | null) = 0.1587
-joint                                        0.0150
+arm                     original   replication      Elo vs start
+A (fixed depth) vs start   0.535       0.552        +24.4   +36.3     both ABOVE 0.5
+B (node budget) vs start   0.445       0.422        -38.4   -54.6     both BELOW 0.5
 ```
 
-**~1.5% under the null.** That is real evidence and it is not overwhelming; it is the honest size of
-what two training seeds can buy. The claim is established in the pre-registered sense and would be
-strengthened further by a third seed, which costs ~37 minutes of two cores.
+**The budget arm finishes weaker than the net it started from, in both independent training runs.**
+Two thousand generations of training that went backwards, twice. Against the null (centred 0.5,
+between-seed sd 0.047):
 
-Note the replication's effect is **smaller** than the original (−32.8 vs −43.1 Elo). Both are
-comfortably below parity and the difference between them (0.0147) is well inside the 0.047
-between-seed sd, so this is regression toward the mean rather than a contradiction — and it is a
-reminder that the original's point estimate was the high end of what this effect looks like.
+```
+A improving in both runs        joint P = 0.0306
+B degrading in both runs        joint P = 0.0059
+all four readings in direction  joint P = 0.00018
+```
+
+This is a cleaner claim than B-vs-A for a structural reason: B-vs-A compares two arms that both
+moved, so seed noise enters twice and the difference is the small residue between them. Each arm
+against the **shared, frozen** start compares a moved thing to a fixed thing — and `cand_start.net`
+is byte-identical for all four readings (md5 `9545a35289e9`, re-verified after the 04:43 champion
+promotion: separate inode, unchanged).
+
+The direction is therefore replicated even though the head-to-head margin is not resolved. Those are
+compatible: B is clearly below its start, A is above it, and the *gap between them* is the quantity
+that sits on the noise floor.
 
 ## Combined with the channel isolation, this identifies what is NOT the cause
 
@@ -81,24 +109,14 @@ The limitation carried over from that file stands: removing self-play is what ma
 possible, and it also removes the mechanism by which a per-generation label bias too small to see in
 one pass could compound over 2000 generations.
 
-## Context: the original's "arm A improved" caution is now better supported
-
-The gate's context matches, arm against the shared start net, 224 pairs, seed 20260907:
-
-```
-                       original        replication
-A (fixed depth) vs start   0.535 +/- 0.030     0.552 +/- 0.031
-B (budget)      vs start   0.445 +/- 0.027     (pending)
-```
+## The original's "arm A improved" caution, revisited
 
 `candidate_a_budget_loses_RESULT.md` explicitly **declined** to claim arm A had improved, because
 |0.535 − 0.5| = 0.035 is only 0.74× the 0.047 between-seed sd — a number it noted "already fooled us
-tonight". That caution was correct and is preserved here.
+tonight". That caution was correct for one run and is preserved.
 
-The replication's 0.552 is 1.11× that sd — still not decisive alone. But two independent training
-seeds both landing above 0.5 is a different situation from one: under the same null, P(≥0.535) =
-0.228 and P(≥0.552) = 0.134, joint **0.031**. So the fixed-depth arm improving on its start net moves
-from *unresolved* to *moderately supported* — stated as a probability, not upgraded to a claim.
+With two runs it moves to *moderately supported* (joint P = 0.031), not to a claim. Note this is the
+weaker half of the pair: B degrading replicates at P = 0.0059, five times stronger than A improving.
 
 ## What does not follow
 
