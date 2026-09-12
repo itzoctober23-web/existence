@@ -112,3 +112,64 @@ is noisy.
 **Arm 2 (448 pairs, seed 911911, passed POSITIONALLY) is still running** and is reported separately. Its
 header confirms the earlier harness defect is fixed: it prints `seed 911911`, where the `MAS_PAIR_SEED`
 version printed `seed 20260907`.
+
+---
+
+## The mechanism, from `auto_promote`'s OWN log: repeated testing with no correction
+
+The resolve says the promoted net and its predecessor are indistinguishable. `auto_promote.out`
+shows independently WHY the rule fired anyway — seven readings of the same trainer against the same
+champion across 42,200 generations:
+
+```
+19:59  gen  4510  hold      0.501 +/- 0.029
+20:36  gen 11559  hold      0.481 +/- 0.030
+21:13  gen 18773  hold      0.515 +/- 0.027
+21:50  gen 25856  hold      0.491 +/- 0.031
+22:28  gen 32723  hold      0.528 +/- 0.029
+23:04  gen 39836  PROMOTED  0.539 +/- 0.030   <- the MAXIMUM of the series
+23:41  gen 46710  hold      0.483 +/- 0.029
+
+n=7   mean 0.5054   sd 0.0209   min 0.481   max 0.539
+```
+
+**The series mean (0.5054) is the 953-pair resolve (0.503 +/- 0.014).** The promotion was the maximum
+of a random walk centred where the high-power measurement later landed.
+
+### The false-positive rate, computed from the observed dispersion
+
+The rule is `rate - ci95 >= 0.5`, and `auto_promote` reports `ci95 ~ 0.029`, so a reading must reach
+**0.529**. Under H0 (equal nets) readings centre on 0.500 with the observed sd of 0.0209:
+
+```
+z = (0.529 - 0.500) / 0.0209 = 1.39   ->   p(single look) = 0.083
+
+n =   7  (tonight)                P(>=1 spurious promotion) = 0.45
+n =  48  (one day at EVERY=1800)  P(>=1 spurious promotion) = 0.98
+n = 336  (one week)               P(>=1 spurious promotion) = 1.00
+```
+
+**`auto_promote` looks every 30 minutes and promotes on any single crossing.** Each look is an
+independent test at p ~ 0.083; nothing corrects for the number of looks. Under the null a spurious
+promotion is ~98% likely within a day. Exactly one occurred in seven looks, and it was the maximum.
+
+### What this does and does not justify
+
+**It does NOT justify raising the bar.** `promotion_was_sound_RESULT.md` records a promotion that
+HELD on extension (0.557 -> 0.559); a higher bar would have suppressed it. The defect is not the
+threshold, it is that the threshold is applied to an unbounded sequence of looks.
+
+**It does NOT mean the champion is wrong.** The promoted net measures 0.503 +/- 0.014 against its
+predecessor — equivalent. A noise-driven promotion between equivalent nets costs nothing directly; the
+cost is that every measurement afterwards is referenced to a champion selected by its luckiest reading.
+
+**`auto_promote.sh` is NOT modified by this result.** The observation is recorded because the
+discriminator is already printed at promotion time — `netmatch` says *"effect 0.039 against a
+between-seed sd of 0.047 -> ONE SEED CANNOT SETTLE THIS"* — and the rule does not read it. Two cases
+now agree on which promotions survive extension: effect ABOVE the between-seed sd held, effect BELOW
+it collapsed.
+
+**Provenance checked, not assumed:** `p1_champion.net` md5 `9545a35289e9`, mtime 23:04:53 — unchanged
+throughout the re-test, so the comparison measured the net that was promoted. The concurrent second
+`netmatch` was `existence-auto-promote.service`'s own 23:41 check (`hold 0.483`), attributed by cgroup,
+not a second arm of mine.
