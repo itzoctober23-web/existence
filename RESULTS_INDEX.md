@@ -38,7 +38,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 | [p2_fitness_RESULT.md](p2_fitness_RESULT.md) | Growing `disagreement_set` made candidates LESS decisive, not more — pre-registered FAIL (0.107 vs control 0.179, CIs disjoint); successor stays GRAMMAR 4 |
 | [promo_g39836_RESULT.md](promo_g39836_RESULT.md) | RESOLVED at 953 pairs: the gen-39836 promotion is INDISTINGUISHABLE (0.503 ± 0.014) — not a gain, not a regression, no rollback. A promotion whose effect is below the between-seed sd is the one that fails extension (2 cases) |
 | [between_vs_within_RESULT.md](between_vs_within_RESULT.md) | Third instrument: eval-agreement RISES between runs (t=+8.3, +0.149) and is FLAT within one (t=+0.46) — the retro's central claim, independent of ruler and netmatch |
-| [eval_agreement_tracks_games_RESULT.md](eval_agreement_tracks_games_RESULT.md) | First proxy to reproduce a game-measured ranking — ρ=+1.000 on the lr arms (n=4, p=0.042), including the SIGN of the arm that lost to its own start |
+| [eval_agreement_tracks_games_RESULT.md](eval_agreement_tracks_games_RESULT.md) | eval-agreement is a COARSE screen: 4/4 on the lr arms (spread 0.134) but 2/3 out-of-sample on the blend arms (spread 0.047) — resolution floor ~0.03, not a substitute for the game gate |
 | [low_sweep_RESULT.md](low_sweep_RESULT.md) | Below the shipped rate: 0.0002 wins, 0.0005 LOSES to its own start — on a run that was cut short |
 | [lr_decay_RESULT.md](lr_decay_RESULT.md) | The schedule is not the lever — ending low is. lr 0.0005 shipped |
 | [static_deep_residual_RESULT.md](static_deep_residual_RESULT.md) | Half of the P1 kill criterion has never been measurable — the static-vs-deep residual, built and refuted |
