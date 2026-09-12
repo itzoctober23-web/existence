@@ -109,6 +109,49 @@ That is pre-registered in `p2_fitness_PREREG.md`, with its own most-likely failu
 advance: if candidates barely differ behaviourally, changing what we weigh does not change what there
 is to weigh, and the successor is GRAMMAR 4.
 
+## Corroboration from the PAIRED instrument, measured 2026-09-11/12
+
+The central measurement above — *every production run is FLAT on the absolute ruler; all 166 Elo came
+from BETWEEN runs* — rests on `ruler_trend.py`, and the ruler is the instrument this project trusts
+least (±50 Elo at 120 games; it once showed a four-reading "decline" while the net was genuinely
+stronger). Overnight it was reproduced independently by `netmatch`, the PAIRED instrument, at high
+power.
+
+**A champion promotion fired at 23:04 and resolved to nothing:**
+
+```
+promotion   224 pairs   0.539 ± 0.030   -> PROMOTED (rule cleared by 0.009)
+extension   448 pairs   0.501 ± 0.021   -> "UNRESOLVED ... more pairs"
+RESOLVE     953 pairs   0.503 ± 0.014   -> "INDISTINGUISHABLE, and precisely so"
+```
+
+**And `auto_promote`'s own log shows the shape of the whole night:**
+
+```
+19:59 0.501  20:36 0.481  21:13 0.515  21:50 0.491  22:28 0.528  23:04 0.539 PROMOTED  23:41 0.483
+n=7   mean 0.5054   sd 0.0209   -- the PROMOTED reading is the MAXIMUM
+```
+
+Seven readings across **42,200 generations** of production training, centred at 0.5054, which is the
+953-pair resolve (0.503) to within noise. **42,200 generations produced no measurable strength change
+against the champion the run started from.** That is the retro's claim, measured by a different
+instrument, on a different day, without the ruler.
+
+**It also explains the ratchet.** The promotion rule (`rate − ci95 ≥ 0.5`) needs a reading of 0.529;
+under H0 with the observed sd that is p = 0.083 per look, and `auto_promote` looks every 30 minutes:
+
+```
+n =  7 (one night)   P(≥1 spurious promotion) = 0.45
+n = 48 (one day)                              = 0.98
+```
+
+So "the champion advanced" during a flat run is not evidence against flatness — it is what an
+uncorrected sequence of looks produces from a flat run. Full detail in `promo_g39836_RESULT.md`.
+
+**What this does NOT say:** that the promotions were harmful. The nets measure equivalent, so nothing
+was lost; the cost is that later measurements are referenced to a champion selected by its luckiest
+reading.
+
 ## What I would change, stated as the lever rather than the activity
 
 1. **Give the batch gate enough power to see a +0.008 increment** (~3.5x the games, since ci ∝ 1/√n).
