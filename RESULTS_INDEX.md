@@ -17,6 +17,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [budget_allocation_RESULT.md](budget_allocation_RESULT.md) | Reallocating the budget toward wide positions makes it WORSE — depth is logarithmic in nodes, and the exchange rate loses |
 | [budget_undersearches_wide_positions_RESULT.md](budget_undersearches_wide_positions_RESULT.md) | The budget picks a different move in 58% of the WIDEST positions — because it searches them 0.85 plies shallower |
 | [budget_label_channel_RESULT.md](budget_label_channel_RESULT.md) | The node budget's LABEL channel is null — 0.4960 with 47.8% of labels changed, against a −43 Elo full effect |
 | [candidate_a_replication_RESULT.md](candidate_a_replication_RESULT.md) | The budget arm ends BELOW its own start net in BOTH runs — but B-vs-A is UNRESOLVED, and my pre-registered rule was mis-specified |
