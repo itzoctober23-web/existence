@@ -30,7 +30,16 @@ done
 # would make cell C a silent duplicate of arm B.
 B=$D/target/release/learn_cand2
 [ -x "$B" ] || { say "REFUSE: $B missing"; exit 1; }
-if ! "$B" --help 2>&1 | grep -q . ; then : ; fi
+# CAPABILITY CHECK, and NOT `--help`: the trainer has no --help and PANICS on it, dumping a ~40MB
+# core every time. An earlier version of this script called it inside a no-op `if ... then : fi`,
+# which did nothing except abort a process and leave a core behind (observed 02:40:06, SIGABRT from
+# existence-cell-c.service). What actually matters is that this binary implements the flag --
+# learn_cand ACCEPTS --datagen-budget-labels-only and silently IGNORES it, which would make cell C a
+# byte-identical duplicate of arm B.
+if ! strings "$B" 2>/dev/null | grep -q 'labels-only'; then
+  say "REFUSE: $B does not implement --datagen-budget-labels-only; cell C would duplicate arm B"
+  exit 1
+fi
 say "launching cell C on learn_cand2 (equivalence to learn_cand verified byte-identical on both the"
 say "  arm-A path 334c3545d248ab7c and the arm-B path 1c1f5341fe00039c)"
 
