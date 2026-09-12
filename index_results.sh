@@ -79,7 +79,18 @@ FINDINGS=$(ls -t *_RESULT.md *_FINDING.md *_ANALYSIS.md *_WHY_NOTHING.md *_CAVEA
   echo
   echo "| file | headline |"
   echo "|---|---|"
-  for f in $(ls -t *_FINDING.md *_ANALYSIS.md *_WHY_NOTHING.md *_CAVEAT.md *_PREREG.md surrogate_validation.md EXPERIMENTS.md NET_TRACK_STATE.md 2>/dev/null | awk '!seen[$0]++'); do
+  # THE GLOB IS THE INDEX. Anything not matched here is invisible to regeneration, so an entry
+  # added to RESULTS_INDEX.md BY HAND is silently deleted the next time this script runs. That
+  # happened on 2026-09-12: one run dropped three files that exist on disk and were indexed --
+  # WEEK1_RETRO.md (the DAY-7 FINAL VERDICT, which this index itself describes as gating what
+  # starts next), p1_kill_criterion_STATUS.md, and grammar4_addfn_unpark_blocker.md. None matched
+  # a pattern below. The loss is silent and looks like a successful regeneration: the script
+  # reports "N result files indexed" either way, and the dropped rows are in a DIFFERENT table
+  # from the count.
+  # So: never hand-edit RESULTS_INDEX.md to add a file. Add the PATTERN here instead.
+  for f in $(ls -t *_FINDING.md *_ANALYSIS.md *_WHY_NOTHING.md *_CAVEAT.md *_PREREG.md \
+                   *_RETRO.md *_STATUS.md *_blocker.md \
+                   surrogate_validation.md EXPERIMENTS.md NET_TRACK_STATE.md 2>/dev/null | awk '!seen[$0]++'); do
     h=$(head -1 "$f" | sed 's/^#\+ *//' | sed 's/|/\\|/g')
     [ -n "$h" ] || h="(no headline — open the file)"
     printf '| [%s](%s) | %s |\n' "$f" "$f" "$h"

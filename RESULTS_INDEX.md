@@ -17,8 +17,15 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
-| [p1_compounding_RESULT.md](p1_compounding_RESULT.md) | P1 compounding did NOT pass — ruler CIs overlap (+208 vs +199) and netmatch 0.481±0.028 contains 0.5 — but its gate rolled back 17 of 20 batches whose increments were POSITIVE, so the null does NOT refute the compounding shape |
-| [unc_head_fitted_RESULT.md](unc_head_fitted_RESULT.md) | The uncertainty head is FITTED and the in-engine head reproduces the offline ranking EXACTLY (0.305/0.695, 0 eval params changed, clamp refuted) — discovery on the previously-constant `unc(p)` was guaranteed-null by construction |
+| [datagen_node_census_RESULT.md](datagen_node_census_RESULT.md) | Depth-3 datagen costs 5,269 nodes/move, not 10,309 — and effort per position varies 18-25x |
+| [eval_agreement_tracks_games_RESULT.md](eval_agreement_tracks_games_RESULT.md) | The first proxy in this project to reproduce a game-measured ranking — eval-agreement, ρ = +1.000 on n=4 |
+| [between_vs_within_RESULT.md](between_vs_within_RESULT.md) | The week's central claim, reproduced on a THIRD instrument: agreement rises BETWEEN runs (t = +8.3) and is FLAT WITHIN one (t = +0.46) |
+| [p1_kill_conjunct2_RESULT.md](p1_kill_conjunct2_RESULT.md) | P1 kill, conjunct 2 MEASURED for the first time: the static-vs-deep agreement is FLAT. Both conjuncts now hold — and the kill should NOT be fired. |
+| [promo_g39836_RESULT.md](promo_g39836_RESULT.md) | The gen-39836 promotion does NOT replicate — the effect falls from +0.039 to +0.001 at 2x the pairs |
+| [p2_fitness_RESULT.md](p2_fitness_RESULT.md) | Growing `disagreement_set` made candidates LESS decisive, not more — pre-registered FAIL |
+| [prop_gens40_RESULT.md](prop_gens40_RESULT.md) | P2 `search_long_run` at its planned 40 generations: 0 accepts — and the MCTS gate could not have produced any other number |
+| [p1_compounding_RESULT.md](p1_compounding_RESULT.md) | P1 compounding did NOT pass — and the result does NOT refute the compounding shape |
+| [unc_head_fitted_RESULT.md](unc_head_fitted_RESULT.md) | The uncertainty head is FITTED, and the in-engine head reproduces the offline ranking EXACTLY |
 | [gate_candidates_are_game_neutral_RESULT.md](gate_candidates_are_game_neutral_RESULT.md) | The gate's own candidates are anomalously game-neutral — 14.7% decisive against 31-42% for reference programs |
 | [unc_signal_is_inverted_RESULT.md](unc_signal_is_inverted_RESULT.md) | The uncertainty signal is INVERTED where it exists at all — and it does NOT exist on every net |
 | [flip_cost_concentration_RESULT.md](flip_cost_concentration_RESULT.md) | The prize is concentrated — 38% of all flip cost sits in the top decile — and the proposed key does not fit it |
@@ -34,12 +41,6 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 | [horizon_RESULT.md](horizon_RESULT.md) | The horizon cap is OBSOLETE past bootstrap: uncapped beats capped-at-10 by +0.064 ± 0.034 |
 | [ruler_trend_RESULT.md](ruler_trend_RESULT.md) | Every production run is FLAT on the absolute ruler — all 166 Elo came from BETWEEN runs, not within them |
 | [low_sweep2_RESULT.md](low_sweep2_RESULT.md) | lr 0.0002 SHIPPED — the shipped rate lost to its own start, on exactly matched arms |
-| [prop_gens40_RESULT.md](prop_gens40_RESULT.md) | P2 at planned 40 gens: 0 accepts in 79 decisions / 948 games — and the MCTS gate was ARITHMETICALLY UNPASSABLE in 40 of 40 (replicates gate_arithmetic at 2.7x the sample) |
-| [p2_fitness_RESULT.md](p2_fitness_RESULT.md) | Growing `disagreement_set` made candidates LESS decisive, not more — pre-registered FAIL (0.107 vs control 0.179, CIs disjoint); successor stays GRAMMAR 4 |
-| [promo_g39836_RESULT.md](promo_g39836_RESULT.md) | RESOLVED at 953 pairs: the gen-39836 promotion is INDISTINGUISHABLE (0.503 ± 0.014) — not a gain, not a regression, no rollback. A promotion whose effect is below the between-seed sd is the one that fails extension (2 cases) |
-| [between_vs_within_RESULT.md](between_vs_within_RESULT.md) | Third instrument: eval-agreement RISES between runs (t=+8.3, +0.149) and is FLAT within one (t=+0.46) — the retro's central claim, independent of ruler and netmatch |
-| [p1_kill_conjunct2_RESULT.md](p1_kill_conjunct2_RESULT.md) | P1 kill conjunct 2 MEASURED for the first time: static-vs-deep agreement is FLAT across a within-run series under TWO references — both conjuncts now hold, and the kill should NOT be fired (MASTER_PLAN's own correction says the plateau was the learning rate) |
-| [eval_agreement_tracks_games_RESULT.md](eval_agreement_tracks_games_RESULT.md) | eval-agreement is a COARSE screen: 4/4 on the lr arms (spread 0.134) but 2/3 out-of-sample on the blend arms (spread 0.047) — resolution floor ~0.03, not a substitute for the game gate |
 | [low_sweep_RESULT.md](low_sweep_RESULT.md) | Below the shipped rate: 0.0002 wins, 0.0005 LOSES to its own start — on a run that was cut short |
 | [lr_decay_RESULT.md](lr_decay_RESULT.md) | The schedule is not the lever — ending low is. lr 0.0005 shipped |
 | [static_deep_residual_RESULT.md](static_deep_residual_RESULT.md) | Half of the P1 kill criterion has never been measurable — the static-vs-deep residual, built and refuted |
@@ -116,10 +117,11 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
-| [WEEK1_RETRO.md](WEEK1_RETRO.md) | **DAY-7 VERDICT, FINAL** — stop condition NOT met (best pooled 1551 vs 1600 required, no rising trend). Configuration levers paid, every structural lever returned null. Gates what starts next |
-| [p1_kill_criterion_STATUS.md](p1_kill_criterion_STATUS.md) | Where each conjunct of MASTER_PLAN's P1 kill stands, and the circularity hazard in choosing a reference |
-| [grammar4_addfn_unpark_blocker.md](grammar4_addfn_unpark_blocker.md) | Four measurements on Op::AddFn: lifts are tiny and never edited (0/767), and BOTH live lineages already seed from 2-function programs, so the 1→2 gap it exists to close does not exist live |
-| [p2_fitness_PREREG.md](p2_fitness_PREREG.md) | PRE-REGISTRATION + 2 amendments — the fitness successor after prop_gens40; verdict rule fixed and amended BEFORE the trigger fired |
+| [p1_kill_criterion_STATUS.md](p1_kill_criterion_STATUS.md) | The P1 kill criterion: conjunct 1 is now SATISFIED. Conjunct 2 is measurable but not yet measured. |
+| [WEEK1_RETRO.md](WEEK1_RETRO.md) | WEEK 1 RETRO — which lever failed, and why |
+| [grammar4_addfn_unpark_blocker.md](grammar4_addfn_unpark_blocker.md) | The AddFn unpark condition is blocked by a SECOND ordering bias — the function sweep short-circuits |
+| [p2_fitness_PREREG.md](p2_fitness_PREREG.md) | PRE-REGISTRATION — the P2 fitness change: games PRIMARY, mates FILTER |
+| [p1_compounding_PREREG.md](p1_compounding_PREREG.md) | PRE-REGISTRATION — P1 compounding: champion-following datagen at a node budget, into a declared |
 | [uncertainty_target_PREREG.md](uncertainty_target_PREREG.md) | PRE-REGISTRATION — the uncertainty head's TARGET, before either track is built on it |
 | [structural_next_PREREG.md](structural_next_PREREG.md) | PRE-REGISTRATION — what the loop does after the configuration wins run out |
 | [refmatch_discrimination_PREREG.md](refmatch_discrimination_PREREG.md) | PRE-REGISTRATION — can the gate's games discriminate at all? (written before the results exist) |
@@ -157,11 +159,11 @@ being asked.
 | search depth | EXPERIMENTS,depth2x2 blend,speed_cannot_pay depth5_vs_depth3 |
 | blend/target | EXPERIMENTS,blend blend_sweep,NET_TRACK_STATE uncertainty_target_PREREG |
 | epochs | EXPERIMENTS,epochs_ab epochs_2v3,NET_TRACK_STATE unc_signal_is_inverted |
-| seeds & noise | depth2x2,blend p1_deceleration,blend_sweep low_sweep2 |
+| seeds & noise | promo_g39836,depth2x2 blend,p1_deceleration blend_sweep |
 | gate & thresholds | gate_power,gate_arithmetic EXPERIMENTS,replay_ab_CAVEAT ladder_valley |
 | calibration | static_deep_residual,unc_signal_is_inverted uncertainty_target_PREREG,confident_when_wrong flip_cost_concentration |
 | speed/nps | speed_cannot_pay,throughput movegen_leaf,depth2x2 path1_is_empty |
-| plateau | EXPERIMENTS,ceiling_ANALYSIS ruler_trend,learning_rate_is_the_plateau fitness_saturation |
+| plateau | EXPERIMENTS,p1_kill_conjunct2 ceiling_ANALYSIS,ruler_trend learning_rate_is_the_plateau |
 
 ## Non-`_RESULT` files worth knowing
 
