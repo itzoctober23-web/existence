@@ -120,6 +120,7 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
+| [cell_c_interpretation_PREREG.md](cell_c_interpretation_PREREG.md) | How to read cell C — written with ONE of two seeds in, before the second lands |
 | [candidate_a_replication_PREREG.md](candidate_a_replication_PREREG.md) | PRE-REGISTRATION — a SECOND training seed for Candidate A, written before the arms run |
 | [structural_track_exhausted_STATUS.md](structural_track_exhausted_STATUS.md) | All three registered structural candidates are now answered — and they point the same way |
 | [structural_next_PREREG.md](structural_next_PREREG.md) | PRE-REGISTRATION — what the loop does after the configuration wins run out |
