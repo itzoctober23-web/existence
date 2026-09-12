@@ -6085,3 +6085,53 @@ predicted in advance, and it needs `>0.75` to pass — arithmetically unpassable
 **Still not changing the prereg or stopping the arm.** It runs to 40. The honest report at the end
 will quote the decision count alongside the fraction, so the power is visible in the claim rather than
 buried under it.
+
+## 23:18 — a champion promotion fired tonight, and it is being re-tested (STATE, not a verdict)
+
+```
+23:04  auto_promote: prodk1926.net gen 39836 -> PROMOTED  0.539 +/- 0.030
+       rule: rate - ci95 >= 0.5  ->  0.509 >= 0.5   (clears by 0.009)
+       champion 0097ddc3f5e6 -> 9545a35289e9, predecessor kept as p1_champion_prev_g39836.net
+```
+
+Preceding cycle readings were `0.501 / 0.481 / 0.515 / 0.491 / 0.528` — all HOLD, all near 0.5.
+
+**netmatch flagged this promotion itself, in its own output** (`ap_prodk1926.log`, which
+`auto_promote.out`'s one-line summary does not carry):
+
+```
+=> A leads, but MARGINALLY -- the margin is small next to the interval; needs more pairs
+BETWEEN-SEED POWER: effect 0.039 against a between-seed sd of 0.047 -> ~11 seeds for ~80% power
+  ** ONE SEED CANNOT SETTLE THIS ** -- the interval above is within-run only.
+```
+
+**This is NOT a broken promotion rule, and it is worth saying so precisely.** `auto_promote.sh`'s
+header makes the choice deliberately: *"Direction needs the PAIRED instrument, so promotion is decided
+by netmatch and nothing else. Acceptance is the project's own rule: rate − ci95 ≥ 0.5. Same bar the
+manual promotions cleared."* The ruler is excluded on purpose — it carries ±50 Elo at 120 games and
+once produced a four-reading "decline" while the net was genuinely stronger.
+
+The real tension is narrower: **the bar is applied to the WITHIN-RUN interval while the instrument
+reports the BETWEEN-SEED sd is larger** (0.047 vs 0.030). That tension is already known and was tested
+once — `promotion_was_sound_RESULT.md` re-tested a promotion at effect 0.057 two ways and it held, so
+the suspicion "marginal promotion = lucky seed" is refuted in that instance, not in general.
+
+**Tonight's case is MORE marginal than the one that was verified** (effect 0.039 vs 0.057), so the
+established remedy applies rather than a new investigation. Running the same two re-tests, exactly as
+that result did:
+
+```
+EXTENSION         448 pairs, same seed 20260907   (tightest; netmatch said "needs more pairs")
+INDEPENDENT SEED  224 pairs, seed 911911          (fails differently)
+comparison: p1_champion.net (9545a35289e9) vs p1_champion_prev_g39836.net (0097ddc3f5e6)
+```
+
+Load-immune, not merely load-safe: netmatch runs at **fixed depth 4**, so node counts are
+deterministic and the busy box cannot move the result.
+
+**No verdict until both finish.** Unit `p1-verify-promo`.
+
+**Trap hit and recorded:** I redirected `systemd-run ... > verify_promo.log`, which captures
+`systemd-run`'s OWN output, not the unit's — the unit's stdout goes to the JOURNAL. The log file
+contains exactly one line, "Running as unit:". Caught by reading the file instead of assuming it had
+the data.
