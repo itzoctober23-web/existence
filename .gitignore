@@ -44,3 +44,4 @@ watch/
 # permanent `git status` noise, and the one time a rejected edit reached a commit here it
 # went in via `git add -A` sweeping untracked files.
 *.out
+ckpt/
