@@ -67,6 +67,22 @@ fn main() {
     let mut same_move = 0usize;
     let mut n = 0usize;
 
+    // STRATIFY BY BRANCHING FACTOR. budget_realised_depth_RESULT.md measured that an equal-node
+    // budget gives MORE depth to narrow positions and LESS to wide ones -- branching factor falls
+    // monotonically with realised depth, by >10x end to end -- so 31-38% of positions are searched
+    // at depth 2, SHALLOWER than the control's fixed depth 3, and those are the widest ones.
+    // If that is where the harm lives, the label delta and the move disagreement must both
+    // CONCENTRATE at high branching factor. A flat profile refutes it.
+    const NB: usize = 5;
+    let edges = [12usize, 20, 28, 36];          // <=12, 13-20, 21-28, 29-36, >36
+    let bucket = |w: usize| -> usize { edges.iter().position(|&e| w <= e).unwrap_or(NB - 1) };
+    let mut b_n = [0usize; NB];
+    let mut b_dcp = [0f64; NB];
+    let mut b_dtanh = [0f64; NB];
+    let mut b_same = [0usize; NB];
+    let mut b_depth = [0f64; NB];
+    let mut b_width = [0f64; NB];
+
     for _ in 0..games {
         let mut pos = Position::startpos();
         let mut s = Searcher::with_seed(rng.next());
@@ -91,12 +107,12 @@ fn main() {
             // (search.rs:110), so two searches from the same searcher explore different child
             // orderings. Any disagreement that control produces is shuffle noise, not depth, and
             // must be subtracted from the treatment before the treatment means anything.
-            let (mv_b, sc_b) = if budget == 0 {
+            let (mv_b, sc_b, dep_b) = if budget == 0 {
                 let r = s.best_move(&mut pos, 3, &net);
-                (r.0, r.1)
+                (r.0, r.1, 3u32)
             } else {
                 let r = s.best_move_budget(&mut pos, &net, budget, 10, rng.next());
-                (r.0, r.1)
+                (r.0, r.1, r.2)
             };
 
             let a_cp = sc_d as f64;
@@ -110,6 +126,14 @@ fn main() {
                 same_move += 1;
             }
             n += 1;
+
+            let bi = bucket(l.len());
+            b_n[bi] += 1;
+            b_dcp[bi] += (b_cp - a_cp).abs();
+            b_dtanh[bi] += (tanhf(b_cp / 600.0) - tanhf(a_cp / 600.0)).abs();
+            if mv_d == mv_b { b_same[bi] += 1; }
+            b_depth[bi] += dep_b as f64;
+            b_width[bi] += l.len() as f64;
 
             // THE TRAJECTORY IS DRIVEN BY ONE LABELLER ONLY (depth 3, the control), so both see
             // the same positions. Driving it with whichever moved last would make the comparison
@@ -158,4 +182,22 @@ fn main() {
             "the label moves materially — the label channel is live"
         }
     );
+
+    // ---- the stratified table: the whole point of this run -----------------------------------
+    println!("\n  BY BRANCHING FACTOR (legal moves at the position)");
+    println!("  {:<10} {:>7} {:>8} {:>10} {:>11} {:>12} {:>11}",
+             "width", "n", "mean w", "realised d", "same move", "mean |dcp|", "mean |dth|");
+    let names = ["<=12", "13-20", "21-28", "29-36", ">36"];
+    for i in 0..NB {
+        if b_n[i] == 0 { continue; }
+        let k = b_n[i] as f64;
+        println!("  {:<10} {:>7} {:>8.1} {:>10.2} {:>10.1}% {:>12.1} {:>11.4}",
+                 names[i], b_n[i], b_width[i] / k, b_depth[i] / k,
+                 100.0 * b_same[i] as f64 / k, b_dcp[i] / k, b_dtanh[i] / k);
+    }
+    println!("\n  READING: budget_realised_depth_RESULT.md predicts realised depth FALLS as width");
+    println!("  rises, and that the widest bucket is searched SHALLOWER than the control's depth 3.");
+    println!("  If the harm lives there, `same move` must fall and |dcp| rise with width. A FLAT");
+    println!("  profile refutes the mechanism. Run with budget=0 FIRST -- that control measures");
+    println!("  shuffle noise alone, and every number above must be read net of it.");
 }
