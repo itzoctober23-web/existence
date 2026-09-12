@@ -67,3 +67,29 @@ kill that fires wrongly, because it is silent.
   flatness is a property of the series or of that particular target.
 * **22 points over 2,100 generations** bound the slope to ±0.0064 per 1000 gens at 1 se — tight enough
   to exclude a rise of the size the eval would need, not tight enough to exclude a very slow one.
+
+---
+
+## Limit closed: a SECOND independent reference gives the same answer
+
+The limits section above flagged *"one reference — a second would test whether the flatness is a
+property of the series or of that particular target."* Re-run with everything identical except the
+reference:
+
+```
+reference                 n   mean     first   last    slope/1000 gens        t      verdict   floor
+prodk1658 (ruler 1551)   22   0.6220   0.611   0.618   +0.0029 ± 0.0064    +0.46    FLAT      0.038
+prodk1056 (ruler 1522)   22   0.6171   0.601   0.617   +0.0042 ± 0.0062    +0.67    FLAT      0.025
+```
+
+**Two independent opinions, from two different lineages, agree to within 0.005 on the mean and both
+give a slope indistinguishable from zero.** Each also reproduces its own random-net floor (0.038,
+0.025), so neither run is reading a broken target.
+
+**So the flatness is a property of the SERIES, not of the reference.** That was the one substitution
+that could have made the conjunct-2 result an artifact of a convenient choice, and it does not.
+
+**Still open from the limits above, and not closed by this:** the series is the 2026-09-10 `r9` window,
+not the live `prodk1926` run — which has only two nets on disk, so no checkpoint series exists to
+measure. The live run's flatness rests on the ruler and on netmatch, which is a different kind of
+evidence from this one.
