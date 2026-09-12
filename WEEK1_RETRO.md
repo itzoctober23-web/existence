@@ -65,6 +65,50 @@ swapping in a trained net, and every further acceptance rule are all MEASURED wr
 constraint is upstream: **the generator has no gradient.** The current 40-generation arm is at 32
 generations with **0 accepts and 62 rejects**, which is consistent and adds no new information.
 
+## The P2 lever, traced to its mechanism rather than its symptom
+
+The bullet above records P2 as "0 accepts in 203 decisions". That is the symptom. The chain behind it
+was completed on 2026-09-11 and it is the more useful thing to carry into week 2, because each link
+was measured separately and three of them foreclose an obvious "fix".
+
+```
+1  the gate CANNOT accept a drawing candidate
+     6-pair rule: >=4 of 6 pairs drawn -> ceiling 0.4800.  Of 210 possible outcomes only 29 (14%)
+     can ever accept.                                             [gate_arithmetic_RESULT.md]
+
+2  ...and the candidates draw, because THEY are game-neutral
+     gate's own candidates 14.7% decisive vs 31-42% for reference programs.
+                                                    [gate_candidates_are_game_neutral_RESULT.md]
+
+3  ...but the GAMES are fine -- a real behavioural difference does produce decisive pairs
+     so the neutrality belongs to the GENERATOR, not to the games or the rule.
+                                                            [refmatch_discrimination_PREREG.md]
+
+4  ...and the surrogate that selects candidates is INVERTED
+     it ranks the strongest reference program LAST.               [surrogate_inverts_RESULT.md]
+
+5  ...and the inversion is not cured by a deeper mate set
+     on MATE-2, `depth-one` is highest per-Mcost (0.577) and worst in games (0.427).
+```
+
+**Three doors measured shut, which is why this is a lever question and not a tuning question:**
+
+* **more gate pairs** — MEASURED to buy more draws, not more resolution. [gate_power_RESULT.md]
+* **deeper mate strata** — a mate-in-N does not imply N plies of search, so the stratum catches gross
+  truncation but is BLIND to a one-ply cut: `Const(0)`->`Const(1)`, 11x cheaper, all 20 mates intact.
+* **any cheap proxy** — "Every cheap proxy for strength has failed. Only games measure strength here."
+  [proxies_RESULT.md]
+
+**The one door measured open** is the `disagreement_set`, which requires the plies *by construction*
+and catches both the null search and the one-ply cut. It is currently **4 of 19 positions (21%)** of
+the live fitness set, against 10 mate-in-1. `fitness_set_composition_RESULT.md` measured the
+direction: a depth-heavy `5/10/10` set holds a null search to 1306.606x where pure mate-in-1 lets it
+reach 2934.933x.
+
+That is pre-registered in `p2_fitness_PREREG.md`, with its own most-likely failure written down in
+advance: if candidates barely differ behaviourally, changing what we weigh does not change what there
+is to weigh, and the successor is GRAMMAR 4.
+
 ## What I would change, stated as the lever rather than the activity
 
 1. **Give the batch gate enough power to see a +0.008 increment** (~3.5x the games, since ci ∝ 1/√n).
