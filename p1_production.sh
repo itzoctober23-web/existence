@@ -77,11 +77,27 @@ SCR=/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchp
 # which passed verification because the check only confirmed the recipe had moved. Passing the
 # value on the command line puts the run's configuration in its own argv and log header, where it
 # can be CHECKED rather than inferred from which binary happened to be snapshotted.
-LEARN=$SCR/xt_cap/release/learn
+#
+# THE SNAPSHOT MUST LIVE ON A PERSISTENT FILESYSTEM (fixed 2026-09-12). Until today this read
+# `LEARN=$SCR/xt_cap/release/learn`, and $SCR is **tmpfs** -- the binary is RAM. It vanishes on
+# reboot or any /tmp clear, and the path embeds one Claude SESSION id, so it cannot outlive that
+# session either. The `-x` guard below would then fail on every relaunch, keepalive would restart
+# this script into `exit 1` forever, and Existence production would be dead with no recovery path.
+# The snapshot that exists to protect the run FROM relinks was itself the most fragile part of it.
+#
+# bin/learn_prod is a byte-identical copy on btrfs -- md5 bb7ad37d93a9, verified equal to the
+# tmpfs original at the moment of the swap, so this changes durability and NOT behaviour. The
+# scratchpad stays a fallback and the copy self-heals: if the persistent binary is missing while
+# the snapshot still exists, it is restored rather than aborted on.
+LEARN=$PWD/bin/learn_prod
+if [ ! -x "$LEARN" ] && [ -x "$SCR/xt_cap/release/learn" ]; then
+  mkdir -p bin && cp -f "$SCR/xt_cap/release/learn" "$LEARN" && chmod +x "$LEARN" \
+    && echo "$(date '+%H:%M') restored bin/learn_prod from the tmpfs snapshot"
+fi
 SECS=${SECS:-21600}          # 6h; auto_promote banks progress along the way
 CORES=${CORES:-6-11}
 TAG=${TAG:-prod1}
-[ -x "$LEARN" ] || { echo "no learn at $LEARN"; exit 1; }
+[ -x "$LEARN" ] || { echo "no learn at $LEARN (and no tmpfs snapshot to restore from)"; exit 1; }
 [ -s p1_champion.net ] || { echo "no champion"; exit 1; }
 
 cp -f p1_champion.net "${TAG}_start.net"

@@ -26,10 +26,28 @@ DESIGN, and the parts that matter:
   number -- a clean sweep means "below/above this, unmeasured", which is exactly the floor case
   this harness is built to notice.
 """
-import argparse, math, os, random, sys, time
+import argparse, math, os, random, shutil, sys, time
 import chess, chess.engine
 
-ENGINE = "/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad/xt_cap/release/engine"
+# PERSISTENT instrument (fixed 2026-09-12). This was hardcoded to the session scratchpad, which is
+# TMPFS: the binary is RAM, it does not survive a reboot, and the path embeds one Claude session id.
+# The ruler is the only ABSOLUTE strength instrument this project has, and every reading on disk was
+# taken against this exact engine build -- so losing it would not merely stop the ruler, it would
+# break comparability with all 285 existing readings. bin/engine is a byte-identical copy on btrfs
+# (md5 4227a46564bb, verified equal at the swap), so this changes durability and NOT behaviour.
+# The scratchpad stays a fallback and the copy self-heals rather than aborting.
+_SCR = "/tmp/claude-1000/-home-maswabe/368f9dad-1623-4171-ab55-c7e97167e24e/scratchpad"
+_HERE = os.path.dirname(os.path.abspath(__file__))
+ENGINE = os.path.join(_HERE, "bin", "engine")
+if not os.path.exists(ENGINE):
+    _snap = os.path.join(_SCR, "xt_cap/release/engine")
+    if os.path.exists(_snap):
+        os.makedirs(os.path.dirname(ENGINE), exist_ok=True)
+        shutil.copy2(_snap, ENGINE)
+        os.chmod(ENGINE, 0o755)
+        print(f"restored {ENGINE} from the tmpfs snapshot", flush=True)
+    else:
+        ENGINE = _snap   # keep the old path so a failure names the binary that is actually missing
 SF = "/usr/bin/stockfish"
 
 
