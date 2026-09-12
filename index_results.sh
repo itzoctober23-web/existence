@@ -35,8 +35,13 @@ OUT=RESULTS_INDEX.md
 # an experiment" -- and seven of them were invisible here. `structural_next_PREREG.md` fixes the
 # order of the next three structural experiments; leaving it unindexed would repeat, on the file that
 # chooses the next week's work, exactly the defect this script exists to prevent.
-FINDINGS=$(ls -t *_RESULT.md *_FINDING.md *_ANALYSIS.md *_WHY_NOTHING.md *_CAVEAT.md *_PREREG.md \
-                surrogate_validation.md EXPERIMENTS.md NET_TRACK_STATE.md 2>/dev/null | awk '!seen[$0]++')
+# WIDENED 2026-09-12 to match the inverted glob below. This list fed the TOPIC index -- the table
+# that answers "has anyone measured X" -- and it carried the same suffix whitelist, so three
+# PRE-REGISTRATIONS were invisible to it: lr_sweep_PREREGISTRATION.md, scopefix_prereg.md and
+# w64_prereg.md (the last is cited by label_source_RESULT.md, so it is load-bearing). A topic index
+# that silently omits pre-registrations answers "nothing on that" about exactly the file type this
+# script calls the most relevant one.
+FINDINGS=$(ls -t *.md 2>/dev/null | grep -vxE 'RESULTS_INDEX.md|README.md' | awk '!seen[$0]++')
 
 {
   echo "# Results index — every \`*_RESULT.md\` headline, newest first"
@@ -88,9 +93,14 @@ FINDINGS=$(ls -t *_RESULT.md *_FINDING.md *_ANALYSIS.md *_WHY_NOTHING.md *_CAVEA
   # reports "N result files indexed" either way, and the dropped rows are in a DIFFERENT table
   # from the count.
   # So: never hand-edit RESULTS_INDEX.md to add a file. Add the PATTERN here instead.
-  for f in $(ls -t *_FINDING.md *_ANALYSIS.md *_WHY_NOTHING.md *_CAVEAT.md *_PREREG.md \
-                   *_RETRO.md *_STATUS.md *_blocker.md \
-                   surrogate_validation.md EXPERIMENTS.md NET_TRACK_STATE.md 2>/dev/null | awk '!seen[$0]++'); do
+  # WHITELIST INVERTED 2026-09-12. This used to name suffixes -- *_FINDING, *_ANALYSIS, ... -- and a
+  # file whose suffix was not on the list was INVISIBLE to regeneration. That already cost three
+  # hand-added entries (WEEK1_RETRO, p1_kill_criterion_STATUS, grammar4_addfn_unpark_blocker), which
+  # I fixed by ADDING *_RETRO/_STATUS/_blocker. Hours later I wrote cand_arm_harness_NOTES.md and it
+  # was invisible again -- a whitelist cannot anticipate a suffix invented after it.
+  # So: index EVERY top-level .md except an explicit, short exclude list. A new suffix is now
+  # included by default and only a deliberate exclusion hides anything.
+  for f in $(ls -t *.md 2>/dev/null | grep -vxE 'RESULTS_INDEX.md|README.md|.*_RESULT\.md' | awk '!seen[$0]++'); do
     h=$(head -1 "$f" | sed 's/^#\+ *//' | sed 's/|/\\|/g')
     [ -n "$h" ] || h="(no headline — open the file)"
     printf '| [%s](%s) | %s |\n' "$f" "$f" "$h"

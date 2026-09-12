@@ -129,27 +129,36 @@ it was never indexed because of its name.
 | [replay_window_plateau_FINDING.md](replay_window_plateau_FINDING.md) | Candidate B is NOT "genuinely unmeasured" — a plateau-regime replay sweep ran on 2026-09-08 and returned a null |
 | [candidate_a_channel_FINDING.md](candidate_a_channel_FINDING.md) | Candidate A's label channel is LIVE, but it is the channel `label_source` measured as null — the arm needs a third cell |
 | [prodk0127_plateau_STATUS.md](prodk0127_plateau_STATUS.md) | The fresh lineage reproduces the plateau: 1561 pooled, FLAT, 39 short of the day-7 line |
+| [cand_arm_harness_NOTES.md](cand_arm_harness_NOTES.md) | Harness facts for the Candidate A arms, checked rather than assumed |
 | [generation_is_not_a_unit_FINDING.md](generation_is_not_a_unit_FINDING.md) | "Generation" means 8 games in one result and 2,400 in another — a 300x unit gap that made Candidate A look infeasible |
 | [p1_kill_criterion_STATUS.md](p1_kill_criterion_STATUS.md) | The P1 kill criterion: conjunct 1 is now SATISFIED. Conjunct 2 is measurable but not yet measured. |
 | [WEEK1_RETRO.md](WEEK1_RETRO.md) | WEEK 1 RETRO — which lever failed, and why |
 | [grammar4_addfn_unpark_blocker.md](grammar4_addfn_unpark_blocker.md) | The AddFn unpark condition is blocked by a SECOND ordering bias — the function sweep short-circuits |
+| [STATE.md](STATE.md) | Existence — current state, 2026-09-11 |
 | [p2_fitness_PREREG.md](p2_fitness_PREREG.md) | PRE-REGISTRATION — the P2 fitness change: games PRIMARY, mates FILTER |
 | [p1_compounding_PREREG.md](p1_compounding_PREREG.md) | PRE-REGISTRATION — P1 compounding: champion-following datagen at a node budget, into a declared |
 | [uncertainty_target_PREREG.md](uncertainty_target_PREREG.md) | PRE-REGISTRATION — the uncertainty head's TARGET, before either track is built on it |
+| [diversity_reserve_SIZING.md](diversity_reserve_SIZING.md) | The diversity reserve has been run, and the run was far too short to mean anything |
 | [refmatch_discrimination_PREREG.md](refmatch_discrimination_PREREG.md) | PRE-REGISTRATION — can the gate's games discriminate at all? (written before the results exist) |
 | [low_sweep2_PREREG.md](low_sweep2_PREREG.md) | Pre-registration: the full-length low-lr sweep tests a claim the truncated run made |
+| [CHAMPIONS.md](CHAMPIONS.md) | Champion lineage |
 | [NET_TRACK_STATE.md](NET_TRACK_STATE.md) | The NET track, summarised across every configuration tried (2026-09-08) |
 | [ceiling_ANALYSIS.md](ceiling_ANALYSIS.md) | The plateau is the TRAINING PROCEDURE'S CEILING, not a gating failure |
+| [lr_sweep_PREREGISTRATION.md](lr_sweep_PREREGISTRATION.md) | Pre-registration: what the game-free instrument predicts for the lr sweep |
 | [gated_resume_PREREG.md](gated_resume_PREREG.md) | PRE-REGISTRATION: does the resume dip survive a live strength gate? |
 | [resume_dip_PREREG.md](resume_dip_PREREG.md) | PRE-REGISTRATION: does a resume damage the champion, and if so WHEN? |
 | [nps_calibration_PREREG.md](nps_calibration_PREREG.md) | PRE-REGISTRATION: the engine spends 1–11% of its clock, and `NPS_PER_MS` is stale by ~2× |
 | [depth5_vs_depth3_PREREG.md](depth5_vs_depth3_PREREG.md) | PRE-REGISTRATION — depth 5 vs depth 3, matched start, equal wall clock |
 | [depth_ruler_PREREG.md](depth_ruler_PREREG.md) | PRE-REGISTRATION — datagen depth on the ruler, written before the games were read |
+| [scopefix_prereg.md](scopefix_prereg.md) | PRE-REGISTRATION — P2 restarted with the scope fix, written before the log was read |
+| [w64_prereg.md](w64_prereg.md) | PRE-REGISTRATION — the w64 cells, written before the games were read |
 | [search_track_WHY_NOTHING.md](search_track_WHY_NOTHING.md) | Why the MAIN lineage has never produced an improvement, and structurally cannot |
+| [depth_transfer_window_note.md](depth_transfer_window_note.md) | Before reading the depth-4 arm: the two windows are NOT the same size |
 | [reject_holdout_PREREG.md](reject_holdout_PREREG.md) | PRE-REGISTRATION — does the depth-1 gate reject real improvements? Holdout test |
 | [editcount_power_PREREG.md](editcount_power_PREREG.md) | Pre-registration: what the edit-count sweep CAN and CANNOT resolve |
 | [EXPERIMENTS.md](EXPERIMENTS.md) | EXPERIMENTS — what was tried, and why it failed |
 | [fitness_spec_gap_FINDING.md](fitness_spec_gap_FINDING.md) | The surrogate is not the one FITNESS §3 specifies — and that explains the saturation |
+| [pipeline_ALIVE.md](pipeline_ALIVE.md) | The search track's pipeline runs end to end for the first time |
 | [search_track_FINDING.md](search_track_FINDING.md) | The search track's surrogate rewarded searching LESS (2026-09-08) |
 | [surrogate_validation.md](surrogate_validation.md) | The accept/reject surrogate does not predict strength — measured (2026-09-08) |
 | [replay_ab_CAVEAT.md](replay_ab_CAVEAT.md) | replay_ab.sh — read the arms correctly (noted 2026-09-08, DURING the run) |
@@ -164,18 +173,18 @@ being asked.
 
 | topic | files that measure it |
 |---|---|
-| learning rate | lr_decay,static_deep_residual lr_sweep,learning_rate_is_the_plateau NET_TRACK_STATE |
+| learning rate | lr_decay,STATE static_deep_residual,lr_sweep learning_rate_is_the_plateau |
 | training loss | proxies,EXPERIMENTS arch_surrogate_filter,replay_ab_CAVEAT epochs_ab |
-| surrogate/proxy | EXPERIMENTS,fitness_saturation surrogate_inverts,surrogate_validation specfilter_admits_noops |
-| net width | EXPERIMENTS,ladder_valley throughput,width_clock search_track_WHY_NOTHING |
-| search depth | EXPERIMENTS,depth2x2 blend,speed_cannot_pay depth5_vs_depth3 |
-| blend/target | EXPERIMENTS,blend blend_sweep,NET_TRACK_STATE uncertainty_target_PREREG |
-| epochs | EXPERIMENTS,epochs_ab epochs_2v3,NET_TRACK_STATE unc_signal_is_inverted |
-| seeds & noise | promo_g39836,depth2x2 blend,p1_deceleration blend_sweep |
-| gate & thresholds | gate_power,gate_arithmetic EXPERIMENTS,replay_ab_CAVEAT ladder_valley |
-| calibration | static_deep_residual,unc_signal_is_inverted uncertainty_target_PREREG,confident_when_wrong flip_cost_concentration |
-| speed/nps | speed_cannot_pay,throughput movegen_leaf,depth2x2 path1_is_empty |
-| plateau | EXPERIMENTS,p1_kill_conjunct2 ceiling_ANALYSIS,ruler_trend learning_rate_is_the_plateau |
+| surrogate/proxy | STATE,EXPERIMENTS fitness_saturation,surrogate_inverts surrogate_validation |
+| net width | STATE,EXPERIMENTS ladder_valley,throughput width_clock |
+| search depth | STATE,EXPERIMENTS depth2x2,blend speed_cannot_pay |
+| blend/target | STATE,EXPERIMENTS blend,blend_sweep NET_TRACK_STATE |
+| epochs | STATE,EXPERIMENTS epochs_ab,epochs_2v3 NET_TRACK_STATE |
+| seeds & noise | STATE,promo_g39836 depth2x2,blend p1_deceleration |
+| gate & thresholds | STATE,gate_power gate_arithmetic,EXPERIMENTS replay_ab_CAVEAT |
+| calibration | static_deep_residual,unc_signal_is_inverted STATE,uncertainty_target_PREREG confident_when_wrong |
+| speed/nps | STATE,speed_cannot_pay throughput,movegen_leaf depth2x2 |
+| plateau | STATE,EXPERIMENTS WEEK1_RETRO,p1_kill_conjunct2 ceiling_ANALYSIS |
 
 ## Non-`_RESULT` files worth knowing
 
