@@ -27,7 +27,25 @@ in Elo                  -43.1    [-69.8, -16.8]
 Every individual interval lies wholly below 0.5, and the pooled interval excludes 0.5. **For these
 two nets the result is resolved: the budget arm is weaker.**
 
-## Context: did EITHER arm improve? Not established — and 0.535 is a number that already fooled us tonight
+## The budget arm is worse than the net it STARTED from
+
+The gate's context matches, both at 224 pairs, seed 20260907:
+
+```
+candA_fixed vs cand_start   0.535 +/- 0.030   [0.505, 0.564]
+candB_budget vs cand_start  0.445 +/- 0.027   [0.418, 0.472]
+```
+
+**B's interval lies entirely below 0.5**, and `|0.445 - 0.5| = 0.055` is **1.17x** the 0.047
+between-seed sd — beyond the band, unlike everything else here. Two thousand generations of
+budget-allocated datagen did not merely underperform fixed depth; they left the net **weaker than the
+champion it resumed from**.
+
+That is the strongest single statement this experiment supports, and it is consistent with the
+mechanism: the budget starves wide positions, and training on labels that are worse exactly where
+evaluation is hardest moves the net backwards.
+
+## Context: arm A is NOT shown to have improved — and 0.535 is a number that already fooled us tonight
 
 The gate's context match reads **`candA_fixed vs cand_start` = 0.535 ± 0.030**, interval
 [0.505, 0.565]. Taken alone that says the fixed-depth arm gained on the champion it resumed from,

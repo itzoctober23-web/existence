@@ -45,7 +45,7 @@ run(){ # run <netA> <netB> <seed> <label>
   line=$(grep -oE 'scores 0\.[0-9]+ \+/- 0\.[0-9]+' "$out" | head -1)
   rate=$(echo "$line" | grep -oE '0\.[0-9]+' | head -1); ci=$(echo "$line" | grep -oE '0\.[0-9]+' | tail -1)
   [ -z "$rate" ] && { say "  $4 seed $3: NO RATE PARSED (see $out)"; return 1; }
-  say "  $4 seed $3: $rate +/- $ci"
+  say "  $4 seed $3: $rate +/- $ci" >&2
 }
 
 # Two seeds each, not three: this is supplementary to the A-vs-B verdict and the box has the

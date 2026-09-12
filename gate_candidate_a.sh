@@ -73,10 +73,10 @@ run(){ # run <netA> <netB> <seed> <label>
   rate=$(echo "$line" | grep -oE '0\.[0-9]+' | head -1)
   ci=$(echo "$line" | grep -oE '0\.[0-9]+' | tail -1)
   if [ -z "$rate" ]; then
-    say "  $4 seed $3: NO RATE PARSED -- match did not run (see $out)"
+    say "  $4 seed $3: NO RATE PARSED -- match did not run (see $out)" >&2
     return 1
   fi
-  say "  $4 seed $3: $rate +/- $ci"
+  say "  $4 seed $3: $rate +/- $ci" >&2
   echo "$rate $ci"
 }
 
