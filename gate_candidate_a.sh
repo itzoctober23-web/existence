@@ -25,6 +25,16 @@ say(){ echo "$(date +%F_%H:%M) [candA] $*" | tee -a "$LOG"; }
 
 [ -x "$NM" ] || { say "ABORT: no netmatch at $NM"; exit 1; }
 
+# SINGLE INSTANCE. Without this, a manual run and the 10-minute timer can both clear the guard and
+# run netmatch at once -- they write the same gca_*.log files, so each clobbers the other's output
+# and the verdict is computed from whichever finished last. Observed 2026-09-12 02:40: two instances
+# live simultaneously. flock is released automatically when the script exits, however it exits.
+exec 9>"$D/.gate_candidate_a.lock"
+if ! flock -n 9; then
+  say "DEFER: another instance of this gate already holds the lock"
+  exit 75
+fi
+
 # ---- guard: both arms must be COMPLETE -----------------------------------------------------
 for u in cand-a-fixed cand-b-budget; do
   st=$(systemctl --user is-active "$u.service" 2>/dev/null)

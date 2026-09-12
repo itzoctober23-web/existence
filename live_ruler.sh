@@ -24,7 +24,12 @@ while true; do
     G=$(grep -cE '^gen ' "$log" 2>/dev/null)
     [ "${G:-0}" -lt 20 ] && continue          # too few generations to be worth 120 games
     cp -f "$net" "/tmp/r_${arm}.net" 2>/dev/null || continue
-    nice -n 19 python3 sf_ruler.py --net "/tmp/r_${arm}.net" \
+    # PINNED, not just niced. Without taskset this whole tree -- sf_ruler.py plus its `engine`
+    # and `stockfish` children -- inherits an all-cores mask and lands on 12-15, which are HIS.
+    # Measured 2026-09-12 02:46: cpu12 67.2%, cpu13 73.7%, cpu14 70.4%, cpu15 100.0%, and the
+    # only unpinned CPU of mine was this ruler. Live-tasksetting the running tree dropped them to
+    # 44/35/42/49%. Priority does not fix core ownership; affinity does.
+    nice -n 19 taskset -c "${RULER_CORES:-6-11}" python3 sf_ruler.py --net "/tmp/r_${arm}.net" \
       --depth 4 --sf-elo 1320 --sf-nodes 10000 --games 120 > "${arm}_ruler.log" 2>&1
     echo "$(date '+%H:%M') $arm gen $G $(grep -oE 'Elo vs this opponent: .*' "${arm}_ruler.log")"
     rm -f "/tmp/r_${arm}.net"
