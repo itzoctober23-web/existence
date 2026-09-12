@@ -74,3 +74,64 @@ Decisive fraction unchanged after the composition shift ⇒ the generator, not f
 constraint, and the next move is GRAMMAR 4 (type checker + mutation operators), which
 `gate_power_RESULT.md` already names as the successor. **That is a real possible outcome of this
 experiment, not a fallback to retreat to.**
+
+---
+
+## AMENDMENT 2026-09-11 22:15 — written while `prop_gens40` is at gen 38 of 40, trigger NOT yet fired
+
+Amending before the trigger is legitimate; amending after would not be. The reason for the amendment
+is that I read further and found the mechanism I was about to reach for is **already measured and
+already refuted.**
+
+**What I was about to design, and why it would have failed.** `FITNESS.md` §3 specifies the mate set
+as MATE-N for N in {1,2,3,4}, 500 each, and §10 lists the mates-per-cost filter as the check that
+catches "prune everything / return eval". The live set is 19 positions, mate-in-ONE only, so the
+obvious move is "restore the deeper mate strata". **That is measured to be nearly toothless.**
+`forced_mate_set` (`evolve.rs:200`) ALREADY EXISTS as a mate-in-2 builder, and its own doc comment
+records the outcome:
+
+> *"The forced-mate-in-2 set was added to stop a candidate from simply searching less, and it worked
+> at fitness depth 2. At fitness depth 3 it has no teeth: that set is solved 40/40 AT DEPTH 2
+> (measured — the forcing move is also the eval-best move), so cutting 3 -> 2 costs nothing on it.
+> The search track promptly found exactly that: `Const(0)` -> `Const(1)` in the horizon guard, one ply
+> shallower, 11x cheaper, all 20 mates intact. A depth guard must require the FULL fitness depth, and
+> a mate-in-N does not imply N plies of search. **Disagreement does, by construction.**"*
+
+**The reconciliation, which is the actual design input:**
+
+```
+candidate                        MATE-2 stratum         disagreement_set
+child #30 (null search, 2732x)   CAUGHT (12/24)         caught
+Const(0)->Const(1) (ONE ply)     BLIND (40/40 at d2)    caught by construction
+```
+
+A MATE-N stratum catches **gross** truncation and is **blind to a one-ply cut**. The disagreement set
+is not, because a disagreement position is *defined* as one where shallow and deep search differ — it
+requires the plies by construction.
+
+**Amended design.** The load-bearing stratum is `disagreement_set`, NOT mates of any depth:
+
+* mates stay a **filter** for gross truncation only, and stop contributing to the score — unchanged;
+* the stratum that must GROW is `disagreement_set` (`n2`), not a deeper mate set. The live run is
+  `10 + 4 + 5`, so the load-bearing stratum is **4 of 19 positions, 21%**;
+* `fitness_set_composition_RESULT.md` already measured the direction — depth-heavy `5/10/10` holds a
+  null search to 1306.606x against 2934.933x on pure mate-in-1.
+
+**A second reason not to lean on mates at all:** `surrogate_inverts_RESULT.md` measured mates/Mcost
+on the MATE-2 set and found it inverts against games there too — the `depth-one` program is ranked
+**highest per Mcost (0.577) while scoring worst in games (0.427)**. So a deeper mate set does not fix
+the inversion; it relocates it.
+
+**Spec gap, recorded rather than silently patched:** `FITNESS.md` §10 credits the mates-per-cost
+filter with catching "prune everything / return eval". Measurement says that holds for gross
+truncation only and fails for a one-ply cut. The doc is the authority on ORDER, but this row overstates
+what the filter delivers, and §3's own MATE-{1,2,3,4} filter inherits the weakness. Flagging, not
+editing — the docs are not mine to quietly rewrite.
+
+**The verdict rule is UNCHANGED** (decisive-game fraction against the 14.7% baseline, CI excluding it).
+Only the lever changed: grow disagreement, not mate depth.
+
+**Process note, because it is the recurring cost.** `fitness_set_composition_RESULT.md` records the
+same lesson about itself — *"I measured before reading. `git grep mate_set` would have shown
+`forced_mate_set` in one command, and its comment answers the question the experiment was designed to
+ask."* That is now the third time tonight the results dir already held the answer.
