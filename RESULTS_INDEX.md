@@ -17,6 +17,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [search_stability_RESULT.md](search_stability_RESULT.md) | The budget's move choice IS noisier than fixed depth's — 3.2 points less self-consistent, on every seed |
 | [trajectory_drift_RESULT.md](trajectory_drift_RESULT.md) | Drift is real but points the WRONG WAY — the better net moved FURTHER from the start, not closer |
 | [budget_harm_is_emergent_RESULT.md](budget_harm_is_emergent_RESULT.md) | Both isolated channels are NULL while the full treatment costs real strength — the harm needs the LOOP |
 | [budget_allocation_RESULT.md](budget_allocation_RESULT.md) | Reallocating the budget toward wide positions makes it WORSE — depth is logarithmic in nodes, and the exchange rate loses |
