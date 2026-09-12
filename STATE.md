@@ -5956,3 +5956,40 @@ internal book. Launched the **paired control** REF vs REF (`m2-gate3-control.ser
 harness auto-detects by realpath and marks admissible on a busy box. This is the run that would
 expose a colour-swap / unshared-book / asymmetric-time bug BEFORE it contaminates the real gate —
 the same class of bug bisection found in gate 2.
+
+#### CORRECTION to the P2 entry above (same tick, before anyone acts on it)
+
+**I re-derived a closed question and wrote it up as though it were new.** `gate_arithmetic_RESULT.md`
+— dated TODAY — already contains all of it:
+
+```
+enumerated all 210 six-pair outcomes: only 29 (14%) can EVER accept
+a candidate drawing >=4 of 6 pairs: ceiling 0.4800  CANNOT PASS
+a candidate drawing >=5 of 6 pairs: ceiling 0.4600  CANNOT PASS
+pooled 29 matches: W=4 D=297 L=47 of 348 games, DRAW RATE 85.3%
+"Every one of the 29 sits inside the unpassable region ... it could not have done anything else."
+```
+
+And `gate_power_RESULT.md` already measured the draw rate at 80.6% and named the root cause (the gate
+plays an untrained `Net::random(32,…)` from a balanced 4-random-ply start).
+
+**What my measurement actually is: a REPLICATION at 2.3x the sample, not a discovery.** 67 decisions
+/ 816 games against 29 matches / 348 games; draw rate 0.830 vs 0.853; and W=4 in both, since mine is
+the same run extended. Replication has value — it is now the largest sample on this — but the
+headline claim was already on disk and I should have grepped the results dir first, which is the
+standing rule precisely because this has cost hours three times.
+
+**One framing in my entry above is also wrong.** I wrote that the zero "carries no information about
+the generator", leaning toward fixing the instrument. `gate_arithmetic_RESULT.md`'s headline forecloses
+that: the arithmetic is about the **6-pair RULE** and "is NOT an argument for raising `gate_pairs`,
+which `gate_power_RESULT.md` measured as buying more draws". More pairs buy more draws. So the
+constraint remains UPSTREAM, exactly as `gate_power_RESULT.md` concluded — which is also where the
+directive points ("a fitness question ... not another instrument"). The two agree; my gloss did not.
+
+**Live-run hazard recorded:** the running `evolve` binary is from 09-11 09:41, the source from 17:07,
+and the binary lacks the `identity:` string the current source prints. The source has moved ~7.5h
+ahead of the running job, so the live run's semantics must NOT be read off current source — and the
+job must not be rebuilt under itself.
+
+Also withdrawn: my "plycap explains 4.8% of draws". `plycap` is `gate::PLY_CEILING`, which counts only
+the 200-ply ceiling and not fifty-move draws, so it never could have decomposed the draw bucket.
