@@ -102,11 +102,28 @@ before the ladder is allowed to promote again — "beats the current champion at
 demonstrably satisfiable without absolute progress. The obvious candidates, in the order this
 project's own evidence supports them:
 
-1. **Gate against the external anchor, not the predecessor.** Costly (the ruler needs ~27x its
-   current games to resolve a single +25 Elo step) but it measures the thing we actually want.
-2. **Gate against a POOL of past champions rather than the immediate one.** Directly targets
-   non-transitivity, and `cell_c_transitivity_FINDING.md` already measured a transitivity
-   discrepancy in this project growing from 7.1 to 13.1 Elo.
-3. **Keep the cheap relative gate as a filter, and require an absolute confirmation before the
-   champion file is overwritten** — the same two-stage shape the 896-pair confirmation already uses,
-   but with the second stage measuring something the first cannot.
+The corrected mechanism changes which fix can work, so this list is ordered by that rather than by
+cost:
+
+1. **Keep the cheap relative gate as a FILTER, and require an EXTERNAL confirmation before the
+   champion file is overwritten.** The two-stage shape already exists — the 896-pair confirmation
+   built today — and the only change is that stage 2 measures a different opponent rather than more
+   pairs of the same one. Stage 1 stays cheap and rejects most candidates; stage 2 runs rarely.
+   This is the cheapest change that addresses the mechanism.
+2. **Gate against the external anchor directly.** Measures exactly the right quantity, and is the
+   most expensive: the ruler needs ~27x its current 120 games to resolve a single +25 Elo step, so
+   ~3,200 games per decision. Viable as stage 2 above, not as the primary gate.
+3. **A POOL of past champions is NOT a fix here, and was listed as one in this file's first
+   version.** Under non-transitivity it would have been the natural answer. Under distribution
+   overfitting it is not: every past champion is drawn from the SAME self-play family, which is
+   precisely the distribution that has decoupled from external strength. Broadening within a
+   distribution that is itself the problem buys little. It would only help to the extent that older
+   champions are far enough back to behave like different opponents — an assumption this project has
+   not measured, and one `nontransitive_walk_RESULT.md` gives reason to doubt, since long-range
+   comparisons within the family compose cleanly.
+
+**The cheap diagnostic that separates 1 from 3**, if it is wanted before committing: match the new
+champion against the OLDEST distinct champion on disk (11 are preserved, all distinct hashes). If
+the ladder's wins compose along the whole chain — as `nontransitive_walk_RESULT.md` found at the
+2,000-generation scale — the family is internally consistent end to end, and a pool gate is confirmed
+useless. That is four netmatch runs, not 3,200 games.
