@@ -19,9 +19,20 @@ D=/home/maswabe/existence
 cd "$D" || exit 1
 NM=$D/target/release/examples/netmatch
 PAIRS=${PAIRS:-224}
+# PARAMETERISED 2026-09-12 so the REPLICATION (training seed 777777) can use this exact gate
+# rather than a copy that drifts from it. Defaults reproduce the original A/B run byte for byte.
+# The LABELS feed the output filenames ($D/gca_<label>_<seed>.log), so overriding them is what
+# keeps the replication from clobbering the logs candidate_a_budget_loses_RESULT.md was computed
+# from. That is not a nicety: those files ARE the evidence for a published result.
+UNIT_A=${UNIT_A:-cand-a-fixed}
+UNIT_B=${UNIT_B:-cand-b-budget}
+NET_A=${NET_A:-candA_fixed}
+NET_B=${NET_B:-candB_budget}
+LBL=${LBL:-BvA}
+TAG=${TAG:-candA}
 DEPTH=4
-LOG=$D/gate_candidate_a.log
-say(){ echo "$(date +%F_%H:%M) [candA] $*" | tee -a "$LOG"; }
+LOG=$D/gate_${TAG}.log
+say(){ echo "$(date +%F_%H:%M) [$TAG] $*" | tee -a "$LOG"; }
 
 [ -x "$NM" ] || { say "ABORT: no netmatch at $NM"; exit 1; }
 
@@ -29,21 +40,21 @@ say(){ echo "$(date +%F_%H:%M) [candA] $*" | tee -a "$LOG"; }
 # run netmatch at once -- they write the same gca_*.log files, so each clobbers the other's output
 # and the verdict is computed from whichever finished last. Observed 2026-09-12 02:40: two instances
 # live simultaneously. flock is released automatically when the script exits, however it exits.
-exec 9>"$D/.gate_candidate_a.lock"
+exec 9>"$D/.gate_${TAG}.lock"
 if ! flock -n 9; then
   say "DEFER: another instance of this gate already holds the lock"
   exit 75
 fi
 
 # ---- guard: both arms must be COMPLETE -----------------------------------------------------
-for u in cand-a-fixed cand-b-budget; do
+for u in "$UNIT_A" "$UNIT_B"; do
   st=$(systemctl --user is-active "$u.service" 2>/dev/null)
   if [ "$st" = "active" ]; then
     say "DEFER: $u is still running"
     exit 75
   fi
 done
-for f in candA_fixed candB_budget; do
+for f in "$NET_A" "$NET_B"; do
   g=$(grep -c '^gen ' "$D/$f.log" 2>/dev/null || echo 0)
   if [ "$g" -lt 2000 ]; then
     say "ABORT: $f reached only $g/2000 generations -- arms are NOT matched, and an unmatched"
@@ -54,12 +65,12 @@ done
 
 # ---- the arms must actually differ from their start, and from each other -------------------
 s_md5=$(md5sum cand_start.net | cut -d' ' -f1)
-for f in candA_fixed.net candB_budget.net; do
+for f in "$NET_A.net" "$NET_B.net"; do
   [ -s "$f" ] || { say "ABORT: $f missing or empty"; exit 1; }
   m=$(md5sum "$f" | cut -d' ' -f1)
   [ "$m" = "$s_md5" ] && { say "ABORT: $f is IDENTICAL to cand_start.net -- the arm trained nothing"; exit 1; }
 done
-if [ "$(md5sum candA_fixed.net | cut -d' ' -f1)" = "$(md5sum candB_budget.net | cut -d' ' -f1)" ]; then
+if [ "$(md5sum "$NET_A.net" | cut -d' ' -f1)" = "$(md5sum "$NET_B.net" | cut -d' ' -f1)" ]; then
   say "ABORT: the two arms produced byte-identical nets -- the budget flag was inert"
   exit 1
 fi
@@ -83,17 +94,17 @@ run(){ # run <netA> <netB> <seed> <label>
 # ---- primary comparison: B vs A, three seeds -----------------------------------------------
 # THREE SEEDS BECAUSE ONE IS A LOTTERY. Between-seed sd on this instrument is 0.047, which is
 # larger than most effects this project has chased, so a single reading cannot resolve anything.
-say "PRIMARY: candB_budget vs candA_fixed, $PAIRS pairs, depth $DEPTH"
+say "PRIMARY: $NET_B vs $NET_A, $PAIRS pairs, depth $DEPTH"
 RATES=""
 for sd in 20260907 911911 424242; do
-  r=$(run candB_budget.net candA_fixed.net "$sd" "BvA") || true
+  r=$(run "$NET_B.net" "$NET_A.net" "$sd" "$LBL") || true
   [ -n "$r" ] && RATES="$RATES $(echo "$r" | awk '{print $1}')"
 done
 
 # ---- context: each arm against the shared start ---------------------------------------------
 say "CONTEXT: each arm against the shared start net"
-run candA_fixed.net cand_start.net 20260907 "Avstart" >/dev/null || true
-run candB_budget.net cand_start.net 20260907 "Bvstart" >/dev/null || true
+run "$NET_A.net" cand_start.net 20260907 "${LBL}_Avstart" >/dev/null || true
+run "$NET_B.net" cand_start.net 20260907 "${LBL}_Bvstart" >/dev/null || true
 
 # ---- verdict --------------------------------------------------------------------------------
 say "VERDICT"
