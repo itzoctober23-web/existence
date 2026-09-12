@@ -58,3 +58,57 @@ I launched the second arm as `MAS_PAIR_SEED=911911`. **netmatch does not read th
 is the 5th POSITIONAL argument — and the output above proves it: the arm labelled "INDEPENDENT SEED"
 printed `seed 20260907`. So it is a same-seed REPLICATION, not a second seed, and is reported as such.
 A true independent seed still needs `netmatch A B 224 4 911911`.
+
+---
+
+## RESOLVED at 953 pairs — INDISTINGUISHABLE. The promotion was a no-op, not a gain and not a loss.
+
+`netmatch` asked for a specific power: *"Re-run at ~953 pairs before calling it a tie."* Run at exactly
+that count, it changes its own verdict from UNRESOLVED to a result:
+
+```
+reading                pairs   score            interval          netmatch's verdict
+original (promotion)     224   0.539 +/- 0.030  [0.509, 0.569]    "A leads, but MARGINALLY"
+extension                448   0.501 +/- 0.021  [0.480, 0.522]    "UNRESOLVED ... more pairs"
+RESOLVE                  953   0.503 +/- 0.014  [0.489, 0.517]    "INDISTINGUISHABLE, and
+                                                                   precisely so"
+```
+
+**0.503 +/- 0.014.** The champion and the net it replaced are the same strength on this instrument, to
+within +/-1.4 points. The 0.539 that triggered promotion was the high tail of a distribution centred at
+0.503.
+
+## What this settles, and what it does not
+
+**Settled:** the promotion was not an improvement. It was also **not a regression** — the interval is
+narrow and contains 0.5, which `netmatch` distinguishes explicitly from a wide one (*"a narrow interval
+around 0.5 is a RESULT; a wide one is IGNORANCE"*). **So no rollback**: the two nets are equivalent, and
+reverting would be as unjustified as promoting was.
+
+**Not settled:** whether a different TRAINING seed would have produced a better net. netmatch still
+prints *"effect 0.003 against a between-seed sd of 0.047 -> ~2080 seeds for ~80% power"*. This result is
+about these two nets on this opening set, which is the question the promotion rule actually asks.
+
+## The general lesson, now measured from two cases
+
+`promotion_was_sound_RESULT.md` re-tested a promotion whose effect (0.057) EXCEEDED the between-seed sd
+(0.047): it held, 0.557 -> 0.559. This one's effect (0.039) was BELOW that sd: it collapsed,
+0.539 -> 0.503. **A promotion whose effect is under the between-seed sd is the one that does not
+survive extension** — two cases, opposite outcomes, and the discriminator is visible at promotion time
+because `netmatch` prints it.
+
+`auto_promote.sh` does not read that line. Its rule is `rate - ci95 >= 0.5` on the WITHIN-run interval,
+which cleared by 0.009 here. The fix is not to change the bar — that would suppress the case that held
+— but to treat "effect < between-seed sd" as a flag for re-test before the promotion is trusted
+downstream. Recorded as an observation; `auto_promote.sh` is not modified by this result.
+
+## Corroborates the week's central finding
+
+`WEEK1_RETRO.md` measures that **every production run is FLAT on the absolute ruler; all 166 Elo came
+from BETWEEN runs.** A within-run promotion that resolves to 0.503 at high power is that same finding,
+reached independently by the PAIRED instrument — the one the retro trusts precisely because the ruler
+is noisy.
+
+**Arm 2 (448 pairs, seed 911911, passed POSITIONALLY) is still running** and is reported separately. Its
+header confirms the earlier harness defect is fixed: it prints `seed 911911`, where the `MAS_PAIR_SEED`
+version printed `seed 20260907`.
