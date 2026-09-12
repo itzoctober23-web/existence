@@ -1,4 +1,4 @@
-# The resume dip is NOT observable in the production ruler — so there is no measured case for changing the 6-hour restart
+# The resume dip is invisible to the absolute ruler but REAL on the paired instrument — 0.362 at generation 108
 
 **2026-09-12 08:55.** Measured from 285 live-ruler readings already on disk across six production
 lineages. **No new compute.** It closes a change I was about to make.
@@ -54,6 +54,61 @@ is what the anchor sees.
 
 **My 7.7%-of-window figure was a mis-application** — it took a paired-comparison result and treated it
 as an absolute-strength deficit. Recorded so the arithmetic is not repeated.
+
+## FOLLOW-UP, same session: the PAIRED instrument was already on disk, and it DOES see the dip
+
+The section above closes by naming what would settle this: "a paired measurement of the production
+arm against its own pre-restart state, taken across a restart boundary." That measurement already
+exists — **`auto_promote.sh` performs it every cycle**, matching the live arm against the champion it
+resumed from. 46 readings are in `auto_promote.out`.
+
+Earliest reading per lineage, where the arm has barely moved off the champion:
+
+```
+lineage         gen    rate
+prod1           108   0.362   <-- deep
+prod4          1100   0.481
+prodk0127      1317   0.518
+prodk1056      1769   0.459
+prodk0729      1988   0.523
+prod2          3127   0.365   <-- deep
+prodk1658      4380   0.483
+prodk1926      4510   0.501
+prod3          5778   0.478
+prodk0759      7479   0.517
+```
+
+**The cleanest evidence needs no statistics.** `prod1` at generation **108** scores **0.362 against
+the net it started from**. After 108 generations the arm is still essentially the champion; absent a
+dip it should read ~0.500. `resume_dip_RESULT.md` independently measured **0.366 at generation 100** —
+agreement to 0.004, on a different run, by a different harness.
+
+**So the dip is real in production.** What the section above establishes stands unchanged: the
+ABSOLUTE ruler cannot see it. Both are true, and together they say precisely what the dip is — a
+paired-comparison phenomenon, invisible to a fixed external opponent.
+
+**The confound in the pooled split, stated rather than buried.** Pooling gens <4327 (mean 0.4627,
+n=7) against >=4327 (mean 0.5025, n=39) looks like a clean dip measurement and is not: later
+generations are also *further into training*, so improvement and recovery are conflated. That
+comparison is reported for completeness and carries no weight. The gen-108 reading does, because at
+108 generations there is no improvement to confound with.
+
+### What this changes about the decision
+
+**It does not reverse it, and it sharpens the cost.** The dip blocks PROMOTION, because
+`auto_promote` decides on exactly this paired comparison — an arm below 0.5 against the champion
+cannot be promoted no matter how the anchor rates it. So the restart's real cost is measured in lost
+promotion opportunities, not in Elo.
+
+How large: the trainer reaches ~9,000 generations per 30-minute `auto_promote` cycle, so the FIRST
+reading after a restart already lands at generation 1,300–2,000 — past the deepest part of the dip.
+Of the five earliest readings under gen 2,000, two are sub-parity and three are above it. That is
+roughly **one promotion opportunity lost per restart**, four times a day, out of ~9–12 per window.
+
+That is a real cost and still not a case for changing `SECS=21600` on its own, because the restart
+buys a replay-pool reset whose value is unmeasured. **The honest state is that both sides of the
+trade are now quantified on one side only**, and the experiment that would close it is a single
+window run at 12 hours with promotion counts compared — cheap, and not run here.
 
 ## The decision
 
