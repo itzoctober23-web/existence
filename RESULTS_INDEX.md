@@ -121,6 +121,7 @@ it was never indexed because of its name.
 
 | file | headline |
 |---|---|
+| [champion_absolute_PREREG.md](champion_absolute_PREREG.md) | Two sound instruments disagree about the same net: does the promotion ladder track ABSOLUTE strength? |
 | [auto_promote_confirm_untested_STATUS.md](auto_promote_confirm_untested_STATUS.md) | The promotion confirmation stage is ARMED but has never fired — status, not a success claim |
 | [cell_c_transitivity_FINDING.md](cell_c_transitivity_FINDING.md) | The three arms form a consistent ranking A > B > C — a transitivity check the instrument could have failed |
 | [cell_c_interpretation_PREREG.md](cell_c_interpretation_PREREG.md) | How to read cell C — written with ONE of two seeds in, before the second lands |

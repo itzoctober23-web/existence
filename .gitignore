@@ -9,6 +9,7 @@ bla_match_*.log
 bla_*.net
 # `cargo xtask watch` output: regenerated every 60s, and events.log is a local
 cellc_gate_done
+champion_absolute_ab_done
 champion*.net
 ckpt/
 /data/
