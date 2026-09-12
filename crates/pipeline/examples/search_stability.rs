@@ -65,6 +65,11 @@ fn main() {
     let mut b_bstable = [0usize; NB];
     let mut b_depth_a = [0f64; NB];
     let mut b_depth_b = [0f64; NB];
+    // BOUNDARY STRADDLING, measured directly. If a position sits on a depth boundary, the two runs
+    // reach DIFFERENT realised depths -- a small rng perturbation decides whether another ply
+    // completes. This is the mechanical test of the explanation offered for the inverted-U shape:
+    // instability should track this column, not the depth itself.
+    let mut b_depthdiff = [0usize; NB];
 
     for g in 0..games {
         let mut pos = Position::startpos();
@@ -100,6 +105,7 @@ fn main() {
             if b1 == b2 { b_bstable[bi] += 1; }
             b_depth_a[bi] += dep1 as f64;
             b_depth_b[bi] += dep2 as f64;
+            if dep1 != dep2 { b_depthdiff[bi] += 1; }
 
             // trajectory driven by ONE labeller only, so positions are identical for both arms
             let (mv, _) = s.best_move(&mut pos, 3, &net);
@@ -111,20 +117,24 @@ fn main() {
 
     println!("  SELF-AGREEMENT (same position, same arm, two different seeds)");
     println!("  {:<8} {:>7} {:>12} {:>12} {:>12} {:>14}",
-             "width", "n", "depth3", "budget", "budget-d3", "realised d");
+             "width", "n", "depth3", "budget", "budget-d3", "realised d / straddle%");
     let (mut td, mut tb, mut tn) = (0usize, 0usize, 0usize);
     for i in 0..NB {
         if b_n[i] == 0 { continue; }
         let k = b_n[i] as f64;
-        println!("  {:<8} {:>7} {:>11.1}% {:>11.1}% {:>+11.1} {:>14.2}",
+        println!("  {:<8} {:>7} {:>11.1}% {:>11.1}% {:>+11.1} {:>9.2} {:>6.1}%",
                  NAMES[i], b_n[i],
                  100.0 * b_dstable[i] as f64 / k, 100.0 * b_bstable[i] as f64 / k,
                  100.0 * (b_bstable[i] as f64 - b_dstable[i] as f64) / k,
-                 0.5 * (b_depth_a[i] + b_depth_b[i]) / k);
+                 0.5 * (b_depth_a[i] + b_depth_b[i]) / k,
+                 100.0 * b_depthdiff[i] as f64 / k);
         td += b_dstable[i]; tb += b_bstable[i]; tn += b_n[i];
     }
     let f = tn as f64;
-    println!("\n  OVERALL  depth3 {:.1}%   budget {:.1}%   budget-depth3 {:+.1} points",
+    let straddle: usize = b_depthdiff.iter().sum();
+    println!("\n  STRADDLE: {:.1}% of positions reached a DIFFERENT realised depth on the two runs",
+             100.0 * straddle as f64 / f);
+    println!("  OVERALL  depth3 {:.1}%   budget {:.1}%   budget-depth3 {:+.1} points",
              100.0 * td as f64 / f, 100.0 * tb as f64 / f, 100.0 * (tb as f64 - td as f64) / f);
     println!("\n  READING: variance amplification requires the budget to be LESS self-consistent than");
     println!("  the control -- a NEGATIVE budget-depth3, concentrated in the wide buckets where");

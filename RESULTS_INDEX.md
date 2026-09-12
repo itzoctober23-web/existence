@@ -17,6 +17,7 @@ Grep it for the lever you are about to test; the headlines are written to be rea
 
 | result | headline |
 |---|---|
+| [budget_instability_is_boundary_straddling_RESULT.md](budget_instability_is_boundary_straddling_RESULT.md) | The budget's instability is BOUNDARY STRADDLING — r = +0.98, and it predicts a larger budget is safer |
 | [search_stability_RESULT.md](search_stability_RESULT.md) | The budget's move choice IS noisier than fixed depth's — 3.2 points less self-consistent, on every seed |
 | [trajectory_drift_RESULT.md](trajectory_drift_RESULT.md) | Drift is real but points the WRONG WAY — the better net moved FURTHER from the start, not closer |
 | [budget_harm_is_emergent_RESULT.md](budget_harm_is_emergent_RESULT.md) | Both isolated channels are NULL while the full treatment costs real strength — the harm needs the LOOP |
