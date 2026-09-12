@@ -19,6 +19,7 @@
 
 use board::Position;
 use nnue::Net;
+use std::rc::Rc;
 use std::time::Instant;
 
 fn bench<F: FnMut()>(iters: usize, mut f: F) -> f64 {
@@ -77,14 +78,35 @@ fn main() {
     let t_eval = bench(20_000, || {
         std::hint::black_box(nodes[next()].score_with(&net, &mut eval_scratch));
     });
+    // EACH BENCH MUST DO WHAT THE INTERPRETER'S NODE DOES, NOT AN APPROXIMATION OF IT.
+    // Corrected 2026-09-12 after cost_model_vs_walltime_RESULT.md had to withdraw a per-primitive
+    // attribution built on these: three of the four benches did strictly LESS work than the node
+    // they price, so every ratio derived from them was a bound reported as a measurement. The
+    // interpreter bodies they must mirror are in crates/interp/src/lib.rs:
+    //   Node::Apply    a legality scan `!a.pos.legal_moves().as_slice().contains(&mv)`, then
+    //                  `a.child(net, mv, &mut sc)`, then `Value::Pos(Rc::new(child))`
+    //   Node::Moves    `x.legal_moves()` then `Value::List(Rc::new(l.as_slice().to_vec()))`
+    //                  -- a heap allocation and a copy, which `.len()` did not pay
+    //   Node::Terminal `x.outcome()`, NOT `legal_moves().is_empty()`
+    //   Node::Key      the field read `x.key` -- the key is maintained incrementally through
+    //                  make/unmake, so `zobrist()` prices a from-scratch recompute no program pays
     let mut fb = interp::Delta::new();
     let t_apply_inc = bench(20_000, || {
         let n = &nodes[next()];
         let l = n.pos.legal_moves();
-        if !l.is_empty() { std::hint::black_box(n.child(&net, l.as_slice()[0], &mut fb)); }
+        if !l.is_empty() {
+            let mv = l.as_slice()[0];
+            // The interpreter validates before applying; an illegal apply is a no-op, not a panic.
+            if l.as_slice().contains(&mv) {
+                std::hint::black_box(Rc::new(n.child(&net, mv, &mut fb)));
+            }
+        }
     });
-    let t_moves = bench(20_000, || { std::hint::black_box(ps[next()].legal_moves().len()); });
-    let t_key = bench(50_000, || { std::hint::black_box(ps[next()].zobrist()); });
+    let t_moves = bench(20_000, || {
+        let l = ps[next()].legal_moves();
+        std::hint::black_box(Rc::new(l.as_slice().to_vec()));
+    });
+    let t_key = bench(50_000, || { std::hint::black_box(ps[next()].key); });
 
     let t_apply = bench(20_000, || {
         let mut p = ps[next()].clone();
@@ -93,7 +115,7 @@ fn main() {
     });
     let t_terminal = bench(20_000, || {
         let p = &ps[next()];
-        std::hint::black_box(p.legal_moves().is_empty());
+        std::hint::black_box(p.outcome());
     });
 
     let unit = t_arith.max(1e-3);

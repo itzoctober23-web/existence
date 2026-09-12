@@ -244,6 +244,56 @@ live hypothesis; "by 7.9x" is not established. Settling it needs a calibrator wh
 the interpreter's own node paths rather than approximations of them — which is a fix to
 `cost_calibrate.rs`, and is the real prerequisite for any re-pricing.
 
+## RE-ESTABLISHED on a corrected instrument — eval is underpriced 7.8x
+
+The correction above named the fix: a calibrator whose benches invoke the interpreter's own node
+paths. That fix is now made (`crates/interp/examples/cost_calibrate.rs`) and re-run at width 32.
+
+**The corrections behaved exactly as the diagnosis predicted, which is itself the check that they
+were the right corrections:**
+
+```
+primitive   old bench   corrected   what changed
+key            19.5 ns      0.8 ns  zobrist() recompute -> the field read `x.key`   (-96%)
+apply         183.0 ns    217.3 ns  + contains() legality scan + Rc::new            (+19%)
+moves         149.8 ns    174.0 ns  + as_slice().to_vec() heap allocation and copy  (+16%)
+eval          284.1 ns    279.5 ns  unchanged -- this bench already matched          (-2%)
+terminal      152.3 ns    153.2 ns  legal_moves().is_empty() -> outcome()            (+1%)
+```
+
+`eval` barely moving is the control: it was the one bench carrying a comment saying it had been
+written to match the interpreter, and correcting the others did not disturb it. `key` collapsing by
+96% confirms the specific diagnosis that `zobrist()` was pricing a from-scratch recompute the
+interpreter never performs.
+
+**The attribution, now on four benches that all match their nodes** (normalised to `terminal`,
+because the 0.1 ns integer-op baseline remains untrustworthy and the absolute unit figures still
+inherit it):
+
+```
+primitive   should be (x terminal)   is charged   verdict
+eval                  1.824              0.235    UNDERpriced 7.77x
+moves                 1.136              3.175    OVERpriced  2.80x
+apply                 1.418              2.787    OVERpriced  1.96x
+```
+
+Units-per-nanosecond spread across the validated primitives: **21.7x** (`moves` vs `eval`).
+
+**The withdrawn conclusion returns; the magnitudes moved 10–15%.** eval underpriced 7.9x -> 7.77x,
+moves overpriced 3.2x -> 2.80x, apply 2.3x -> 1.96x, spread 25.7x -> 21.7x. The direction, the
+ordering, and the identity of the mispriced primitive are unchanged. This is now supported by two
+independent instruments — a per-primitive bench validated against the code it prices, and a
+program-level sweep that uses none of it.
+
+`key` is listed at "underpriced 3.67x" by the same arithmetic and that figure is **not worth
+acting on**: at 0.8 ns it costs 0.5% of a `terminal`, so a 3.67x error on it cannot move any
+program's total. It is reported only so the table is complete.
+
+**What is still not established.** Absolute unit values (`eval = 2170`) remain unreliable while the
+integer-op baseline reads 0.1 ns. Any re-pricing should be expressed as ratios against a primitive
+that is robustly measurable — `terminal` at ~153 ns is the natural choice — rather than against the
+nominal integer op the current table is defined in terms of.
+
 **Not fixed here, deliberately.** Re-pricing `cost_of` changes the denominator of FITNESS 3 and so
 changes every mates-per-cost number this project has recorded — including the GRAMMAR 9 ladder,
 whose hash-reuse conclusion the existing comments already flag as needing re-derivation. That is a
