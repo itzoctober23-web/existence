@@ -116,3 +116,58 @@ independent position samples rather than one, so the exact-match probability of 
 whole argument. But no statement about HOW MUCH better one net is may be read off these numbers, and
 the tie at seed 911911 (low_00002 = low_start = 0.719) shows adjacent arms genuinely are not always
 separated — exactly what the original limit warned.
+
+---
+
+## OUT-OF-SAMPLE test on a second arm set: 2 of 3 pairwise signs. The headline must SHRINK.
+
+The section above asked for re-testing "the next time a set of arms gets a game-measured verdict".
+`blend_sweep_RESULT.md` is that set, and its game verdicts were read and stated as a PREDICTION before
+the instrument was run.
+
+```
+predicted from games:   0.85 > 0.75 > start
+                        (0.85 beats 0.75 head-to-head 0.541 ± 0.032; both beat the start)
+
+measured agreement:     blend_085  0.808     blend_start 0.779     blend_075  0.776
+                        => 0.85 > start > 0.75
+second seed (_s1):      blend_085  0.801     blend_start 0.779     blend_075  0.775   -- same order
+```
+
+### Pairwise, against the game sign
+
+```
+0.85 vs 0.75    agreement +0.032   game margin +0.041 (0.541 ± 0.032)    MATCH
+0.85 vs start   agreement +0.029   game margin +0.083 (0.583 ± 0.027)    MATCH
+0.75 vs start   agreement −0.003   game margin +0.036 (0.536 ± 0.030)    MISMATCH
+```
+
+**2 of 3.** Both seeds agree with each other and both disagree with games on the same pair, so this is
+not sampling luck — it is a real limit of the instrument.
+
+### Where the limit is, stated precisely
+
+The failure is on the **smallest game margin**, and the instrument's gap there is **0.003** — inside
+its own measured noise (common-mode swing up to 0.080 across samples; adjacent arms tied outright at
+one seed). The set where it scored 4/4 had far larger separations:
+
+```
+lr arms    game scores vs start   0.546 / 0.535 / 0.412     spread 0.134
+blend arms game scores vs start   0.583 / 0.536             spread 0.047
+```
+
+**Revised claim, replacing the headline above:** eval-agreement reproduces the game ORDER when the
+strength differences are LARGE, and cannot resolve differences of the size the blend arms differ by. It
+is a coarse screen, not a substitute for the game gate — which is much closer to
+`proxies_RESULT.md`'s standing position than my first reading suggested.
+
+### What this does to tonight's other results
+
+`between_vs_within_RESULT.md` compares a **+0.149** rise against a flat line. That is 4x the largest
+gap the instrument just failed on and 50x the failing gap itself, so it sits well inside the regime
+where the instrument was right 6 of 7 times. The conclusion stands, but it now rests on an instrument
+with a known resolution floor of roughly **0.03**, not on one that ranks anything correctly.
+
+**The method note worth keeping:** the first set was chosen because it was convenient — it was the
+sweep I already had open. The second was chosen because it was a TEST. Only the second was informative
+about the instrument's limits, and it took one run.
