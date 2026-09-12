@@ -54,11 +54,33 @@ First two calls (STATE — two points, no direction):
 g100: champ-vs-origin 0.970±0.012  base 0.972±0.012  increment -0.002±0.017 -> ROLL BACK
 g200: champ-vs-origin 0.978±0.010  base 0.972±0.012  increment +0.006±0.015 -> ROLL BACK
 ```
-**Watch for a ceiling effect on this instrument:** champ-vs-origin sits at 0.97–0.98, so increments
-are being measured in a compressed band against a ±0.015-ish interval. A gate that rolls back every
-batch would leave the compound arm near its start after 2,000 generations — that is a real possible
-outcome and the A/B will show it, but the origin-relative instrument may simply lack headroom to
-resolve an increment at 0.97.
+**THE CEILING EFFECT IS REAL AND MEASURED — and it is the confound the verdict must be read
+through. Recorded BEFORE the arm finished, deliberately.**
+
+At g1400, 14 batch gates have fired: **3 KEEP, 11 ROLL BACK**. But look at the increments rather
+than the decisions:
+
+```
+-0.002  +0.006  +0.016* +0.015* +0.001  +0.008  +0.009
++0.019* +0.012  +0.003  +0.012  +0.007  +0.008  +0.001     (* = KEEP)
+```
+
+**13 of 14 increments are POSITIVE**, mean ≈ +0.0086, and the 3 KEEPs are *exactly* the 3 that clear
+their own interval. The gate is behaving precisely as specified — it is simply **underpowered for
+the effect it faces**: a typical increment of +0.008 against ci95 ≈ ±0.015 cannot resolve. Halving
+that interval to ~0.008 needs ≈ **3.5× the gate games** (ci ∝ 1/√n).
+
+**Why this matters for the A/B, and it cuts against the compound arm.** CONTROL runs with the gate
+disabled and accepts every candidate on the surrogate. COMPOUND has a gate that rolled back 11 of 14
+batches whose increments were positive. So if COMPOUND loses, the available explanation is **"its
+gate discarded real improvements it could not see"**, not "the window and budget are worse". Any
+verdict that reads a COMPOUND loss as a refutation of the compounding shape would be the wrong
+conclusion drawn from a correct measurement.
+
+**Stated honestly:** these 14 are NOT 14 independent samples — within a stretch they share the same
+cached `base` anchor score, and a sign test over them (13/14, p ≈ 0.002) overstates its case for that
+reason. What is solid is the DIRECTION and the size relative to the interval, which is all the power
+argument needs.
 
 **INSTRUMENT DEFECT FOUND, NOT YET FIXED (cannot rebuild under a running arm).** `main.rs:1078`
 builds the ledger's `what` as `format!("train {} epochs on {} samples", epochs, subset.len())`

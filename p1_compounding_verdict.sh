@@ -97,3 +97,28 @@ awk -v r="$rate" -v c="$ci" 'BEGIN{
 echo ""
 echo " Disjoint ruler CIs are required for the ruler half. A netmatch pass alone is a gate result,"
 echo " not a ruler result, and the PREREG requires both to be reported."
+
+# ---- THE CONFOUND, printed WITH the verdict rather than below it ------------------------------
+# A reader who scrolls stops at the first number, so this goes here and not in a footnote.
+echo ""
+echo "=============================================================================="
+echo " READ THE RESULT THROUGH THIS. It was recorded while the arm was still running."
+echo "=============================================================================="
+K=$(grep -F 'batch gate' p1c_compound.log 2>/dev/null | grep -cF 'KEEP')
+R=$(grep -F 'batch gate' p1c_compound.log 2>/dev/null | grep -cF 'ROLL BACK')
+POS=$(grep -F 'batch gate' p1c_compound.log 2>/dev/null | grep -oE 'increment [-+][0-9.]+' | awk '$2+0>0' | wc -l)
+TOT=$((K + R))
+echo " THE ARMS ARE NOT GATED THE SAME WAY, and it cuts AGAINST compound."
+echo "   CONTROL  ran with the gate disabled and accepted every candidate on the surrogate."
+echo "   COMPOUND ran a batch gate: $K KEEP, $R ROLL BACK over $TOT calls, of which $POS had a"
+echo "   POSITIVE increment. Typical increment ~+0.008 against ci95 ~+/-0.015, so the gate could"
+echo "   not resolve most of the improvement it was shown. Halving that interval needs ~3.5x the"
+echo "   gate games (ci ∝ 1/sqrt(n))."
+echo ""
+echo " THEREFORE: a COMPOUND LOSS DOES NOT REFUTE THE COMPOUNDING SHAPE. The available"
+echo " explanation is that its gate discarded real improvements it lacked the power to see."
+echo " A COMPOUND WIN is not subject to this caveat -- it won despite the handicap."
+echo ""
+echo " The batch increments are NOT independent samples: within a stretch they share one cached"
+echo " base anchor score, so a sign test over them overstates its case. The direction and the"
+echo " size-relative-to-interval are what the power argument rests on."
