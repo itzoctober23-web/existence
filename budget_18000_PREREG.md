@@ -35,6 +35,39 @@ measurably less harmed than the 5269 arm.**
 Same **training seed 777777**, same frozen start (`cand_start.net`, md5 `9545a35289e9`, verified at
 launch), so `candA2_fixed` and `candB2_budget` are both valid comparators without re-running them.
 
+## A CONFOUND, caught before the result: the arms are NOT compute-matched
+
+Noticed 08:10 from the arm's own pace — 29 generations in ~3 minutes, implying **~3.3 hours** for
+2000 rather than the 37 minutes `candB2_budget` took. The reason is arithmetic:
+
+```
+budget 18000 / budget 5269 = 3.42x the search nodes per move
+```
+
+The original Candidate A pair was compute-matched *by construction*: 5269 was chosen as the measured
+mean cost of a depth-3 move (`datagen_node_census_RESULT.md`), so `candA2_fixed` and
+`candB2_budget` spend the same nodes. **`candB18` does not.** At matched generations it spends 3.42x
+the datagen compute of either.
+
+Matching compute instead would mean running B18 for ~585 generations, and that is the wrong trade:
+this project matches arms on GENERATION count precisely because the resume transient and the
+learning dynamics are per-generation (`resume_transient`, and the unmatched-at-650-gens failure that
+invalidated the truncated low-lr sweep). So the confound is accepted and declared rather than traded
+for a worse one.
+
+**It makes the evidence ASYMMETRIC, and the decision rule below must be read through that:**
+
+* **If B18 WINS** — the result is *confounded*. More compute generically helps, so a win cannot
+  separate "more stable" from "more nodes". It would be consistent with the prediction, not
+  confirmation of it, and the follow-up is a compute-matched arm (budget 18000 at ~585 generations,
+  or budget 5269 with 3.42x the generations).
+* **If B18 LOSES or TIES** — the result is *strong*. An arm that is deeper, more stable, AND has
+  3.42x the compute failing to beat the operational budget is hard to explain if instability drives
+  the harm. That branch does not need compute-matching to bite.
+
+This asymmetry is recorded now, before the number exists, so that a win cannot later be read as more
+than it is.
+
 ## Primary comparison and the standard
 
 **PRIMARY: `candB18` vs `candB2_budget`**, 224 pairs, depth 4, three match seeds. This is the clean
